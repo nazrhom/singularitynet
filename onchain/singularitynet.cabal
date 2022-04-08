@@ -100,6 +100,7 @@ common common-lang
 library
   import:          common-lang
   exposed-modules: SingularityNet
+                 , Types
   build-depends:   plutarch
   hs-source-dirs:  src
 
