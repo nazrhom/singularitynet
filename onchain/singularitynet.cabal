@@ -120,8 +120,8 @@ test-suite singularitynet-test
     , plutarch
     , QuickCheck
     , quickcheck-instances
+    , singularitynet
     , tasty
     , tasty-quickcheck
-    , singularitynet
 
   hs-source-dirs: test
