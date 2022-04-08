@@ -1,10 +1,10 @@
 cabal-version:      3.0
-name:               template-project
+name:               singularitynet-offchain
 version:            0.1
 synopsis:           TODO
 description:        TODO
-homepage:           https://github.com/template-project
-bug-reports:        https://github.com/template-project
+homepage:           https://github.com/mlabs-haskell/singularitynet
+bug-reports:        https://github.com/mlabs-haskell/singularitynet
 license:
 license-file:
 author:             MLabs
@@ -12,12 +12,12 @@ maintainer:         TODO
 copyright:          TODO
 category:           TODO
 build-type:         Simple
-tested-with:        GHC ==9.2.1
+tested-with:        GHC ==8.10.7
 extra-source-files: README.md
 
 source-repository head
   type:     git
-  location: https://github.com/template-project
+  location: https://github.com/mlabs-haskell/singularitynet
 
 -- Common sections
 
@@ -29,14 +29,7 @@ common common-lang
     -Wno-name-shadowing -Wunused-foralls -fprint-explicit-foralls
     -fprint-explicit-kinds -fwarn-missing-import-lists -Werror
 
-  mixins:
-    base hiding (Prelude),
-    pprelude (PPrelude as Prelude)
-
-  build-depends:
-    , base      >=4.14
-    , pprelude
-
+  build-depends:      base
   default-extensions:
     NoStarIsType
     BangPatterns
@@ -85,43 +78,35 @@ common common-lang
     ScopedTypeVariables
     StandaloneDeriving
     StandaloneKindSignatures
-    TraditionalRecordSyntax
     TupleSections
     TypeApplications
     TypeFamilies
     TypeOperators
     TypeSynonymInstances
     ViewPatterns
-    OverloadedRecordDot
-    QualifiedDo
 
   default-language:   Haskell2010
 
 library
   import:          common-lang
-  exposed-modules: TemplateProject
-  build-depends:   plutarch
+  exposed-modules: SingularityNetOffchain
+  build-depends:   plutip
   hs-source-dirs:  src
 
-library pprelude
-  default-language: Haskell2010
-  build-depends:
-    , base
-    , plutarch
-
-  exposed-modules:  PPrelude
-  hs-source-dirs:   src
-
-test-suite template-project-test
+test-suite singularitynet-offchain-test
   import:         common-lang
   type:           exitcode-stdio-1.0
   main-is:        Spec.hs
   build-depends:
-    , plutarch
-    , QuickCheck
-    , quickcheck-instances
-    , tasty
-    , tasty-quickcheck
-    , template-project
+    , cardano-prelude            >=0.1.0.0
+    , containers                 >=0.6.5.1
+    , plutip
+    , plutus-contract            >=0.1.0.0
+    , plutus-ledger              >=0.1.0.0
+    , plutus-pab                 >=0.1.0.0
+    , tasty                      >=1.4
+    , singularitynet-offchain
+    , text                       >=1.2.4.1
 
+  ghc-options:    -Wall -threaded -rtsopts
   hs-source-dirs: test

@@ -4,7 +4,7 @@ on:
       - '**.hs'
       - '**.nix'
       - 'nix/sources.json'
-      - 'template-project.cabal'
+      - 'singularitynet.cabal'
       - ".github/**"
       - "MakeFile"
     branches:
@@ -15,7 +15,7 @@ on:
       - '**.hs'
       - '**.nix'
       - 'nix/sources.json'
-      - 'template-project.cabal'
+      - 'singularitynet.cabal'
 jobs:
   build:
     runs-on: ubuntu-latest

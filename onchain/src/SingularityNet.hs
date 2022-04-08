@@ -1,4 +1,4 @@
-module TemplateProject (exampleFunction) where
+module SingularityNet (exampleFunction) where
 
 import Plutarch.Monadic qualified as P
 

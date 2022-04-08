@@ -5,7 +5,7 @@ build: requires_nix_shell
 	cabal v2-build $(GHC_FLAGS)
 
 watch: requires_nix_shell
-	while sleep 1; do find src template-project.cabal | entr -cd make build; done
+	while sleep 1; do find src singularitynet.cabal | entr -cd make build; done
 
 test: requires_nix_shell
 	cabal v2-test
@@ -14,7 +14,7 @@ accept_pirs: requires_nix_shell
 	stack build --test $(STACK_FLAGS) $(GHC_FLAGS) --ta '-p MarketAction --accept'
 
 ghci: requires_nix_shell
-	cabal v2-repl $(GHC_FLAGS) template-project
+	cabal v2-repl $(GHC_FLAGS) singularitynet
 
 # Run fourmolu formatter
 format: requires_nix_shell
@@ -85,7 +85,7 @@ update_plutus:
 ################################################################################
 # Utils
 
-build_path = dist-newstyle/build/x86_64-linux/ghc-8.10.4.20210212/template-project-0.1
+build_path = dist-newstyle/build/x86_64-linux/ghc-8.10.4.20210212/singularitynet-0.1
 clear_build:
 	@[ ! -e $(build_path) ] || rm -rf $(build_path)
 

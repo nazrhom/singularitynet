@@ -1,1 +1,0 @@
-module TemplateProjectOffchain () where

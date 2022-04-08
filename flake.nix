@@ -1,6 +1,6 @@
 {
-  description = "template-project";
-  nixConfig.bash-prompt = "\\[\\e[0m\\][\\[\\e[0;2m\\]nix-develop \\[\\e[0;1m\\]template-project \\[\\e[0;93m\\]\\w\\[\\e[0m\\]]\\[\\e[0m\\]$ \\[\\e[0m\\]";
+  description = "singularitynet";
+  nixConfig.bash-prompt = "\\[\\e[0m\\][\\[\\e[0;2m\\]nix-develop \\[\\e[0;1m\\]singularitynet \\[\\e[0;93m\\]\\w\\[\\e[0m\\]]\\[\\e[0m\\]$ \\[\\e[0m\\]";
 
   inputs = {
     nixpkgs.follows = "plutip/nixpkgs";
@@ -121,7 +121,7 @@
               ];
               modules = [
                 ({ config, ... }: {
-                  packages.template-project-offchain.components.tests.template-project-offchain-test.build-tools = [
+                  packages.singularitynet-offchain.components.tests.singularitynet-offchain-test.build-tools = [
                     project.hsPkgs.cardano-cli.components.exes.cardano-cli
                     project.hsPkgs.cardano-node.components.exes.cardano-node
                   ];
