@@ -1,0 +1,3 @@
+[submodule "cardano-browser-tx"]
+	path = cardano-browser-tx
+	url = https://github.com/Plutonomicon/cardano-browser-tx/
