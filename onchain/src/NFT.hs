@@ -15,7 +15,7 @@ where
 
 import Plutarch (compile)
 import Plutarch.Api.V1
-  ( PCurrencySymbol (PCurrencySymbol),
+  ( PCurrencySymbol,
     PScriptContext,
     PScriptPurpose (PMinting),
     PTxInInfo,
@@ -32,16 +32,14 @@ import Settings (bondedStakingTokenName)
 pbondedStakingNFTPolicy :: forall (s :: S). Term s (PTxOutRef :--> PUnit :--> PScriptContext :--> PUnit)
 pbondedStakingNFTPolicy = plam $ \txOutRef _ ctx' -> P.do
   ctx <- pletFields @'["txInfo", "purpose"] ctx'
+  cs <- getCs ctx.purpose
   txInfo <- pletFields @'["inputs", "mint", "id"] $ ctx.txInfo
-  let cs :: Term s PCurrencySymbol
-      cs = pcon $ PCurrencySymbol $ pfield @"_0" #$ txInfo.id
-      mint :: Term s PValue
+  let mint :: Term s PValue
       mint = pfromData txInfo.mint
       inputs :: Term s (PBuiltinList (PAsData PTxInInfo))
       inputs = pfromData txInfo.inputs
   pif
-    ( isMinting # ctx.purpose
-        #&& consumesRef # txOutRef # inputs
+    (   consumesRef # txOutRef # inputs
         #&& mintsOneToken # cs # mint
     )
     (pconstant ())
@@ -53,11 +51,12 @@ hbondedStakingNFTPolicy utxo = compile $ pbondedStakingNFTPolicy # pconstant utx
 bondedStakingNFTPolicyHash :: TxOutRef -> ScriptHash
 bondedStakingNFTPolicyHash utxo = scriptHash $ hbondedStakingNFTPolicy utxo
 
-isMinting :: Term s (PScriptPurpose :--> PBool)
-isMinting = plam $
-  flip pmatch $ \case
-    (PMinting _) -> pconstant True
-    _ -> ptrace "can only mint in minting transaction" $ pconstant False
+-- Gets the currency symbol of the script (equivalent to ownCurrencySymbol)
+getCs :: Term s PScriptPurpose -> (Term s PCurrencySymbol -> Term s PUnit) -> Term s PUnit
+getCs purpose cont = P.do
+  pmatch purpose $ \case
+    (PMinting cs') -> cont $ pfield @"_0" # cs'
+    _ -> ptrace "not a minting transaction" perror
 
 consumesRef :: Term s (PTxOutRef :--> PBuiltinList (PAsData PTxInInfo) :--> PBool)
 consumesRef = plam $ \txOutRef ->
