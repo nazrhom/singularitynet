@@ -99,13 +99,19 @@ common common-lang
 
 library
   import:          common-lang
-  exposed-modules: SingularityNet
-                 , Types
-                 , NFT
-                 , Settings
-  build-depends:   plutarch,
-                   generics-sop,
-                   plutus-ledger-api
+  exposed-modules:
+    BondedPool
+    NFT
+    Settings
+    SingularityNet
+    Types
+
+  build-depends:
+    , generics-sop
+    , plutarch
+    , plutus-ledger-api
+    , plutus-tx
+
   hs-source-dirs:  src
 
 library pprelude
