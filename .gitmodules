@@ -1,3 +1,6 @@
 [submodule "cardano-browser-tx"]
 	path = cardano-browser-tx
 	url = https://github.com/Plutonomicon/cardano-browser-tx/
+[submodule "cardano-transaction-lib"]
+	path = cardano-transaction-lib
+	url = git@github.com:Plutonomicon/cardano-transaction-lib.git
