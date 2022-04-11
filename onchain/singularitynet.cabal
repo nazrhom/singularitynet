@@ -101,7 +101,11 @@ library
   import:          common-lang
   exposed-modules: SingularityNet
                  , Types
-  build-depends:   plutarch
+                 , NFT
+                 , Settings
+  build-depends:   plutarch,
+                   generics-sop,
+                   plutus-ledger-api
   hs-source-dirs:  src
 
 library pprelude
