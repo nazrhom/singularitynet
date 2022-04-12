@@ -35,13 +35,15 @@ import Options.Applicative (
   short,
   showDefault,
   strArgument,
-  strOption,
+  option,
+  str,
+  switch,
   subparser,
   value,
  )
 import Plutarch.Api.V1 (scriptHash)
 import Plutus.V1.Ledger.Api (CurrencySymbol (CurrencySymbol), PubKeyHash)
-import Plutus.V1.Ledger.Scripts (Script, getScriptHash, scriptSize)
+import Plutus.V1.Ledger.Scripts (Script, getScriptHash)
 import Plutus.V1.Ledger.Tx (TxOutRef (TxOutRef))
 import Plutus.V1.Ledger.TxId (TxId)
 import Types (BondedPoolParams (BondedPoolParams))
@@ -58,62 +60,75 @@ serialisePlutusScript title filepath scrpt = do
           , "cborHex" .= Text.decodeUtf8 (Base16.encode scriptRawCBOR)
           ]
       content = encode plutusJson
-  print title >> putStr "Script size " >> print (scriptSize scrpt)
   LBS.writeFile filepath content
 
 main :: IO ()
 main = do
   args <- execParser opts
   pure ()
-  case args of
-    SerialiseNFT out txOutRef ->
+  case cliCommand args of
+    SerialiseNFT txOutRef -> do
       let policy = hbondedStakingNFTPolicy txOutRef
           policyHash = scriptHash policy
-       in do
-            serialisePlutusScript
-              "SingularityNet NFT Policy - Applied"
-              out
-              policy
-            putStrLn $ "Policy hash (Currency Symbol): " <> show policyHash
-    SerialiseValidator out txOutRef pkh ->
-      let policy = hbondedStakingNFTPolicy txOutRef
-          cs = CurrencySymbol . getScriptHash . scriptHash $ policy
-          validator = hbondedPoolValidator $ BondedPoolParams pkh cs
-          validatorHash = scriptHash validator
-       in do
-            serialisePlutusScript
-              "SingularityNet Bonded Pool Validator - Applied"
-              out
-              validator
-            putStrLn $ "Validator hash: " <> show validatorHash
+      serialisePlutusScript "SingularityNet NFT Policy - Applied"
+        (maybe "nft_policy.json" id $ outPath args)
+        policy
+      if printHash args
+        then putStrLn $ "Minting policy hash (CurrencySymbol): "
+              <> show policyHash
+        else pure ()
+    SerialiseValidator txOutRef pkh -> do
+        let policy = hbondedStakingNFTPolicy txOutRef
+            cs = CurrencySymbol . getScriptHash . scriptHash $ policy
+            validator = hbondedPoolValidator $ BondedPoolParams pkh cs
+            validatorHash = scriptHash validator
+        serialisePlutusScript "SingularityNet Bonded Pool Validator - Applied"
+          (maybe "validator.json" id $ outPath args)
+          validator
+        if printHash args
+          then do putStrLn $ "Validator hash: " <> show validatorHash
+                  putStrLn $ "Currency symbol: " <> show cs
+          else pure ()
 
 -- Parsers --
-data CLI
-  = SerialiseNFT FilePath TxOutRef
-  | SerialiseValidator FilePath TxOutRef PubKeyHash
+data CLI = CLI {
+  outPath :: Maybe FilePath,
+  printHash :: Bool,
+  cliCommand :: CLICommand  
+}
 
+data CLICommand
+  = SerialiseNFT TxOutRef
+  | SerialiseValidator TxOutRef PubKeyHash
+  
 opts :: ParserInfo CLI
-opts =
-  info
-    (subparser $ serialiseNFTCommand <> serialiseValidatorCommand)
-    ( fullDesc
-        <> progDesc "Serialise the NFT minting policy or the validator"
-    )
+opts = info parser ( 
+  fullDesc
+  <> progDesc "Serialise the NFT policy or the validator"
+  )
+  
+parser :: Parser CLI
+parser = CLI <$>
+  outOption
+  <*> printHashSwitch
+  <*> commandParser
 
-serialiseNFTCommand :: Mod CommandFields CLI
+commandParser :: Parser CLICommand
+commandParser = subparser $ serialiseNFTCommand <> serialiseValidatorCommand
+
+serialiseNFTCommand :: Mod CommandFields CLICommand
 serialiseNFTCommand =
   command "nft" $
     info
-      (SerialiseNFT <$> outOption "nft-policy.json" <*> txOutRefParser)
+      (SerialiseNFT <$> txOutRefParser)
       (fullDesc <> progDesc "Serialise the NFT minting policy by providing a UTXO")
 
-serialiseValidatorCommand :: Mod CommandFields CLI
+serialiseValidatorCommand :: Mod CommandFields CLICommand
 serialiseValidatorCommand =
   command "validator" $
     info
       ( SerialiseValidator
-          <$> outOption "validator.json"
-          <*> txOutRefParser
+          <$> txOutRefParser
           <*> pubKeyHashParser
       )
       ( fullDesc
@@ -148,13 +163,19 @@ integerParser =
         <> help "The index of the output"
     )
 
-outOption :: FilePath -> Parser FilePath
-outOption def =
-  strOption
+outOption :: Parser (Maybe FilePath)
+outOption =
+  option (Just <$> str)
     ( long "out"
         <> short 'o'
         <> metavar "OUT"
         <> help "Location of serialised file"
-        <> value def
+        <> value Nothing
         <> showDefault
     )
+
+printHashSwitch :: Parser Bool
+printHashSwitch = switch (
+  long "print-hash" <>
+  short 'v'
+  )
