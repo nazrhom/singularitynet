@@ -41,9 +41,11 @@ import Options.Applicative (
   subparser,
   value,
  )
-import Plutarch.Api.V1 (scriptHash)
-import Plutus.V1.Ledger.Api (CurrencySymbol (CurrencySymbol), PubKeyHash)
-import Plutus.V1.Ledger.Scripts (Script, getScriptHash)
+import Plutarch.Api.V1 (mintingPolicySymbol, validatorHash)
+import Plutus.V1.Ledger.Api (
+  PubKeyHash,
+  MintingPolicy(getMintingPolicy), Validator(getValidator))
+import Plutus.V1.Ledger.Scripts (Script)
 import Plutus.V1.Ledger.Tx (TxOutRef (TxOutRef))
 import Plutus.V1.Ledger.TxId (TxId)
 import Types (BondedPoolParams (BondedPoolParams))
@@ -69,24 +71,23 @@ main = do
   case cliCommand args of
     SerialiseNFT txOutRef -> do
       let policy = hbondedStakingNFTPolicy txOutRef
-          policyHash = scriptHash policy
+          cs = mintingPolicySymbol policy
       serialisePlutusScript "SingularityNet NFT Policy - Applied"
         (maybe "nft_policy.json" id $ outPath args)
-        policy
+        (getMintingPolicy policy)
       if printHash args
-        then putStrLn $ "Minting policy hash (CurrencySymbol): "
-              <> show policyHash
+        then putStrLn $ "Currency symbol: " <> show cs
         else pure ()
     SerialiseValidator txOutRef pkh -> do
         let policy = hbondedStakingNFTPolicy txOutRef
-            cs = CurrencySymbol . getScriptHash . scriptHash $ policy
+            cs = mintingPolicySymbol policy
             validator = hbondedPoolValidator $ BondedPoolParams pkh cs
-            validatorHash = scriptHash validator
+            vh = validatorHash validator
         serialisePlutusScript "SingularityNet Bonded Pool Validator - Applied"
           (maybe "validator.json" id $ outPath args)
-          validator
+          (getValidator validator)
         if printHash args
-          then do putStrLn $ "Validator hash: " <> show validatorHash
+          then do putStrLn $ "Validator hash: " <> show vh
                   putStrLn $ "Currency symbol: " <> show cs
           else pure ()
 

@@ -1,7 +1,6 @@
 module NFT (
   pbondedStakingNFTPolicy,
-  hbondedStakingNFTPolicy,
-  bondedStakingNFTPolicyHash,
+  hbondedStakingNFTPolicy
 ) where
 
 {-
@@ -12,22 +11,21 @@ module NFT (
     in the `Settings` module.
 -}
 
-import Plutarch (compile)
 import Plutarch.Api.V1 (
-  PCurrencySymbol,
-  PScriptContext,
-  PScriptPurpose (PMinting),
-  PTxInInfo,
-  PTxOutRef,
-  PValue,
-  scriptHash,
+  PCurrencySymbol
+  , PScriptContext
+  , PScriptPurpose (PMinting)
+  , PTxInInfo
+  , PTxOutRef
+  , PValue
+  , mkMintingPolicy
  )
 import Plutarch.Api.V1.Value (PTokenName)
 import Plutarch.Monadic qualified as P
-import Plutus.V1.Ledger.Api (Script)
-import Plutus.V1.Ledger.Scripts (ScriptHash)
+import Plutus.V1.Ledger.Api (MintingPolicy)
 import Plutus.V1.Ledger.Tx (TxOutRef)
 import Settings (bondedStakingTokenName)
+import Plutarch.Unsafe (punsafeCoerce)
 
 pbondedStakingNFTPolicy ::
   forall (s :: S). Term s (PTxOutRef :--> PUnit :--> PScriptContext :--> PUnit)
@@ -46,13 +44,10 @@ pbondedStakingNFTPolicy = plam $ \txOutRef _ ctx' -> P.do
     (pconstant ())
     perror
 
-hbondedStakingNFTPolicy :: TxOutRef -> Script
+hbondedStakingNFTPolicy :: TxOutRef -> MintingPolicy
 hbondedStakingNFTPolicy utxo =
-  compile $ pbondedStakingNFTPolicy # pconstant utxo
-
-bondedStakingNFTPolicyHash :: TxOutRef -> ScriptHash
-bondedStakingNFTPolicyHash utxo = scriptHash $ hbondedStakingNFTPolicy utxo
-
+  mkMintingPolicy $ punsafeCoerce $ pbondedStakingNFTPolicy # pconstant utxo
+  
 -- Gets the currency symbol of the script (equivalent to ownCurrencySymbol)
 getCs ::
   forall (s :: S).
