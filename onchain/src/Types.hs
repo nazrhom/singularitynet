@@ -65,7 +65,7 @@ newtype BondedStakingState = BondedStakingState [PubKeyHash]
 unstableMakeIsData ''BondedStakingState
 
 {- | These parametrize the staking pool contract. However, the one parameter
- that makes each contract truly unique is `bppBondedStakingStateCs` (the NFT
+ that makes each contract truly unique is `BondedStakingStateCs` (the NFT
  hash)
 -}
 newtype PBondedPoolParams (s :: S)
@@ -85,8 +85,8 @@ newtype PBondedPoolParams (s :: S)
     via PIsDataReprInstances PBondedPoolParams
 
 data BondedPoolParams = BondedPoolParams
-  { bpp'Operator :: PubKeyHash
-  , bpp'BondedStakingStateCs :: CurrencySymbol
+  { operator :: PubKeyHash
+  , bondedStakingStateCs :: CurrencySymbol
   }
   deriving stock (GHC.Generic, Show)
 
