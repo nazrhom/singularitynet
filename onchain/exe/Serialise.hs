@@ -8,13 +8,8 @@ module Main (main) where
 -}
 
 import BondedPool (hbondedPoolValidator)
-import Cardano.Binary qualified as CBOR
-import Codec.Serialise (serialise)
-import Data.Aeson (KeyValue ((.=)), encode, object)
-import Data.ByteString.Base16 qualified as Base16
+import Data.Aeson (encode, toJSON)
 import Data.ByteString.Lazy qualified as LBS
-import Data.ByteString.Short qualified as SBS
-import Data.Text.Encoding qualified as Text
 import NFT (hbondedStakingNFTPolicy)
 import Options.Applicative (
   CommandFields,
@@ -50,19 +45,10 @@ import Plutus.V1.Ledger.Tx (TxOutRef (TxOutRef))
 import Plutus.V1.Ledger.TxId (TxId)
 import Types (BondedPoolParams (BondedPoolParams))
 
-serialisePlutusScript :: String -> FilePath -> Script -> IO ()
-serialisePlutusScript title filepath scrpt = do
-  let scriptSBS = SBS.toShort . LBS.toStrict . serialise $ scrpt
-      scriptRawCBOR = CBOR.serialize' scriptSBS
-      scriptType = "PlutusScriptV1" :: String
-      plutusJson =
-        object
-          [ "type" .= scriptType
-          , "description" .= title
-          , "cborHex" .= Text.decodeUtf8 (Base16.encode scriptRawCBOR)
-          ]
-      content = encode plutusJson
-  LBS.writeFile filepath content
+serialisePlutusScript :: FilePath -> Script -> IO ()
+serialisePlutusScript filepath script =
+  let content = encode $ toJSON script
+  in LBS.writeFile filepath content
 
 main :: IO ()
 main = do
@@ -72,7 +58,7 @@ main = do
     SerialiseNFT txOutRef -> do
       let policy = hbondedStakingNFTPolicy txOutRef
           cs = mintingPolicySymbol policy
-      serialisePlutusScript "SingularityNet NFT Policy - Applied"
+      serialisePlutusScript
         (maybe "nft_policy.json" id $ outPath args)
         (getMintingPolicy policy)
       if printHash args
@@ -83,7 +69,7 @@ main = do
             cs = mintingPolicySymbol policy
             validator = hbondedPoolValidator $ BondedPoolParams pkh cs
             vh = validatorHash validator
-        serialisePlutusScript "SingularityNet Bonded Pool Validator - Applied"
+        serialisePlutusScript
           (maybe "validator.json" id $ outPath args)
           (getValidator validator)
         if printHash args
