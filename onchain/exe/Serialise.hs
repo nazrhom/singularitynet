@@ -4,7 +4,15 @@ module Main (main) where
   This executable can generate CBOR encodings of the NFT minting policy and
   the BondedPool validator. It takes the necessary arguments from the CLI
   to generate them. The resulting scripts are *fully* applied.
+  
+  Some examples:
 
+  cabal exec serialise -- nft <Transaction Hash> <Output Index>
+  cabal exec serialise -- validator <Transaction Hash> <Output Index> <Public Key Hash>
+  
+  Use -v to print to console the policy/validator hash and -o to choose a
+  different output file. The latter option can be used with /dev/stdout to print
+  the result to screen.
 -}
 
 import BondedPool (hbondedPoolValidator)
