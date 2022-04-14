@@ -47,10 +47,15 @@ import Options.Applicative (
 import Plutarch.Api.V1 (mintingPolicySymbol, validatorHash)
 import Plutus.V1.Ledger.Api (
   PubKeyHash,
-  MintingPolicy(getMintingPolicy), Validator(getValidator))
+  MintingPolicy(getMintingPolicy),
+  Validator(getValidator),
+  CurrencySymbol,
+  TokenName(unTokenName))
+import Plutus.V1.Ledger.Bytes(LedgerBytes(LedgerBytes))
 import Plutus.V1.Ledger.Scripts (Script)
 import Plutus.V1.Ledger.Tx (TxOutRef (TxOutRef))
 import Plutus.V1.Ledger.TxId (TxId)
+import Settings(bondedStakingTokenName)
 import Types (BondedPoolParams (BondedPoolParams))
 
 serialisePlutusScript :: FilePath -> Script -> IO ()
@@ -70,7 +75,7 @@ main = do
         (maybe "nft_policy.json" id $ outPath args)
         (getMintingPolicy policy)
       if printHash args
-        then putStrLn $ "Currency symbol: " <> show cs
+        then printVerbose cs
         else pure ()
     SerialiseValidator txOutRef pkh -> do
         let policy = hbondedStakingNFTPolicy txOutRef
@@ -82,8 +87,15 @@ main = do
           (getValidator validator)
         if printHash args
           then do putStrLn $ "Validator hash: " <> show vh
-                  putStrLn $ "Currency symbol: " <> show cs
+                  printVerbose cs
           else pure ()
+            
+printVerbose :: CurrencySymbol -> IO ()
+printVerbose cs = do
+  putStrLn $ "Currency symbol: " <> show cs
+  putStrLn $ "Token name: " <> show bondedStakingTokenName
+  putStrLn $ "Token name (hex): "
+    <> (show . LedgerBytes . unTokenName $ bondedStakingTokenName)
 
 -- Parsers --
 data CLI = CLI {
