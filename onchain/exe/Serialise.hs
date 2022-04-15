@@ -10,7 +10,9 @@ module Main (main) where
 import BondedPool (hbondedPoolValidator)
 import Cardano.Binary qualified as CBOR
 import Codec.Serialise (serialise)
+import Data.Aeson as JSON
 import Data.Aeson (KeyValue ((.=)), encode, object)
+import Data.ByteString (pack)
 import Data.ByteString.Base16 qualified as Base16
 import Data.ByteString.Lazy qualified as LBS
 import Data.ByteString.Short qualified as SBS
@@ -43,53 +45,88 @@ import Options.Applicative (
  )
 import Plutarch.Api.V1 (mintingPolicySymbol, validatorHash)
 import Plutus.V1.Ledger.Api (
-  PubKeyHash,
-  MintingPolicy(getMintingPolicy), Validator(getValidator))
+  PubKeyHash(PubKeyHash),
+  MintingPolicy(getMintingPolicy), Validator(getValidator),
+  toBuiltin)
 import Plutus.V1.Ledger.Scripts (Script)
 import Plutus.V1.Ledger.Tx (TxOutRef (TxOutRef))
-import Plutus.V1.Ledger.TxId (TxId)
+import Plutus.V1.Ledger.TxId (TxId(TxId))
 import Types (BondedPoolParams (BondedPoolParams))
+
+
+txIdFixture :: TxId
+txIdFixture = TxId $ toBuiltin $ pack
+  [244,221,176,254,7,61,205,6,242,82,183,90,10,71,248,211,186,77,144,189,150,5,121,227,170,63,237,34,26,183,133,84]
+
+txOutRefFixture :: TxOutRef
+txOutRefFixture = TxOutRef txIdFixture 0
+
+pkhFixture :: PubKeyHash
+pkhFixture = PubKeyHash $ toBuiltin $ pack
+  [109,250,80,154,235,53,246,112,168,76,172,1,191,27,93,141,63,3,25,18,16,240,69,131,126,213,126,55]
 
 serialisePlutusScript :: String -> FilePath -> Script -> IO ()
 serialisePlutusScript title filepath scrpt = do
-  let scriptSBS = SBS.toShort . LBS.toStrict . serialise $ scrpt
-      scriptRawCBOR = CBOR.serialize' scriptSBS
-      scriptType = "PlutusScriptV1" :: String
-      plutusJson =
-        object
-          [ "type" .= scriptType
-          , "description" .= title
-          , "cborHex" .= Text.decodeUtf8 (Base16.encode scriptRawCBOR)
-          ]
-      content = encode plutusJson
+  let content = encode $ JSON.toJSON scrpt
   LBS.writeFile filepath content
 
 main :: IO ()
 main = do
-  args <- execParser opts
-  pure ()
-  case cliCommand args of
-    SerialiseNFT txOutRef -> do
-      let policy = hbondedStakingNFTPolicy txOutRef
-          cs = mintingPolicySymbol policy
-      serialisePlutusScript "SingularityNet NFT Policy - Applied"
-        (maybe "nft_policy.json" id $ outPath args)
-        (getMintingPolicy policy)
-      if printHash args
-        then putStrLn $ "Currency symbol: " <> show cs
-        else pure ()
-    SerialiseValidator txOutRef pkh -> do
-        let policy = hbondedStakingNFTPolicy txOutRef
-            cs = mintingPolicySymbol policy
-            validator = hbondedPoolValidator $ BondedPoolParams pkh cs
-            vh = validatorHash validator
-        serialisePlutusScript "SingularityNet Bonded Pool Validator - Applied"
-          (maybe "validator.json" id $ outPath args)
-          (getValidator validator)
-        if printHash args
-          then do putStrLn $ "Validator hash: " <> show vh
-                  putStrLn $ "Currency symbol: " <> show cs
-          else pure ()
+  putStrLn $ show txIdFixture
+  putStrLn  $ show txOutRefFixture
+  putStrLn $ show pkhFixture
+  let policy = hbondedStakingNFTPolicy txOutRefFixture
+      cs = mintingPolicySymbol policy
+  putStrLn $ show cs
+  serialisePlutusScript "SingularityNet NFT Policy - Applied"
+    "nft_policy.json"
+    (getMintingPolicy policy)
+
+  let validator = hbondedPoolValidator $ BondedPoolParams pkhFixture cs
+  serialisePlutusScript "SingularityNet Bonded Pool Validator - Applied"
+    "validator.json"
+    (getValidator validator)
+
+-- serialisePlutusScript :: String -> FilePath -> Script -> IO ()
+-- serialisePlutusScript title filepath scrpt = do
+--   let scriptSBS = SBS.toShort . LBS.toStrict . serialise $ scrpt
+--       scriptRawCBOR = CBOR.serialize' scriptSBS
+--       scriptType = "PlutusScriptV1" :: String
+--       plutusJson =
+--         object
+--           [ "type" .= scriptType
+--           , "description" .= title
+--           , "cborHex" .= Text.decodeUtf8 (Base16.encode scriptRawCBOR)
+--           ]
+--       content = encode plutusJson
+--   LBS.writeFile filepath content
+
+-- main :: IO ()
+-- main = do
+--   args <- execParser opts
+--   pure ()
+--   case cliCommand args of
+--     SerialiseNFT txOutRef -> do
+--       let policy = hbondedStakingNFTPolicy txOutRef
+--           cs = mintingPolicySymbol policy
+--       serialisePlutusScript "SingularityNet NFT Policy - Applied"
+--         (maybe "nft_policy.json" id $ outPath args)
+--         (getMintingPolicy policy)
+--       if printHash args
+--         then putStrLn $ "Currency symbol: " <> show cs
+--         else pure ()
+--     SerialiseValidator txOutRef pkh -> do
+--         let policy = hbondedStakingNFTPolicy txOutRef
+--             cs = mintingPolicySymbol policy
+--             validator = hbondedPoolValidator $ BondedPoolParams pkh cs
+--             vh = validatorHash validator
+--         serialisePlutusScript "SingularityNet Bonded Pool Validator - Applied"
+--           (maybe "validator.json" id $ outPath args)
+--           (getValidator validator)
+--         if printHash args
+--           then do putStrLn $ "Validator hash: " <> show vh
+--                   putStrLn $ "Currency symbol: " <> show cs
+--           else pure ()
 
 -- Parsers --
 data CLI = CLI {

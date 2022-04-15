@@ -9,7 +9,8 @@ import Types (
   BondedPoolParams,
   PBondedPoolParams,
   PBondedStakingAction,
-  PBondedStakingDatum,
+  PBondedStakingState,
+  -- PBondedStakingDatum,
  )
 import Plutarch.Unsafe (punsafeCoerce)
 
@@ -18,7 +19,7 @@ pbondedPoolValidator ::
   Term
     s
     ( PBondedPoolParams
-        :--> PAsData PBondedStakingDatum
+        :--> PAsData PBondedStakingState
         :--> PAsData PBondedStakingAction
         :--> PUnit
     )

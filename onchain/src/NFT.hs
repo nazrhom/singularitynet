@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -w #-}
+
 module NFT (
   pbondedStakingNFTPolicy,
   hbondedStakingNFTPolicy
@@ -26,6 +28,7 @@ import Plutus.V1.Ledger.Api (MintingPolicy)
 import Plutus.V1.Ledger.Tx (TxOutRef)
 import Settings (bondedStakingTokenName)
 import Plutarch.Unsafe (punsafeCoerce)
+import Utils (filterPositiveValue, filterUnitValue, filterZeroValue)
 
 pbondedStakingNFTPolicy ::
   forall (s :: S). Term s (PTxOutRef :--> PUnit :--> PScriptContext :--> PUnit)
@@ -35,11 +38,15 @@ pbondedStakingNFTPolicy = plam $ \txOutRef _ ctx' -> P.do
   txInfo <- pletFields @'["inputs", "mint", "id"] $ ctx.txInfo
   let mint :: Term s PValue
       mint = pfromData txInfo.mint
+
+      filteredMint :: Term s PValue
+      filteredMint = filterPositiveValue # (filterZeroValue # mint)
+
       inputs :: Term s (PBuiltinList (PAsData PTxInInfo))
       inputs = pfromData txInfo.inputs
   pif
     ( consumesRef # txOutRef # inputs
-        #&& mintsOneToken # cs # mint
+       #&& mintsOneToken # cs # filteredMint
     )
     (pconstant ())
     perror
@@ -47,7 +54,7 @@ pbondedStakingNFTPolicy = plam $ \txOutRef _ ctx' -> P.do
 hbondedStakingNFTPolicy :: TxOutRef -> MintingPolicy
 hbondedStakingNFTPolicy utxo =
   mkMintingPolicy $ punsafeCoerce $ pbondedStakingNFTPolicy # pconstant utxo
-  
+
 -- Gets the currency symbol of the script (equivalent to ownCurrencySymbol)
 getCs ::
   forall (s :: S).
