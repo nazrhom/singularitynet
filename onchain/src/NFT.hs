@@ -1,6 +1,6 @@
 module NFT (
   pbondedStakingNFTPolicy,
-  hbondedStakingNFTPolicy
+  hbondedStakingNFTPolicy,
 ) where
 
 {-
@@ -39,7 +39,7 @@ pbondedStakingNFTPolicy = plam $ \txOutRef _ ctx' -> P.do
       inputs = pfromData txInfo.inputs
   pif
     ( consumesRef # txOutRef # inputs
-        #&& mintsOneToken # cs # mint
+        #&& oneOf # cs # pconstant bondedStakingTokenName # mint
     )
     (pconstant ())
     perror
@@ -72,55 +72,95 @@ consumesRef = phoistAcyclic $
       Term s PTxOutRef
     getOutRef info' = pfield @"outRef" # pfromData info'
 
-mintsOneToken ::
-  forall (s :: S).
-  Term s (PCurrencySymbol :--> PValue :--> PBool)
-mintsOneToken = phoistAcyclic $
-  plam $ \cs val -> P.do
-    -- The map of CurrencySymbols
+oneOf :: forall (s :: S). Term s (
+  PCurrencySymbol :--> PTokenName :--> PValue :--> PBool)
+oneOf = phoistAcyclic $ plam $ \cs tn val ->
+  oneOfWith
+    # (peq # cs)
+    # (peq # tn)
+    # (ple # 1)
+    #$ val 
+  where ple :: forall (s :: S) . Term s (PInteger :--> PInteger :--> PBool)
+        ple = plam $ \lim x -> x #<= lim
+        
+-- Returns True if only *one* token satisfies the three predicates given
+oneOfWith :: forall (s :: S) . Term s (
+  (PCurrencySymbol :--> PBool) :-->
+  (PTokenName :--> PBool) :-->
+  (PInteger :--> PBool) :-->
+  PValue :-->
+  PBool)
+oneOfWith = phoistAcyclic $ plam $ \csPred tnPred nPred ->
+  tokenPredicate pxor csPred tnPred nPred
+  where pxor :: forall (s :: S) . Term s (PBool :--> PBool :--> PBool)
+        pxor = plam $ \x y -> pnot #$ peq # pdata x # pdata y
+
+peq :: forall (s :: S) (a :: PType) . PEq a => Term s (a :--> a :--> PBool)
+peq = plam $ \x y -> x #== y
+
+
+-- Assigns a boolean to each token in the value based on the the result of:
+--
+-- > csPred cs `pand` tnPred tn `pand` amountPred n
+--
+-- where each token is a tuple `(cs, tn, n)`.
+-- 
+-- Then, all the booleans are combined according to the boolean operator `op`.
+--
+-- This allows short-circuiting evaluation (e.g: a failure in `csPred`
+-- avoids evaluating the remaining predicates). `op` can be any binary boolean
+-- operator, like `pxor` (if only one token needs to satisfy all predicates) or
+-- `pand` (if all tokens must satisfy the predicates).
+-- 
+-- However, this generic function does not allow short-circuiting row-wise,
+-- meaning the `op` is strict in both arguments.
+tokenPredicate :: forall s .
+    Term s (PBool :--> PBool :--> PBool) ->
+    Term s (PCurrencySymbol :--> PBool) ->
+    Term s (PTokenName :--> PBool) ->
+    Term s (PInteger :--> PBool) ->
+    Term s (PValue :--> PBool)
+tokenPredicate boolOp csPred tnPred nPred = plam $ \val -> P.do
+    -- Map of CurrencySymbols
     let csMap = pto $ pto val
-    -- The value must contain only one currency symbol
-    csPair <- oneKey csMap
-    -- The currency symbol must match
-    tnMap <- csMatch cs csPair
-    -- The token name must be just one
-    tnPair <- oneKey (pto tnMap)
-    -- The token name must match and the amount must be 1
-    tnMatchOne tnPair
-  where
-    oneKey ::
-      forall (s :: S) (a :: PType).
-      PLift a =>
-      Term s (PBuiltinList a) ->
-      (Term s a -> Term s PBool) ->
-      Term s PBool
-    oneKey val cont = pmatch val $ \case
-      PCons p ps ->
-        pif
-          (pnull # ps)
-          (cont p)
-          (ptrace "too many CurrencySymbols/TokenNames" $ pconstant False)
-      PNil -> ptrace "empty map inside Value" $ pconstant False
-    csMatch ::
-      forall (s :: S) (a :: PType).
-      PIsData a =>
-      Term s PCurrencySymbol ->
-      Term s (PBuiltinPair (PAsData PCurrencySymbol) (PAsData a)) ->
-      (Term s a -> Term s PBool) ->
-      Term s PBool
-    csMatch cs pair cont =
-      pif
-        (pfst pair #== cs)
-        (cont $ psnd pair)
-        (ptrace "currency symbol does not match" $ pconstant False)
-    tnMatchOne ::
-      forall (s :: S).
-      Term s (PBuiltinPair (PAsData PTokenName) (PAsData PInteger)) ->
-      Term s PBool
-    tnMatchOne pair =
-      pif
-        (pfst pair #== pconstant bondedStakingTokenName #&& psnd pair #== 1)
-        (pconstant True)
-        (ptrace "token name does not match / too many tokens" $ pconstant False)
-    pfst p = pfromData $ pfstBuiltin # p
-    psnd p = pfromData $ psndBuiltin # p
+    csTnPair <- matchPair csMap
+    tnMap <- evalCs csTnPair
+    tnAmountPair <- matchPair $ pto tnMap
+    evalTnAndAmount tnAmountPair
+    where 
+          matchPair :: forall (a :: PType) . PLift a =>
+            Term s (PBuiltinList a) ->
+            (Term s a -> Term s PBool) ->
+            Term s PBool
+          matchPair ls cont = (pfix # plam go) # ls # plam cont
+            where -- Recurring function for the Y combinator
+              go :: forall (a :: PType) . PLift a =>
+                Term s (PBuiltinList a :--> (a :--> PBool) :--> PBool) ->
+                Term s (PBuiltinList a) ->
+                Term s (a :--> PBool) ->
+                Term s PBool
+              go self ls cont = pmatch ls $ \case
+                PNil -> pconstant False
+                PCons p ps -> boolOp # (cont # p) #$ self # ps # cont
+          evalCs :: forall (a :: PType) .
+            PIsData a =>
+            Term s (PBuiltinPair (PAsData PCurrencySymbol) (PAsData a)) ->
+            (Term s a -> Term s PBool) ->
+            (Term s PBool)
+          evalCs pair cont =
+            pif
+              (csPred # pfst pair)
+              (ptrace "evalCs OK" $ cont $ psnd pair)
+              (ptrace "predicate on CurrencySymbol not satisfied" $
+                pconstant False)
+          evalTnAndAmount ::
+            Term s (PBuiltinPair (PAsData PTokenName) (PAsData PInteger)) ->
+            Term s PBool
+          evalTnAndAmount pair =
+            pif
+              (tnPred # pfst pair #&& nPred # psnd pair)
+              (ptrace "evalTnAndAmount OK" $ pconstant True)
+              (ptrace "predicate on TokenName/amount not satisfied" $
+                pconstant False)
+          pfst p = pfromData $ pfstBuiltin # p
+          psnd p = pfromData $ psndBuiltin # p

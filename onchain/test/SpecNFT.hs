@@ -32,7 +32,9 @@ nftTests :: TestTree
 nftTests = testGroup
     "NFT tests"
     [ testCase "should validate correct transaction" $
-        succeeds $ testPolicy # pconstant () # pconstant goodCtx
+        succeeds $ testPolicy # pconstant () # pconstant goodCtx1
+    , testCase "should validate correct transaction with spurious tokens" $
+        succeeds $ testPolicy # pconstant () # pconstant goodCtx2
     , testCase "should not mint more than once" $
         fails $ testPolicy # pconstant () # pconstant badCtx1
     , testCase "should not consume the wrong outRef" $
@@ -76,8 +78,8 @@ testPubKeyHash :: PubKeyHash
 testPubKeyHash = PubKeyHash "deadbeef"
 
 -- Contexts
-goodCtx :: ScriptContext
-goodCtx = ScriptContext {
+goodCtx1 :: ScriptContext
+goodCtx1 = ScriptContext {
     scriptContextTxInfo = TxInfo {
         txInfoInputs = [
             TxInInfo {
@@ -92,12 +94,12 @@ goodCtx = ScriptContext {
         , txInfoOutputs = [
             TxOut {
                 txOutAddress = testTxOutAddr,
-                txOutValue = goodMint,
+                txOutValue = goodMint1,
                 txOutDatumHash = Nothing
             }
         ]
         , txInfoFee = lovelaceValueOf 1_000
-        , txInfoMint = goodMint
+        , txInfoMint = goodMint1
         , txInfoDCert = []
         , txInfoWdrl = []
         , txInfoValidRange = always
@@ -108,10 +110,25 @@ goodCtx = ScriptContext {
     scriptContextPurpose = Minting testCurrencySymbol
 }
 
+-- It's good, but contains spurious tokens with zero quantity
+goodCtx2 :: ScriptContext
+goodCtx2 = goodCtx1 {
+    scriptContextTxInfo = (scriptContextTxInfo goodCtx1) {
+        txInfoOutputs = [
+            TxOut {
+                txOutAddress = testTxOutAddr,
+                txOutValue = goodMint2,
+                txOutDatumHash = Nothing
+            }
+        ]
+        , txInfoMint = goodMint2
+    }
+}
+
 -- More than one token minted
 badCtx1 :: ScriptContext
-badCtx1 = goodCtx {
-    scriptContextTxInfo = (scriptContextTxInfo goodCtx) {
+badCtx1 = goodCtx1 {
+    scriptContextTxInfo = (scriptContextTxInfo goodCtx1) {
         txInfoOutputs = [
             TxOut {
                 txOutAddress = testTxOutAddr,
@@ -121,13 +138,12 @@ badCtx1 = goodCtx {
         ]
         , txInfoMint = badMint1
     }
-    , scriptContextPurpose = scriptContextPurpose goodCtx
 }
 
 -- The transaction does not consume the NFT's matching UTXO
 badCtx2 :: ScriptContext
-badCtx2 = goodCtx {
-    scriptContextTxInfo = (scriptContextTxInfo goodCtx) {
+badCtx2 = goodCtx1 {
+    scriptContextTxInfo = (scriptContextTxInfo goodCtx1) {
         txInfoInputs = [
             TxInInfo {
                 -- Wrong OutRef
@@ -139,11 +155,15 @@ badCtx2 = goodCtx {
             }
         ]
     }
-    , scriptContextPurpose = scriptContextPurpose goodCtx
 }
 
-goodMint :: Value
-goodMint = singleton testCurrencySymbol bondedStakingTokenName 1
+goodMint1 :: Value
+goodMint1 = singleton testCurrencySymbol bondedStakingTokenName 1
+
+goodMint2 :: Value
+goodMint2 = goodMint1
+    <> singleton "ababab" "RandomTokenName1" 0
+    <> singleton "efefef" "RandomTokenName2" 0
 
 badMint1 :: Value
 badMint1 = singleton testCurrencySymbol bondedStakingTokenName 10
