@@ -16,6 +16,7 @@ module Main (main) where
 -}
 
 import BondedPool (hbondedPoolValidator)
+import Control.Monad (when)
 import Data.Aeson (encode, toJSON)
 import Data.ByteString.Lazy qualified as LBS
 import NFT (hbondedStakingNFTPolicy)
@@ -67,7 +68,6 @@ serialisePlutusScript filepath script =
 main :: IO ()
 main = do
   args <- execParser opts
-  pure ()
   case cliCommand args of
     SerialiseNFT txOutRef -> do
       let policy = hbondedStakingNFTPolicy txOutRef
@@ -75,9 +75,8 @@ main = do
       serialisePlutusScript
         (maybe "nft_policy.json" id $ outPath args)
         (getMintingPolicy policy)
-      if printHash args
-        then printVerbose cs
-        else pure ()
+      when (printHash args) $
+        printVerbose cs
     SerialiseValidator txOutRef pkh -> do
       let policy = hbondedStakingNFTPolicy txOutRef
           cs = mintingPolicySymbol policy
@@ -86,11 +85,9 @@ main = do
       serialisePlutusScript
         (maybe "validator.json" id $ outPath args)
         (getValidator validator)
-      if printHash args
-        then do
-          putStrLn $ "Validator hash: " <> show vh
-          printVerbose cs
-        else pure ()
+      when (printHash args) $ do
+        putStrLn $ "Validator hash: " <> show vh
+        printVerbose cs
 
 printVerbose :: CurrencySymbol -> IO ()
 printVerbose cs = do
@@ -134,7 +131,11 @@ serialiseNFTCommand =
   command "nft" $
     info
       (SerialiseNFT <$> txOutRefParser)
-      (fullDesc <> progDesc "Serialise the NFT minting policy by providing a UTXO")
+      ( fullDesc
+          <> progDesc
+            "Serialise the NFT minting policy by providing a \
+            \UTXO"
+      )
 
 serialiseValidatorCommand :: Mod CommandFields CLICommand
 serialiseValidatorCommand =
@@ -146,9 +147,9 @@ serialiseValidatorCommand =
       )
       ( fullDesc
           <> progDesc
-            "Serialise the validator by providing a UTXO (used to \
-            \ obtain the appropiate minting policy) and the stake pool operator's public \
-            \ key hash"
+            "Serialise the validator by providing a UTXO (used to obtain the \
+            \appropiate minting policy) and the stake pool operator's public \
+            \key hash"
       )
 
 pubKeyHashParser :: Parser PubKeyHash
