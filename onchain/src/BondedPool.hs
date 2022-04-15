@@ -4,6 +4,7 @@ module BondedPool (
 ) where
 
 import Plutarch.Api.V1 (mkValidator)
+import Plutarch.Unsafe (punsafeCoerce)
 import Plutus.V1.Ledger.Api (Validator)
 import Types (
   BondedPoolParams,
@@ -11,7 +12,6 @@ import Types (
   PBondedStakingAction,
   PBondedStakingDatum,
  )
-import Plutarch.Unsafe (punsafeCoerce)
 
 pbondedPoolValidator ::
   forall (s :: S).
