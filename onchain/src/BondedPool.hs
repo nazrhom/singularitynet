@@ -25,5 +25,8 @@ pbondedPoolValidator ::
 pbondedPoolValidator = phoistAcyclic $ plam $ \_ _ _ -> pconstant ()
 
 hbondedPoolValidator :: BondedPoolParams -> Validator
-hbondedPoolValidator params =
-  mkValidator $ punsafeCoerce $ pbondedPoolValidator # pconstant params
+hbondedPoolValidator bondedPoolParams =
+  mkValidator $
+    punsafeCoerce $
+      pbondedPoolValidator
+        # pconstant bondedPoolParams
