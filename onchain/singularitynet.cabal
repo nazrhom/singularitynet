@@ -27,8 +27,7 @@ common common-lang
     -Wno-partial-type-signatures -Wmissing-export-lists
     -Wincomplete-record-updates -Wmissing-deriving-strategies
     -Wno-name-shadowing -Wunused-foralls -fprint-explicit-foralls
-    -fprint-explicit-kinds -fwarn-missing-import-lists
-    ---Werror
+    -fprint-explicit-kinds -fwarn-missing-import-lists -Werror
 
   mixins:
     base hiding (Prelude),
@@ -137,9 +136,11 @@ test-suite singularitynet-test
     , tasty
     , tasty-hunit
     , tasty-quickcheck
+
   other-modules:
-    , Utils
-    , SpecNFT
+    SpecNFT
+    Utils
+
   hs-source-dirs: test
 
 executable serialise

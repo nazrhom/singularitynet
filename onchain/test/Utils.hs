@@ -4,7 +4,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 import Plutarch
-import Plutarch.Evaluate(evaluateBudgetedScript, evaluateScript)
+import Plutarch.Evaluate (evaluateBudgetedScript, evaluateScript)
 import Plutarch.Prelude
 import Plutus.V1.Ledger.Scripts qualified as Scripts
 
@@ -13,7 +13,7 @@ succeeds :: ClosedTerm PUnit -> Assertion
 succeeds x = case evaluateScript $ compile x of
   Left e -> assertFailure $ "Script evaluation failed: " <> show e
   Right _ -> pure ()
-  
+
 fails :: ClosedTerm PUnit -> Assertion
 fails x = case evaluateScript $ compile x of
   Left (Scripts.EvaluationError _ _) -> mempty

@@ -1,35 +1,51 @@
 {-# LANGUAGE OverloadedStrings #-}
-module SpecNFT(nftTests) where
 
-import Utils ( succeeds, fails )
-import Test.Tasty ( testGroup, TestTree )
-import Test.Tasty.HUnit ( testCase )
-import Settings(bondedStakingTokenName)
-import NFT(pbondedStakingNFTPolicy)
-import Plutarch.Api.V1
-    ( PScriptContext, mintingPolicySymbol, mkMintingPolicy )
-import Plutus.V1.Ledger.Api
-    ( singleton,
-      CurrencySymbol,
-      Value,
-      Address(addressCredential, addressStakingCredential, Address),
-      Credential(PubKeyCredential),
-      PubKeyHash(PubKeyHash),
-      ScriptContext (ScriptContext, scriptContextTxInfo, scriptContextPurpose),
-      ScriptPurpose(Minting),
-      TxInInfo(TxInInfo, txInInfoResolved, txInInfoOutRef),
-      TxInfo(TxInfo, txInfoInputs, txInfoFee, txInfoDCert, txInfoWdrl,
-             txInfoValidRange, txInfoSignatories, txInfoData, txInfoId,
-             txInfoOutputs, txInfoMint),
-      TxOut(TxOut, txOutAddress, txOutValue, txOutDatumHash),
-      TxOutRef (txOutRefId, txOutRefIdx, TxOutRef),
-      TxId(TxId),
-      always )
-import Plutus.V1.Ledger.Ada(lovelaceValueOf)
+module SpecNFT (nftTests) where
+
+import NFT (pbondedStakingNFTPolicy)
+import Plutarch.Api.V1 (
+  PScriptContext,
+  mintingPolicySymbol,
+  mkMintingPolicy,
+ )
 import Plutarch.Unsafe (punsafeCoerce)
+import Plutus.V1.Ledger.Ada (lovelaceValueOf)
+import Plutus.V1.Ledger.Api (
+  Address (Address, addressCredential, addressStakingCredential),
+  Credential (PubKeyCredential),
+  CurrencySymbol,
+  PubKeyHash (PubKeyHash),
+  ScriptContext (ScriptContext, scriptContextPurpose, scriptContextTxInfo),
+  ScriptPurpose (Minting),
+  TxId (TxId),
+  TxInInfo (TxInInfo, txInInfoOutRef, txInInfoResolved),
+  TxInfo (
+    TxInfo,
+    txInfoDCert,
+    txInfoData,
+    txInfoFee,
+    txInfoId,
+    txInfoInputs,
+    txInfoMint,
+    txInfoOutputs,
+    txInfoSignatories,
+    txInfoValidRange,
+    txInfoWdrl
+  ),
+  TxOut (TxOut, txOutAddress, txOutDatumHash, txOutValue),
+  TxOutRef (TxOutRef, txOutRefId, txOutRefIdx),
+  Value,
+  always,
+  singleton,
+ )
+import Settings (bondedStakingTokenName)
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (testCase)
+import Utils (fails, succeeds)
 
 nftTests :: TestTree
-nftTests = testGroup
+nftTests =
+  testGroup
     "NFT tests"
     [ testCase "should validate correct transaction" $
         succeeds $ testPolicy # pconstant () # pconstant goodCtx1
@@ -38,40 +54,44 @@ nftTests = testGroup
     , testCase "should not mint more than once" $
         fails $ testPolicy # pconstant () # pconstant badCtx1
     , testCase "should not consume the wrong outRef" $
-        fails $ testPolicy # pconstant () # pconstant badCtx2]
+        fails $ testPolicy # pconstant () # pconstant badCtx2
+    ]
 
 -- Test data --
 
 -- The CurrencySymbol associated with the policy
 testCurrencySymbol :: CurrencySymbol
 testCurrencySymbol =
-    mintingPolicySymbol $ mkMintingPolicy $ punsafeCoerce $ testPolicy
-        
+  mintingPolicySymbol $ mkMintingPolicy $ punsafeCoerce $ testPolicy
+
 -- The policy
-testPolicy :: forall (s :: S) . Term s (PUnit :--> PScriptContext :--> PUnit)
+testPolicy :: forall (s :: S). Term s (PUnit :--> PScriptContext :--> PUnit)
 testPolicy = pbondedStakingNFTPolicy # pconstant testInputTxOutRef
 
 -- The UTXO used to mint the NFT
 testInputTxOutRef :: TxOutRef
-testInputTxOutRef = TxOutRef {
-    txOutRefId = TxId "ffffeeee",
-    txOutRefIdx = 0
-}
+testInputTxOutRef =
+  TxOutRef
+    { txOutRefId = TxId "ffffeeee"
+    , txOutRefIdx = 0
+    }
 
 -- The value contained by the previous UTXO
 testInputTxOut :: TxOut
-testInputTxOut = TxOut {
-    txOutAddress = testTxOutAddr,
-    txOutValue = lovelaceValueOf 50_000_000,
-    txOutDatumHash = Nothing
-}
+testInputTxOut =
+  TxOut
+    { txOutAddress = testTxOutAddr
+    , txOutValue = lovelaceValueOf 50_000_000
+    , txOutDatumHash = Nothing
+    }
 
 -- The address of all the the UTXOs involved (no validators are used)
 testTxOutAddr :: Address
-testTxOutAddr = Address {
-    addressCredential = PubKeyCredential testPubKeyHash,
-    addressStakingCredential = Nothing
-}
+testTxOutAddr =
+  Address
+    { addressCredential = PubKeyCredential testPubKeyHash
+    , addressStakingCredential = Nothing
+    }
 
 -- The public key hash used for signing
 testPubKeyHash :: PubKeyHash
@@ -79,89 +99,100 @@ testPubKeyHash = PubKeyHash "deadbeef"
 
 -- Contexts
 goodCtx1 :: ScriptContext
-goodCtx1 = ScriptContext {
-    scriptContextTxInfo = TxInfo {
-        txInfoInputs = [
-            TxInInfo {
-                txInInfoOutRef = testInputTxOutRef,
-                txInInfoResolved = TxOut {
-                    txOutAddress = testTxOutAddr,
-                    txOutValue = lovelaceValueOf 50_000_000,
-                    txOutDatumHash = Nothing
-                }
-            }
-        ]
-        , txInfoOutputs = [
-            TxOut {
-                txOutAddress = testTxOutAddr,
-                txOutValue = goodMint1,
-                txOutDatumHash = Nothing
-            }
-        ]
-        , txInfoFee = lovelaceValueOf 1_000
-        , txInfoMint = goodMint1
-        , txInfoDCert = []
-        , txInfoWdrl = []
-        , txInfoValidRange = always
-        , txInfoSignatories = [testPubKeyHash]
-        , txInfoData = []
-        , txInfoId = TxId "abcdef12"
-    },
-    scriptContextPurpose = Minting testCurrencySymbol
-}
+goodCtx1 =
+  ScriptContext
+    { scriptContextTxInfo =
+        TxInfo
+          { txInfoInputs =
+              [ TxInInfo
+                  { txInInfoOutRef = testInputTxOutRef
+                  , txInInfoResolved =
+                      TxOut
+                        { txOutAddress = testTxOutAddr
+                        , txOutValue = lovelaceValueOf 50_000_000
+                        , txOutDatumHash = Nothing
+                        }
+                  }
+              ]
+          , txInfoOutputs =
+              [ TxOut
+                  { txOutAddress = testTxOutAddr
+                  , txOutValue = goodMint1
+                  , txOutDatumHash = Nothing
+                  }
+              ]
+          , txInfoFee = lovelaceValueOf 1_000
+          , txInfoMint = goodMint1
+          , txInfoDCert = []
+          , txInfoWdrl = []
+          , txInfoValidRange = always
+          , txInfoSignatories = [testPubKeyHash]
+          , txInfoData = []
+          , txInfoId = TxId "abcdef12"
+          }
+    , scriptContextPurpose = Minting testCurrencySymbol
+    }
 
 -- It's good, but contains spurious tokens with zero quantity
 goodCtx2 :: ScriptContext
-goodCtx2 = goodCtx1 {
-    scriptContextTxInfo = (scriptContextTxInfo goodCtx1) {
-        txInfoOutputs = [
-            TxOut {
-                txOutAddress = testTxOutAddr,
-                txOutValue = goodMint2,
-                txOutDatumHash = Nothing
-            }
-        ]
-        , txInfoMint = goodMint2
+goodCtx2 =
+  goodCtx1
+    { scriptContextTxInfo =
+        (scriptContextTxInfo goodCtx1)
+          { txInfoOutputs =
+              [ TxOut
+                  { txOutAddress = testTxOutAddr
+                  , txOutValue = goodMint2
+                  , txOutDatumHash = Nothing
+                  }
+              ]
+          , txInfoMint = goodMint2
+          }
     }
-}
 
 -- More than one token minted
 badCtx1 :: ScriptContext
-badCtx1 = goodCtx1 {
-    scriptContextTxInfo = (scriptContextTxInfo goodCtx1) {
-        txInfoOutputs = [
-            TxOut {
-                txOutAddress = testTxOutAddr,
-                txOutValue = badMint1,
-                txOutDatumHash = Nothing
-            }
-        ]
-        , txInfoMint = badMint1
+badCtx1 =
+  goodCtx1
+    { scriptContextTxInfo =
+        (scriptContextTxInfo goodCtx1)
+          { txInfoOutputs =
+              [ TxOut
+                  { txOutAddress = testTxOutAddr
+                  , txOutValue = badMint1
+                  , txOutDatumHash = Nothing
+                  }
+              ]
+          , txInfoMint = badMint1
+          }
     }
-}
 
 -- The transaction does not consume the NFT's matching UTXO
 badCtx2 :: ScriptContext
-badCtx2 = goodCtx1 {
-    scriptContextTxInfo = (scriptContextTxInfo goodCtx1) {
-        txInfoInputs = [
-            TxInInfo {
-                -- Wrong OutRef
-                txInInfoOutRef = TxOutRef {
-                    txOutRefId = TxId "dddddddd",
-                    txOutRefIdx = 0
-                },
-                txInInfoResolved = testInputTxOut
-            }
-        ]
+badCtx2 =
+  goodCtx1
+    { scriptContextTxInfo =
+        (scriptContextTxInfo goodCtx1)
+          { txInfoInputs =
+              [ TxInInfo
+                  { -- Wrong OutRef
+                    txInInfoOutRef =
+                      TxOutRef
+                        { txOutRefId = TxId "dddddddd"
+                        , txOutRefIdx = 0
+                        }
+                  , txInInfoResolved = testInputTxOut
+                  }
+              ]
+          }
     }
-}
 
 goodMint1 :: Value
 goodMint1 = singleton testCurrencySymbol bondedStakingTokenName 1
 
 goodMint2 :: Value
-goodMint2 = goodMint1
+goodMint2 =
+  goodMint1
     <> singleton "ababab" "RandomTokenName1" 0
     <> singleton "efefef" "RandomTokenName2" 0
 

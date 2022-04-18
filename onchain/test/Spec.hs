@@ -1,7 +1,7 @@
 module Main (main) where
 
+import SpecNFT (nftTests)
 import Test.Tasty (TestTree, defaultMain, testGroup)
-import SpecNFT(nftTests)
 import Prelude (IO)
 
 -- | @since 0.1
@@ -16,4 +16,4 @@ tests :: TestTree
 tests =
   testGroup
     "SingularityNet"
-    [ nftTests ]
+    [nftTests]
