@@ -1,11 +1,13 @@
-module Utils where
+module Utils (
+  succeeds,
+  fails,
+) where
 
-import Test.Tasty
-import Test.Tasty.HUnit
+import Test.Tasty ()
+import Test.Tasty.HUnit (Assertion, assertFailure)
 
-import Plutarch
-import Plutarch.Evaluate (evaluateBudgetedScript, evaluateScript)
-import Plutarch.Prelude
+import Plutarch (ClosedTerm, compile, printScript)
+import Plutarch.Evaluate (evaluateScript)
 import Plutus.V1.Ledger.Scripts qualified as Scripts
 
 -- Most of these are taken from Plutarch's example tests
