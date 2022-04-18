@@ -136,3 +136,21 @@ test-suite singularitynet-test
     , tasty-quickcheck
 
   hs-source-dirs: test
+
+executable serialise
+  import:         common-lang
+  main-is:        Serialise.hs
+  build-depends:
+    , aeson
+    , base
+    , base16-bytestring
+    , bytestring
+    , cardano-binary
+    , optparse-applicative
+    , plutarch
+    , plutus-ledger-api
+    , serialise
+    , singularitynet
+    , text
+
+  hs-source-dirs: exe

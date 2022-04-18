@@ -1,13 +1,11 @@
 module BondedPool (
   pbondedPoolValidator,
   hbondedPoolValidator,
-  bondedPoolValidatorHash,
 ) where
 
-import Plutarch (compile)
-import Plutarch.Api.V1 (scriptHash)
-import Plutus.V1.Ledger.Api (Script)
-import Plutus.V1.Ledger.Scripts (ScriptHash)
+import Plutarch.Api.V1 (mkValidator)
+import Plutarch.Unsafe (punsafeCoerce)
+import Plutus.V1.Ledger.Api (Validator)
 import Types (
   BondedPoolParams,
   PBondedPoolParams,
@@ -26,8 +24,9 @@ pbondedPoolValidator ::
     )
 pbondedPoolValidator = phoistAcyclic $ plam $ \_ _ _ -> pconstant ()
 
-hbondedPoolValidator :: BondedPoolParams -> Script
-hbondedPoolValidator bpp = compile $ pbondedPoolValidator # pconstant bpp
-
-bondedPoolValidatorHash :: BondedPoolParams -> ScriptHash
-bondedPoolValidatorHash = scriptHash . hbondedPoolValidator
+hbondedPoolValidator :: BondedPoolParams -> Validator
+hbondedPoolValidator bondedPoolParams =
+  mkValidator $
+    punsafeCoerce $
+      pbondedPoolValidator
+        # pconstant bondedPoolParams
