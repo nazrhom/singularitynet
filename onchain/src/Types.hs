@@ -1,6 +1,10 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 
+-- TODO: * Update Datum fields
+--       * Review uses of Integer and pairs of Integers,
+--         some of them should be Naturals
+
 module Types (
   BondedPoolParams (BondedPoolParams, operator, bondedStakingStateCs)
   , PBondedPoolParams
@@ -9,6 +13,9 @@ module Types (
   , BondedStakingDatum(..)
   , PBondedStakingDatum
   , Entry (Entry, key, value, next)
+  , PEntry
+  , AssetClass (AssetClass), acCurrencySymbol, acTokenName, mkAssetClass
+  , PAssetClass
 ) where
 
 import GHC.Generics qualified as GHC
@@ -24,15 +31,58 @@ import Plutarch.DataRepr (
 import Plutarch.Lift (
   PLifted,
   PUnsafeLiftDecl,
+  DerivePConstantViaNewtype (DerivePConstantViaNewtype)
  )
 import Plutus.V1.Ledger.Api (
   CurrencySymbol,
-  PubKeyHash,
+  TokenName,
+  PubKeyHash
  )
 import PlutusTx (unstableMakeIsData)
 import PlutusTx.Builtins.Internal (BuiltinByteString)
 import Plutarch.Api.V1 (PPOSIXTime)
 import Plutarch.Api.V1 (PTokenName)
+
+import Numeric(
+  Natural
+  , PNatural
+  , NatRatio
+  , PNatRatio
+  )
+
+-- | An `AssetClass` is simply a wrapper over a pair (CurrencySymbol, TokenName)
+newtype PAssetClass (s :: S) = PAssetClass (
+  Term s (PBuiltinPair PCurrencySymbol PTokenName)
+  ) deriving stock (GHC.Generic)
+    deriving (PlutusType)
+    via (DerivePNewtype PAssetClass
+        (PBuiltinPair PCurrencySymbol PTokenName))
+
+newtype AssetClass = AssetClass {
+  acToTuple :: (CurrencySymbol, TokenName)
+} deriving stock (GHC.Generic, Show)
+  deriving anyclass (Generic)
+
+unstableMakeIsData ''AssetClass
+
+deriving via
+  (DerivePConstantViaNewtype
+    AssetClass
+    PAssetClass
+    (PBuiltinPair PCurrencySymbol PTokenName))
+  instance (PConstant AssetClass)
+
+instance PUnsafeLiftDecl PAssetClass where
+  type PLifted PAssetClass = AssetClass
+  
+-- | A Natural is a wrapper over integer
+
+mkAssetClass :: CurrencySymbol -> TokenName -> AssetClass
+mkAssetClass cs tn = AssetClass (cs, tn)
+acCurrencySymbol :: AssetClass -> CurrencySymbol
+acCurrencySymbol = fst . acToTuple
+acTokenName :: AssetClass -> TokenName
+acTokenName = snd . acToTuple
 
 {- | Bonded pool's parameters
 
@@ -57,8 +107,7 @@ newtype PBondedPoolParams (s :: S)
                , "minStake" ':= PInteger
                , "maxStake" ':= PInteger
                , "admin" ':= PPubKeyHash
-               -- There is no Plutarch representation for `AssetClass`
-               , "bondedAssetClass" ':= PBuiltinPair PCurrencySymbol PTokenName
+               , "bondedAssetClass" ':= PAssetClass
                , "nftCs" ':= PCurrencySymbol
                , "assocListCs" ':= PCurrencySymbol
                ]
@@ -95,7 +144,7 @@ instance PUnsafeLiftDecl PBondedPoolParams where
 data PEntry (s :: S) =
   PEntry (Term s (PDataRecord '[
     "key" ':= PByteString
-    , "value" ':= PBuiltinPair PInteger (PBuiltinPair PInteger PInteger)
+    , "value" ':= PBuiltinPair PNatural PNatRatio
     , "next" ':= PMaybe PByteString
   ]))
     deriving stock (GHC.Generic)
@@ -106,7 +155,7 @@ data PEntry (s :: S) =
 
 data Entry = Entry {
   key :: BuiltinByteString
-  , value :: (Integer, (Integer, Integer))
+  , value :: (Natural, NatRatio)
   , next :: Maybe BuiltinByteString
 }
 
