@@ -2,7 +2,6 @@
 , pkgs
 , system
 , inputs
-, self
 }:
 
 let
@@ -38,56 +37,55 @@ let
           });
     in
     (modules { }).shell.nodeDependencies;
-in
-{
-  defaultPackage = self.packages.${system}.singularitynet-frontend;
-
-  packages = {
-    singularitynet-frontend = ps-lib.buildPursProject {
-      name = "singularitynet-frontend";
-      subdir = "exe";
-      inherit src;
-    };
-  };
-
-  checks = {
-    singularitynet-frontend = ps-lib.runPursTest {
-      name = "singularitynet-frontend";
-      subdir = "test";
-      inherit src;
-    };
-  };
-
-  devShell =
-    pkgs.mkShell
-      {
-        buildInputs = with easy-ps; [
-          easy-ps.purs-0_14_5
-          spago
-          purs-tidy
-          purescript-language-server
-          pscid
-          spago2nix
-          pkgs.nodePackages.node2nix
-          nodejs
-        ];
-
-        shellHook = ''
-          __ln-node-modules () {
-            local modules=./node_modules
-            if test -L "$modules"; then
-              rm "$modules";
-            elif test -e "$modules"; then
-              echo 'refusing to overwrite existing (non-symlinked) `node_modules`'
-              exit 1
-            fi
-
-            ln -s ${nodeModules}/lib/node_modules "$modules"
-          }
-
-          __ln-node-modules
-
-          export PATH="${nodeModules}/bin:$PATH"
-        '';
+  flake = {
+    packages = {
+      singularitynet-frontend = ps-lib.buildPursProject {
+        name = "singularitynet-frontend";
+        subdir = "exe";
+        inherit src;
       };
-}
+    };
+
+    checks = {
+      singularitynet-frontend = ps-lib.runPursTest {
+        name = "singularitynet-frontend";
+        subdir = "test";
+        inherit src;
+      };
+    };
+
+    devShell =
+      pkgs.mkShell
+        {
+          buildInputs = with easy-ps; [
+            easy-ps.purs-0_14_5
+            spago
+            purs-tidy
+            purescript-language-server
+            pscid
+            spago2nix
+            pkgs.nodePackages.node2nix
+            nodejs
+          ];
+
+          shellHook = ''
+            __ln-node-modules () {
+              local modules=./frontend/node_modules
+              if test -L "$modules"; then
+                rm "$modules";
+              elif test -e "$modules"; then
+                echo 'refusing to overwrite existing (non-symlinked) `node_modules`'
+                exit 1
+              fi
+
+              ln -s ${nodeModules}/lib/node_modules "$modules"
+            }
+
+            __ln-node-modules
+
+            export PATH="${nodeModules}/bin:$PATH"
+          '';
+        };
+  };
+in
+{ inherit flake; }

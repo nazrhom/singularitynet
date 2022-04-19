@@ -171,6 +171,18 @@
           in
           project;
       };
+
+      frontend = {
+        projectFor = system:
+          let
+            pkgs = nixpkgsFor' system;
+            src = ./frontend;
+          in
+          import ./frontend/nix {
+            inherit src pkgs inputs system;
+          };
+      };
+
     in
     {
       inherit nixpkgsFor;
@@ -183,6 +195,10 @@
       offchain = {
         project = perSystem offchain.projectFor;
         flake = perSystem (system: (offchain.projectFor system).flake { });
+      };
+
+      frontend = {
+        flake = perSystem (system: (frontend.projectFor system).flake);
       };
 
       packages = perSystem (system:
@@ -215,8 +231,7 @@
       devShells = perSystem (system: {
         onchain = self.onchain.flake.${system}.devShell;
         offchain = self.offchain.flake.${system}.devShell;
+        frontend = self.frontend.flake.${system}.devShell;
       });
     };
 }
-
-
