@@ -11,10 +11,23 @@
     plutarch.url = "github:Plutonomicon/plutarch";
     plutarch.inputs.haskell-nix.follows = "plutip/haskell-nix";
     plutarch.inputs.nixpkgs.follows = "plutip/nixpkgs";
+
+    easy-purescript-nix = {
+      url = "github:justinwoo/easy-purescript-nix";
+      flake = false;
+    };
   };
 
 
-  outputs = inputs@{ self, nixpkgs, haskell-nix, plutarch, plutip, ... }:
+  outputs =
+    inputs@{ self
+    , nixpkgs
+    , haskell-nix
+    , plutarch
+    , plutip
+    , easy-purescript-nix
+    , ...
+    }:
     let
       # GENERAL
       supportedSystems = with nixpkgs.lib.systems.supported; tier1 ++ tier2 ++ tier3;
