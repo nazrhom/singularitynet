@@ -12,6 +12,7 @@ on:
       - '**.purs'
       - '**.dhall'
       - '**.json'
+      - '**.yaml'
       - 'singularitynet.cabal'
 
 jobs:
