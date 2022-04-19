@@ -208,26 +208,11 @@
       );
 
       checks = perSystem (system:
-        let
-          pkgs = nixpkgsFor' system;
-          easy-ps = import inputs.easy-purescript-nix { inherit pkgs; };
-        in
         self.onchain.flake.${system}.checks
         // self.offchain.flake.${system}.checks
-        // self.frontend.flake.${system}.checks
+        // self.frontend.flake.${system}.checks # includes formatting check as well
         // {
           formatCheck = formatCheckFor system;
-          frontendFormatCheck = pkgs.runCommand "formatting-check"
-            {
-              nativeBuildInputs = [
-                easy-ps.purs-tidy
-              ];
-            }
-            ''
-              cd ${self}
-              purs-tidy check $(find ./frontend/* -iregex '.*.purs')
-              touch $out
-            '';
         }
       );
 
