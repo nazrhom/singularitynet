@@ -52,7 +52,8 @@ let
       };
     in
     pkgs.stdenv.mkDerivation {
-      inherit name src;
+      inherit name;
+      src = cleanedSrc;
       buildInputs = [
         spagoPkgs.installSpagoStyle
         spagoPkgs.buildSpagoStyle
