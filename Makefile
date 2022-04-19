@@ -1,3 +1,11 @@
+ps-sources := $$(find ./* -iregex '.*.purs')
+
+frontend-check-format: requires_nix_shell
+	purs-tidy check ${ps-sources}
+
+frontend-format: requires_nix_shell
+	purs-tidy format-in-place ${ps-sources}
+
 hoogle: requires_nix_shell
 	hoogle server --local --port=8070 > /dev/null &
 

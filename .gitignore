@@ -1,7 +1,16 @@
-# Node artifact files
+# Build artifacts
 node_modules/
 dist/
 dist-newstyle/
+/output/
+/generated-docs/
+/.psc-package/
+/.psc*
+/.purs*
+/.psa*
+/.spago
+/.spago2nix*
+/dist/
 
 # nix-build results
 result
