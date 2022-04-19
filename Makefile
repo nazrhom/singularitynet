@@ -1,10 +1,8 @@
-ps-sources := $$(find ./* -iregex '.*.purs')
-
 frontend-check-format: requires_nix_shell
-	purs-tidy check ${ps-sources}
+	purs-tidy check $(PURESCRIPT_SOURCES)
 
 frontend-format: requires_nix_shell
-	purs-tidy format-in-place ${ps-sources}
+	purs-tidy format-in-place $(PURESCRIPT_SOURCES)
 
 hoogle: requires_nix_shell
 	hoogle server --local --port=8070 > /dev/null &
@@ -57,6 +55,7 @@ code:
 # Nix files to format
 NIX_SOURCES := $(shell fd -enix)
 CABAL_SOURCES := $(shell fd -ecabal)
+PURESCRIPT_SOURCES := $(shell fd -epurs)
 
 # Apply hlint suggestions
 lint: requires_nix_shell
