@@ -11,10 +11,23 @@
     plutarch.url = "github:Plutonomicon/plutarch";
     plutarch.inputs.haskell-nix.follows = "plutip/haskell-nix";
     plutarch.inputs.nixpkgs.follows = "plutip/nixpkgs";
+
+    easy-purescript-nix = {
+      url = "github:justinwoo/easy-purescript-nix";
+      flake = false;
+    };
   };
 
 
-  outputs = inputs@{ self, nixpkgs, haskell-nix, plutarch, plutip, ... }:
+  outputs =
+    inputs@{ self
+    , nixpkgs
+    , haskell-nix
+    , plutarch
+    , plutip
+    , easy-purescript-nix
+    , ...
+    }:
     let
       # GENERAL
       supportedSystems = with nixpkgs.lib.systems.supported; tier1 ++ tier2 ++ tier3;
@@ -158,6 +171,18 @@
           in
           project;
       };
+
+      frontend = {
+        projectFor = system:
+          let
+            pkgs = nixpkgsFor' system;
+            src = ./frontend;
+          in
+          import ./frontend/nix {
+            inherit src pkgs inputs system;
+          };
+      };
+
     in
     {
       inherit nixpkgsFor;
@@ -172,17 +197,25 @@
         flake = perSystem (system: (offchain.projectFor system).flake { });
       };
 
+      frontend = {
+        flake = perSystem (system: (frontend.projectFor system).flake);
+      };
+
       packages = perSystem (system:
         self.onchain.flake.${system}.packages
         // self.offchain.flake.${system}.packages
+        // self.frontend.flake.${system}.packages
       );
+
       checks = perSystem (system:
         self.onchain.flake.${system}.checks
         // self.offchain.flake.${system}.checks
+        // self.frontend.flake.${system}.checks # includes formatting check as well
         // {
           formatCheck = formatCheckFor system;
         }
       );
+
       check = perSystem (system:
         (nixpkgsFor system).runCommand "combined-test"
           {
@@ -192,6 +225,7 @@
               ++ [
                 self.devShells.${system}.onchain.inputDerivation
                 self.devShells.${system}.offchain.inputDerivation
+                self.devShells.${system}.frontend.inputDerivation
               ];
           } ''
           echo $checksss
@@ -202,8 +236,7 @@
       devShells = perSystem (system: {
         onchain = self.onchain.flake.${system}.devShell;
         offchain = self.offchain.flake.${system}.devShell;
+        frontend = self.frontend.flake.${system}.devShell;
       });
     };
 }
-
-
