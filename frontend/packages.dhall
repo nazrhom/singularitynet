@@ -230,7 +230,7 @@ let additions =
             , "enums"
             ]
         , repo = "https://github.com/Plutonomicon/cardano-transaction-lib.git"
-        , version = "682f325e248a54c431fb10dee9a373d2d6df328d"
+        , version = "3af852e0dd97ae8a0f5e6926e6b4cc96df0fa520"
         }
       }
 
