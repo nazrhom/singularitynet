@@ -53,7 +53,7 @@ code:
 	$(HLS_SHELL) --run "code ."
 
 # Nix files to format
-NIX_SOURCES := $(shell fd -enix)
+NIX_SOURCES := $(shell fd -enix --exclude='spago*')
 CABAL_SOURCES := $(shell fd -ecabal)
 PURESCRIPT_SOURCES := $(shell fd -epurs)
 
