@@ -39,7 +39,7 @@ let
     (modules { }).shell.nodeDependencies;
   flake = {
     packages = {
-      singularitynet-frontend = ps-lib.buildPursProject {
+      singularitynet-frontend-nodejs = ps-lib.buildPursProject {
         name = "singularitynet-frontend";
         subdir = "exe";
         inherit src;

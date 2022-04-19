@@ -204,7 +204,9 @@
       packages = perSystem (system:
         self.onchain.flake.${system}.packages
         // self.offchain.flake.${system}.packages
+        // self.frontend.flake.${system}.packages
       );
+
       checks = perSystem (system:
         let
           pkgs = nixpkgsFor' system;
@@ -228,6 +230,7 @@
             '';
         }
       );
+
       check = perSystem (system:
         (nixpkgsFor system).runCommand "combined-test"
           {
