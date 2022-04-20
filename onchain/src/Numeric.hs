@@ -30,11 +30,9 @@ import Plutarch.Monadic qualified as P
 import PlutusTx (
     ToData(toBuiltinData)
     , FromData(fromBuiltinData)
-    , UnsafeFromData(unsafeFromBuiltinData)
-    , Data(I))
+    , UnsafeFromData(unsafeFromBuiltinData))
 import Plutus.V1.Ledger.Api(
     BuiltinData(BuiltinData))
-import Plutarch.Unsafe (punsafeCoerce)
 
 {-
     This module implements some numeric types and operations on them.
@@ -67,10 +65,11 @@ instance ToData Natural where
     toBuiltinData (Natural n) = toBuiltinData (fromIntegral n :: Integer)
     
 instance FromData Natural where
-    fromBuiltinData (BuiltinData (I n))
-        | n < 0 = Nothing
-        | otherwise = Just . Natural $ fromInteger n
-    fromBuiltinData _ = Nothing
+    fromBuiltinData x = maybe Nothing gt0 $ fromBuiltinData x
+            where gt0 :: Integer -> Maybe Natural
+                  gt0 n
+                    | n < 0 = Nothing
+                    | otherwise = Just . Natural $ fromInteger n
 
 -- | A natural datatype that wraps a `PInteger`. It derives all of its instances
 -- from it, with the exception of `PIntegral`, since its methods can produce
@@ -110,10 +109,12 @@ instance UnsafeFromData NatRatio where
         in NatRatio $ fromInteger n % fromInteger d
     
 instance FromData NatRatio where
-    fromBuiltinData (BuiltinData (I n))
-        | n < 0 = Nothing
-        | otherwise = Just . NatRatio $ fromInteger n
-    fromBuiltinData _ = Nothing
+    fromBuiltinData x = maybe Nothing check $ fromBuiltinData x
+            where check :: (Integer, Integer) -> Maybe NatRatio
+                  check (n, d)
+                    | n < 0 || d <= 0 = Nothing
+                    | otherwise = Just . NatRatio $
+                        fromInteger n % fromInteger d
     
 -- | A natural datatype that wraps a pair of integers
 -- `PBuiltinPair PInteger PInteger`.
