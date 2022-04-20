@@ -35,22 +35,7 @@ let
     in
     (modules { }).shell.nodeDependencies;
 
-  buildPursProject =
-    { name
-    , src
-    , filter ? name: type:
-        builtins.any (ext: pkgs.lib.hasSuffix ext name) [
-          ".purs"
-          ".dhall"
-        ]
-    }:
-    let
-      cleanedSrc = builtins.path {
-        inherit filter;
-        name = "src";
-        path = src;
-      };
-    in
+  buildPursProject = { name, src, ... }:
     pkgs.stdenv.mkDerivation {
       inherit name src;
       buildInputs = [
@@ -88,7 +73,7 @@ let
         # spago will attempt to download things, which will fail in the
         # sandbox (idea taken from `plutus-playground-client`)
         checkPhase = ''
-          node -e 'require("./output/Test.Main").main()'
+          node -e 'require("./output/${testMain}").main()'
         '';
         installPhase = ''
           touch $out
