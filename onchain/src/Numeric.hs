@@ -202,7 +202,6 @@ instance NonNegative NatRatio where
 instance PNonNegative PNatural where
     x #+ y = pcon . PNatural $ pto x + pto y
     x #* y = pcon . PNatural $ pto x * pto y
-    (#-) :: forall (s :: S) . Term s PNatural -> Term s PNatural -> Term s (PMaybe PNatural)
     x #- y = P.do
         let x' = pto x
             y' = pto y
