@@ -146,21 +146,29 @@ instance PEq PNatRatio where
     
 instance POrd PNatRatio where
     a #<= b = P.do
-        (PNatRatio a') <- pmatch a
-        (PNatRatio b') <- pmatch b
-        let n1 = pfromData $ pfstBuiltin # a'
-            d1 = pfromData $ psndBuiltin # a'
-            n2 = pfromData $ pfstBuiltin # b'
-            d2 = pfromData $ psndBuiltin # b'
+        a' <- plet $ pto a
+        b' <- plet $ pto b
+        let n1 = pfstData # a'
+            d1 = psndData # a'
+            n2 = pfstData # b'
+            d2 = psndData # b'
         n1 * d2 #<= n2 * d1
     a #< b = P.do
         (PNatRatio a') <- pmatch a
         (PNatRatio b') <- pmatch b
-        let n1 = pfromData $ pfstBuiltin # a'
-            d1 = pfromData $ psndBuiltin # a'
-            n2 = pfromData $ pfstBuiltin # b'
-            d2 = pfromData $ psndBuiltin # b'
+        let n1 = pfstData # a'
+            d1 = psndData # a'
+            n2 = pfstData # b'
+            d2 = psndData # b'
         n1 * d2 #< n2 * d1
+        
+pfstData :: forall (s :: S) (a :: PType) (b :: PType) . PIsData a =>
+    Term s (PBuiltinPair (PAsData a) b :--> a)
+pfstData = phoistAcyclic $ plam $ \x -> pfromData $ pfstBuiltin # x
+
+psndData :: forall (s :: S) (a :: PType) (b :: PType) . PIsData b =>
+    Term s (PBuiltinPair a (PAsData b) :--> b)
+psndData = phoistAcyclic $ plam $ \x -> pfromData $ psndBuiltin # x
 
 -- | A class for numeric types on which we want safe arithmetic operations that
 -- cannot change the signum
