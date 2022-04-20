@@ -1,10 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- TODO: * Update Datum fields
---       * Review uses of Integer and pairs of Integers,
---         some of them should be Naturals
-
 module Types (
   BondedPoolParams (BondedPoolParams, operator, bondedStakingStateCs)
   , PBondedPoolParams
@@ -12,7 +8,16 @@ module Types (
   , PBondedStakingAction
   , BondedStakingDatum(..)
   , PBondedStakingDatum
-  , Entry (Entry, key, value, next)
+  , Entry (
+      Entry
+      , key
+      , value
+      , next
+      , sizeLeft
+      , newDeposit
+      , deposited
+      , staked
+      , rewards)
   , PEntry
   , AssetClass (AssetClass), acCurrencySymbol, acTokenName, mkAssetClass
   , PAssetClass
@@ -144,6 +149,11 @@ instance PUnsafeLiftDecl PBondedPoolParams where
 data PEntry (s :: S) =
   PEntry (Term s (PDataRecord '[
     "key" ':= PByteString
+    , "sizeLeft" ':= PNatural
+    , "newDeposit" ':= PMaybe PNatural
+    , "deposited" ':= PNatural
+    , "staked" ':= PNatural
+    , "rewards" ':= PNatRatio
     , "value" ':= PBuiltinPair PNatural PNatRatio
     , "next" ':= PMaybe PByteString
   ]))
@@ -155,9 +165,14 @@ data PEntry (s :: S) =
 
 data Entry = Entry {
   key :: BuiltinByteString
+  , sizeLeft :: Natural
+  , newDeposit :: Maybe Natural
+  , deposited :: Natural
+  , staked :: Natural
+  , rewards :: NatRatio
   , value :: (Natural, NatRatio)
   , next :: Maybe BuiltinByteString
-}
+} deriving stock (Show)
 
 unstableMakeIsData ''Entry
 
@@ -185,7 +200,7 @@ instance PUnsafeLiftDecl PEntry where
 newtype PBondedStakingDatum (s :: S)
   = PBondedStakingStateDatum
       (Term s (PDataRecord '[
-        "stateDatum" ':= PMaybe PByteString
+        "stateDatum" ':= PBuiltinPair (PMaybe PByteString) PNatural
         , "entryDatum" ':= PEntry
         , "assetDatum" ':= PUnit
   ]))
@@ -196,10 +211,10 @@ newtype PBondedStakingDatum (s :: S)
     via PIsDataReprInstances PBondedStakingDatum
 
 data BondedStakingDatum
-  = StateDatum (Maybe BuiltinByteString)
+  = StateDatum (Maybe BuiltinByteString) Natural
   | EntryDatum Entry
   | AssetDatum
-  deriving stock (GHC.Generic)
+  deriving stock (Show, GHC.Generic)
 
 unstableMakeIsData ''BondedStakingDatum
 
@@ -255,8 +270,8 @@ instance PUnsafeLiftDecl PMintingAction where
 -}
 newtype PBondedStakingAction (s :: S)=
   PBondedStakingAction (Term s (PDataRecord '[
-    "adminAct" ':= PUnit
-    , "stakeAct" ':= PBuiltinPair PInteger PPubKeyHash
+    "adminAct" ':= PNatural
+    , "stakeAct" ':= PBuiltinPair PNatural PPubKeyHash
     , "withdrawAct" ':= PPubKeyHash
     , "closeAct" ':= PUnit
   ]))
@@ -267,11 +282,11 @@ newtype PBondedStakingAction (s :: S)=
     via PIsDataReprInstances PBondedStakingAction
 
 data BondedStakingAction =
-    AdminAct
-    | StakeAct (Integer, PubKeyHash)
+    AdminAct Natural
+    | StakeAct Natural PubKeyHash
     | WithdrawAct PubKeyHash
     | CloseAct
-    deriving stock (GHC.Generic)
+    deriving stock Show
 
 unstableMakeIsData ''BondedStakingAction
 
