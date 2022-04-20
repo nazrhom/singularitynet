@@ -35,25 +35,9 @@ let
     in
     (modules { }).shell.nodeDependencies;
 
-  buildPursProject =
-    { name
-    , src
-    , filter ? name: type:
-        builtins.any (ext: pkgs.lib.hasSuffix ext name) [
-          ".purs"
-          ".dhall"
-        ]
-    }:
-    let
-      cleanedSrc = builtins.path {
-        inherit filter;
-        name = "src";
-        path = src;
-      };
-    in
+  buildPursProject = { name, src, ... }:
     pkgs.stdenv.mkDerivation {
-      inherit name;
-      src = cleanedSrc;
+      inherit name src;
       buildInputs = [
         spagoPkgs.installSpagoStyle
         spagoPkgs.buildSpagoStyle
