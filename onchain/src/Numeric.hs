@@ -179,20 +179,36 @@ class NonNegative a where
 
 -- | The same as `NonNegative` but for plutarch types
 class PNonNegative (a :: PType) where 
-    (#+) :: forall (s :: S) . Term s a -> Term s a -> Term s a
-    (#*) :: forall (s :: S) . Term s a -> Term s a -> Term s a
-    (#-) :: forall (s :: S) . Term s a -> Term s a -> Term s (PMaybe a)
+    (#+) :: forall (s :: S) . PNonNegative a => Term s a -> Term s a -> Term s a
+    (#*) :: forall (s :: S) . PNonNegative a => Term s a -> Term s a -> Term s a
+    (#-) :: forall (s :: S) . PNonNegative a => Term s a -> Term s a -> Term s (PMaybe a)
 
 instance NonNegative Natural where
-    (^+) :: Natural -> Natural -> Natural
     Natural x ^+ Natural y = Natural $ x + y
-    (^*) :: Natural -> Natural -> Natural
     Natural x ^* Natural y = Natural $ x * y
-    (^-) :: Natural -> Natural -> Maybe Natural
     Natural x ^- Natural y = if subtraction < 0
         then Nothing
         else Just . Natural $ subtraction
         where subtraction = fromIntegral x - fromIntegral y 
         
--- TODO: Add `PNonNegative` instance for `PInteger`
---       Add `NonNegative` instances for NatRatio
+instance NonNegative NatRatio where
+    NatRatio r ^+ NatRatio q = NatRatio $ r + q
+    NatRatio r ^* NatRatio q = NatRatio $ r * q
+    NatRatio r ^- NatRatio q = if subtraction < 0
+        then Nothing
+        else Just . NatRatio . fromRational $ subtraction
+        where subtraction = toRational r - toRational q
+        
+instance PNonNegative PNatural where
+    x #+ y = pcon . PNatural $ pto x + pto y
+    x #* y = pcon . PNatural $ pto x * pto y
+    (#-) :: forall (s :: S) . Term s PNatural -> Term s PNatural -> Term s (PMaybe PNatural)
+    x #- y = P.do
+        let x' = pto x
+            y' = pto y
+        diff <- plet $ x' - y'
+        pif (diff #< 0)
+            (pcon $ PNothing)
+            (pcon . PJust $ pcon . PNatural $ diff)
+        
+-- TODO: Add `PNonNegative` instances for NatRatio
