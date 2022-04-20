@@ -105,6 +105,7 @@ library
     Settings
     SingularityNet
     Types
+    Numeric
 
   build-depends:
     , generics-sop
@@ -151,7 +152,6 @@ executable serialise
     , base
     , base16-bytestring
     , bytestring
-    , cardano-binary
     , optparse-applicative
     , plutarch
     , plutus-ledger-api
