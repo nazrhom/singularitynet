@@ -26,7 +26,7 @@ import Plutus.V1.Ledger.Api (MintingPolicy)
 import Plutus.V1.Ledger.Tx (TxOutRef)
 
 import Settings (bondedStakingTokenName)
-import Utils(oneOf)
+import Utils (oneOf)
 
 pbondedStakingNFTPolicy ::
   forall (s :: S). Term s (PTxOutRef :--> PUnit :--> PScriptContext :--> PUnit)
