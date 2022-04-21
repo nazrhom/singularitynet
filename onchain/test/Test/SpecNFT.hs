@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module SpecNFT (nftTests) where
+module Test.SpecNFT (nftTests) where
 
 import NFT (pbondedStakingNFTPolicy)
 import Plutarch.Api.V1 (
@@ -41,7 +41,7 @@ import Plutus.V1.Ledger.Api (
 import Settings (bondedStakingTokenName)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
-import Utils (fails, succeeds)
+import Test.Utils (fails, succeeds)
 
 nftTests :: TestTree
 nftTests =

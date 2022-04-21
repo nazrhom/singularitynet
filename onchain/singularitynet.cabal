@@ -138,8 +138,8 @@ test-suite singularitynet-test
     , tasty-quickcheck
 
   other-modules:
-    SpecNFT
-    Utils
+    Test.SpecNFT
+    Test.Utils
 
   hs-source-dirs: test
 

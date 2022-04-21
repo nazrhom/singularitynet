@@ -1,6 +1,6 @@
 module Main (main) where
 
-import SpecNFT (nftTests)
+import Test.SpecNFT (nftTests)
 import Test.Tasty (TestTree, defaultMain, testGroup)
 import Prelude (IO)
 
