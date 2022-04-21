@@ -106,12 +106,7 @@ goodCtx1 =
           { txInfoInputs =
               [ TxInInfo
                   { txInInfoOutRef = testInputTxOutRef
-                  , txInInfoResolved =
-                      TxOut
-                        { txOutAddress = testTxOutAddr
-                        , txOutValue = lovelaceValueOf 50_000_000
-                        , txOutDatumHash = Nothing
-                        }
+                  , txInInfoResolved = testInputTxOut
                   }
               ]
           , txInfoOutputs =
