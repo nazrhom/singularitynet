@@ -28,10 +28,10 @@ ple :: forall (s :: S). Term s (PInteger :--> PInteger :--> PBool)
 ple = phoistAcyclic $ plam $ \lim x -> x #<= lim
 
 pge :: forall (s :: S). Term s (PInteger :--> PInteger :--> PBool)
-pge = plam $ \lim x -> pnot #$ pnot #$ x #< lim
+pge = plam $ \lim x -> pnot #$ x #< lim
 
 pgt :: forall (s :: S). Term s (PInteger :--> PInteger :--> PBool)
-pgt = plam $ \lim x -> pnot #$ pnot #$ x #<= lim
+pgt = plam $ \lim x -> pnot #$ x #<= lim
 
 -- Convenient functions for accessing a pair's elements
 
