@@ -128,20 +128,13 @@ goodCtx1 =
     , scriptContextPurpose = Minting testCurrencySymbol
     }
 
--- It's good, but contains spurious tokens with zero quantity
+-- It's good, but contains spurious tokens with zero quantity in its mint field
 goodCtx2 :: ScriptContext
 goodCtx2 =
   goodCtx1
     { scriptContextTxInfo =
         (scriptContextTxInfo goodCtx1)
-          { txInfoOutputs =
-              [ TxOut
-                  { txOutAddress = testTxOutAddr
-                  , txOutValue = goodMint2
-                  , txOutDatumHash = Nothing
-                  }
-              ]
-          , txInfoMint = goodMint2
+          { txInfoMint = goodMint2
           }
     }
 
