@@ -30,7 +30,7 @@ module Types (
 import GHC.Generics qualified as GHC
 import Generics.SOP (Generic, I (I))
 
-import Plutarch.Api.V1 (PPOSIXTime, PTokenName, PMaybeData)
+import Plutarch.Api.V1 (PMaybeData, PPOSIXTime, PTokenName)
 import Plutarch.Api.V1.Crypto (PPubKeyHash)
 import Plutarch.Api.V1.Value (PCurrencySymbol)
 import Plutarch.DataRepr (
