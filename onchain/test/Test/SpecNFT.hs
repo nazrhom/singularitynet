@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module SpecNFT (nftTests) where
+module Test.SpecNFT (nftTests) where
 
 import NFT (pbondedStakingNFTPolicy)
 import Plutarch.Api.V1 (
@@ -41,7 +41,7 @@ import Plutus.V1.Ledger.Api (
 import Settings (bondedStakingTokenName)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
-import Utils (fails, succeeds)
+import Test.Utils (fails, succeeds)
 
 nftTests :: TestTree
 nftTests =
@@ -106,12 +106,7 @@ goodCtx1 =
           { txInfoInputs =
               [ TxInInfo
                   { txInInfoOutRef = testInputTxOutRef
-                  , txInInfoResolved =
-                      TxOut
-                        { txOutAddress = testTxOutAddr
-                        , txOutValue = lovelaceValueOf 50_000_000
-                        , txOutDatumHash = Nothing
-                        }
+                  , txInInfoResolved = testInputTxOut
                   }
               ]
           , txInfoOutputs =
@@ -133,20 +128,13 @@ goodCtx1 =
     , scriptContextPurpose = Minting testCurrencySymbol
     }
 
--- It's good, but contains spurious tokens with zero quantity
+-- It's good, but contains spurious tokens with zero quantity in its mint field
 goodCtx2 :: ScriptContext
 goodCtx2 =
   goodCtx1
     { scriptContextTxInfo =
         (scriptContextTxInfo goodCtx1)
-          { txInfoOutputs =
-              [ TxOut
-                  { txOutAddress = testTxOutAddr
-                  , txOutValue = goodMint2
-                  , txOutDatumHash = Nothing
-                  }
-              ]
-          , txInfoMint = goodMint2
+          { txInfoMint = goodMint2
           }
     }
 

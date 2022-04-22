@@ -1,4 +1,4 @@
-module Utils (
+module Test.Utils (
   succeeds,
   fails,
 ) where
