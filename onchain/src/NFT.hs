@@ -20,12 +20,13 @@ import Plutarch.Api.V1 (
   PValue,
   mkMintingPolicy,
  )
-import Plutarch.Api.V1.Value (PTokenName)
 import Plutarch.Monadic qualified as P
 import Plutarch.Unsafe (punsafeCoerce)
 import Plutus.V1.Ledger.Api (MintingPolicy)
 import Plutus.V1.Ledger.Tx (TxOutRef)
+
 import Settings (bondedStakingTokenName)
+import Utils (oneOf)
 
 pbondedStakingNFTPolicy ::
   forall (s :: S). Term s (PTxOutRef :--> PUnit :--> PScriptContext :--> PUnit)
@@ -39,7 +40,7 @@ pbondedStakingNFTPolicy = plam $ \txOutRef _ ctx' -> P.do
       inputs = pfromData txInfo.inputs
   pif
     ( consumesRef # txOutRef # inputs
-        #&& mintsOneToken # cs # mint
+        #&& oneOf # cs # pconstant bondedStakingTokenName # mint
     )
     (pconstant ())
     perror
@@ -71,56 +72,3 @@ consumesRef = phoistAcyclic $
       Term s (PAsData PTxInInfo) ->
       Term s PTxOutRef
     getOutRef info' = pfield @"outRef" # pfromData info'
-
-mintsOneToken ::
-  forall (s :: S).
-  Term s (PCurrencySymbol :--> PValue :--> PBool)
-mintsOneToken = phoistAcyclic $
-  plam $ \cs val -> P.do
-    -- The map of CurrencySymbols
-    let csMap = pto $ pto val
-    -- The value must contain only one currency symbol
-    csPair <- oneKey csMap
-    -- The currency symbol must match
-    tnMap <- csMatch cs csPair
-    -- The token name must be just one
-    tnPair <- oneKey (pto tnMap)
-    -- The token name must match and the amount must be 1
-    tnMatchOne tnPair
-  where
-    oneKey ::
-      forall (s :: S) (a :: PType).
-      PLift a =>
-      Term s (PBuiltinList a) ->
-      (Term s a -> Term s PBool) ->
-      Term s PBool
-    oneKey val cont = pmatch val $ \case
-      PCons p ps ->
-        pif
-          (pnull # ps)
-          (cont p)
-          (ptrace "too many CurrencySymbols/TokenNames" $ pconstant False)
-      PNil -> ptrace "empty map inside Value" $ pconstant False
-    csMatch ::
-      forall (s :: S) (a :: PType).
-      PIsData a =>
-      Term s PCurrencySymbol ->
-      Term s (PBuiltinPair (PAsData PCurrencySymbol) (PAsData a)) ->
-      (Term s a -> Term s PBool) ->
-      Term s PBool
-    csMatch cs pair cont =
-      pif
-        (pfst pair #== cs)
-        (cont $ psnd pair)
-        (ptrace "currency symbol does not match" $ pconstant False)
-    tnMatchOne ::
-      forall (s :: S).
-      Term s (PBuiltinPair (PAsData PTokenName) (PAsData PInteger)) ->
-      Term s PBool
-    tnMatchOne pair =
-      pif
-        (pfst pair #== pconstant bondedStakingTokenName #&& psnd pair #== 1)
-        (pconstant True)
-        (ptrace "token name does not match / too many tokens" $ pconstant False)
-    pfst p = pfromData $ pfstBuiltin # p
-    psnd p = pfromData $ psndBuiltin # p
