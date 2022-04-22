@@ -30,7 +30,7 @@ module Types (
 import GHC.Generics qualified as GHC
 import Generics.SOP (Generic, I (I))
 
-import Plutarch.Api.V1 (PPOSIXTime, PTokenName)
+import Plutarch.Api.V1 (PPOSIXTime, PTokenName, PMaybeData)
 import Plutarch.Api.V1.Crypto (PPubKeyHash)
 import Plutarch.Api.V1.Value (PCurrencySymbol)
 import Plutarch.DataRepr (
@@ -164,12 +164,12 @@ data PEntry (s :: S)
           ( PDataRecord
               '[ "key" ':= PByteString
                , "sizeLeft" ':= PNatural
-               , "newDeposit" ':= PMaybe PNatural
+               , "newDeposit" ':= PMaybeData PNatural
                , "deposited" ':= PNatural
                , "staked" ':= PNatural
                , "rewards" ':= PNatRatio
                , "value" ':= PBuiltinPair PNatural PNatRatio
-               , "next" ':= PMaybe PByteString
+               , "next" ':= PMaybeData PByteString
                ]
           )
       )
@@ -218,7 +218,7 @@ newtype PBondedStakingDatum (s :: S)
       ( Term
           s
           ( PDataRecord
-              '[ "stateDatum" ':= PBuiltinPair (PMaybe PByteString) PNatural
+              '[ "stateDatum" ':= PBuiltinPair (PMaybeData PByteString) PNatural
                , "entryDatum" ':= PEntry
                , "assetDatum" ':= PUnit
                ]
@@ -257,7 +257,7 @@ newtype PMintingAction (s :: S)
       ( Term
           s
           ( PDataRecord
-              '[ "stateDatum" ':= PMaybe PByteString
+              '[ "stateDatum" ':= PMaybeData PByteString
                , "entryDatum" ':= PEntry
                , "assetDatum" ':= PUnit
                ]
