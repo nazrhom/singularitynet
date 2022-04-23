@@ -9,10 +9,21 @@ module Utils (
   psndData,
   oneOf,
   oneOfWith,
+  pletC,
+  pconstantC,
+  guardC,
+  getCs
 ) where
 
-import Plutarch.Api.V1 (PCurrencySymbol, PTokenName, PValue)
+import Plutarch.Api.V1 (
+  PCurrencySymbol
+  , PTokenName
+  , PValue
+  , PScriptPurpose(PMinting))
 import Plutarch.Monadic qualified as P
+import Plutarch.Lift (
+  PUnsafeLiftDecl
+  , PLifted)
 
 -- Term-level boolean functions
 peq :: forall (s :: S) (a :: PType). PEq a => Term s (a :--> a :--> PBool)
@@ -160,3 +171,34 @@ tokenPredicate boolOp csPred tnPred nPred = plam $ \val -> P.do
         ( ptrace "predicate on TokenName/amount not satisfied" $
             pconstant False
         )
+
+-- Functions for working with `TermCont`
+
+-- | Makes `a` constant and wraps it in a `TermCont`
+pconstantC ::
+  forall (s :: S) (a :: PType) .
+  PUnsafeLiftDecl a =>
+  PLifted a -> TermCont s (Term s a)
+pconstantC x = pure $ pconstant x
+
+pletC :: forall (s :: S) (a :: PType) . Term s a -> TermCont s (Term s a)
+pletC = tcont . plet
+
+-- | Boolean guard for the `TermCont` monad
+guardC ::
+  forall (s :: S) .
+  Term s PString ->
+  Term s PBool ->
+  TermCont s (Term s PUnit)
+guardC errMsg cond = pure $ pif cond (pconstant ()) $ ptraceError errMsg
+
+-- Helper functions for retrieving data in a validator
+
+-- Gets the currency symbol of the script (equivalent to ownCurrencySymbol)
+getCs ::
+  forall (s :: S) .
+  Term s PScriptPurpose ->
+  TermCont s (Term s PCurrencySymbol)
+getCs purpose = pure $ pmatch purpose $ \case
+  PMinting cs' -> pfield @"_0" # cs'
+  _ -> ptraceError "not a minting transaction"
