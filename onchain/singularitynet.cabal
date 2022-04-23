@@ -101,6 +101,7 @@ library
   import:          common-lang
   exposed-modules:
     BondedPool
+    ListNFT
     NFT
     Numeric
     Settings
