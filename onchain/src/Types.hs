@@ -6,6 +6,8 @@ module Types (
   PBondedPoolParams,
   BondedStakingAction (..),
   PBondedStakingAction,
+  MintingAction(Stake, Withdraw),
+  PMintingAction,
   BondedStakingDatum (..),
   PBondedStakingDatum,
   Entry (
