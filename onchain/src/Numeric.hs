@@ -183,9 +183,9 @@ class NonNegative (a :: Type) where
 
 -- | The same as `NonNegative` but for plutarch types
 class PNonNegative (a :: PType) where
-  (#+) :: PNonNegative a => Term s a -> Term s a -> Term s a
-  (#*) :: PNonNegative a => Term s a -> Term s a -> Term s a
-  (#-) :: PNonNegative a => Term s a -> Term s a -> Term s (PMaybe a)
+  (#+) :: Term s a -> Term s a -> Term s a
+  (#*) :: Term s a -> Term s a -> Term s a
+  (#-) :: Term s a -> Term s a -> Term s (PMaybe a)
 
 instance NonNegative Natural where
   Natural x ^+ Natural y = Natural $ x + y
