@@ -218,7 +218,8 @@ data PBondedStakingDatum (s :: S)
       ( Term
           s
           ( PDataRecord
-              '[ "_0" ':= PBuiltinPair (PMaybeData PByteString) PNatural
+              '[ "_0" ':= PMaybeData PByteString
+               , "_1" ':= PNatural
                ]
           )
       )
