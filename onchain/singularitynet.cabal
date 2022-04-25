@@ -102,6 +102,7 @@ library
   exposed-modules:
     BondedPool
     NFT
+    Numeric
     Settings
     SingularityNet
     Types
@@ -152,7 +153,6 @@ executable serialise
     , base
     , base16-bytestring
     , bytestring
-    , cardano-binary
     , optparse-applicative
     , plutarch
     , plutus-ledger-api
