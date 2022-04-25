@@ -72,11 +72,6 @@ instance ToData Natural where
 
 instance FromData Natural where
   fromBuiltinData x = maybe Nothing gt0 $ fromBuiltinData x
-    where
-      gt0 :: Integer -> Maybe Natural
-      gt0 n
-        | n < 0 = Nothing
-        | otherwise = Just . Natural $ fromInteger n
 
 {- | A natural datatype that wraps a `PInteger`. It derives all of its instances
  from it, with the exception of `PIntegral`, since its methods can produce
@@ -95,9 +90,7 @@ instance PConstant Natural where
   type PConstantRepr Natural = Integer
   type PConstanted Natural = PNatural
   pconstantToRepr (Natural n) = fromIntegral n
-  pconstantFromRepr i
-    | i < 0 = Nothing
-    | otherwise = Just . Natural $ fromInteger i
+  pconstantFromRepr = gt0
 
 {- | A rational datatype that wraps a `Ratio Natural`. By using `Natural`
  instead of `Integer` we at least get a warning when using negative literals.
@@ -109,10 +102,7 @@ newtype NatRatio = NatRatio (Ratio Natural.Natural)
 
 instance ToData NatRatio where
   toBuiltinData (NatRatio r) =
-    BuiltinData $ plift $ pforgetData . pconstantData . convert $ r
-    where
-      convert :: Ratio Natural.Natural -> (Integer, Integer)
-      convert x = (fromIntegral $ numerator x, fromIntegral $ denominator x)
+    BuiltinData $ plift $ pforgetData . pconstantData . toTuple $ r
 
 instance UnsafeFromData NatRatio where
   unsafeFromBuiltinData x =
@@ -120,14 +110,8 @@ instance UnsafeFromData NatRatio where
      in NatRatio $ fromInteger n % fromInteger d
 
 instance FromData NatRatio where
-  fromBuiltinData x = maybe Nothing check $ fromBuiltinData x
+  fromBuiltinData x = maybe Nothing toRatio $ fromBuiltinData x
     where
-      check :: (Integer, Integer) -> Maybe NatRatio
-      check (n, d)
-        | n < 0 || d <= 0 = Nothing
-        | otherwise =
-            Just . NatRatio $
-              fromInteger n % fromInteger d
 
 {- | A natural datatype that wraps a pair of integers
  `PBuiltinPair PInteger PInteger`.
@@ -138,7 +122,10 @@ newtype PNatRatio (s :: S)
   deriving stock (GHC.Generic)
   deriving
     (PIsData, PlutusType)
-    via (DerivePNewtype PNatRatio (PBuiltinPair (PAsData PInteger) (PAsData PInteger)))
+    via ( DerivePNewtype
+            PNatRatio
+            (PBuiltinPair (PAsData PInteger) (PAsData PInteger))
+        )
 
 instance PUnsafeLiftDecl PNatRatio where
   type PLifted PNatRatio = NatRatio
@@ -146,11 +133,8 @@ instance PUnsafeLiftDecl PNatRatio where
 instance PConstant NatRatio where
   type PConstantRepr NatRatio = (Integer, Integer)
   type PConstanted NatRatio = PNatRatio
-  pconstantToRepr (NatRatio r) =
-    (fromIntegral $ numerator r, fromIntegral $ denominator r)
-  pconstantFromRepr (n, d)
-    | n < 0 || d <= 0 = Nothing
-    | otherwise = Just . NatRatio $ (fromInteger n) % (fromInteger d)
+  pconstantToRepr (NatRatio r) = toTuple r
+  pconstantFromRepr = toRatio
 
 -- We have to define `PEq` and `POrd` instances manually
 instance PEq PNatRatio where
@@ -169,8 +153,8 @@ instance POrd PNatRatio where
         d2 = psndData # b'
     n1 * d2 #<= n2 * d1
   a #< b = P.do
-    (PNatRatio a') <- pmatch a
-    (PNatRatio b') <- pmatch b
+    a' <- plet $ pto a
+    b' <- plet $ pto b
     let n1 = pfstData # a'
         d1 = psndData # a'
         n2 = pfstData # b'
@@ -192,16 +176,16 @@ psndData = phoistAcyclic $ plam $ \x -> pfromData $ psndBuiltin # x
 {- | A class for numeric types on which we want safe arithmetic operations that
  cannot change the signum
 -}
-class NonNegative a where
+class NonNegative (a :: Type) where
   (^+) :: a -> a -> a
   (^*) :: a -> a -> a
   (^-) :: a -> a -> Maybe a
 
 -- | The same as `NonNegative` but for plutarch types
 class PNonNegative (a :: PType) where
-  (#+) :: forall (s :: S). PNonNegative a => Term s a -> Term s a -> Term s a
-  (#*) :: forall (s :: S). PNonNegative a => Term s a -> Term s a -> Term s a
-  (#-) :: forall (s :: S). PNonNegative a => Term s a -> Term s a -> Term s (PMaybe a)
+  (#+) :: forall (s :: S). Term s a -> Term s a -> Term s a
+  (#*) :: forall (s :: S). Term s a -> Term s a -> Term s a
+  (#-) :: forall (s :: S). Term s a -> Term s a -> Term s (PMaybe a)
 
 instance NonNegative Natural where
   Natural x ^+ Natural y = Natural $ x + y
@@ -232,7 +216,24 @@ instance PNonNegative PNatural where
     diff <- plet $ x' - y'
     pif
       (diff #< 0)
-      (pcon $ PNothing)
+      (pcon PNothing)
       (pcon . PJust $ pcon . PNatural $ diff)
 
 -- TODO: Add `PNonNegative` instances for NatRatio
+
+-- Auxiliary functions
+
+gt0 :: Integer -> Maybe Natural
+gt0 n
+  | n < 0 = Nothing
+  | otherwise = Just . Natural $ fromInteger n
+
+toTuple :: Ratio Natural.Natural -> (Integer, Integer)
+toTuple x = (fromIntegral $ numerator x, fromIntegral $ denominator x)
+
+toRatio :: (Integer, Integer) -> Maybe NatRatio
+toRatio (n, d)
+  | n < 0 || d <= 0 = Nothing
+  | otherwise =
+      Just . NatRatio $
+        fromInteger n % fromInteger d
