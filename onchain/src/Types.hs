@@ -4,10 +4,10 @@
 module Types (
   BondedPoolParams (BondedPoolParams, operator, bondedStakingStateCs),
   PBondedPoolParams,
-  BondedStakingAction(..),
-  PBondedStakingAction(..),
-  BondedStakingDatum(..),
-  PBondedStakingDatum(..),
+  BondedStakingAction (..),
+  PBondedStakingAction (..),
+  BondedStakingDatum (..),
+  PBondedStakingDatum (..),
   Entry (
     Entry,
     key,
@@ -215,17 +215,21 @@ instance PUnsafeLiftDecl PEntry where
 -}
 data PBondedStakingDatum (s :: S)
   = PStateDatum
-    (Term s
-      (PDataRecord
-        '[
-          "_0" ':= PBuiltinPair (PMaybeData PByteString) PNatural
-         ]))
+      ( Term
+          s
+          ( PDataRecord
+              '[ "_0" ':= PBuiltinPair (PMaybeData PByteString) PNatural
+               ]
+          )
+      )
   | PEntryDatum
-    (Term s
-      (PDataRecord
-      '[
-        "_0" ':= PEntry
-      ]))
+      ( Term
+          s
+          ( PDataRecord
+              '[ "_0" ':= PEntry
+               ]
+          )
+      )
   | PAssetDatum (Term s (PDataRecord '[]))
   deriving stock (GHC.Generic)
   deriving anyclass (Generic, PIsDataRepr)
@@ -288,11 +292,17 @@ instance PUnsafeLiftDecl PMintingAction where
      they only update their respective entry) and withdrawing their rewards.
 -}
 data PBondedStakingAction (s :: S)
-  = PAdminAct (Term s (PDataRecord '[ "_0" ':= PNatural]))
-  | PStakeAct (Term s (
-      PDataRecord '[ "_0" ':= PNatural
-                   , "_1" ':= PPubKeyHash]))
-  | PWithdrawAct (Term s (PDataRecord '[ "_0" ':= PPubKeyHash]))
+  = PAdminAct (Term s (PDataRecord '["_0" ':= PNatural]))
+  | PStakeAct
+      ( Term
+          s
+          ( PDataRecord
+              '[ "_0" ':= PNatural
+               , "_1" ':= PPubKeyHash
+               ]
+          )
+      )
+  | PWithdrawAct (Term s (PDataRecord '["_0" ':= PPubKeyHash]))
   | PCloseAct (Term s (PDataRecord '[]))
   deriving stock (GHC.Generic)
   deriving anyclass (Generic, PIsDataRepr)

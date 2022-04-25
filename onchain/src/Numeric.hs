@@ -122,9 +122,10 @@ newtype PNatRatio (s :: S)
   deriving stock (GHC.Generic)
   deriving
     (PIsData, PlutusType)
-    via (DerivePNewtype
-          PNatRatio
-          (PBuiltinPair (PAsData PInteger) (PAsData PInteger)))
+    via ( DerivePNewtype
+            PNatRatio
+            (PBuiltinPair (PAsData PInteger) (PAsData PInteger))
+        )
 
 instance PUnsafeLiftDecl PNatRatio where
   type PLifted PNatRatio = NatRatio
