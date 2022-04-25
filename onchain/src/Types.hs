@@ -4,10 +4,10 @@
 module Types (
   BondedPoolParams (BondedPoolParams, operator, bondedStakingStateCs),
   PBondedPoolParams,
-  BondedStakingAction (..),
-  PBondedStakingAction,
-  BondedStakingDatum (..),
-  PBondedStakingDatum,
+  BondedStakingAction(..),
+  PBondedStakingAction(..),
+  BondedStakingDatum(..),
+  PBondedStakingDatum(..),
   Entry (
     Entry,
     key,
@@ -20,7 +20,7 @@ module Types (
     rewards
   ),
   PEntry,
-  AssetClass (AssetClass),
+  AssetClass (AssetClass, unAssetClass),
   acCurrencySymbol,
   acTokenName,
   mkAssetClass,
@@ -72,7 +72,7 @@ newtype PAssetClass (s :: S)
         )
 
 newtype AssetClass = AssetClass
-  { acToTuple :: (CurrencySymbol, TokenName)
+  { unAssetClass :: (CurrencySymbol, TokenName)
   }
   deriving stock (GHC.Generic, Show)
   deriving anyclass (Generic)
@@ -96,9 +96,9 @@ mkAssetClass :: CurrencySymbol -> TokenName -> AssetClass
 mkAssetClass cs tn = AssetClass (cs, tn)
 
 acCurrencySymbol :: AssetClass -> CurrencySymbol
-acCurrencySymbol = fst . acToTuple
+acCurrencySymbol = fst . unAssetClass
 acTokenName :: AssetClass -> TokenName
-acTokenName = snd . acToTuple
+acTokenName = snd . unAssetClass
 
 {- | Bonded pool's parameters
 
@@ -114,14 +114,14 @@ newtype PBondedPoolParams (s :: S)
       ( Term
           s
           ( PDataRecord
-              '[ "iterations" ':= PInteger
+              '[ "iterations" ':= PNatural
                , "start" ':= PPOSIXTime
                , "end" ':= PPOSIXTime
                , "userLength" ':= PPOSIXTime
                , "bondingLength" ':= PPOSIXTime
-               , "interest" ':= PBuiltinPair PInteger PInteger
-               , "minStake" ':= PInteger
-               , "maxStake" ':= PInteger
+               , "interest" ':= PNatRatio
+               , "minStake" ':= PNatural
+               , "maxStake" ':= PNatural
                , "admin" ':= PPubKeyHash
                , "bondedAssetClass" ':= PAssetClass
                , "nftCs" ':= PCurrencySymbol
@@ -213,21 +213,24 @@ instance PUnsafeLiftDecl PEntry where
 
      3. A dummy datum (in the case of the stake UTXOs)
 -}
-newtype PBondedStakingDatum (s :: S)
-  = PBondedStakingStateDatum
-      ( Term
-          s
-          ( PDataRecord
-              '[ "stateDatum" ':= PBuiltinPair (PMaybeData PByteString) PNatural
-               , "entryDatum" ':= PEntry
-               , "assetDatum" ':= PUnit
-               ]
-          )
-      )
+data PBondedStakingDatum (s :: S)
+  = PStateDatum
+    (Term s
+      (PDataRecord
+        '[
+          "_0" ':= PBuiltinPair (PMaybeData PByteString) PNatural
+         ]))
+  | PEntryDatum
+    (Term s
+      (PDataRecord
+      '[
+        "_0" ':= PEntry
+      ]))
+  | PAssetDatum (Term s (PDataRecord '[]))
   deriving stock (GHC.Generic)
   deriving anyclass (Generic, PIsDataRepr)
   deriving
-    (PlutusType, PIsData, PDataFields)
+    (PlutusType, PIsData)
     via PIsDataReprInstances PBondedStakingDatum
 
 data BondedStakingDatum
@@ -252,21 +255,13 @@ instance PUnsafeLiftDecl PBondedStakingDatum where
      for consuming the bonded pool's contract, but rather for minting the NFTs
      that comprise each entry in the association list.
 -}
-newtype PMintingAction (s :: S)
-  = PMintingAction
-      ( Term
-          s
-          ( PDataRecord
-              '[ "stateDatum" ':= PMaybeData PByteString
-               , "entryDatum" ':= PEntry
-               , "assetDatum" ':= PUnit
-               ]
-          )
-      )
+data PMintingAction (s :: S)
+  = PStake (Term s (PDataRecord '[]))
+  | PWithdraw (Term s (PDataRecord '[]))
   deriving stock (GHC.Generic)
   deriving anyclass (Generic, PIsDataRepr)
   deriving
-    (PlutusType, PIsData, PDataFields)
+    (PlutusType, PIsData)
     via PIsDataReprInstances PMintingAction
 
 data MintingAction
@@ -292,22 +287,17 @@ instance PUnsafeLiftDecl PMintingAction where
      These are used by the stakers to deposit their *initial* stake (after that
      they only update their respective entry) and withdrawing their rewards.
 -}
-newtype PBondedStakingAction (s :: S)
-  = PBondedStakingAction
-      ( Term
-          s
-          ( PDataRecord
-              '[ "adminAct" ':= PNatural
-               , "stakeAct" ':= PBuiltinPair PNatural PPubKeyHash
-               , "withdrawAct" ':= PPubKeyHash
-               , "closeAct" ':= PUnit
-               ]
-          )
-      )
+data PBondedStakingAction (s :: S)
+  = PAdminAct (Term s (PDataRecord '[ "_0" ':= PNatural]))
+  | PStakeAct (Term s (
+      PDataRecord '[ "_0" ':= PNatural
+                   , "_1" ':= PPubKeyHash]))
+  | PWithdrawAct (Term s (PDataRecord '[ "_0" ':= PPubKeyHash]))
+  | PCloseAct (Term s (PDataRecord '[]))
   deriving stock (GHC.Generic)
   deriving anyclass (Generic, PIsDataRepr)
   deriving
-    (PlutusType, PIsData, PDataFields)
+    (PlutusType, PIsData)
     via PIsDataReprInstances PBondedStakingAction
 
 data BondedStakingAction
