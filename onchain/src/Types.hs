@@ -2,7 +2,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Types (
-  BondedPoolParams (BondedPoolParams, operator, bondedStakingStateCs),
+  BondedPoolParams (..),
   PBondedPoolParams,
   BondedStakingAction (..),
   PBondedStakingAction (..),
@@ -49,6 +49,7 @@ import Plutus.V1.Ledger.Api (
   CurrencySymbol,
   PubKeyHash,
   TokenName,
+  POSIXTime
  )
 import PlutusTx (unstableMakeIsData)
 import PlutusTx.Builtins.Internal (BuiltinByteString)
@@ -138,8 +139,18 @@ newtype PBondedPoolParams (s :: S)
     via PIsDataReprInstances PBondedPoolParams
 
 data BondedPoolParams = BondedPoolParams
-  { operator :: PubKeyHash
-  , bondedStakingStateCs :: CurrencySymbol
+  { iterations :: Natural
+  , start :: POSIXTime
+  , end :: POSIXTime
+  , userLength :: POSIXTime
+  , bondingLength :: POSIXTime
+  , interest :: NatRatio
+  , minStake :: Natural
+  , maxStake :: Natural
+  , admin :: PubKeyHash
+  , bondedAssetClass :: AssetClass
+  , nftCs :: CurrencySymbol
+  , assocListCs :: CurrencySymbol
   }
   deriving stock (GHC.Generic, Show)
 
