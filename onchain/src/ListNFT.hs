@@ -18,7 +18,27 @@ import Plutus.V1.Ledger.Api ( MintingPolicy, CurrencySymbol )
 import Types ( PMintingAction )
 import Utils ( peq, oneOfWith, pletC, getCs, pconstantC, guardC )
 import Plutarch.Crypto (pblake2b_256)
+
+{-
+    This module implements the minting policy for the NFTs used as entries for
+    the user's stakes in the on-chain association list.
+    
+    Some level of validation is performed by this policy (at least the bare
+    minimum related to any NFT), as well as some other validation specific
+    to each user action. Specifically, most invariants related to maintaining
+    the linked list here.
+    
+    Due to how the system is designed, this minting policy is only run when
+    a user stakes *for the first time* (minting a new NFT) or when it withdraws
+    their stake (burning an NFT). Invariants related to the amount staked,
+    global or local limits, and other things are mostly delegated to the pool
+    validator and not treated here.
+-}
    
+-- TODO: Inductive conditions related to staking and withdrawing not implemented
+-- (that's why the redeemer isn't used yet). `burnsOrMintsOnce` ought to be
+-- split in two parts, one for each of the two use cases (staking and
+-- withdrawing).
 pbondedListNFTPolicy ::
     forall (s :: S) .
     Term s PCurrencySymbol ->
