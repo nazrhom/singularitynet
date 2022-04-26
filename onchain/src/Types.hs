@@ -166,7 +166,7 @@ data PEntry (s :: S)
           ( PDataRecord
               '[ "key" ':= PByteString
                , "sizeLeft" ':= PNatural
-               , "newDeposit" ':= PMaybeData PNatural
+               , "newDeposit" ':= PNatural
                , "deposited" ':= PNatural
                , "staked" ':= PNatural
                , "rewards" ':= PNatRatio
@@ -184,7 +184,7 @@ data PEntry (s :: S)
 data Entry = Entry
   { key :: BuiltinByteString
   , sizeLeft :: Natural
-  , newDeposit :: Maybe Natural
+  , newDeposit :: Natural
   , deposited :: Natural
   , staked :: Natural
   , rewards :: NatRatio
