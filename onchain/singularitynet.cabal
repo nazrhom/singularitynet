@@ -102,9 +102,11 @@ library
   exposed-modules:
     BondedPool
     NFT
+    Numeric
     Settings
     SingularityNet
     Types
+    Utils
 
   build-depends:
     , generics-sop
@@ -129,11 +131,17 @@ test-suite singularitynet-test
   main-is:        Spec.hs
   build-depends:
     , plutarch
+    , plutus-ledger-api
     , QuickCheck
     , quickcheck-instances
     , singularitynet
     , tasty
+    , tasty-hunit
     , tasty-quickcheck
+
+  other-modules:
+    Test.SpecNFT
+    Test.Utils
 
   hs-source-dirs: test
 
@@ -145,7 +153,6 @@ executable serialise
     , base
     , base16-bytestring
     , bytestring
-    , cardano-binary
     , optparse-applicative
     , plutarch
     , plutus-ledger-api
