@@ -19,7 +19,10 @@ import Plutarch.Api.V1 (
   PCurrencySymbol
   , PTokenName
   , PValue
-  , PScriptPurpose(PMinting))
+  , PInterval
+  , PPOSIXTime
+  , PScriptPurpose(PMinting)
+  , PExtended (PNegInf, PPosInf, PFinite))
 import Plutarch.Monadic qualified as P
 import Plutarch.Lift (
   PUnsafeLiftDecl
@@ -202,3 +205,53 @@ getCs ::
 getCs purpose = pure $ pmatch purpose $ \case
   PMinting cs' -> pfield @"_0" # cs'
   _ -> ptraceError "not a minting transaction"
+
+-- Functions for working with intervals
+
+-- We need to define `POrd`-like functions for these `PExtended`, `PLowerBound`
+-- and `PUpperBound`
+extendedLT :: forall (s :: S) (a :: PType). POrd (PAsData a) =>
+  Term s (PExtended a) -> Term s (PExtended a) -> Term s PBool
+extendedLT e1 e2 =
+  pmatch e1 $ \case
+    PNegInf _ -> pmatch e2 $ \case
+      PNegInf _ -> pconstant False
+      _         -> pconstant True
+    PPosInf _ -> pconstant False
+    PFinite n1' -> pmatch e2 $ \case
+      PNegInf _  -> pconstant False
+      PPosInf _  -> pconstant True
+      PFinite n2' -> pfield @"_0" # n1' #< pfield @"_0" # n2'
+
+extendedLE :: forall (s :: S) (a :: PType). POrd (PAsData a) =>
+  Term s (PExtended a) -> Term s (PExtended a) -> Term s PBool
+extendedLE e1 e2 =
+  pmatch e1 $ \case
+    PNegInf _ -> pconstant True
+    PPosInf _ -> pmatch e2 $ \case
+      PPosInf _ -> pconstant True
+      _         -> pconstant False
+    PFinite n1' -> pmatch e2 $ \case
+      PNegInf _  -> pconstant False
+      PPosInf _  -> pconstant True
+      PFinite n2' -> pfield @"_0" # n1' #<= pfield @"_0" # n2'
+      
+extendedGE :: forall (s :: S) (a :: PType). POrd (PAsData a) =>
+  Term s (PExtended a) -> Term s (PExtended a) -> Term s PBool
+extendedGE e1 e2 = extendedLT e2 e1
+
+extendedGT :: forall (s :: S) (a :: PType). POrd (PAsData a) =>
+  Term s (PExtended a) -> Term s (PExtended a) -> Term s PBool
+extendedGT e1 e2 = extendedLE e2 e1
+
+-- | Returns true if the second interval is contained within the first
+--pcontains ::
+--  forall (s :: S) .
+--  Term s (PInterval PPOSIXTime) ->
+--  Term s (PInterval PPOSIXTime) ->
+--  Term s PBool
+--pcontains i1 i2 = unTermCont $ do
+--  i1F <- tcont $ pletFields @'["from", "to"] i1
+--  i2F <- tcont $ pletFields @'["from", "to"] i2
+--  
+--  pconstantC True
