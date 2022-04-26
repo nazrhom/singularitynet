@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Numeric (
+module Data.Natural (
   -- | Typeclasses
   NonNegative ((^+), (^*), (^-)),
   PNonNegative ((#+), (#*), (#-)),

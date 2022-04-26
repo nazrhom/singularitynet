@@ -53,7 +53,7 @@ import Plutus.V1.Ledger.Api (
 import PlutusTx (unstableMakeIsData)
 import PlutusTx.Builtins.Internal (BuiltinByteString)
 
-import Numeric (
+import Data.Natural (
   NatRatio,
   Natural,
   PNatRatio,

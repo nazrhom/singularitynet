@@ -103,7 +103,7 @@ library
     BondedPool
     ListNFT
     NFT
-    Numeric
+    Data.Natural
     Settings
     SingularityNet
     Types
