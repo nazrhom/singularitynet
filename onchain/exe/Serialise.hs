@@ -15,11 +15,9 @@ module Main (main) where
   the result to screen.
 -}
 
-import BondedPool (hbondedPoolValidator)
 import Control.Monad (when)
 import Data.Aeson (encode, toJSON)
 import Data.ByteString.Lazy qualified as LBS
-import NFT (hbondedStakingNFTPolicy)
 import Options.Applicative (
   CommandFields,
   Mod,
@@ -57,8 +55,31 @@ import Plutus.V1.Ledger.Bytes (LedgerBytes (LedgerBytes))
 import Plutus.V1.Ledger.Scripts (Script)
 import Plutus.V1.Ledger.Tx (TxOutRef (TxOutRef))
 import Plutus.V1.Ledger.TxId (TxId)
+
+import Data.Ratio((%))
+
 import Settings (bondedStakingTokenName)
-import Types (BondedPoolParams (BondedPoolParams))
+import Types (
+  BondedPoolParams (
+    BondedPoolParams
+    , iterations
+    , start
+    , end
+    , userLength
+    , bondingLength
+    , interest
+    , minStake
+    , maxStake
+    , admin
+    , bondedAssetClass
+    , nftCs
+    , assocListCs
+  )
+  , AssetClass (AssetClass))
+import Data.Natural(Natural(Natural), NatRatio(NatRatio))
+import NFT (hbondedStakingNFTPolicy)
+import ListNFT (hbondedListNFTPolicy)
+import BondedPool (hbondedPoolValidator)
 
 serialisePlutusScript :: FilePath -> Script -> IO ()
 serialisePlutusScript filepath script =
@@ -71,23 +92,41 @@ main = do
   case cliCommand args of
     SerialiseNFT txOutRef -> do
       let policy = hbondedStakingNFTPolicy txOutRef
-          cs = mintingPolicySymbol policy
+          nftCs = mintingPolicySymbol policy
       serialisePlutusScript
         (maybe "nft_policy.json" id $ outPath args)
         (getMintingPolicy policy)
       when (printHash args) $
-        printVerbose cs
+        printVerbose nftCs
     SerialiseValidator txOutRef pkh -> do
       let policy = hbondedStakingNFTPolicy txOutRef
-          cs = mintingPolicySymbol policy
-          validator = hbondedPoolValidator $ BondedPoolParams pkh cs
+          nftCs = mintingPolicySymbol policy
+          assocListCs = mintingPolicySymbol $ hbondedListNFTPolicy nftCs
+          validator = hbondedPoolValidator $ bpParams pkh nftCs assocListCs
           vh = validatorHash validator
       serialisePlutusScript
         (maybe "validator.json" id $ outPath args)
         (getValidator validator)
       when (printHash args) $ do
         putStrLn $ "Validator hash: " <> show vh
-        printVerbose cs
+        printVerbose nftCs
+  where -- Dummy parameters for a bonded staking pool
+        bpParams ::
+          PubKeyHash -> CurrencySymbol -> CurrencySymbol -> BondedPoolParams
+        bpParams pkh nftCs assocListCs = BondedPoolParams {
+          iterations = Natural 5
+          , start = 1_000_000
+          , end = 2_000_000
+          , userLength = 100_000
+          , bondingLength = 100_000
+          , interest = NatRatio $ 5 % 100
+          , minStake = Natural 20
+          , maxStake = Natural 1000
+          , admin = pkh
+          , bondedAssetClass = AssetClass ("aaaabbbb", "TokenName")
+          , nftCs = nftCs
+          , assocListCs = assocListCs
+        }
 
 printVerbose :: CurrencySymbol -> IO ()
 printVerbose cs = do
