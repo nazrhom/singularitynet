@@ -45,7 +45,7 @@ On-chain minting conditions:
 \begin{itemize}
 \item{The parameterised UTXO (\texttt{TxOutRef}) is part of the transaction inputs}
 \item{\texttt{txInfoMint} contains exactly one \texttt{AssetClass} of \textit{unit} value. The \texttt{ownCurrencySymbol} with the hardcoded \texttt{TokenName} matches the aforementioned \texttt{AssetClass}}
-\item{The minting policy can optionally ensure the initial datum is \texttt{StateDatum Nothing} (see Definition \ref{def:StateDatum}) although we cannot verify the validator address as this would cause mutual recursion}
+\item{The minting policy can optionally ensure the initial datum is \texttt{StateDatum Nothing size} (see Definition \ref{def:StateDatum}) although we cannot verify the validator address as this would cause mutual recursion}
 \end{itemize}
 \begin{definition}[\texttt{nftCs}]\label{def:nftCs} this minting policy creates a genuine NFT (by virtue of the UTXO parameter) with a \texttt{CurrencySymbol} that cannot be reproduced. We will call this the \textbf{nftCs}.
 \end{definition}
@@ -72,13 +72,13 @@ Note that this token can only be minted if the NFT State UTXO is initially at th
 \section{Datums}
 \begin{minted}{haskell}
 data BondedStakingDatum
-   = StateDatum (Maybe BuiltinByteString, Natural)
+   = StateDatum (Maybe BuiltinByteString) Natural
    | EntryDatum Entry
    | AssetDatum
 
 \end{minted}
 
-\begin{definition}[\texttt{StateDatum}]\label{def:StateDatum} This represents the staking pool/associated list and is datum for the NFT State UTXO. \textbf{The first tuple element:} \texttt{Nothing} says the list is empty, \texttt{Just} the key (corresponding to \texttt{TokenName}) to the head of the associated list. \textbf{The second tuple element:} represents the size remaining in the same way as \texttt{sizeLeft} in Definition~\ref{def:sizeLeft}, this is initiated to \texttt{bpp'size} (Definition~\ref{def:bpp'size}) and updated during bonding by the admin.
+\begin{definition}[\texttt{StateDatum}]\label{def:StateDatum} This represents the staking pool/associated list and is datum for the NFT State UTXO. \textbf{The first product element:} \texttt{Nothing} says the list is empty, \texttt{Just} the key (corresponding to \texttt{TokenName}) to the head of the associated list. \textbf{The second product element:} represents the size remaining in the same way as \texttt{sizeLeft} in Definition~\ref{def:sizeLeft}, this is initiated to \texttt{bpp'size} (Definition~\ref{def:bpp'size}) and updated during bonding by the admin.
 
 Recall the \texttt{AssetClass} for the NFT State comes from Subsection~\ref{subsection:NFTStateMintingPolicy} with hardcoded \texttt{TokenName}. However, the \texttt{TokenName} inside \texttt{Maybe} is a hashed \texttt{PaymentPubKeyHash}, see Definition~\ref{def:hashedPkh}.
 \end{definition}
@@ -93,7 +93,7 @@ Recall the \texttt{AssetClass} for the NFT State comes from Subsection~\ref{subs
 data Entry = Entry
   { key :: BuiltinByteString
   , sizeLeft :: Natural
-  , newDeposit :: Maybe Natural
+  , newDeposit :: Natural
   , deposited :: Natural
   , staked :: Natural
   , rewards :: NatRatio
@@ -111,7 +111,7 @@ is given by the \texttt{blake2b\_256} hash of the \texttt{PaymentPubKeyHash} of 
 The size remaining in the staking pool. This should be set to \texttt{neighbouringSizeLeft} when a user deposits (or redeposits), where \texttt{neighbouringSizeLeft} can be determined by adjacent UTXOs used for insertion/updating (of course they must match between adjacent UTXOs or something is wrong). This is of course inaccurate after a deposit, but the admin is expected to update this field for NFT State and all Assoc. List UTXOs during bonding.  This provides a localised notion of how much size is remaining, although this can be overflown during depositing phase since we do not have a notion of global size (this would introduce contention issues). Hence, this field is used with \texttt{newDeposit} off chain to determine the effective staked amount, \texttt{staked}. There is trust for the admin to provide the correct effective staked amount, if the user dislikes the amount, they can simply withdraw their \texttt{deposited} amount.
 \end{definition}
 
-\begin{definition}[\texttt{newDeposit}]\label{def:newDeposit} tells the admin whether or not the user deposit is new (initial or subsequent deposit). We need this because of potential pool overflow. \texttt{Nothing} means they have not deposited in the recent cycle, \texttt{Just newDeposit} means they have deposited \texttt{newDeposit} in the recent cycle.
+\begin{definition}[\texttt{newDeposit}]\label{def:newDeposit} tells the admin whether or not the user deposit is new (initial or subsequent deposit). We need this because of potential pool overflow. 0 means they have not deposited in the recent cycle, \texttt{nonZero} means they have deposited \texttt{nonZero} in the recent cycle.
 \end{definition}
 
 \begin{definition}[\texttt{deposited}]\label{def:deposited}
@@ -125,6 +125,10 @@ The \textit{effective} staked amount by a user, this should be initiated to zero
 \begin{definition}[\texttt{rewards}]\label{def:rewards}
 Similarly, these are the \textit{effective} rewards accrued so far determined by the \texttt{staked} amount (and itself), \textit{not}
  \texttt{deposited}. Again, this should be initiated to zero for new user deposits and unchanged for further deposits. This field is updated by the admin during bonding period.
+\end{definition}
+
+\begin{definition}[\texttt{next}]\label{def:next}
+a pointer to the \texttt{key} of the next UTXO in the associated list. \texttt{Nothing} indicates we are at the tail.
 \end{definition}
 
 The withdrawal amount is simply \texttt{deposited} + \texttt{rewards}, rounded down.
@@ -155,7 +159,7 @@ data BondedStakingAction
    | CloseAct
 \end{minted}
 
-\begin{definition}[\texttt{AdminAct}]\label{def:AdminAct} redeemer for the \textbf{Admin} to deposit staking tokens to the validator and update rewards for each users Assoc. List UTXO. The parameter is the new \texttt{sizeLeft} for Assoc. List UTXOs and NFT State UTXO (second tuple field).
+\begin{definition}[\texttt{AdminAct}]\label{def:AdminAct} redeemer for the \textbf{Admin} to deposit staking tokens to the validator and update rewards for each users Assoc. List UTXO. The parameter is the new \texttt{sizeLeft} for Assoc. List UTXOs and NFT State UTXO (second product field).
 \end{definition}
 
 \begin{definition}[\texttt{StakeAct}]\label{def:StakeAct} redeemer for staking tokens with \texttt{PaymentPubKeyHash} of \texttt{Natural} amount.
@@ -171,7 +175,7 @@ data BondedStakingAction
 \subsection{Minting NFT State}\label{subsection:mintNft}
 Off-chain logic is required by the administrator/operator to initially mint an NFT with the following datum (see Definition~\ref{def:StateDatum}):
 \begin{minted}{haskell}
-StateDatum (Nothing, size)
+StateDatum Nothing size
 \end{minted}
 defining the on-chain associated list of validator/stake pool. The NFT \texttt{TokenName} can be hardcoded to ``\texttt{BondedStaking}'' or anything else, provided it's fixed for the codebase. The \texttt{size} can also be globally hardcoded, and should be the same as \texttt{bpp'size} in Subsection~\ref{subsection:validatorParams}.
 
@@ -217,7 +221,7 @@ the \textit{absolute} \texttt{POSIXTime} the staking pool ends, after which the 
 the \textit{timedelta} for how long users can deposit (for the upcoming cycle) or withdraw (at the end of a cycle). Should be thought of a positive number that can be added to some other starting point (as opposed to a fixed \texttt{POSIXTimeRange}). We could also use \texttt{Natural} or \texttt{Integer} for any subsequent ``timedelta". Note that these periods overlap as in Equations~\ref{eqn:startCycles},\ref{eqn:endCycles}
 \end{definition}
 
-\begin{definition}[\texttt{bpp'bondingLength}]\label{def:bpp'depositWithdraw}
+\begin{definition}[\texttt{bpp'bondingLength}]\label{def:bpp'bondingLength}
 the \textit{timedelta} for how long bonding can occur for a given cycle.
 \end{definition}
 
@@ -295,8 +299,8 @@ Overlapping on-chain conditions for any type of deposit (initial or subsequent) 
 \item{The user cannot withdraw any (staked) asset UTXOs}
 \item{Check the \texttt{newDeposit} (Definition~\ref{def:newDeposit}) field has been initiated (first deposit of the cycle) or incremented (redeposits during the \textit{same} cycle)
 \begin{enumerate}
-\item{In particular, initial new deposits for a given cycle are $\texttt{Nothing} \rightarrow \texttt{Just amount}$}
-\item{Redeposits during the \textit{same} cycle will have $\texttt{Just prevNewDeposit} \rightarrow \texttt{Just (prevNewDeposit + amount)}$ for a given UTXO}
+\item{In particular, initial new deposits for a given cycle are $0 \rightarrow \texttt{amount}$}
+\item{Redeposits during the \textit{same} cycle will have $\texttt{prevNewDeposit} \rightarrow \texttt{prevNewDeposit + amount}$ for a given UTXO}
 \end{enumerate}}
 \end{itemize}
 For the field \texttt{deposited} (not \texttt{newDeposit}), further conditions required for an \textbf{Initial deposit (insertion):}
@@ -337,9 +341,9 @@ For \textbf{Further deposits}:
 \subsection{Admin Deposit (Bonding Period)}\label{subsection:adminDeposit}
 The admin should update NFT State \& Assoc. List UTXOs and deposit rewards for users.  The admin is required to update the said UTXOs \textit{during} bonding (and before the next withdrawal/deposit period) to:
 \begin{enumerate}
-\item{The NFT State UTXO's second tuple field for size remaining}
+\item{The NFT State UTXO's second product field for size remaining}
 \item{Similarly, to update the datum's \texttt{sizeLeft} (Definition~\ref{def:sizeLeft})}
-\item{To update Assoc. List datum's \texttt{newDeposit} (Definition~\ref{def:newDeposit}) to \texttt{Nothing}}
+\item{To update Assoc. List datum's \texttt{newDeposit} (Definition~\ref{def:newDeposit}) to zero}
 \item{To update the datum's \texttt{staked} (Definition~\ref{def:staked})}
 \item{To update the datum's \texttt{rewards} (Definition~\ref{def:rewards})}
 \end{enumerate}
@@ -352,7 +356,7 @@ The admin should use the \texttt{AdminAct newSizeLeft} redeemer (see Definition~
 \item{The NFT State UTXO and multiple Assoc. List UTXOs can be spent and updated. There are three types of UTXO datum \textit{inputs} to account for
 \begin{enumerate}
 \item{\begin{minted}{haskell}
-StateDatum (_, oldSizeLeft) -- oldSizeLeft must equal all Assoc. List
+StateDatum _ oldSizeLeft -- oldSizeLeft must equal all Assoc. List
 -- UTXO's sizeLeft by induction
 \end{minted}
 }
@@ -361,7 +365,7 @@ StateDatum (_, oldSizeLeft) -- oldSizeLeft must equal all Assoc. List
 Entry
   { key = _
   , sizeLeft = oldSizeLeft -- must equal all other UTXOs by induction
-  , newDeposit = Nothing -- user didn't deposit during recent cycle
+  , newDeposit = 0 -- user didn't deposit during recent cycle
   , deposited = _
   , staked = _
   , rewards = rewards
@@ -374,7 +378,7 @@ Entry
 Entry
   { key = _
   , sizeLeft = oldSizeLeft -- must equal all other UTXOs by induction
-  , newDeposit = Just newDeposit -- user did deposit during recent cycle
+  , newDeposit = newDeposit -- user did deposit during recent cycle
   -- at least once
   , deposited = _
   , staked = staked
@@ -391,7 +395,7 @@ Entry
 
 \begin{enumerate}
 \item{\begin{minted}{haskell}
-StateDatum (_, newSizeLeft)
+StateDatum _ newSizeLeft
 \end{minted}
 }
 \item{
@@ -399,7 +403,7 @@ StateDatum (_, newSizeLeft)
 Entry
   { key = _ -- unchanged
   , sizeLeft = newSizeLeft
-  , newDeposit = Nothing
+  , newDeposit = 0
   , deposited = _ -- unchanged
   , staked = _ -- unchanged
   , rewards = newRewards
@@ -412,7 +416,7 @@ Entry
 Entry
   { key = _ -- unchanged
   , sizeLeft = newSizeLeft
-  , newDeposit = Nothing -- changed to Nothing
+  , newDeposit = 0 -- changed to 0
   , deposited = _ -- unchanged
   , staked = newStaked -- updated
   , rewards = newRewards
@@ -429,7 +433,7 @@ Entry
 \item{Here, $\texttt{newRewards} = \texttt{bpp'interest} * (\texttt{updatedStaked}+ \texttt{rewards})$ should be deposited to the validator for each user (with datum \texttt{AssetDatum} and rounding up to be safe).
 We should be very careful about rounding when admin depositing as user withdrawals in Subsection~\ref{subsection:UserWithdraw} will also round (down) and we do not want insufficient funds at the validator.
 }
-\item{In the case of new deposits in the recent cycle ($\texttt{Just newDeposit} \rightarrow \texttt{Nothing}$), we cannot check \textbf{on chain} what \texttt{newStaked} should be without introducing a folding proof to know the total \texttt{deposited} across all Assoc. List UTXOs, this is calculated off chain by the admin. Since we are already entrusting the admin to add rewards, we can also trust the admin to update the effective staked amount. If the user is not happy with this amount, they can simply withdraw their \texttt{deposited} amount and any previously accrued \texttt{rewards}.}
+\item{In the case of new deposits in the recent cycle ($\texttt{newDeposit} \rightarrow 0$), we cannot check \textbf{on chain} what \texttt{newStaked} should be without introducing a folding proof to know the total \texttt{deposited} across all Assoc. List UTXOs, this is calculated off chain by the admin. Since we are already entrusting the admin to add rewards, we can also trust the admin to update the effective staked amount. If the user is not happy with this amount, they can simply withdraw their \texttt{deposited} amount and any previously accrued \texttt{rewards}.}
 \item{However, we can ensure $\texttt{staked} \leq \texttt{updatedStaked}$ and $\texttt{rewards} \leq \texttt{updatedRewards}$ on chain, it should be impossible to reduce any already accrued rewards and effective staked amount}
 \item{Similarly, the \texttt{newSizeLeft} is determined off chain and cannot be checked on chain. It would not make sense for the admin to sabotage this value}
 \item{All updated Assoc. List UTXOs must be sent back to the validator, otherwise unchanged}
@@ -445,8 +449,8 @@ Using the \texttt{AdminAct newSizeLeft} redeemer:
 \item{The subtlety on updating the \texttt{staked} field (and therefore \texttt{rewards}) can be done as follows:
 \begin{enumerate}
 \item{Calculate the total amount deposited across all Assoc. List UTXOs off chain, defined as \texttt{totalDeposited}. Do not count using the amount of underlying staked assets at the validator address as people can send (wasting) UTXOs to the validator, the Assoc. List UTXOs are more reliable}
-\item{If $\texttt{totalDeposited} \leq \texttt{bpp'size}$, then we can set \texttt{newStaked} equal to \texttt{deposited} (for \texttt{Just newDeposit} UTXOs only, ignore the \texttt{Nothing} ones for simplicity) for each user (as output to the validator). In otherwords, all \textit{newly} deposited users will have the same effective stake as amount they deposited}
-\item{Otherwise, $\texttt{totalDeposited} > \texttt{bpp'size}$. We need to filter out $\texttt{newDeposit}=\texttt{Just newDeposit}$ Assoc. List UTXOs as they must be the culprit UTXOs that have caused global pool overflow (although not locally). Furthermore, their \texttt{staked} value has not been updated (it cannot during user deposit). Determine the amount of overflow, $\texttt{overflow}=\texttt{totalDeposited} - \texttt{bpp'size}$. Furthermore, for each \textbf{overflowing} user, $\texttt{totalNewDeposit} = \sum_\texttt{users}\texttt{newDeposit}$ ($> \texttt{overflow}$) provides the total deposited during the \textit{recent} cycle. $\texttt{extraStake} = \texttt{totalNewDeposit} - \texttt{overflow}$ provides the amount of extra effective stake available before hitting the \texttt{bpp'size} threshold. This should be \textit{proportionally} distributed amongst \textit{recent} (problematic) depositers (careful with rounding). Distribution means incrementing their \texttt{staked} fields accordingly.
+\item{If $\texttt{totalDeposited} \leq \texttt{bpp'size}$, then we can set \texttt{newStaked} equal to \texttt{deposited} (for non-zero \texttt{newDeposit} UTXOs only, ignore the zero ones for simplicity) for each user (as output to the validator). In otherwords, all \textit{newly} deposited users will have the same effective stake as amount they deposited}
+\item{Otherwise, $\texttt{totalDeposited} > \texttt{bpp'size}$. We need to filter out non-zero $\texttt{newDeposit}$ Assoc. List UTXOs as they must be the culprit UTXOs that have caused global pool overflow (although not locally). Furthermore, their \texttt{staked} value has not been updated (it cannot during user deposit). Determine the amount of overflow, $\texttt{overflow}=\texttt{totalDeposited} - \texttt{bpp'size}$. Furthermore, for each \textbf{overflowing} user, $\texttt{totalNewDeposit} = \sum_\texttt{users}\texttt{newDeposit}$ ($> \texttt{overflow}$) provides the total deposited during the \textit{recent} cycle. $\texttt{extraStake} = \texttt{totalNewDeposit} - \texttt{overflow}$ provides the amount of extra effective stake available before hitting the \texttt{bpp'size} threshold. This should be \textit{proportionally} distributed amongst \textit{recent} (problematic) depositers (careful with rounding). Distribution means incrementing their \texttt{staked} fields accordingly.
 \item{Update \texttt{rewards} with up-to-date \texttt{staked} value for \textit{all} users, $\texttt{newRewards} = \texttt{bpp'interest} * (\texttt{updatedStaked}+ \texttt{rewards})$}
 \item{Send $\sum_\texttt{all} \texttt{newRewards}$ of the staked asset to the validator address}
 }
@@ -521,12 +525,12 @@ A head stake is when the NFT State UTXO is already at the validator address and 
 \item{\textbf{Implied Validator logic:} Use the \texttt{StakeAct} validator redeemer, \ref{def:StakeAct} with a singleton signature for the transaction. This signature provides the key, \texttt{hashedPkh} and \texttt{TokenName} of course. There are two scenarios:
 
 \begin{itemize}
-\item{For the initial head stake, check the NFT State UTXO is part of the inputs with datum \texttt{StateDatum Nothing}. Also check the NFT State UTXO has output datum \texttt{StateDatum (Just hashedPkh)} with the relevant \texttt{TokenName = TokenName hashedPkh} from \ref{def:hashedPkh} and everything else unchanged. We should check the associated list UTXO has been deposited to the validator, with \texttt{assocListCs} as \texttt{CurrencySymbol} and datum
+\item{For the initial head stake, check the NFT State UTXO is part of the inputs with datum \texttt{StateDatum Nothing sizeLeft}. Also check the NFT State UTXO has output datum \texttt{StateDatum (Just hashedPkh) sizeLeft} with the relevant \texttt{TokenName = TokenName hashedPkh} from \ref{def:hashedPkh} and everything else unchanged. We should check the associated list UTXO has been deposited to the validator, with \texttt{assocListCs} as \texttt{CurrencySymbol} and datum
 \begin{minted}{haskell}
 Entry
   { key = hashedPkh
   , sizeLeft = nftStateUtxoSize
-  , newDeposit = Just amount -- new deposit to signify potential pool overflow
+  , newDeposit = amount -- new deposit to signify potential pool overflow
   , deposited = amount
   , staked = 0 -- effective staked amount to be updated by admin
   , rewards = 0 -- to be updated by admin, a mint means no rewards initially
@@ -537,7 +541,7 @@ The validator should check the (non staking) UTXOs are all unit value in inputs 
 
 The \texttt{newDeposit} should be initiated by the amount deposited. Incrementing occurs when the user deposits multiple times in \textit{one} cycle, but this won't happen here since we are minting.
 
-The \texttt{nftStateUtxoSize} can be taken from the NFT State UTXO datum (second tuple element). This is of course inaccurate with depositing but this will be updated during bonding by the admin.
+The \texttt{nftStateUtxoSize} can be taken from the NFT State UTXO datum (second product element). This is of course inaccurate with depositing but this will be updated during bonding by the admin.
 
 The \texttt{amount} of staking UTXOs should be deposited to the validator of course.
 
@@ -545,12 +549,12 @@ Note: the initial head stake is equivalent to an initial tail stake so do not de
 }
 
 \item{
-For altering the head, check the NFT State UTXO is part of the inputs with datum \texttt{StateDatum (Just currentHead)}. Check the proposed hashed \texttt{BuiltinByteString}, \texttt{proposedHead} is \textbf{less} than \texttt{currentHead}. Also check the NFT State UTXO has output datum \texttt{StateDatum (Just proposedHead)} with the relevant \texttt{TokenName = TokenName proposedHead} from \ref{def:hashedPkh} and everything else unchanged. We should check the associated list UTXO has been deposited to the validator, with \texttt{assocListCs} as \texttt{CurrencySymbol} and datum
+For altering the head, check the NFT State UTXO is part of the inputs with datum \texttt{StateDatum (Just currentHead) sizeLeft}. Check the proposed hashed \texttt{BuiltinByteString}, \texttt{proposedHead} is \textbf{less} than \texttt{currentHead}. Also check the NFT State UTXO has output datum \texttt{StateDatum (Just proposedHead) sizeLeft} with the relevant \texttt{TokenName = TokenName proposedHead} from \ref{def:hashedPkh} and everything else unchanged. We should check the associated list UTXO has been deposited to the validator, with \texttt{assocListCs} as \texttt{CurrencySymbol} and datum
 \begin{minted}{haskell}
 Entry
   { key = proposedHead
   , sizeLeft = nftStateUtxoSize
-  , newDeposit = Just amount -- new deposit to signify potential pool overflow
+  , newDeposit = amount -- new deposit to signify potential pool overflow
   , deposited = amount
   , staked = 0 -- effective staked amount to be updated by admin
   , rewards = 0 -- to be updated by admin, a mint means no rewards initially
@@ -561,7 +565,7 @@ The validator should check the (non staking) UTXOs are all unit value in inputs 
 
 The \texttt{newDeposit} should be initiated by the amount deposited. Incrementing occurs when the user deposits multiple times in \textit{one} cycle, but this won't happen here since we are minting.
 
-The \texttt{nftStateUtxoSize} can be taken from the NFT State UTXO datum (second tuple element). This is of course inaccurate with depositing but this will be updated during bonding by the admin.
+The \texttt{nftStateUtxoSize} can be taken from the NFT State UTXO datum (second product element). This is of course inaccurate with depositing but this will be updated during bonding by the admin.
 
 The \texttt{amount} of staking tokens should again be deposited to the validator of course.
 }
@@ -609,7 +613,7 @@ Check that: $\texttt{firstSizeLeft} == \texttt{secondSizeLeft}$.
 Entry
   { key = middleKey
   , sizeLeft = firstSizeLeft -- == secondSizeLeft
-  , newDeposit = Just amount'
+  , newDeposit = amount'
   , deposited = amount'
   , staked = 0 
   , rewards = 0
@@ -637,7 +641,7 @@ The \texttt{newDeposit} should be initiated by the amount deposited. Incrementin
 
 Once again, the deposit makes the \texttt{sizeLeft} field incorrect, but it is up to the admin to correct this during bonding.
 
-The \texttt{amount''} of staking tokens should be deposited to the validator of course.
+The \texttt{amount'} of staking tokens should be deposited to the validator of course.
 }
 \end{enumerate}
 
@@ -669,7 +673,7 @@ Check that: $\texttt{tailKey} < \texttt{proposedTailKey}.$ The \texttt{TokenName
 Entry
   { key = proposedTailKey
   , sizeLeft = tailSizeLeft -- equal by induction
-  , newDeposit = Just amount'
+  , newDeposit = amount'
   , deposited = amount'
   , staked = 0 
   , rewards = 0
@@ -710,7 +714,7 @@ The head withdraw is when the NFT State UTXO and head Assoc. List UTXOS are alre
 \item{\textbf{Implied Validator logic:} Use the \texttt{WithdrawAct} validator redeemer, \ref{def:WithdrawAct} with a singleton signature for the transaction. This signature provides the key, \texttt{currentHead} and \texttt{TokenName} of course. There are two scenarios:
 
 \begin{itemize}
-\item{When the list only consists of the head element, check the NFT State UTXO is part of the inputs with datum \texttt{StateDatum (Just currentHead)}. Also check the NFT State UTXO has output datum \texttt{StateDatum Nothing} and everything else unchanged. We should check the associated list UTXO is part of the input and being burnt, with \texttt{assocListCs} as \texttt{CurrencySymbol} and datum
+\item{When the list only consists of the head element, check the NFT State UTXO is part of the inputs with datum \texttt{StateDatum (Just currentHead) sizeLeft}. Also check the NFT State UTXO has output datum \texttt{StateDatum Nothing sizeLeft} and everything else unchanged. We should check the associated list UTXO is part of the input and being burnt, with \texttt{assocListCs} as \texttt{CurrencySymbol} and datum
 \begin{minted}{haskell}
 Entry  
   { key = currentHead
@@ -734,7 +738,7 @@ The $\texttt{amount} + \texttt{rewards}$ of staking UTXOs should be withdraw to 
 }
 
 \item{
-When the list contains more than one element, check the NFT State and head Assoc. List UTXOs are part of the inputs with datum \texttt{StateDatum (Just currentHead)}. Check the proposed hashed \texttt{BuiltinByteString}, equals the \texttt{currentHead}. Also check the NFT State UTXO has output datum \texttt{StateDatum (Just newHead)} and everything else unchanged. \texttt{newHead} can be obtained by looking at the head UTXO with datum (this should be verified by checking its \texttt{TokenName} of course)
+When the list contains more than one element, check the NFT State and head Assoc. List UTXOs are part of the inputs with datum \texttt{StateDatum (Just currentHead) sizeLeft}. Check the proposed hashed \texttt{BuiltinByteString}, equals the \texttt{currentHead}. Also check the NFT State UTXO has output datum \texttt{StateDatum (Just newHead) sizeLeft} and everything else unchanged. \texttt{newHead} can be obtained by looking at the head UTXO with datum (this should be verified by checking its \texttt{TokenName} of course)
 \begin{minted}{haskell}
 Entry
   { key = currentHead
