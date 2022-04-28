@@ -4,6 +4,7 @@
 **/dist/
 **/dist-newstyle/
 **/output/
+**/output.js
 **/generated-docs/
 **/.psc-package/
 **/.psc*
