@@ -175,11 +175,11 @@ let
 
     "cardano-transaction-lib" = pkgs.stdenv.mkDerivation {
         name = "cardano-transaction-lib";
-        version = "682f325e248a54c431fb10dee9a373d2d6df328d";
+        version = "863564687d1646b4480bbc82dfe373b2f511f53d";
         src = pkgs.fetchgit {
           url = "https://github.com/Plutonomicon/cardano-transaction-lib.git";
-          rev = "682f325e248a54c431fb10dee9a373d2d6df328d";
-          sha256 = "074qn9006wp016dgkz2yg9gjglvhypvny65lxkmsbwnyj6921vax";
+          rev = "863564687d1646b4480bbc82dfe373b2f511f53d";
+          sha256 = "0w3p5145mwn2q3vl09bg0ps6vzs1v04zb4i6i2r26bldcqzs476g";
         };
         phases = "installPhase";
         installPhase = "ln -s $src $out";
@@ -192,6 +192,18 @@ let
           url = "https://github.com/purescript/purescript-catenable-lists.git";
           rev = "ee03395f2c5d59a7fd8529a0faac6ec1ebcbb682";
           sha256 = "1lz06fx0za5sl65wccn5fl37mw3x4jnvrriz1gg0aqsmm9lag7ss";
+        };
+        phases = "installPhase";
+        installPhase = "ln -s $src $out";
+      };
+
+    "checked-exceptions" = pkgs.stdenv.mkDerivation {
+        name = "checked-exceptions";
+        version = "v3.1.1";
+        src = pkgs.fetchgit {
+          url = "https://github.com/natefaubion/purescript-checked-exceptions.git";
+          rev = "6ece020df25d01ee95474f7545f28e75dcfb0f0c";
+          sha256 = "0z5n73n8za8w7d26xbdpkm8d70dlz08gm267rhb9ixxv25acjd36";
         };
         phases = "installPhase";
         installPhase = "ln -s $src $out";
@@ -257,6 +269,18 @@ let
         installPhase = "ln -s $src $out";
       };
 
+    "debug" = pkgs.stdenv.mkDerivation {
+        name = "debug";
+        version = "v5.0.0";
+        src = pkgs.fetchgit {
+          url = "https://github.com/garyb/purescript-debug.git";
+          rev = "144305842dba81169a93b3a3cc75429d5c8389e9";
+          sha256 = "09j69bgrq8nzw1l3aj1hka3y5ycmcsn9dlgf22k5ifrd74iic60y";
+        };
+        phases = "installPhase";
+        installPhase = "ln -s $src $out";
+      };
+
     "distributive" = pkgs.stdenv.mkDerivation {
         name = "distributive";
         version = "v5.0.0";
@@ -288,6 +312,18 @@ let
           url = "https://github.com/purescript/purescript-either.git";
           rev = "c1a1af35684f10eecaf6ac7d38dbf6bd48af2ced";
           sha256 = "18dk159yyv7vs0xsnh9m5fajd7zy6zw5b2mpyd6nqdh3c6bb9wh6";
+        };
+        phases = "installPhase";
+        installPhase = "ln -s $src $out";
+      };
+
+    "encoding" = pkgs.stdenv.mkDerivation {
+        name = "encoding";
+        version = "v0.0.7";
+        src = pkgs.fetchgit {
+          url = "https://github.com/menelaos/purescript-encoding.git";
+          rev = "0a4187136f9ea4ea51ddf635e3b3c2cd2461faac";
+          sha256 = "1rsnn8g2lx24k9wflr1jj12281i0smprb76nfm2f61yqqiwgij4d";
         };
         phases = "installPhase";
         installPhase = "ln -s $src $out";
@@ -636,6 +672,18 @@ let
           url = "https://github.com/Thimoteus/purescript-mmorph.git";
           rev = "ebe16afbfa16dd600f3379ccedc7529417402393";
           sha256 = "0ds88hray8v0519n9k546qsc4qs8bj1k5h5az7nwfp0gaq0r5wpk";
+        };
+        phases = "installPhase";
+        installPhase = "ln -s $src $out";
+      };
+
+    "monad-logger" = pkgs.stdenv.mkDerivation {
+        name = "monad-logger";
+        version = "v1.3.1";
+        src = pkgs.fetchgit {
+          url = "https://github.com/cprussin/purescript-monad-logger.git";
+          rev = "55441b4caf390bc38078a9c5c865efb105549cef";
+          sha256 = "0r1cp2x6mamjca5r5rm5mp1gidlll72paqrjd3z0j69l7iy7dgas";
         };
         phases = "installPhase";
         installPhase = "ln -s $src $out";
@@ -1224,6 +1272,18 @@ let
           url = "https://github.com/jvliwanag/purescript-untagged-union.git";
           rev = "364e172e759ebe722bd7ec12a599d532b527c0ef";
           sha256 = "06013431acz8xry9dish8p2qyj18bi505fgfikpjiblxgjazl9zx";
+        };
+        phases = "installPhase";
+        installPhase = "ln -s $src $out";
+      };
+
+    "variant" = pkgs.stdenv.mkDerivation {
+        name = "variant";
+        version = "v7.0.3";
+        src = pkgs.fetchgit {
+          url = "https://github.com/natefaubion/purescript-variant.git";
+          rev = "3f12411ede5edd342d25340c1babce9ae81d6793";
+          sha256 = "1q2pky3gf177ihy2zjzqvp1cj18ycaki9vm4ghw18p7hf256lqmc";
         };
         phases = "installPhase";
         installPhase = "ln -s $src $out";
