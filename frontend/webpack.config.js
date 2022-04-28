@@ -84,5 +84,7 @@ module.exports = {
     new webpack.ProvidePlugin({
       Buffer: ["buffer", "Buffer"],
     }),
+    new webpack.ContextReplacementPlugin(/cardano-serialization-lib-browser/),
+    new webpack.ContextReplacementPlugin(/cardano-serialization-lib-nodejs/),
   ],
 };
