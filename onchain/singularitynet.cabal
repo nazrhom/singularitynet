@@ -104,6 +104,7 @@ library
     ListNFT
     NFT
     Data.Natural
+    Data.Interval
     Settings
     SingularityNet
     Types
