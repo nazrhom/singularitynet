@@ -5,24 +5,26 @@ module Utils (
   ple,
   pge,
   pgt,
+  pnestedIf,
   pfstData,
   psndData,
   oneOf,
   oneOfWith,
   pletC,
+  pletDataC,
+  pmatchC,
   pconstantC,
   guardC,
-  getCs
+  getCs,
+  (>:)
 ) where
 
 import Plutarch.Api.V1 (
   PCurrencySymbol
   , PTokenName
   , PValue
-  , PInterval
-  , PPOSIXTime
   , PScriptPurpose(PMinting)
-  , PExtended (PNegInf, PPosInf, PFinite))
+  )
 import Plutarch.Monadic qualified as P
 import Plutarch.Lift (
   PUnsafeLiftDecl
@@ -35,17 +37,43 @@ peq = phoistAcyclic $ plam $ \x y -> x #== y
 pxor :: forall (s :: S). Term s (PBool :--> PBool :--> PBool)
 pxor = phoistAcyclic $ plam $ \x y -> pnot #$ pdata x #== pdata y
 
-plt :: forall (s :: S). Term s (PInteger :--> PInteger :--> PBool)
+plt ::
+  forall (s :: S) (a :: PType). (POrd a) =>
+  Term s (a :--> a :--> PBool)
 plt = phoistAcyclic $ plam $ \lim x -> x #< lim
 
-ple :: forall (s :: S). Term s (PInteger :--> PInteger :--> PBool)
+ple ::
+  forall (s :: S) (a :: PType). (POrd a) =>
+  Term s (a :--> a :--> PBool)
 ple = phoistAcyclic $ plam $ \lim x -> x #<= lim
 
-pge :: forall (s :: S). Term s (PInteger :--> PInteger :--> PBool)
+pge ::
+  forall (s :: S) (a :: PType). (POrd a) =>
+  Term s (a :--> a :--> PBool)
 pge = phoistAcyclic $ plam $ \lim x -> pnot #$ x #< lim
 
-pgt :: forall (s :: S). Term s (PInteger :--> PInteger :--> PBool)
+pgt ::
+  forall (s :: S) (a :: PType). (POrd a) =>
+  Term s (a :--> a :--> PBool)
 pgt = phoistAcyclic $ plam $ \lim x -> pnot #$ x #<= lim
+
+-- Functions for checking conditions in nested structures
+
+-- | Build nested conditions. It takes an association list of conditions and
+-- and results. It evaluates the conditions in order: whenever a condition
+-- is satisfied, its associated result is returned.
+-- 
+-- Analogous to a nested `pif` structure.
+pnestedIf ::
+  forall (s :: S) (a :: PType) .
+  [(Term s PBool, Term s a)] -> Term s a -> Term s a
+pnestedIf [] def = def
+pnestedIf ((cond, x) : conds) def = pif cond x $ pnestedIf conds def
+
+-- | A pair builder useful for avoiding parentheses
+infixr 1 >:
+(>:) :: forall (a :: Type) (b :: Type) . a -> b -> (a, b)
+a >: b = (a, b)
 
 -- Convenient functions for accessing a pair's elements
 
@@ -184,8 +212,22 @@ pconstantC ::
   PLifted a -> TermCont s (Term s a)
 pconstantC x = pure $ pconstant x
 
+-- | `pmatch` for the `TermCont` monad
+pmatchC :: forall (s :: S) (a :: PType). PlutusType a =>
+  Term s a -> TermCont s (a s)
+pmatchC = tcont . pmatch
+
+-- | `plet` for the `TermCont` monad
 pletC :: forall (s :: S) (a :: PType) . Term s a -> TermCont s (Term s a)
 pletC = tcont . plet
+
+-- | Converts from `Data` and binds result with `pletC`
+pletDataC ::
+  forall (s :: S) (a :: PType) .
+  PIsData a =>
+  Term s (PAsData a) ->
+  TermCont s (Term s a)
+pletDataC x = pletC $ pfromData x
 
 -- | Boolean guard for the `TermCont` monad
 guardC ::
@@ -205,53 +247,3 @@ getCs ::
 getCs purpose = pure $ pmatch purpose $ \case
   PMinting cs' -> pfield @"_0" # cs'
   _ -> ptraceError "not a minting transaction"
-
--- Functions for working with intervals
-
--- We need to define `POrd`-like functions for these `PExtended`, `PLowerBound`
--- and `PUpperBound`
-extendedLT :: forall (s :: S) (a :: PType). POrd (PAsData a) =>
-  Term s (PExtended a) -> Term s (PExtended a) -> Term s PBool
-extendedLT e1 e2 =
-  pmatch e1 $ \case
-    PNegInf _ -> pmatch e2 $ \case
-      PNegInf _ -> pconstant False
-      _         -> pconstant True
-    PPosInf _ -> pconstant False
-    PFinite n1' -> pmatch e2 $ \case
-      PNegInf _  -> pconstant False
-      PPosInf _  -> pconstant True
-      PFinite n2' -> pfield @"_0" # n1' #< pfield @"_0" # n2'
-
-extendedLE :: forall (s :: S) (a :: PType). POrd (PAsData a) =>
-  Term s (PExtended a) -> Term s (PExtended a) -> Term s PBool
-extendedLE e1 e2 =
-  pmatch e1 $ \case
-    PNegInf _ -> pconstant True
-    PPosInf _ -> pmatch e2 $ \case
-      PPosInf _ -> pconstant True
-      _         -> pconstant False
-    PFinite n1' -> pmatch e2 $ \case
-      PNegInf _  -> pconstant False
-      PPosInf _  -> pconstant True
-      PFinite n2' -> pfield @"_0" # n1' #<= pfield @"_0" # n2'
-      
-extendedGE :: forall (s :: S) (a :: PType). POrd (PAsData a) =>
-  Term s (PExtended a) -> Term s (PExtended a) -> Term s PBool
-extendedGE e1 e2 = extendedLT e2 e1
-
-extendedGT :: forall (s :: S) (a :: PType). POrd (PAsData a) =>
-  Term s (PExtended a) -> Term s (PExtended a) -> Term s PBool
-extendedGT e1 e2 = extendedLE e2 e1
-
--- | Returns true if the second interval is contained within the first
---pcontains ::
---  forall (s :: S) .
---  Term s (PInterval PPOSIXTime) ->
---  Term s (PInterval PPOSIXTime) ->
---  Term s PBool
---pcontains i1 i2 = unTermCont $ do
---  i1F <- tcont $ pletFields @'["from", "to"] i1
---  i2F <- tcont $ pletFields @'["from", "to"] i2
---  
---  pconstantC True
