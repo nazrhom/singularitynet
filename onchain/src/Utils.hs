@@ -6,6 +6,7 @@ module Utils (
   pge,
   pgt,
   pnestedIf,
+  pfind,
   pfstData,
   psndData,
   oneOf,
@@ -15,7 +16,11 @@ module Utils (
   pmatchC,
   pconstantC,
   guardC,
+  ptryFromData,
   getCs,
+  getInput,
+  getDatum,
+  getDatumHash,
   (>:)
 ) where
 
@@ -23,12 +28,18 @@ import Plutarch.Api.V1 (
   PCurrencySymbol
   , PTokenName
   , PValue
-  , PScriptPurpose(PMinting)
+  , PScriptPurpose(PMinting, PSpending)
+  , PDatumHash
+  , PTuple
+  , PDatum
+  , PMaybeData (PDJust, PDNothing)
   )
 import Plutarch.Monadic qualified as P
 import Plutarch.Lift (
   PUnsafeLiftDecl
   , PLifted)
+import Plutarch.Api.V1.Tx (PTxInInfo, PTxOutRef, PTxOut)
+import Plutarch.TryFrom (PTryFrom, ptryFrom)
 
 -- Term-level boolean functions
 peq :: forall (s :: S) (a :: PType). PEq a => Term s (a :--> a :--> PBool)
@@ -93,6 +104,24 @@ psndData ::
   Term s b
 psndData x = pfromData $ psndBuiltin # x
 
+-- Functions for lists
+
+-- | Returns the first element that matches the predicate. If no element matches
+-- the predicate, it throws an error
+pfind ::
+  forall (s :: S) (a :: PType) .
+  PIsData a =>
+  Term s (a :--> PBool) ->
+  Term s (PBuiltinList (PAsData a)) ->
+  TermCont s (Term s a)
+pfind pred ls = pure $ pfind' # pred # ls
+  where pfind' :: Term s ((a :--> PBool) :--> PBuiltinList (PAsData a) :--> a)
+        pfind' = phoistAcyclic $ plam $ \pred ls ->
+          pforce $ pfoldr
+            # (plam $ \a' err ->
+                pif (pred # pfromData a') (pdelay $ pfromData a') err)
+            # pdelay (ptraceError "pfind: element not found")
+            # ls
 -- Functions for evaluating predicates on `PValue`s
 
 {- | Returns `PTrue` if the token described by its `PCurrencySymbol` and
@@ -237,9 +266,17 @@ guardC ::
   TermCont s (Term s PUnit)
 guardC errMsg cond = pure $ pif cond (pconstant ()) $ ptraceError errMsg
 
+-- Functions for working with the `PTryFrom` class
+
+-- | Copied from plutarch-extra
+ptryFromData :: forall a s .
+  PTryFrom PData (PAsData a) =>
+  Term s PData -> TermCont s (Term s (PAsData a))
+ptryFromData x = fst <$> tcont (ptryFrom @(PAsData a) x)
+
 -- Helper functions for retrieving data in a validator
 
--- Gets the currency symbol of the script (equivalent to ownCurrencySymbol)
+-- | Gets the currency symbol of the script (equivalent to ownCurrencySymbol)
 getCs ::
   forall (s :: S) .
   Term s PScriptPurpose ->
@@ -247,3 +284,63 @@ getCs ::
 getCs purpose = pure $ pmatch purpose $ \case
   PMinting cs' -> pfield @"_0" # cs'
   _ -> ptraceError "not a minting transaction"
+  
+-- | Gets the input being spent. If not available, it will fail with
+-- an error.
+getInput ::
+  forall (s :: S) .
+  Term s PScriptPurpose ->
+  Term s (PBuiltinList (PAsData PTxInInfo)) ->
+  TermCont s (Term s PTxInInfo)
+getInput purpose txInInfos = pure $ getInput' # purpose # txInInfos
+  where getInput' :: forall (s :: S) .
+          Term s (
+            PScriptPurpose :-->
+            PBuiltinList (PAsData PTxInInfo) :-->
+            PTxInInfo)
+        getInput' = phoistAcyclic $ plam $ \purpose txInInfos -> unTermCont $ do
+          inputOutRef <- pure $ getSpendingRef purpose
+          pfind (predicate # inputOutRef) txInInfos
+        predicate :: forall (s :: S) .
+          Term s (PTxOutRef :--> PTxInInfo :--> PBool)
+        predicate = plam $ \inputOutRef txInInfo -> unTermCont $ do
+          pure $ (pdata inputOutRef) #== pdata (pfield @"outRef" # txInInfo)
+        getSpendingRef :: forall (s :: S) .
+          Term s PScriptPurpose -> Term s PTxOutRef
+        getSpendingRef = flip pmatch $ \case
+          PSpending outRef -> pfield @"_0" # outRef
+          _ -> ptraceError "cannot get input because tx is not of spending type"
+          
+-- | Gets the `DatumHash` from a `PTxOut`. If not available, it will fail with
+-- an error.
+getDatumHash ::
+  forall (s :: S) .
+  Term s PTxOut ->
+  TermCont s (Term s PDatumHash)
+getDatumHash txOut = pure $ getDatumHash' # txOut
+  where getDatumHash' :: forall (s :: S) . Term s (PTxOut :--> PDatumHash)
+        getDatumHash' = phoistAcyclic $ plam $ \txOut ->
+          pmatch (pfield @"datumHash" # txOut) $ \case
+            PDJust datumHash' -> pfield @"_0" # datumHash'
+            PDNothing _ -> ptraceError "could not find datum hash in txOut"
+
+-- | Gets `Datum` by its `DatumHash`. If not available, it will fail with an
+-- error.
+getDatum ::
+  forall (s :: S) .
+  Term s PDatumHash ->
+  Term s (PBuiltinList (PAsData (PTuple PDatumHash PDatum))) ->
+  TermCont s (Term s PDatum)
+getDatum datHash dats = pure $ getDatum' # datHash # dats
+ where getDatum' :: forall (s :: S) .
+        Term s (
+          PDatumHash :-->
+          (PBuiltinList (PAsData (PTuple PDatumHash PDatum)) :-->
+          PDatum))
+       getDatum' = phoistAcyclic $ plam $ \datHash dats -> unTermCont $ do
+          datHashAndDat <- pfind (checkHash # datHash) dats
+          pure $ pfield @"_1" # datHashAndDat
+       checkHash :: forall (s :: S) .
+         Term s (PDatumHash :--> PTuple PDatumHash PDatum :--> PBool)
+       checkHash = plam $ \datHash tup -> unTermCont $ do
+         pure $ pfield @"_0" # tup #== datHash
