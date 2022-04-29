@@ -12,7 +12,7 @@ import Plutarch.Api.V1 (
   PScriptContext
   , PTxInfo
   , PPubKeyHash
-  , mkValidator)
+  , mkValidator, PScriptPurpose)
 import Plutarch.Unsafe (punsafeCoerce)
 import Plutarch.Api.V1.Time (
   PPOSIXTimeRange
@@ -37,6 +37,10 @@ import Utils(
   , pletDataC
   , pnestedIf
   , (>:)
+  , pconstantC
+  , getInput
+  , getDatum
+  , getDatumHash
   )
 import Data.Natural (
   PNatural
@@ -56,6 +60,8 @@ import Data.Interval(
       , piMaxCycles)
   )
 
+import Plutarch.Api.V1.Scripts (PDatum)
+
 pbondedPoolValidator ::
   forall (s :: S).
   Term
@@ -73,12 +79,13 @@ pbondedPoolValidator =
     act <- pletC $ pfromData act'
     _ctx <- pletC $ pfromData ctx'
     -- Retrieve fields from parameters
-    ctxF <- tcont $ pletFields @'["txInfo"] $ pfromData ctx'
+    ctxF <- tcont $ pletFields @'["txInfo", "purpose"] $ pfromData ctx'
     _paramsF <- tcont $ pletFields @'["admin"] params
     -- Match on redeemer and execute the corresponding logic
     pure $ pmatch act $ \case
       PAdminAct n' ->
-        adminActLogic ctxF.txInfo params $ pfield @"_0" # n'
+        let n = pfield @"_0" # n'
+        in  adminActLogic ctxF.txInfo ctxF.purpose params n
       PStakeAct _pair' -> stakeActLogic
       PWithdrawAct _pkh' -> withdrawActLogic
       PCloseAct _ -> closeActLogic
@@ -87,21 +94,30 @@ pbondedPoolValidator =
 adminActLogic ::
   forall (s :: S) .
   Term s PTxInfo ->
+  Term s PScriptPurpose ->
   Term s PBondedPoolParams ->
   Term s PNatural ->
   Term s PUnit
-adminActLogic txInfo params _sizeLeft = unTermCont $ do
+adminActLogic txInfo purpose params sizeLeft = unTermCont $ do
   -- Retrieve fields from parameters
-  txInfoF <- tcont $ pletFields @'["signatories", "validRange"] txInfo
+  txInfoF <- tcont $ pletFields
+    @'["inputs", "signatories", "validRange"]
+    txInfo
   paramsF <- tcont $ pletFields @'["admin"] params
   -- We check that the transaction was signed by the pool operator
   guardC "transaction not signed by admin" $
     signedByAdmin txInfoF.signatories paramsF.admin 
   -- We check that the transaction occurs during a bonding period
-  period <- getPeriod txInfoF.validRange params
+  period <- pure $ getPeriod # txInfoF.validRange # params
   guardC "admin deposit not done in bonding period" $
-  -- TODO: Validate that pool's state and list entries are updated correctly
     isBondingPeriod period
+  -- We make sure that the spent input's Datum is updated correctly
+  input <- getInput purpose txInfoF.inputs
+  inputDatumHash <- getDatumHash $ pfield @"resolved" # input
+  inputDatum <- getDatum inputDatumHash (pfield @"data" # txInfo)
+  bondedStakingDatum <- parseStakingDatum inputDatum
+  guardC "admin failed to update the datum correctly" $
+    updatedDatumCorrectly bondedStakingDatum sizeLeft
   where isBondingPeriod :: Term s PPeriod -> Term s PBool
         isBondingPeriod period = pmatch period $ \case
           BondingPeriod -> pconstant True
@@ -123,11 +139,30 @@ hbondedPoolValidator bondedPoolParams =
       pbondedPoolValidator
         # pconstant bondedPoolParams
         
+-- Helper functions for the different logics
+
 signedByAdmin :: forall (s :: S) .
   Term s (PBuiltinList (PAsData PPubKeyHash)) ->
   Term s PPubKeyHash ->
   Term s PBool
 signedByAdmin ls pkh = pelem # pdata pkh # ls
+
+updatedDatumCorrectly :: forall (s :: S) .
+  Term s PBondedStakingDatum ->
+  Term s PNatural ->
+  Term s PBool
+updatedDatumCorrectly _dat _n = unTermCont $ do
+  -- TODO: Verify that rewards are consistent with interest rate, that the
+  -- the size is updated correctly and that no other field is touched
+  pconstantC True
+
+parseStakingDatum :: forall (s :: S) . 
+  Term s PDatum -> TermCont s (Term s PBondedStakingDatum)
+parseStakingDatum _datum = do
+  -- TODO: Learn how to use ptryFrom here
+  --res <- tcont $ ptryFrom @(PAsData PBondedStakingDatum) @PData $
+  --          pforgetData $ pdata datum
+  undefined
 
 {- A newtype used internally for encoding different periods.
 
@@ -150,50 +185,62 @@ data PPeriod (s :: S)
   | ClosingPeriod
   deriving stock (GHC.Generic, Eq)
   deriving anyclass (Generic, PlutusType)
-  
-getPeriod :: forall (s :: S) .
-  Term s PPOSIXTimeRange ->
-  Term s PBondedPoolParams ->
-  TermCont s (Term s PPeriod)
-getPeriod txTimeRange params = do
-  -- Retrieve fields
-  paramsF <- tcont $ pletFields
-    @'["iterations", "start", "end", "userLength", "bondingLength"]
-    params
-  -- Convert from data
-  iterations' <- pletDataC paramsF.iterations
-  let iterations :: Term s PInteger
-      iterations = pto iterations'
-  start <- pletDataC paramsF.start
-  end <- pletDataC paramsF.end
-  userLength <- pletDataC paramsF.userLength
-  bondingLength <- pletDataC paramsF.bondingLength
-  -- We define the periodic intervals in which the Deposit/Withdrawal and
-  -- Bonding will happen
-  period <- pletC $ punsafeCoerce $ pto userLength + pto bondingLength
-  let depositWithdrawal = PPeriodicInterval {
-      piBaseOffset = start
-      , piPeriod = period
-      , piStartOffset = pconstant 0
-      , piEndOffset = userLength
-      , piMaxCycles = iterations'}
-      bonding = depositWithdrawal {
-      piStartOffset = userLength
-      , piEndOffset = bondingLength
-      }
-  piDepositWithdrawal <- pletC $ pcon depositWithdrawal
-  piBonding <- pletC $ pcon bonding
-  pure $ pnestedIf [
-   pintervalTo start `pcontains` txTimeRange
-     >: pcon UnavailablePeriod
-   , pperiodicContains # piDepositWithdrawal # txTimeRange
-     >: pcon DepositWithdrawPeriod
-   , pperiodicContains # piBonding # txTimeRange
-     >: pcon BondingPeriod
-   , pcontains
-        (pinterval (punsafeCoerce $ iterations * pto period + pto start) end)
-        txTimeRange
-     >: pcon OnlyWithdrawPeriod
-   , pintervalFrom end `pcontains` txTimeRange
-     >: pcon ClosingPeriod
-   ] $ ptraceError "the transaction's range does not belong to any valid period"
+
+getPeriod ::
+  Term s (
+    PPOSIXTimeRange :-->
+    PBondedPoolParams :-->
+    PPeriod
+  )
+getPeriod = phoistAcyclic $ plam $
+  \txTimeRange params ->
+    getPeriod' txTimeRange params
+  where getPeriod' :: forall (s :: S) .
+          Term s PPOSIXTimeRange ->
+          Term s PBondedPoolParams ->
+          Term s PPeriod
+        getPeriod' txTimeRange params = unTermCont $ do
+          -- Retrieve fields
+          paramsF <- tcont $ pletFields
+            @'["iterations", "start", "end", "userLength", "bondingLength"]
+            params
+          -- Convert from data
+          iterations' <- pletDataC paramsF.iterations
+          let iterations :: Term s PInteger
+              iterations = pto iterations'
+          start <- pletDataC paramsF.start
+          end <- pletDataC paramsF.end
+          userLength <- pletDataC paramsF.userLength
+          bondingLength <- pletDataC paramsF.bondingLength
+          -- We define the periodic intervals in which the Deposit/Withdrawal
+          -- and Bonding will happen
+          period <- pletC $ punsafeCoerce $ pto userLength + pto bondingLength
+          let depositWithdrawal = PPeriodicInterval {
+              piBaseOffset = start
+              , piPeriod = period
+              , piStartOffset = pconstant 0
+              , piEndOffset = userLength
+              , piMaxCycles = iterations'}
+              bonding = depositWithdrawal {
+              piStartOffset = userLength
+              , piEndOffset = bondingLength
+              }
+          piDepositWithdrawal <- pletC $ pcon depositWithdrawal
+          piBonding <- pletC $ pcon bonding
+          pure $ pnestedIf [
+           pintervalTo start `pcontains` txTimeRange
+             >: pcon UnavailablePeriod
+           , pperiodicContains # piDepositWithdrawal # txTimeRange
+             >: pcon DepositWithdrawPeriod
+           , pperiodicContains # piBonding # txTimeRange
+             >: pcon BondingPeriod
+           , pcontains
+                (pinterval
+                  (punsafeCoerce $ iterations * pto period + pto start)
+                  end)
+                txTimeRange
+             >: pcon OnlyWithdrawPeriod
+           , pintervalFrom end `pcontains` txTimeRange
+             >: pcon ClosingPeriod
+           ] $ ptraceError
+                "the transaction's range does not belong to any valid period"
