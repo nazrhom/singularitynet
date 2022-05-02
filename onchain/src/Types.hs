@@ -2,6 +2,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Types (
+  PSumType(..),
   BondedPoolParams (..),
   PBondedPoolParams,
   BondedStakingAction (..),
@@ -45,6 +46,7 @@ import Plutarch.Lift (
   PLifted,
   PUnsafeLiftDecl,
  )
+import Plutarch.TryFrom(PTryFrom)
 import Plutus.V1.Ledger.Api (
   CurrencySymbol,
   PubKeyHash,
@@ -60,6 +62,29 @@ import Data.Natural (
   PNatRatio,
   PNatural,
  )
+
+data PSumType (s :: S)
+  = ConsA (
+    Term s (
+      PDataRecord '[
+        "_0" ':= PInteger
+      ]
+    )
+  )
+  | ConsB (
+    Term s (
+      PDataRecord '[
+        "_0" ':= PInteger
+      ]
+    )
+  ) deriving stock (GHC.Generic)
+    deriving anyclass (Generic, PIsDataRepr)
+    deriving
+    (PlutusType, PIsData)
+    via PIsDataReprInstances PSumType
+
+deriving via PAsData (PIsDataReprInstances PSumType)
+  instance (PTryFrom PData (PAsData PSumType))
 
 -- | An `AssetClass` is simply a wrapper over a pair (CurrencySymbol, TokenName)
 newtype PAssetClass (s :: S)
@@ -181,7 +206,7 @@ data PEntry (s :: S)
                , "deposited" ':= PNatural
                , "staked" ':= PNatural
                , "rewards" ':= PNatRatio
-               , "value" ':= PBuiltinPair PNatural PNatRatio
+               , "value" ':= PBuiltinPair (PAsData PNatural) (PAsData PNatRatio)
                , "next" ':= PMaybeData PByteString
                ]
           )
@@ -191,6 +216,13 @@ data PEntry (s :: S)
   deriving
     (PlutusType, PIsData, PDataFields)
     via PIsDataReprInstances PEntry
+
+-- Orphan instance for `PMaybeData`, since it is not available in Plutarch
+deriving via PAsData (PIsDataReprInstances (PMaybeData PByteString))
+  instance PTryFrom PData (PAsData (PMaybeData PByteString))
+
+deriving via PAsData (PIsDataReprInstances PEntry)
+  instance PTryFrom PData (PAsData PEntry)
 
 data Entry = Entry
   { key :: BuiltinByteString
@@ -250,6 +282,9 @@ data PBondedStakingDatum (s :: S)
   deriving
     (PlutusType, PIsData)
     via PIsDataReprInstances PBondedStakingDatum
+
+deriving via PAsData (PIsDataReprInstances PBondedStakingDatum)
+  instance (PTryFrom PData (PAsData PBondedStakingDatum))
 
 data BondedStakingDatum
   = StateDatum (Maybe BuiltinByteString) Natural

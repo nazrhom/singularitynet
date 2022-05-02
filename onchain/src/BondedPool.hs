@@ -14,6 +14,8 @@ import Plutarch.Api.V1 (
   , PPubKeyHash
   , mkValidator, PScriptPurpose)
 import Plutarch.Unsafe (punsafeCoerce)
+import Plutarch.TryFrom(ptryFrom)
+import Plutarch.Builtin(pforgetData)
 import Plutarch.Api.V1.Time (
   PPOSIXTimeRange
   )
@@ -158,10 +160,10 @@ updatedDatumCorrectly _dat _n = unTermCont $ do
 
 parseStakingDatum :: forall (s :: S) . 
   Term s PDatum -> TermCont s (Term s PBondedStakingDatum)
-parseStakingDatum _datum = do
+parseStakingDatum datum = do
   -- TODO: Learn how to use ptryFrom here
   --res <- tcont $ ptryFrom @(PAsData PBondedStakingDatum) @PData $
-  --          pforgetData $ pdata datum
+            --pforgetData $ pdata datum
   undefined
 
 {- A newtype used internally for encoding different periods.

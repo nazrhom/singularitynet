@@ -21,6 +21,7 @@ import Data.Ratio (
   (%),
  )
 
+import Plutarch.TryFrom(PTryFrom)
 import Plutarch.Builtin (pforgetData)
 import Plutarch.Lift (
   PConstant (PConstantRepr, PConstanted),
@@ -83,6 +84,9 @@ newtype PNatural (s :: S) = PNatural (Term s PInteger)
     (PEq, POrd, PIsData, PlutusType)
     via (DerivePNewtype PNatural PInteger)
 
+deriving via DerivePNewtype (PAsData PNatural) (PAsData PInteger)
+  instance PTryFrom PData (PAsData PNatural)
+
 instance PUnsafeLiftDecl PNatural where
   type PLifted PNatural = Natural
 
@@ -126,6 +130,12 @@ newtype PNatRatio (s :: S)
             PNatRatio
             (PBuiltinPair (PAsData PInteger) (PAsData PInteger))
         )
+
+deriving via
+  DerivePNewtype
+    (PAsData PNatRatio)
+    (PAsData (PBuiltinPair (PAsData PInteger) (PAsData PInteger)))
+  instance PTryFrom PData (PAsData PNatRatio)
 
 instance PUnsafeLiftDecl PNatRatio where
   type PLifted PNatRatio = NatRatio
