@@ -90,7 +90,7 @@ pbondedPoolValidator =
         in  adminActLogic ctxF.txInfo ctxF.purpose params dat n
       PStakeAct _pair' -> stakeActLogic
       PWithdrawAct _pkh' -> withdrawActLogic
-      PCloseAct _ -> closeActLogic
+      PCloseAct _ -> closeActLogic ctxF.txInfo params
       
 -- Untyped version to be serialised. This version is responsible for verifying
 -- that the parameters (pool params, datum and redeemer) have the proper types.
@@ -194,8 +194,27 @@ stakeActLogic = pconstant ()
 withdrawActLogic :: forall (s :: S) . Term s PUnit
 withdrawActLogic = pconstant ()
 
-closeActLogic :: forall (s :: S) . Term s PUnit
-closeActLogic = pconstant ()
+closeActLogic :: forall (s :: S) .
+  Term s PTxInfo ->
+  Term s PBondedPoolParams ->
+  Term s PUnit
+closeActLogic txInfo params = unTermCont $ do
+  -- Retrieve fields from parameters
+  txInfoF <- tcont $ pletFields
+    @'["signatories", "validRange"]
+    txInfo
+  paramsF <- tcont $ pletFields @'["admin"] params
+  -- We check that the transaction was signed by the pool operator
+  guardC "transaction not signed by admin" $
+    signedByAdmin txInfoF.signatories paramsF.admin 
+  -- We check that the transaction occurs during a bonding period
+  period <- pure $ getPeriod # txInfoF.validRange # params
+  guardC "admin deposit not done in closing period" $
+    isClosingPeriod period
+  where isClosingPeriod :: Term s PPeriod -> Term s PBool
+        isClosingPeriod period = pmatch period $ \case
+          ClosingPeriod -> pconstant True
+          _ -> pconstant False
 
 -- Helper functions for the different logics
 
