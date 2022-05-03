@@ -101,8 +101,8 @@ library
   import:          common-lang
   exposed-modules:
     BondedPool
+    StateNFT
     ListNFT
-    NFT
     Data.Natural
     Data.Interval
     Settings

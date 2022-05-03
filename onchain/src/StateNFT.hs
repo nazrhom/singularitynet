@@ -1,4 +1,4 @@
-module NFT (
+module StateNFT (
   pbondedStakingNFTPolicy,
   hbondedStakingNFTPolicy,
 ) where
