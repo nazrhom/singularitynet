@@ -65,29 +65,6 @@ import Data.Natural (
  )
 import Plutarch.Builtin (ppairDataBuiltin)
 
-data PSumType (s :: S)
-  = ConsA (
-    Term s (
-      PDataRecord '[
-        "_0" ':= PInteger
-      ]
-    )
-  )
-  | ConsB (
-    Term s (
-      PDataRecord '[
-        "_0" ':= PInteger
-      ]
-    )
-  ) deriving stock (GHC.Generic)
-    deriving anyclass (Generic, PIsDataRepr)
-    deriving
-    (PlutusType, PIsData)
-    via PIsDataReprInstances PSumType
-
-deriving via PAsData (PIsDataReprInstances PSumType)
-  instance (PTryFrom PData (PAsData PSumType))
-
 -- | An `AssetClass` is simply a wrapper over a pair (CurrencySymbol, TokenName)
 newtype PAssetClass (s :: S)
   = PAssetClass
