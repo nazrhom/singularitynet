@@ -21,6 +21,7 @@ module Utils (
   getInput,
   getDatum,
   getDatumHash,
+  getContinuingOutputWithNFT,
   (>:)
 ) where
 
@@ -33,6 +34,7 @@ import Plutarch.Api.V1 (
   , PTuple
   , PDatum
   , PMaybeData (PDJust, PDNothing)
+  , PAddress
   )
 import Plutarch.Monadic qualified as P
 import Plutarch.Lift (
@@ -40,6 +42,7 @@ import Plutarch.Lift (
   , PLifted)
 import Plutarch.Api.V1.Tx (PTxInInfo, PTxOutRef, PTxOut)
 import Plutarch.TryFrom (PTryFrom, ptryFrom)
+import Types (PAssetClass)
 
 -- Term-level boolean functions
 peq :: forall (s :: S) (a :: PType). PEq a => Term s (a :--> a :--> PBool)
@@ -310,6 +313,39 @@ getInput purpose txInInfos = pure $ getInput' # purpose # txInInfos
         getSpendingRef = flip pmatch $ \case
           PSpending outRef -> pfield @"_0" # outRef
           _ -> ptraceError "cannot get input because tx is not of spending type"
+      
+-- | Gets the continuing output that shares the same address and contains the
+-- the given NFT. If no such output exists, it will fail with an error.
+getContinuingOutputWithNFT ::
+  forall (s :: S) .
+  Term s PAddress ->
+  Term s PAssetClass ->
+  Term s (PBuiltinList (PAsData PTxOut)) ->
+  TermCont s (Term s PTxOut)
+getContinuingOutputWithNFT addr ac outputs =
+  pure $ getContinuingOutputWithNFT' # addr # ac # outputs
+  where getContinuingOutputWithNFT' ::
+          forall (s :: S) .
+          Term s (
+            PAddress :-->
+            PAssetClass :-->
+            PBuiltinList (PAsData PTxOut) :-->
+            PTxOut)
+        getContinuingOutputWithNFT' = phoistAcyclic $ plam $ \addr ac outputs ->
+          unTermCont $ do
+            pfind (sameAddrAndNFT addr ac)
+                  outputs
+        sameAddrAndNFT ::
+          forall (s :: S) .
+          Term s PAddress ->
+          Term s PAssetClass ->
+          Term s (PTxOut :--> PBool)
+        sameAddrAndNFT addr ac = plam $ \output -> unTermCont $ do
+          outputF <- tcont $ pletFields @'["address", "value"] output
+          let cs = pfstData $ pto ac
+              tn = psndData $ pto ac
+          pure $ (pdata outputF.address) #== (pdata addr)
+                 #&& oneOf # cs # tn # outputF.value
           
 -- | Gets the `DatumHash` from a `PTxOut`. If not available, it will fail with
 -- an error.
