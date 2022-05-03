@@ -27,7 +27,8 @@ module Types (
   acCurrencySymbol,
   acTokenName,
   mkAssetClass,
-  PAssetClass,
+  PAssetClass(PAssetClass),
+  passetClass
 ) where
 
 import GHC.Generics qualified as GHC
@@ -62,6 +63,7 @@ import Data.Natural (
   PNatRatio,
   PNatural,
  )
+import Plutarch.Builtin (ppairDataBuiltin)
 
 data PSumType (s :: S)
   = ConsA (
@@ -89,14 +91,14 @@ deriving via PAsData (PIsDataReprInstances PSumType)
 -- | An `AssetClass` is simply a wrapper over a pair (CurrencySymbol, TokenName)
 newtype PAssetClass (s :: S)
   = PAssetClass
-      ( Term s (PBuiltinPair PCurrencySymbol PTokenName)
+      ( Term s (PBuiltinPair (PAsData PCurrencySymbol) (PAsData PTokenName))
       )
   deriving stock (GHC.Generic)
   deriving
     (PlutusType)
     via ( DerivePNewtype
             PAssetClass
-            (PBuiltinPair PCurrencySymbol PTokenName)
+            (PBuiltinPair (PAsData PCurrencySymbol) (PAsData PTokenName))
         )
 
 newtype AssetClass = AssetClass
@@ -119,9 +121,14 @@ deriving via
 instance PUnsafeLiftDecl PAssetClass where
   type PLifted PAssetClass = AssetClass
 
--- | A Natural is a wrapper over integer
 mkAssetClass :: CurrencySymbol -> TokenName -> AssetClass
 mkAssetClass cs tn = AssetClass (cs, tn)
+
+passetClass ::
+  forall (s :: S) .
+  Term s (PCurrencySymbol :--> PTokenName :--> PAssetClass)
+passetClass = phoistAcyclic $ plam $ \cs tn ->
+  pcon $ PAssetClass $ ppairDataBuiltin # pdata cs # pdata tn
 
 acCurrencySymbol :: AssetClass -> CurrencySymbol
 acCurrencySymbol = fst . unAssetClass
