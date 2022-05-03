@@ -1459,16 +1459,17 @@
         "th-extras": "th-extras"
       },
       "locked": {
-        "lastModified": 1645717044,
-        "narHash": "sha256-xRPL2RG70yMkRUTNMKpV1aTCkvBsw1Uq5AV7c2v7Js8=",
-        "owner": "Plutonomicon",
+        "lastModified": 1648806450,
+        "narHash": "sha256-Oqm6Y4DbPedxDsptPJr8Bq+JmdH/K5hfvIetOKGh5aU=",
+        "owner": "CardaxDEX",
         "repo": "plutarch",
-        "rev": "56f7cf7f32bf71a52343c142d3320e4198174a3b",
+        "rev": "e5a50283a0cb01ce1fee880943becda1ac19f3a0",
         "type": "github"
       },
       "original": {
-        "owner": "Plutonomicon",
+        "owner": "CardaxDEX",
         "repo": "plutarch",
+        "rev": "e5a50283a0cb01ce1fee880943becda1ac19f3a0",
         "type": "github"
       }
     },

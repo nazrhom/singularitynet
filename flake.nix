@@ -8,7 +8,7 @@
 
     plutip.url = "github:mlabs-haskell/plutip?rev=88d069d68c41bfd31b2057446a9d4e584a4d2f32";
 
-    plutarch.url = "github:Plutonomicon/plutarch";
+    plutarch.url = "github:CardaxDEX/plutarch?rev=e5a50283a0cb01ce1fee880943becda1ac19f3a0";
     plutarch.inputs.haskell-nix.follows = "plutip/haskell-nix";
     plutarch.inputs.nixpkgs.follows = "plutip/nixpkgs";
 
