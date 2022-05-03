@@ -12,9 +12,10 @@ import Plutarch.Api.V1 (
   PScriptContext
   , PTxInfo
   , PPubKeyHash
-  , mkValidator, PScriptPurpose)
+  , PScriptPurpose
+  , mkValidator)
+import Plutarch.Api.V1.Maybe ()
 import Plutarch.Unsafe (punsafeCoerce)
-import Plutarch.TryFrom(ptryFrom)
 import Plutarch.Builtin(pforgetData)
 import Plutarch.Api.V1.Time (
   PPOSIXTimeRange
@@ -30,8 +31,9 @@ import Types (
     , PStakeAct
     , PWithdrawAct
     , PCloseAct
-  ),
-  PBondedStakingDatum,
+  )
+  , PBondedStakingDatum(PStateDatum, PEntryDatum, PAssetDatum)
+  , passetClass
  )
 import Utils(
   guardC
@@ -43,6 +45,8 @@ import Utils(
   , getInput
   , getDatum
   , getDatumHash
+  , ptryFromData
+  , getContinuingOutputWithNFT, pmatchC
   )
 import Data.Natural (
   PNatural
@@ -63,6 +67,7 @@ import Data.Interval(
   )
 
 import Plutarch.Api.V1.Scripts (PDatum)
+import Settings (bondedStakingTokenName)
 
 pbondedPoolValidator ::
   forall (s :: S).
@@ -103,7 +108,7 @@ adminActLogic ::
 adminActLogic txInfo purpose params sizeLeft = unTermCont $ do
   -- Retrieve fields from parameters
   txInfoF <- tcont $ pletFields
-    @'["inputs", "signatories", "validRange"]
+    @'["inputs", "outputs", "signatories", "validRange"]
     txInfo
   paramsF <- tcont $ pletFields @'["admin"] params
   -- We check that the transaction was signed by the pool operator
@@ -113,13 +118,58 @@ adminActLogic txInfo purpose params sizeLeft = unTermCont $ do
   period <- pure $ getPeriod # txInfoF.validRange # params
   guardC "admin deposit not done in bonding period" $
     isBondingPeriod period
-  -- We make sure that the spent input's Datum is updated correctly
+  -- We retrieve the input's datum
   input <- getInput purpose txInfoF.inputs
-  inputDatumHash <- getDatumHash $ pfield @"resolved" # input
+  inputResolved <- pletC $ pfield @"resolved" # input
+  inputDatumHash <- getDatumHash inputResolved
   inputDatum <- getDatum inputDatumHash (pfield @"data" # txInfo)
-  bondedStakingDatum <- parseStakingDatum inputDatum
-  guardC "admin failed to update the datum correctly" $
-    updatedDatumCorrectly bondedStakingDatum sizeLeft
+  inputStakingDatum <- parseStakingDatum inputDatum
+  -- We make sure that the input's Datum is updated correctly for each Datum
+  -- constructor
+  addr <- pletC $ pfield @"address" # inputResolved
+  pure $ pmatch inputStakingDatum $ \case
+    PStateDatum oldState -> unTermCont $ do
+      oldStateF <- tcont $ pletFields @'["_0", "_1"] oldState
+      -- We obtain the asset class of the NFT
+      let cs = pfield @"nftCs" # params
+          tn = pconstant bondedStakingTokenName
+          ac = passetClass # cs # tn
+      -- We retrieve the continuing output's datum
+      coOutput <- getContinuingOutputWithNFT addr ac txInfoF.outputs
+      coOutputDatumHash <- getDatumHash coOutput
+      coOutputDatum <- getDatum coOutputDatumHash (pfield @"data" # txInfo)
+      coOutputStakingDatum <- parseStakingDatum coOutputDatum
+      -- Get new state
+      (PStateDatum state) <- pmatchC coOutputStakingDatum
+      stateF <- tcont $ pletFields @'["_0", "_1"] state
+      -- Check conditions
+      guardC "adminActLogic: update failed because of list head change" $
+        stateF._0 #== oldStateF._0
+      guardC "adminActLogic: update failed because new size was not updated \
+             \correctly" $
+        stateF._1 #== sizeLeft
+    PEntryDatum oldEntry' -> unTermCont $ do
+      -- Retrieve fields from oldEntry
+      oldEntry <- pletC $ pfield @"_0" # oldEntry'
+      oldEntryF <- tcont $ pletFields @'[
+        "key"
+        , "sizeLeft"
+        , "newDeposit"
+        , "deposited"
+        , "staked"
+        , "rewards"
+        , "value"
+        , "next"] oldEntry
+      -- We obtain the asset class of the NFT
+      let cs = pfield @"assocListCs" # params
+          tn = pconstant bondedStakingTokenName
+          ac = passetClass # cs # tn
+      -- TODO: Verify that most fields are kept intact, that size is updated
+      -- and that interests are calculated correctly
+      pconstantC ()
+    PAssetDatum _ -> ptraceError "adminActLogic: update failed because a wrong \
+                                 \datum constructor was provided"
+
   where isBondingPeriod :: Term s PPeriod -> Term s PBool
         isBondingPeriod period = pmatch period $ \case
           BondingPeriod -> pconstant True
@@ -149,22 +199,11 @@ signedByAdmin :: forall (s :: S) .
   Term s PBool
 signedByAdmin ls pkh = pelem # pdata pkh # ls
 
-updatedDatumCorrectly :: forall (s :: S) .
-  Term s PBondedStakingDatum ->
-  Term s PNatural ->
-  Term s PBool
-updatedDatumCorrectly _dat _n = unTermCont $ do
-  -- TODO: Verify that rewards are consistent with interest rate, that the
-  -- the size is updated correctly and that no other field is touched
-  pconstantC True
-
 parseStakingDatum :: forall (s :: S) . 
   Term s PDatum -> TermCont s (Term s PBondedStakingDatum)
 parseStakingDatum datum = do
-  -- TODO: Learn how to use ptryFrom here
-  --res <- tcont $ ptryFrom @(PAsData PBondedStakingDatum) @PData $
-            --pforgetData $ pdata datum
-  undefined
+  datum' <- ptryFromData @PBondedStakingDatum . pforgetData $ pdata datum
+  pure $ pfromData datum'
 
 {- A newtype used internally for encoding different periods.
 
