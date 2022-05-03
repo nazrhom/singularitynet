@@ -17,6 +17,7 @@ module Utils (
   pconstantC,
   guardC,
   ptryFromData,
+  ptryFromUndata,
   getCs,
   getInput,
   getDatum,
@@ -276,6 +277,13 @@ ptryFromData :: forall a s .
   PTryFrom PData (PAsData a) =>
   Term s PData -> TermCont s (Term s (PAsData a))
 ptryFromData x = fst <$> tcont (ptryFrom @(PAsData a) x)
+
+ptryFromUndata :: forall a s .
+  (PIsData a, PTryFrom PData (PAsData a)) =>
+  Term s PData -> TermCont s (Term s a)
+ptryFromUndata x'' = do
+  x' <- ptryFromData @a x''
+  pure $ pfromData x'
 
 -- Helper functions for retrieving data in a validator
 
