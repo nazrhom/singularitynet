@@ -2,7 +2,6 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Types (
-  PSumType(..),
   BondedPoolParams (..),
   PBondedPoolParams,
   BondedStakingAction (..),
@@ -34,7 +33,7 @@ module Types (
 import GHC.Generics qualified as GHC
 import Generics.SOP (Generic, I (I))
 
-import Plutarch.Api.V1 (PMaybeData, PPOSIXTime, PTokenName)
+import Plutarch.Api.V1 (PMaybeData, PPOSIXTime, PTokenName, PTxOutRef, PTxId)
 import Plutarch.Api.V1.Crypto (PPubKeyHash)
 import Plutarch.Api.V1.Value (PCurrencySymbol)
 import Plutarch.DataRepr (
@@ -65,6 +64,37 @@ import Data.Natural (
  )
 import Plutarch.Builtin (ppairDataBuiltin)
 
+-- This module contains some orphan instances for common Plutarch datatypes. For
+-- some reason, these are not available upstream.
+{-# OPTIONS_GHC -Wno-orphans #-}
+-- Orphan instance for `PMaybeData PByteString`
+deriving via PAsData (PIsDataReprInstances (PMaybeData PByteString))
+  instance PTryFrom PData (PAsData (PMaybeData PByteString))
+
+-- Orphan instance for `PTxOutRef`
+deriving via PAsData (PIsDataReprInstances PTxOutRef)
+  instance PTryFrom PData (PAsData PTxOutRef)
+
+-- Orphan instance for `PTxId`
+deriving via PAsData (PIsDataReprInstances PTxId)
+  instance PTryFrom PData (PAsData PTxId)
+
+-- Orphan instance for `PCurrencySymbol`
+deriving via DerivePNewtype (PAsData PCurrencySymbol) (PAsData PByteString)
+  instance PTryFrom PData (PAsData PCurrencySymbol)
+
+-- Orphan instance for `PPubKeyHash`
+deriving via DerivePNewtype (PAsData PPubKeyHash) (PAsData PByteString)
+  instance PTryFrom PData (PAsData PPubKeyHash)
+
+-- Orphan instance for `PPOSIXTime`
+deriving via DerivePNewtype (PAsData PPOSIXTime) (PAsData PInteger)
+  instance PTryFrom PData (PAsData PPOSIXTime)
+
+-- Orphan instance for `PTokenName`
+deriving via DerivePNewtype (PAsData PTokenName) (PAsData PByteString)
+  instance PTryFrom PData (PAsData PTokenName)
+
 -- | An `AssetClass` is simply a wrapper over a pair (CurrencySymbol, TokenName)
 newtype PAssetClass (s :: S)
   = PAssetClass
@@ -77,6 +107,10 @@ newtype PAssetClass (s :: S)
             PAssetClass
             (PBuiltinPair (PAsData PCurrencySymbol) (PAsData PTokenName))
         )
+deriving via DerivePNewtype 
+    (PAsData PAssetClass)
+    (PAsData (PBuiltinPair (PAsData PCurrencySymbol) (PAsData PTokenName)))
+  instance PTryFrom PData (PAsData PAssetClass)
 
 newtype AssetClass = AssetClass
   { unAssetClass :: (CurrencySymbol, TokenName)
@@ -147,6 +181,9 @@ newtype PBondedPoolParams (s :: S)
     (PlutusType, PIsData, PDataFields)
     via PIsDataReprInstances PBondedPoolParams
 
+deriving via PAsData (PIsDataReprInstances PBondedPoolParams)
+  instance PTryFrom PData (PAsData PBondedPoolParams)
+
 data BondedPoolParams = BondedPoolParams
   { iterations :: Natural
   , start :: POSIXTime
@@ -200,10 +237,6 @@ data PEntry (s :: S)
   deriving
     (PlutusType, PIsData, PDataFields)
     via PIsDataReprInstances PEntry
-
--- Orphan instance for `PMaybeData`, since it is not available in Plutarch
-deriving via PAsData (PIsDataReprInstances (PMaybeData PByteString))
-  instance PTryFrom PData (PAsData (PMaybeData PByteString))
 
 deriving via PAsData (PIsDataReprInstances PEntry)
   instance PTryFrom PData (PAsData PEntry)
@@ -301,6 +334,9 @@ data PMintingAction (s :: S)
     (PlutusType, PIsData)
     via PIsDataReprInstances PMintingAction
 
+deriving via PAsData (PIsDataReprInstances PMintingAction)
+  instance PTryFrom PData (PAsData PMintingAction)
+
 data MintingAction
   = Stake
   | Withdraw
@@ -342,6 +378,9 @@ data PBondedStakingAction (s :: S)
   deriving
     (PlutusType, PIsData)
     via PIsDataReprInstances PBondedStakingAction
+    
+deriving via PAsData (PIsDataReprInstances PBondedStakingAction)
+  instance PTryFrom PData (PAsData PBondedStakingAction)
 
 data BondedStakingAction
   = AdminAct Natural
