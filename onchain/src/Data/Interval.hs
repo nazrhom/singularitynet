@@ -5,6 +5,14 @@ module Data.Interval (
   pintervalFrom,
   pcontains,
   pperiodicContains,
+  lowerBoundLT,
+  lowerBoundLE,
+  upperBoundLT,
+  upperBoundLE,
+  (<|),
+  (|<),
+  (<=|),
+  (|<=),
 ) where
 
 import Plutarch.Api.V1 (
