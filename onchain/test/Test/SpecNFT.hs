@@ -2,7 +2,7 @@
 
 module Test.SpecNFT (nftTests) where
 
-import NFT (pbondedStakingNFTPolicy)
+import StateNFT (pbondedStateNFTPolicy)
 import Plutarch.Api.V1 (
   PScriptContext,
   mintingPolicySymbol,
@@ -66,7 +66,7 @@ testCurrencySymbol =
 
 -- The policy
 testPolicy :: forall (s :: S). Term s (PUnit :--> PScriptContext :--> PUnit)
-testPolicy = pbondedStakingNFTPolicy # pconstant testInputTxOutRef
+testPolicy = pbondedStateNFTPolicy # pconstant testInputTxOutRef
 
 -- The UTXO used to mint the NFT
 testInputTxOutRef :: TxOutRef
