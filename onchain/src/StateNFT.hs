@@ -1,6 +1,6 @@
 module StateNFT (
   pbondedStateNFTPolicy,
-  pbondedStateNFTPolicyUntyped
+  pbondedStateNFTPolicyUntyped,
 ) where
 
 {-
@@ -22,10 +22,10 @@ import Plutarch.Unsafe (punsafeCoerce)
 
 import Settings (bondedStakingTokenName)
 import Utils (
-  oneOf
-  , getCs
-  , ptryFromUndata
-  )
+  getCs,
+  oneOf,
+  ptryFromUndata,
+ )
 
 pbondedStateNFTPolicy ::
   forall (s :: S). Term s (PTxOutRef :--> PUnit :--> PScriptContext :--> PUnit)
@@ -45,11 +45,11 @@ pbondedStateNFTPolicy = plam $ \txOutRef _ ctx' -> P.do
     perror
 
 pbondedStateNFTPolicyUntyped ::
-  forall (s :: S) . Term s (PData :--> PData :--> PData :--> PUnit)
+  forall (s :: S). Term s (PData :--> PData :--> PData :--> PUnit)
 pbondedStateNFTPolicyUntyped = plam $ \utxo' _ ctx' ->
   pbondedStateNFTPolicy # unTermCont (ptryFromUndata utxo')
-                        # pconstant ()
-                        # punsafeCoerce ctx'
+    # pconstant ()
+    # punsafeCoerce ctx'
 
 consumesRef ::
   forall (s :: S).

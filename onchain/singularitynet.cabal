@@ -101,12 +101,12 @@ library
   import:          common-lang
   exposed-modules:
     BondedPool
-    StateNFT
-    ListNFT
-    Data.Natural
     Data.Interval
+    Data.Natural
+    ListNFT
     Settings
     SingularityNet
+    StateNFT
     Types
     Utils
 

@@ -2,7 +2,6 @@
 
 module Test.SpecNFT (nftTests) where
 
-import StateNFT (pbondedStateNFTPolicy)
 import Plutarch.Api.V1 (
   PScriptContext,
   mintingPolicySymbol,
@@ -39,6 +38,7 @@ import Plutus.V1.Ledger.Api (
   singleton,
  )
 import Settings (bondedStakingTokenName)
+import StateNFT (pbondedStateNFTPolicy)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
 import Test.Utils (fails, succeeds)

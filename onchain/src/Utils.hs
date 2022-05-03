@@ -23,25 +23,26 @@ module Utils (
   getDatum,
   getDatumHash,
   getContinuingOutputWithNFT,
-  (>:)
+  (>:),
 ) where
 
 import Plutarch.Api.V1 (
-  PCurrencySymbol
-  , PTokenName
-  , PValue
-  , PScriptPurpose(PMinting, PSpending)
-  , PDatumHash
-  , PTuple
-  , PDatum
-  , PMaybeData (PDJust, PDNothing)
-  , PAddress
-  )
-import Plutarch.Monadic qualified as P
+  PAddress,
+  PCurrencySymbol,
+  PDatum,
+  PDatumHash,
+  PMaybeData (PDJust, PDNothing),
+  PScriptPurpose (PMinting, PSpending),
+  PTokenName,
+  PTuple,
+  PValue,
+ )
+import Plutarch.Api.V1.Tx (PTxInInfo, PTxOut, PTxOutRef)
 import Plutarch.Lift (
-  PUnsafeLiftDecl
-  , PLifted)
-import Plutarch.Api.V1.Tx (PTxInInfo, PTxOutRef, PTxOut)
+  PLifted,
+  PUnsafeLiftDecl,
+ )
+import Plutarch.Monadic qualified as P
 import Plutarch.TryFrom (PTryFrom, ptryFrom)
 import Types (PAssetClass)
 
@@ -53,41 +54,49 @@ pxor :: forall (s :: S). Term s (PBool :--> PBool :--> PBool)
 pxor = phoistAcyclic $ plam $ \x y -> pnot #$ pdata x #== pdata y
 
 plt ::
-  forall (s :: S) (a :: PType). (POrd a) =>
+  forall (s :: S) (a :: PType).
+  (POrd a) =>
   Term s (a :--> a :--> PBool)
 plt = phoistAcyclic $ plam $ \lim x -> x #< lim
 
 ple ::
-  forall (s :: S) (a :: PType). (POrd a) =>
+  forall (s :: S) (a :: PType).
+  (POrd a) =>
   Term s (a :--> a :--> PBool)
 ple = phoistAcyclic $ plam $ \lim x -> x #<= lim
 
 pge ::
-  forall (s :: S) (a :: PType). (POrd a) =>
+  forall (s :: S) (a :: PType).
+  (POrd a) =>
   Term s (a :--> a :--> PBool)
 pge = phoistAcyclic $ plam $ \lim x -> pnot #$ x #< lim
 
 pgt ::
-  forall (s :: S) (a :: PType). (POrd a) =>
+  forall (s :: S) (a :: PType).
+  (POrd a) =>
   Term s (a :--> a :--> PBool)
 pgt = phoistAcyclic $ plam $ \lim x -> pnot #$ x #<= lim
 
 -- Functions for checking conditions in nested structures
 
--- | Build nested conditions. It takes an association list of conditions and
--- and results. It evaluates the conditions in order: whenever a condition
--- is satisfied, its associated result is returned.
--- 
--- Analogous to a nested `pif` structure.
+{- | Build nested conditions. It takes an association list of conditions and
+ and results. It evaluates the conditions in order: whenever a condition
+ is satisfied, its associated result is returned.
+
+ Analogous to a nested `pif` structure.
+-}
 pnestedIf ::
-  forall (s :: S) (a :: PType) .
-  [(Term s PBool, Term s a)] -> Term s a -> Term s a
+  forall (s :: S) (a :: PType).
+  [(Term s PBool, Term s a)] ->
+  Term s a ->
+  Term s a
 pnestedIf [] def = def
 pnestedIf ((cond, x) : conds) def = pif cond x $ pnestedIf conds def
 
 -- | A pair builder useful for avoiding parentheses
 infixr 1 >:
-(>:) :: forall (a :: Type) (b :: Type) . a -> b -> (a, b)
+
+(>:) :: forall (a :: Type) (b :: Type). a -> b -> (a, b)
 a >: b = (a, b)
 
 -- Convenient functions for accessing a pair's elements
@@ -110,22 +119,28 @@ psndData x = pfromData $ psndBuiltin # x
 
 -- Functions for lists
 
--- | Returns the first element that matches the predicate. If no element matches
--- the predicate, it throws an error
+{- | Returns the first element that matches the predicate. If no element matches
+ the predicate, it throws an error
+-}
 pfind ::
-  forall (s :: S) (a :: PType) .
+  forall (s :: S) (a :: PType).
   PIsData a =>
   Term s (a :--> PBool) ->
   Term s (PBuiltinList (PAsData a)) ->
   TermCont s (Term s a)
 pfind pred ls = pure $ pfind' # pred # ls
-  where pfind' :: Term s ((a :--> PBool) :--> PBuiltinList (PAsData a) :--> a)
-        pfind' = phoistAcyclic $ plam $ \pred ls ->
-          pforce $ pfoldr
-            # (plam $ \a' err ->
-                pif (pred # pfromData a') (pdelay $ pfromData a') err)
+  where
+    pfind' :: Term s ((a :--> PBool) :--> PBuiltinList (PAsData a) :--> a)
+    pfind' = phoistAcyclic $
+      plam $ \pred ls ->
+        pforce $
+          pfoldr
+            # ( plam $ \a' err ->
+                  pif (pred # pfromData a') (pdelay $ pfromData a') err
+              )
             # pdelay (ptraceError "pfind: element not found")
             # ls
+
 -- Functions for evaluating predicates on `PValue`s
 
 {- | Returns `PTrue` if the token described by its `PCurrencySymbol` and
@@ -240,23 +255,27 @@ tokenPredicate boolOp csPred tnPred nPred = plam $ \val -> P.do
 
 -- | Makes `a` constant and wraps it in a `TermCont`
 pconstantC ::
-  forall (s :: S) (a :: PType) .
+  forall (s :: S) (a :: PType).
   PUnsafeLiftDecl a =>
-  PLifted a -> TermCont s (Term s a)
+  PLifted a ->
+  TermCont s (Term s a)
 pconstantC x = pure $ pconstant x
 
 -- | `pmatch` for the `TermCont` monad
-pmatchC :: forall (s :: S) (a :: PType). PlutusType a =>
-  Term s a -> TermCont s (a s)
+pmatchC ::
+  forall (s :: S) (a :: PType).
+  PlutusType a =>
+  Term s a ->
+  TermCont s (a s)
 pmatchC = tcont . pmatch
 
 -- | `plet` for the `TermCont` monad
-pletC :: forall (s :: S) (a :: PType) . Term s a -> TermCont s (Term s a)
+pletC :: forall (s :: S) (a :: PType). Term s a -> TermCont s (Term s a)
 pletC = tcont . plet
 
 -- | Converts from `Data` and binds result with `pletC`
 pletDataC ::
-  forall (s :: S) (a :: PType) .
+  forall (s :: S) (a :: PType).
   PIsData a =>
   Term s (PAsData a) ->
   TermCont s (Term s a)
@@ -264,7 +283,7 @@ pletDataC x = pletC $ pfromData x
 
 -- | Boolean guard for the `TermCont` monad
 guardC ::
-  forall (s :: S) .
+  forall (s :: S).
   Term s PString ->
   Term s PBool ->
   TermCont s (Term s PUnit)
@@ -273,14 +292,18 @@ guardC errMsg cond = pure $ pif cond (pconstant ()) $ ptraceError errMsg
 -- Functions for working with the `PTryFrom` class
 
 -- | Copied from plutarch-extra
-ptryFromData :: forall a s .
+ptryFromData ::
+  forall a s.
   PTryFrom PData (PAsData a) =>
-  Term s PData -> TermCont s (Term s (PAsData a))
+  Term s PData ->
+  TermCont s (Term s (PAsData a))
 ptryFromData x = fst <$> tcont (ptryFrom @(PAsData a) x)
 
-ptryFromUndata :: forall a s .
+ptryFromUndata ::
+  forall a s.
   (PIsData a, PTryFrom PData (PAsData a)) =>
-  Term s PData -> TermCont s (Term s a)
+  Term s PData ->
+  TermCont s (Term s a)
 ptryFromUndata x'' = do
   x' <- ptryFromData @a x''
   pure $ pfromData x'
@@ -289,102 +312,130 @@ ptryFromUndata x'' = do
 
 -- | Gets the currency symbol of the script (equivalent to ownCurrencySymbol)
 getCs ::
-  forall (s :: S) .
+  forall (s :: S).
   Term s PScriptPurpose ->
   TermCont s (Term s PCurrencySymbol)
-getCs purpose = pure $ pmatch purpose $ \case
-  PMinting cs' -> pfield @"_0" # cs'
-  _ -> ptraceError "not a minting transaction"
-  
--- | Gets the input being spent. If not available, it will fail with
--- an error.
+getCs purpose = pure $
+  pmatch purpose $ \case
+    PMinting cs' -> pfield @"_0" # cs'
+    _ -> ptraceError "not a minting transaction"
+
+{- | Gets the input being spent. If not available, it will fail with
+ an error.
+-}
 getInput ::
-  forall (s :: S) .
+  forall (s :: S).
   Term s PScriptPurpose ->
   Term s (PBuiltinList (PAsData PTxInInfo)) ->
   TermCont s (Term s PTxInInfo)
 getInput purpose txInInfos = pure $ getInput' # purpose # txInInfos
-  where getInput' :: forall (s :: S) .
-          Term s (
-            PScriptPurpose :-->
-            PBuiltinList (PAsData PTxInInfo) :-->
-            PTxInInfo)
-        getInput' = phoistAcyclic $ plam $ \purpose txInInfos -> unTermCont $ do
-          inputOutRef <- pure $ getSpendingRef purpose
-          pfind (predicate # inputOutRef) txInInfos
-        predicate :: forall (s :: S) .
-          Term s (PTxOutRef :--> PTxInInfo :--> PBool)
-        predicate = plam $ \inputOutRef txInInfo -> unTermCont $ do
-          pure $ (pdata inputOutRef) #== pdata (pfield @"outRef" # txInInfo)
-        getSpendingRef :: forall (s :: S) .
-          Term s PScriptPurpose -> Term s PTxOutRef
-        getSpendingRef = flip pmatch $ \case
-          PSpending outRef -> pfield @"_0" # outRef
-          _ -> ptraceError "cannot get input because tx is not of spending type"
-      
--- | Gets the continuing output that shares the same address and contains the
--- the given NFT. If no such output exists, it will fail with an error.
+  where
+    getInput' ::
+      forall (s :: S).
+      Term
+        s
+        ( PScriptPurpose
+            :--> PBuiltinList (PAsData PTxInInfo)
+            :--> PTxInInfo
+        )
+    getInput' = phoistAcyclic $
+      plam $ \purpose txInInfos -> unTermCont $ do
+        inputOutRef <- pure $ getSpendingRef purpose
+        pfind (predicate # inputOutRef) txInInfos
+    predicate ::
+      forall (s :: S).
+      Term s (PTxOutRef :--> PTxInInfo :--> PBool)
+    predicate = plam $ \inputOutRef txInInfo -> unTermCont $ do
+      pure $ (pdata inputOutRef) #== pdata (pfield @"outRef" # txInInfo)
+    getSpendingRef ::
+      forall (s :: S).
+      Term s PScriptPurpose ->
+      Term s PTxOutRef
+    getSpendingRef = flip pmatch $ \case
+      PSpending outRef -> pfield @"_0" # outRef
+      _ -> ptraceError "cannot get input because tx is not of spending type"
+
+{- | Gets the continuing output that shares the same address and contains the
+ the given NFT. If no such output exists, it will fail with an error.
+-}
 getContinuingOutputWithNFT ::
-  forall (s :: S) .
+  forall (s :: S).
   Term s PAddress ->
   Term s PAssetClass ->
   Term s (PBuiltinList (PAsData PTxOut)) ->
   TermCont s (Term s PTxOut)
 getContinuingOutputWithNFT addr ac outputs =
   pure $ getContinuingOutputWithNFT' # addr # ac # outputs
-  where getContinuingOutputWithNFT' ::
-          forall (s :: S) .
-          Term s (
-            PAddress :-->
-            PAssetClass :-->
-            PBuiltinList (PAsData PTxOut) :-->
-            PTxOut)
-        getContinuingOutputWithNFT' = phoistAcyclic $ plam $ \addr ac outputs ->
-          unTermCont $ do
-            pfind (sameAddrAndNFT addr ac)
-                  outputs
-        sameAddrAndNFT ::
-          forall (s :: S) .
-          Term s PAddress ->
-          Term s PAssetClass ->
-          Term s (PTxOut :--> PBool)
-        sameAddrAndNFT addr ac = plam $ \output -> unTermCont $ do
-          outputF <- tcont $ pletFields @'["address", "value"] output
-          let cs = pfstData $ pto ac
-              tn = psndData $ pto ac
-          pure $ (pdata outputF.address) #== (pdata addr)
-                 #&& oneOf # cs # tn # outputF.value
-          
--- | Gets the `DatumHash` from a `PTxOut`. If not available, it will fail with
--- an error.
+  where
+    getContinuingOutputWithNFT' ::
+      forall (s :: S).
+      Term
+        s
+        ( PAddress
+            :--> PAssetClass
+            :--> PBuiltinList (PAsData PTxOut)
+            :--> PTxOut
+        )
+    getContinuingOutputWithNFT' = phoistAcyclic $
+      plam $ \addr ac outputs ->
+        unTermCont $ do
+          pfind
+            (sameAddrAndNFT addr ac)
+            outputs
+    sameAddrAndNFT ::
+      forall (s :: S).
+      Term s PAddress ->
+      Term s PAssetClass ->
+      Term s (PTxOut :--> PBool)
+    sameAddrAndNFT addr ac = plam $ \output -> unTermCont $ do
+      outputF <- tcont $ pletFields @'["address", "value"] output
+      let cs = pfstData $ pto ac
+          tn = psndData $ pto ac
+      pure $
+        (pdata outputF.address) #== (pdata addr)
+          #&& oneOf # cs # tn # outputF.value
+
+{- | Gets the `DatumHash` from a `PTxOut`. If not available, it will fail with
+ an error.
+-}
 getDatumHash ::
-  forall (s :: S) .
+  forall (s :: S).
   Term s PTxOut ->
   TermCont s (Term s PDatumHash)
 getDatumHash txOut = pure $ getDatumHash' # txOut
-  where getDatumHash' :: forall (s :: S) . Term s (PTxOut :--> PDatumHash)
-        getDatumHash' = phoistAcyclic $ plam $ \txOut ->
-          pmatch (pfield @"datumHash" # txOut) $ \case
-            PDJust datumHash' -> pfield @"_0" # datumHash'
-            PDNothing _ -> ptraceError "could not find datum hash in txOut"
+  where
+    getDatumHash' :: forall (s :: S). Term s (PTxOut :--> PDatumHash)
+    getDatumHash' = phoistAcyclic $
+      plam $ \txOut ->
+        pmatch (pfield @"datumHash" # txOut) $ \case
+          PDJust datumHash' -> pfield @"_0" # datumHash'
+          PDNothing _ -> ptraceError "could not find datum hash in txOut"
 
--- | Gets `Datum` by its `DatumHash`. If not available, it will fail with an
--- error.
+{- | Gets `Datum` by its `DatumHash`. If not available, it will fail with an
+ error.
+-}
 getDatum ::
-  forall (s :: S) .
+  forall (s :: S).
   Term s PDatumHash ->
   Term s (PBuiltinList (PAsData (PTuple PDatumHash PDatum))) ->
   TermCont s (Term s PDatum)
 getDatum datHash dats = pure $ getDatum' # datHash # dats
- where getDatum' :: forall (s :: S) .
-        Term s (
-          PDatumHash :-->
-          (PBuiltinList (PAsData (PTuple PDatumHash PDatum)) :-->
-          PDatum))
-       getDatum' = phoistAcyclic $ plam $ \datHash dats -> unTermCont $ do
-          datHashAndDat <- pfind (checkHash # datHash) dats
-          pure $ pfield @"_1" # datHashAndDat
-       checkHash :: forall (s :: S) .
-         Term s (PDatumHash :--> PTuple PDatumHash PDatum :--> PBool)
-       checkHash = plam $ \datHash tup -> unTermCont $ do
-         pure $ pfield @"_0" # tup #== datHash
+  where
+    getDatum' ::
+      forall (s :: S).
+      Term
+        s
+        ( PDatumHash
+            :--> ( PBuiltinList (PAsData (PTuple PDatumHash PDatum))
+                    :--> PDatum
+                 )
+        )
+    getDatum' = phoistAcyclic $
+      plam $ \datHash dats -> unTermCont $ do
+        datHashAndDat <- pfind (checkHash # datHash) dats
+        pure $ pfield @"_1" # datHashAndDat
+    checkHash ::
+      forall (s :: S).
+      Term s (PDatumHash :--> PTuple PDatumHash PDatum :--> PBool)
+    checkHash = plam $ \datHash tup -> unTermCont $ do
+      pure $ pfield @"_0" # tup #== datHash

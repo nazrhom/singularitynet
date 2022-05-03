@@ -16,8 +16,8 @@ module Main (main) where
 -}
 
 import Control.Monad (when)
-import Data.Aeson.Text(encodeToLazyText)
-import Data.Text.Lazy(Text)
+import Data.Aeson.Text (encodeToLazyText)
+import Data.Text.Lazy (Text)
 import Data.Text.Lazy.IO qualified as TIO
 import Options.Applicative (
   CommandFields,
@@ -43,20 +43,22 @@ import Options.Applicative (
 import Plutarch.Api.V1 (scriptHash)
 import Plutus.V1.Ledger.Scripts (Script)
 
-import StateNFT (pbondedStateNFTPolicyUntyped)
-import ListNFT (pbondedListNFTPolicyUntyped)
 import BondedPool (pbondedPoolValidatorUntyped)
+import ListNFT (pbondedListNFTPolicyUntyped)
 import Plutarch (compile)
+import StateNFT (pbondedStateNFTPolicyUntyped)
 
 serialisePlutusScript :: Script -> Text
 serialisePlutusScript script = encodeToLazyText script
-   
+
 writeScriptToFile :: Text -> FilePath -> Script -> IO ()
-writeScriptToFile name filepath script = TIO.writeFile filepath $
-  "exports._" <> name <> " = {\n"
-  <> "\tvalidator: " <> serialisePlutusScript script
-  <> ",\n};"
-   
+writeScriptToFile name filepath script =
+  TIO.writeFile filepath $
+    "exports._" <> name <> " = {\n"
+      <> "\tvalidator: "
+      <> serialisePlutusScript script
+      <> ",\n};"
+
 main :: IO ()
 main = do
   args <- execParser opts
@@ -117,16 +119,17 @@ parser =
     <*> commandParser
 
 commandParser :: Parser CLICommand
-commandParser = subparser $
-  serialiseStateNFTCommand
-  <> serialiseListNFTCommand
-  <> serialiseValidatorCommand
+commandParser =
+  subparser $
+    serialiseStateNFTCommand
+      <> serialiseListNFTCommand
+      <> serialiseValidatorCommand
 
 serialiseStateNFTCommand :: Mod CommandFields CLICommand
 serialiseStateNFTCommand =
   command "state-policy" $
     info
-      ( pure SerialiseStateNFT )
+      (pure SerialiseStateNFT)
       ( fullDesc
           <> progDesc
             "Serialise the NFT minting policy of the bonded pool"
@@ -136,7 +139,7 @@ serialiseListNFTCommand :: Mod CommandFields CLICommand
 serialiseListNFTCommand =
   command "list-policy" $
     info
-      ( pure SerialiseListNFT )
+      (pure SerialiseListNFT)
       ( fullDesc
           <> progDesc
             "Serialise the NFT minting policy of the association list"
@@ -146,7 +149,7 @@ serialiseValidatorCommand :: Mod CommandFields CLICommand
 serialiseValidatorCommand =
   command "validator" $
     info
-      ( pure SerialiseBondedValidator )
+      (pure SerialiseBondedValidator)
       ( fullDesc
           <> progDesc
             "Serialise the bonded pool validator"
