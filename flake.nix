@@ -12,9 +12,13 @@
     plutarch.inputs.haskell-nix.follows = "plutip/haskell-nix";
     plutarch.inputs.nixpkgs.follows = "plutip/nixpkgs";
 
-    easy-purescript-nix = {
-      url = "github:justinwoo/easy-purescript-nix";
-      flake = false;
+    ctl = {
+      type = "github";
+      owner = "Plutonomicon";
+      repo = "cardano-transaction-lib";
+      # NOTE
+      # Keep this in sync with the rev in `frontend/packages.dhall`
+      rev = "201e489837dc0dc753b6a88b9d07eee39d408af0";
     };
   };
 
@@ -25,7 +29,7 @@
     , haskell-nix
     , plutarch
     , plutip
-    , easy-purescript-nix
+    , ctl
     , ...
     }:
     let
@@ -38,7 +42,10 @@
         overlays = [ haskell-nix.overlay (import "${plutip.inputs.iohk-nix}/overlays/crypto") ];
         inherit (haskell-nix) config;
       };
-      nixpkgsFor' = system: import nixpkgs { inherit system; };
+      nixpkgsFor' = system: import nixpkgs {
+        inherit system;
+        overlays = [ ctl.overlay.${system} ];
+      };
 
       formatCheckFor = system:
         let
@@ -177,9 +184,44 @@
           let
             pkgs = nixpkgsFor' system;
             src = ./frontend;
+            project = pkgs.purescriptProject {
+              inherit src;
+              projectName = "singularitynet-frontend";
+              nodejs = pkgs.nodejs-12_x;
+            };
           in
-          import ./frontend/nix {
-            inherit src pkgs inputs system;
+          {
+            flake = {
+              packages = {
+                frontend-bundle-web = project.bundlePursProject {
+                  sources = [ "exe" ];
+                  main = "Main";
+                };
+              };
+
+              checks = {
+                frontend = project.runPursTest {
+                  name = "singularitynet-frontend";
+                  sources = [ "exe" "test" ];
+                  testMain = "Test.Main";
+                };
+
+                format-check = pkgs.runCommand "formatting-check"
+                  {
+                    nativeBuildInputs = [
+                      pkgs.easy-ps.purs-tidy
+                      pkgs.fd
+                    ];
+                  }
+                  ''
+                    cd ${src}
+                    purs-tidy check $(fd -epurs)
+                    touch $out
+                  '';
+              };
+
+              devShell = project.devShell;
+            };
           };
       };
 
