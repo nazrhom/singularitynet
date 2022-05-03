@@ -2,7 +2,7 @@
 {-# LANGUAGE ViewPatterns #-}
 module BondedPool (
   pbondedPoolValidator,
-  hbondedPoolValidator,
+  pbondedPoolValidatorUntyped,
 ) where
 
 import GHC.Generics qualified as GHC
@@ -12,19 +12,16 @@ import Plutarch.Api.V1 (
   PScriptContext
   , PTxInfo
   , PPubKeyHash
-  , PScriptPurpose
-  , mkValidator)
+  , PScriptPurpose, PAddress
+  )
 import Plutarch.Api.V1.Maybe ()
 import Plutarch.Unsafe (punsafeCoerce)
 import Plutarch.Builtin(pforgetData)
 import Plutarch.Api.V1.Time (
   PPOSIXTimeRange
   )
-import Plutus.V1.Ledger.Api (
-  Validator)
 
 import Types (
-  BondedPoolParams,
   PBondedPoolParams,
   PBondedStakingAction(
     PAdminAct
@@ -39,6 +36,7 @@ import Utils(
   guardC
   , pletC
   , pletDataC
+  , pmatchC
   , pnestedIf
   , (>:)
   , pconstantC
@@ -46,7 +44,8 @@ import Utils(
   , getDatum
   , getDatumHash
   , ptryFromData
-  , getContinuingOutputWithNFT, pmatchC
+  , ptryFromUndata
+  , getContinuingOutputWithNFT
   )
 import Data.Natural (
   PNatural
@@ -68,34 +67,48 @@ import Data.Interval(
 
 import Plutarch.Api.V1.Scripts (PDatum)
 import Settings (bondedStakingTokenName)
+import GHC.Records (getField)
 
 pbondedPoolValidator ::
   forall (s :: S).
   Term
     s
     ( PBondedPoolParams
-        :--> PAsData PBondedStakingDatum
-        :--> PAsData PBondedStakingAction
-        :--> PAsData PScriptContext
+        :--> PBondedStakingDatum
+        :--> PBondedStakingAction
+        :--> PScriptContext
         :--> PUnit
     )
 pbondedPoolValidator =
-  phoistAcyclic $ plam $ \params dat' act' ctx' -> unTermCont $ do
-    -- Convert from Data
-    _dat <- pletC $ pfromData dat'
-    act <- pletC $ pfromData act'
-    _ctx <- pletC $ pfromData ctx'
+  phoistAcyclic $ plam $ \params dat act ctx -> unTermCont $ do
     -- Retrieve fields from parameters
-    ctxF <- tcont $ pletFields @'["txInfo", "purpose"] $ pfromData ctx'
-    _paramsF <- tcont $ pletFields @'["admin"] params
+    ctxF <- tcont $ pletFields @'["txInfo", "purpose"] ctx
     -- Match on redeemer and execute the corresponding logic
     pure $ pmatch act $ \case
       PAdminAct n' ->
         let n = pfield @"_0" # n'
-        in  adminActLogic ctxF.txInfo ctxF.purpose params n
+        in  adminActLogic ctxF.txInfo ctxF.purpose params dat n
       PStakeAct _pair' -> stakeActLogic
       PWithdrawAct _pkh' -> withdrawActLogic
       PCloseAct _ -> closeActLogic
+      
+-- Untyped version to be serialised. This version is responsible for verifying
+-- that the parameters (pool params, datum and redeemer) have the proper types.
+-- The script context should always be safe.
+pbondedPoolValidatorUntyped ::
+  forall (s :: S) . 
+  Term s (
+    PData :-->
+    PData :-->
+    PData :-->
+    PData :-->
+    PUnit
+    )
+pbondedPoolValidatorUntyped = plam $ \pparams' dat' act' ctx' ->
+    pbondedPoolValidator # unTermCont (ptryFromUndata pparams')
+                         # unTermCont (ptryFromUndata dat' )
+                         # unTermCont (ptryFromUndata act' )
+                         # punsafeCoerce ctx'
     
 -- The pool operator calculates the new available size left 
 adminActLogic ::
@@ -103,12 +116,13 @@ adminActLogic ::
   Term s PTxInfo ->
   Term s PScriptPurpose ->
   Term s PBondedPoolParams ->
+  Term s PBondedStakingDatum ->
   Term s PNatural ->
   Term s PUnit
-adminActLogic txInfo purpose params sizeLeft = unTermCont $ do
+adminActLogic txInfo purpose params inputStakingDatum sizeLeft = unTermCont $ do
   -- Retrieve fields from parameters
   txInfoF <- tcont $ pletFields
-    @'["inputs", "outputs", "signatories", "validRange"]
+    @'["inputs", "outputs", "signatories", "validRange", "data"]
     txInfo
   paramsF <- tcont $ pletFields @'["admin"] params
   -- We check that the transaction was signed by the pool operator
@@ -118,15 +132,13 @@ adminActLogic txInfo purpose params sizeLeft = unTermCont $ do
   period <- pure $ getPeriod # txInfoF.validRange # params
   guardC "admin deposit not done in bonding period" $
     isBondingPeriod period
-  -- We retrieve the input's datum
+  -- We get the input's address
   input <- getInput purpose txInfoF.inputs
   inputResolved <- pletC $ pfield @"resolved" # input
-  inputDatumHash <- getDatumHash inputResolved
-  inputDatum <- getDatum inputDatumHash (pfield @"data" # txInfo)
-  inputStakingDatum <- parseStakingDatum inputDatum
+  let inputAddress :: Term s PAddress
+      inputAddress = pfield @"address" # inputResolved
   -- We make sure that the input's Datum is updated correctly for each Datum
   -- constructor
-  addr <- pletC $ pfield @"address" # inputResolved
   pure $ pmatch inputStakingDatum $ \case
     PStateDatum oldState -> unTermCont $ do
       oldStateF <- tcont $ pletFields @'["_0", "_1"] oldState
@@ -135,9 +147,10 @@ adminActLogic txInfo purpose params sizeLeft = unTermCont $ do
           tn = pconstant bondedStakingTokenName
           ac = passetClass # cs # tn
       -- We retrieve the continuing output's datum
-      coOutput <- getContinuingOutputWithNFT addr ac txInfoF.outputs
+      coOutput <- getContinuingOutputWithNFT inputAddress ac txInfoF.outputs
       coOutputDatumHash <- getDatumHash coOutput
-      coOutputDatum <- getDatum coOutputDatumHash (pfield @"data" # txInfo)
+      --coOutputDatum <- getDatum coOutputDatumHash (pfield @"data" # txInfo)
+      coOutputDatum <- getDatum coOutputDatumHash $ getField @"data" txInfoF
       coOutputStakingDatum <- parseStakingDatum coOutputDatum
       -- Get new state
       (PStateDatum state) <- pmatchC coOutputStakingDatum
@@ -151,7 +164,7 @@ adminActLogic txInfo purpose params sizeLeft = unTermCont $ do
     PEntryDatum oldEntry' -> unTermCont $ do
       -- Retrieve fields from oldEntry
       oldEntry <- pletC $ pfield @"_0" # oldEntry'
-      oldEntryF <- tcont $ pletFields @'[
+      _oldEntryF <- tcont $ pletFields @'[
         "key"
         , "sizeLeft"
         , "newDeposit"
@@ -161,9 +174,9 @@ adminActLogic txInfo purpose params sizeLeft = unTermCont $ do
         , "value"
         , "next"] oldEntry
       -- We obtain the asset class of the NFT
-      let cs = pfield @"assocListCs" # params
-          tn = pconstant bondedStakingTokenName
-          ac = passetClass # cs # tn
+      let _cs = pfield @"assocListCs" # params
+          _tn = pconstant bondedStakingTokenName
+          _ac = passetClass # _cs # _tn
       -- TODO: Verify that most fields are kept intact, that size is updated
       -- and that interests are calculated correctly
       pconstantC ()
@@ -184,13 +197,6 @@ withdrawActLogic = pconstant ()
 closeActLogic :: forall (s :: S) . Term s PUnit
 closeActLogic = pconstant ()
 
-hbondedPoolValidator :: BondedPoolParams -> Validator
-hbondedPoolValidator bondedPoolParams =
-  mkValidator $
-    punsafeCoerce $
-      pbondedPoolValidator
-        # pconstant bondedPoolParams
-        
 -- Helper functions for the different logics
 
 signedByAdmin :: forall (s :: S) .

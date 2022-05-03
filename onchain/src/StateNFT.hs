@@ -1,6 +1,6 @@
 module StateNFT (
-  pbondedStakingNFTPolicy,
-  hbondedStakingNFTPolicy,
+  pbondedStateNFTPolicy,
+  pbondedStateNFTPolicyUntyped
 ) where
 
 {-
@@ -16,19 +16,20 @@ import Plutarch.Api.V1 (
   PTxInInfo,
   PTxOutRef,
   PValue,
-  mkMintingPolicy,
  )
 import Plutarch.Monadic qualified as P
 import Plutarch.Unsafe (punsafeCoerce)
-import Plutus.V1.Ledger.Api (MintingPolicy)
-import Plutus.V1.Ledger.Tx (TxOutRef)
 
 import Settings (bondedStakingTokenName)
-import Utils (oneOf, getCs)
+import Utils (
+  oneOf
+  , getCs
+  , ptryFromUndata
+  )
 
-pbondedStakingNFTPolicy ::
+pbondedStateNFTPolicy ::
   forall (s :: S). Term s (PTxOutRef :--> PUnit :--> PScriptContext :--> PUnit)
-pbondedStakingNFTPolicy = plam $ \txOutRef _ ctx' -> P.do
+pbondedStateNFTPolicy = plam $ \txOutRef _ ctx' -> P.do
   ctx <- pletFields @'["txInfo", "purpose"] ctx'
   cs <- runTermCont $ getCs ctx.purpose
   txInfo <- pletFields @'["inputs", "mint", "id"] $ ctx.txInfo
@@ -43,9 +44,12 @@ pbondedStakingNFTPolicy = plam $ \txOutRef _ ctx' -> P.do
     (pconstant ())
     perror
 
-hbondedStakingNFTPolicy :: TxOutRef -> MintingPolicy
-hbondedStakingNFTPolicy utxo =
-  mkMintingPolicy $ punsafeCoerce $ pbondedStakingNFTPolicy # pconstant utxo
+pbondedStateNFTPolicyUntyped ::
+  forall (s :: S) . Term s (PData :--> PData :--> PData :--> PUnit)
+pbondedStateNFTPolicyUntyped = plam $ \utxo' _ ctx' ->
+  pbondedStateNFTPolicy # unTermCont (ptryFromUndata utxo')
+                        # pconstant ()
+                        # punsafeCoerce ctx'
 
 consumesRef ::
   forall (s :: S).

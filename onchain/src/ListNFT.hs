@@ -1,11 +1,10 @@
 module ListNFT(
     pbondedListNFTPolicy
-    , hbondedListNFTPolicy
+    , pbondedListNFTPolicyUntyped
 ) where
 
 import Plutarch.Api.V1
-    ( mkMintingPolicy,
-      PScriptContext,
+    ( PScriptContext,
       PPubKeyHash,
       PCurrencySymbol,
       PTokenName(PTokenName),
@@ -13,10 +12,8 @@ import Plutarch.Api.V1
 import Plutarch.Api.V1.Scripts ()
 import Plutarch.Unsafe ( punsafeCoerce )
 
-import Plutus.V1.Ledger.Api ( MintingPolicy, CurrencySymbol )
-
 import Types ( PMintingAction )
-import Utils ( peq, oneOfWith, pletC, getCs, pconstantC, guardC )
+import Utils ( peq, oneOfWith, pletC, getCs, pconstantC, guardC, ptryFromUndata )
 import Plutarch.Crypto (pblake2b_256)
 
 {-
@@ -41,15 +38,15 @@ import Plutarch.Crypto (pblake2b_256)
 -- withdrawing).
 pbondedListNFTPolicy ::
     forall (s :: S) .
-    Term s PCurrencySymbol ->
     Term s (
+       PCurrencySymbol :-->
        PMintingAction :-->
        PScriptContext :-->
        PUnit
     )
-pbondedListNFTPolicy cs' = plam $ \_mintAct ctx' -> unTermCont $ do
+pbondedListNFTPolicy = plam $ \nftCs _mintAct ctx' -> unTermCont $ do
     -- This CurrencySymbol is only used for parametrization
-    _cs <- pletC cs'
+    _cs <- pletC nftCs
     ctx <- tcont $ pletFields @'["txInfo", "purpose"] ctx'
     -- Own CurrencySymbol
     cs <- getCs ctx.purpose
@@ -62,13 +59,15 @@ pbondedListNFTPolicy cs' = plam $ \_mintAct ctx' -> unTermCont $ do
     -- Check the token was minted or burnt *once*
     guardC "failed when checking minted value" $
         burnsOrMintsOnce cs tn txInfo.mint
-
     pconstantC ()
-
-hbondedListNFTPolicy :: CurrencySymbol -> MintingPolicy
-hbondedListNFTPolicy cs =
-    mkMintingPolicy $ punsafeCoerce $ pbondedListNFTPolicy $ pconstant cs
     
+pbondedListNFTPolicyUntyped ::
+    forall (s :: S) . Term s (PData :--> PData :--> PData :--> PUnit)
+pbondedListNFTPolicyUntyped = plam $ \nftCs' mintAct' ctx' ->
+    pbondedListNFTPolicy # unTermCont (ptryFromUndata nftCs')
+                         # unTermCont (ptryFromUndata mintAct')
+                         # punsafeCoerce ctx'
+
 getSignatory ::
     forall (s :: S) .
     Term s (PBuiltinList (PAsData PPubKeyHash)) ->
