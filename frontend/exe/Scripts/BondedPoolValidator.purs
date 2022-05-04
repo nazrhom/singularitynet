@@ -5,13 +5,12 @@ module Scripts.BondedPoolValidator(
 import Contract.Prelude
 
 import Contract.Monad (Contract, liftedE)
-import Contract.Scripts (MintingPolicy(..), Validator(..), applyArgs)
+import Contract.Scripts (Validator(..), applyArgs)
 import Data.Argonaut (Json, JsonDecodeError)
 import QueryM (ClientError)
 import ToData (toData)
-import Types (BondedPoolParams(..))
+import Types (BondedPoolParams)
 import Types.Scripts (PlutusScript)
-import Types.Value (CurrencySymbol)
 import Utils (jsonReader)
 
 -- | This is the parameterized validator script. It still needs to receive a
