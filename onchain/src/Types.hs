@@ -116,7 +116,7 @@ newtype PAssetClass (s :: S)
       )
   deriving stock (GHC.Generic)
   deriving
-    (PlutusType)
+    (PlutusType, PIsData)
     via ( DerivePNewtype
             PAssetClass
             (PBuiltinPair (PAsData PCurrencySymbol) (PAsData PTokenName))
