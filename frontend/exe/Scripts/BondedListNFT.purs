@@ -4,13 +4,13 @@ module Scripts.BondedListNFT(
 
 import Contract.Prelude
 
-import Contract.Monad (Contract, liftedE)
+import Contract.Monad (Contract, liftContractE)
 import Contract.Scripts (MintingPolicy(..), applyArgs)
+import Contract.Value (CurrencySymbol)
 import Data.Argonaut (Json, JsonDecodeError)
 import QueryM (ClientError)
 import ToData (toData)
 import Types.Scripts (PlutusScript)
-import Types.Value (CurrencySymbol)
 import Utils (jsonReader)
 
 -- | This is the parameterized minting policy. It still needs to receive a
@@ -24,7 +24,7 @@ mkBondedListNFTPolicy ::
     forall (r :: Row Type) (a :: Type).
     CurrencySymbol -> Contract r (Either ClientError MintingPolicy)
 mkBondedListNFTPolicy nftCs = do
-    unappliedScript <- liftedE $ pure $ bondedListNFTPolicy
+    unappliedScript <- liftContractE $ bondedListNFTPolicy
     applyArgs (MintingPolicy unappliedScript) [ toData nftCs ]
     
 foreign import _bondedListNFT :: Json
