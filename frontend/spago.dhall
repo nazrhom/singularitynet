@@ -10,6 +10,7 @@ You can edit this file as you like.
   , "argonaut-codecs"
   , "arrays"
   , "bigints"
+  , "integers"
   , "maybe"
   , "newtype"
   , "ordered-collections"

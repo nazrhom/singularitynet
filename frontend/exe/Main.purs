@@ -10,13 +10,16 @@ import Contract.Monad
   , defaultOgmiosWsConfig
   , defaultServerConfig
   , defaultSlotConfig
+  , launchAff_
   , mkContractConfig
   , runContract_
   )
 import Contract.Wallet (mkNamiWalletAff)
 import CreatePool (createPoolContract)
+import Data.Int (toNumber)
 import DepositPool (depositPoolContract)
-import Effect.Aff (launchAff_)
+import Effect.Aff (delay)
+import Effect.Aff.Class (liftAff)
 
 main :: Effect Unit
 main = launchAff_ $ do
@@ -33,4 +36,6 @@ main = launchAff_ $ do
     }
   runContract_ cfg $ do
     poolInfo <- createPoolContract
+    -- sleep in order to wait for tx
+    liftAff $ delay $ wrap $ toNumber 10000
     depositPoolContract poolInfo
