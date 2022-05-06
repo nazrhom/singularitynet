@@ -33,7 +33,7 @@ import Scripts.BondedPoolValidator (mkBondedPoolValidator)
 import Scripts.BondedStateNFT (mkBondedStateNFTPolicy)
 import Settings (bondedStakingTokenName, hardCodedParams)
 import Types (BondedStakingDatum(StateDatum), PoolInfo)
-import Utils (logInfo_)
+import Utils (logInfo_, nat)
 
 -- Sets up pool configuration, mints the state NFT and deposits
 -- in the pool validator's address
@@ -80,6 +80,7 @@ createPoolContract = do
   let
     bondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
+      , sizeLeft: nat 100
       }
 
     lookup :: ScriptLookups.ScriptLookups PlutusData
@@ -113,6 +114,7 @@ createPoolContract = do
   -- Submit transaction using Cbor-hex encoded `ByteArray`
   transactionHash <- submit signedTxCbor
   logInfo_ "createPoolContract: Transaction successfully submitted with hash"
-    $ byteArrayToHex $ unwrap transactionHash
+    $ byteArrayToHex
+    $ unwrap transactionHash
   -- Return the pool info for subsequent transactions
   pure $ wrap { stateNftCs, assocListCs, poolAddr }

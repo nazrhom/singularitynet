@@ -74,7 +74,7 @@ instance ToData BondedPoolParams where
   toData = genericToData
 
 data BondedStakingDatum
-  = StateDatum { maybeEntryName :: Maybe ByteArray }
+  = StateDatum { maybeEntryName :: Maybe ByteArray, sizeLeft :: Natural }
   | EntryDatum { entry :: Entry }
   | AssetDatum
 
