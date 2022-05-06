@@ -2,7 +2,7 @@ module Main (main) where
 
 import Contract.Prelude
 
-import Contract.Address ( NetworkId(TestnetId))
+import Contract.Address (NetworkId(TestnetId))
 import Contract.Monad
   ( ConfigParams(ConfigParams)
   , LogLevel(Info)

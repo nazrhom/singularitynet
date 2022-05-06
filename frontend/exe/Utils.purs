@@ -37,5 +37,10 @@ nat = fromBigInt' <<< fromInt
 big :: Int -> BigInt
 big = fromInt
 
-logInfo_ :: forall (r :: Row Type). String -> String -> Contract r Unit
-logInfo_ k = flip logInfo mempty <<< tag k
+logInfo_
+  :: forall (r :: Row Type) (a :: Type)
+   . Show a
+  => String
+  -> a
+  -> Contract r Unit
+logInfo_ k = flip logInfo mempty <<< tag k <<< show

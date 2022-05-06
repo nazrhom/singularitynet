@@ -36,6 +36,7 @@ import Scripts.BondedStateNFT (mkBondedStateNFTPolicy)
 import Serialization.Address (addressBech32)
 import Settings (bondedStakingTokenName, hardCodedParams)
 import Types (BondedStakingDatum(..))
+import Utils (logInfo_)
 
 -- Sets up pool configuration, mints the state NFT and deposits
 -- in the pool validator's address
@@ -44,53 +45,51 @@ createPoolContract = do
   networkId <- getNetworkId
   adminPkh <- liftedM "createPoolContract: Cannot get admin's pkh"
     ownPaymentPubKeyHash
-  log $ "Admin PaymentPubKeyHash: " <> show adminPkh
+  logInfo_ "Admin PaymentPubKeyHash" adminPkh
   -- Get the (Nami) wallet address
   adminAddr <- liftedM "createPoolContract: Cannot get wallet Address"
     getWalletAddress
   -- Get utxos at the wallet address
   adminUtxos <-
-    liftedM "createPoolContract: Cannot get user Utxos" (utxosAt adminAddr)
-  log $ "Admin's UTXOs: " <> show adminUtxos
+    liftedM "createPoolContract: Cannot get user Utxos" $ utxosAt adminAddr
+  logInfo_ "Admin's UTXOs" adminUtxos
   txOutRef <- liftContractM "createPoolContract: Could not get head UTXO"
     $ fst
     <$> (head $ toUnfoldable $ unwrap adminUtxos)
-  log $ "toData utxo"
-  log $ show (toData txOutRef)
-  log $ "Admin's head UTXO: " <> show adminUtxos
+  logInfo_ "`toData` utxo" $ toData txOutRef
+  logInfo_ "Admin's head UTXO" adminUtxos
   -- Get the minting policy and currency symbol from the state NFT:
   statePolicy <- liftedE $ mkBondedStateNFTPolicy txOutRef
-  log $ "State NFT (applied): " <> show statePolicy
+  logInfo_ "State NFT (applied)" statePolicy
   nftCs <-
     liftedM "createPoolContract: Cannot get CurrencySymbol from state NFT"
-      (scriptCurrencySymbol statePolicy)
-  log $ "State NFT Currency Symbol: " <> show nftCs
+      $ scriptCurrencySymbol statePolicy
+  logInfo_ "State NFT Currency Symbol" nftCs
   -- Get the minting policy and currency symbol from the list NFT:
   listPolicy <- liftedE $ mkBondedListNFTPolicy nftCs
-  log $ "List NFT: " <> show listPolicy
+  logInfo_ "List NFT" listPolicy
   assocListCs <-
     liftedM "createPoolContract: Cannot get CurrencySymbol from state NFT"
-      (scriptCurrencySymbol listPolicy)
-  log $ "List NFT CurrencySymbol: " <> show assocListCs
+      $ scriptCurrencySymbol listPolicy
+  logInfo_ "List NFT CurrencySymbol" assocListCs
   -- May want to hardcode this somewhere:
   tokenName <- liftContractM "createPoolContract: Cannot create TokenName"
     bondedStakingTokenName
   -- We define the parameters of the pool
   params <- liftContractM "createPoolContract: Failed to create parameters" $
     hardCodedParams adminPkh nftCs assocListCs
-  log $ "toData Pool Parameters"
-  log $ show (toData params)
+  logInfo_ "`toData` Pool Parameters" $ toData params
   -- Get the bonding validator and hash
   validator <- liftedE' "createPoolContract: Cannot create validator" $
     mkBondedPoolValidator params
-  log $ "Bonded Pool Validator: " <> show validator
+  logInfo_ "Bonded Pool Validator" validator
   valHash <- liftedM "createPoolContract: Cannot hash validator"
     (validatorHash validator)
-  log $ "Bonded Pool Validator's hash: " <> show valHash
+  logInfo_ "Bonded Pool Validator's hash" valHash
   let
     mintValue = singleton nftCs tokenName one
     scriptAddr = validatorHashEnterpriseAddress networkId valHash
-  log $ "BondedPool Validator's address: " <> show scriptAddr
+  logInfo_ "BondedPool Validator's address" scriptAddr
   let
     bondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
@@ -119,26 +118,12 @@ createPoolContract = do
   -- 2) Reindex `Spend` redeemers after finalising transaction inputs.
   -- 3) Attach datums and redeemers to transaction.
   -- 3) Sign tx, returning the Cbor-hex encoded `ByteArray`.
-  BalancedSignedTransaction { signedTxCbor } <- liftedM
-    "createPoolContract: Cannot balance, reindex redeemers, attach datums/\
-    \redeemers and sign"
-    (balanceAndSignTx unattachedBalancedTx)
+  BalancedSignedTransaction { signedTxCbor } <-
+    liftedM
+      "createPoolContract: Cannot balance, reindex redeemers, attach datums/\
+      \redeemers and sign"
+      $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
   transactionHash <- submit signedTxCbor
-  log $ "createPoolContract: Transaction successfully submitted with hash: "
-    <> show transactionHash
-  let
-    stateNFTSymbol = stringify $ encodeJson
-      { "unCurrencySymbol": byteArrayToHex (getCurrencySymbol nftCs) }
-    listNFTSymbol = stringify $ encodeJson
-      { "unCurrencySymbol": byteArrayToHex (getCurrencySymbol assocListCs) }
-    bondedPoolAddr = stringify $ encodeJson
-      { "address": addressBech32 scriptAddr }
-  -- We can't save the files from the browser unfortunately
-  log $ "Update the following files:"
-  log $ "'persistent-data/StateNFTSymbol.js' with"
-  log $ show stateNFTSymbol
-  log $ "'persistent-data/ListNFTSymbol.js' with"
-  log $ show listNFTSymbol
-  log $ "'persistent-data/PoolAddress.js' with"
-  log $ show bondedPoolAddr
+  logInfo_ "createPoolContract: Transaction successfully submitted with hash"
+    transactionHash

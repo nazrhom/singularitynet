@@ -32,7 +32,7 @@ import Scripts.BondedPoolValidator (mkBondedPoolValidator)
 import Settings (hardCodedParams)
 import Types (BondedStakingAction(..), BondedStakingDatum(..))
 import Types.Redeemer (Redeemer(Redeemer))
-import Utils (big, nat)
+import Utils (big, nat, logInfo_)
 
 -- Deposits a certain amount in the pool
 depositPoolContract :: Contract () Unit
@@ -50,14 +50,14 @@ depositPoolContract = do
   networkId <- getNetworkId
   adminPkh <- liftedM "depositPoolContract: Cannot get admin's pkh"
     ownPaymentPubKeyHash
-  log $ "Admin PaymentPubKeyHash: " <> show adminPkh
+  logInfo_ "Admin PaymentPubKeyHash" adminPkh
   -- Get the (Nami) wallet address
   adminAddr <- liftedM "depositPoolContract: Cannot get wallet Address"
     getWalletAddress
   -- Get utxos at the wallet address
   adminUtxos <-
-    liftedM "depositPoolContract: Cannot get user Utxos" (utxosAt adminAddr)
-  log $ "Admin's UTXOs: " <> show adminUtxos
+    liftedM "depositPoolContract: Cannot get user Utxos" $ utxosAt adminAddr
+  logInfo_ "Admin's UTXOs" adminUtxos
   -- Get the bonded pool's utxo
   bondedPoolUtxos <-
     liftedM "depositPoolContract: Cannot get pool's utxos at pool address" $
@@ -66,23 +66,22 @@ depositPoolContract = do
     liftContractM "depositPoolContract: Cannot get head Utxo for bonded pool"
       $ fst
       <$> (head $ toUnfoldable $ unwrap bondedPoolUtxos)
-  log $ "Pool's UTXO: " <> show poolTxInput
+  logInfo_ "Pool's UTXO" poolTxInput
   -- We define the parameters of the pool
   params <- liftContractM "depositPoolContract: Failed to create parameters" $
     hardCodedParams adminPkh nftCs assocListCs
-  log $ "toData Pool Parameters"
-  log $ show (toData params)
+  logInfo_ "toData Pool Parameters" $ toData params
   -- Get the bonded pool validator and hash
   validator <- liftedE' "depositPoolContract: Cannot create validator" $
     mkBondedPoolValidator params
-  log $ "Bonded Pool Validator: " <> show validator
+  logInfo_ "Bonded Pool Validator" validator
   valHash <- liftedM "depositPoolContract: Cannot hash validator"
     (validatorHash validator)
-  log $ "Bonded Pool Validator's hash: " <> show valHash
+  logInfo_ "Bonded Pool Validator's hash" valHash
   let
     depositValue = singleton adaSymbol adaToken (big 5)
     scriptAddr = validatorHashEnterpriseAddress networkId valHash
-  log $ "BondedPool Validator's address: " <> show scriptAddr
+  logInfo_ "BondedPool Validator's address" scriptAddr
   let
     -- We can hardcode the state for now. We should actually fetch the datum
     -- from Ogmios, update it properly and then submit it
@@ -120,5 +119,5 @@ depositPoolContract = do
     (balanceAndSignTx unattachedBalancedTx)
   -- Submit transaction using Cbor-hex encoded `ByteArray`
   transactionHash <- submit signedTxCbor
-  log $ "depositPoolContract: Transaction successfully submitted with hash: "
-    <> show transactionHash
+  logInfo_ "depositPoolContract: Transaction successfully submitted with hash"
+    transactionHash
