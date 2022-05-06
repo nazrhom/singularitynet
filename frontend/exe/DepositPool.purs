@@ -26,26 +26,20 @@ import Contract.Utxos (utxosAt)
 import Contract.Value (adaSymbol, adaToken, singleton)
 import Data.Array (head)
 import Data.Map (toUnfoldable)
-import PoolInfo.BondedPoolAddress (bondedPoolAddress)
-import PoolInfo.StateNFTSymbol (stateNFTSymbol)
 import Scripts.BondedPoolValidator (mkBondedPoolValidator)
 import Settings (hardCodedParams)
-import Types (BondedStakingAction(AdminAct), BondedStakingDatum(StateDatum))
+import Types
+  ( BondedStakingAction(AdminAct)
+  , BondedStakingDatum(StateDatum)
+  , PoolInfo(PoolInfo)
+  )
 import Types.Redeemer (Redeemer(Redeemer))
 import Utils (big, nat, logInfo_)
 
 -- Deposits a certain amount in the pool
-depositPoolContract :: Contract () Unit
-depositPoolContract = do
+depositPoolContract :: PoolInfo -> Contract () Unit
+depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
   -- Fetch information related to the pool
-  nftCs <- liftedM "depositPoolContract: Cannot get state NFT currency symbol"
-    stateNFTSymbol
-  assocListCs <-
-    liftedM "depositPoolContract: Cannot get list NFT currency symbol"
-      stateNFTSymbol
-  -- Fix this
-  poolAddr <- liftedM "depositPoolContract: Cannot get bonded pool address"
-    bondedPoolAddress
   -- Get network ID and admin's PKH
   networkId <- getNetworkId
   adminPkh <- liftedM "depositPoolContract: Cannot get admin's pkh"
@@ -69,17 +63,17 @@ depositPoolContract = do
   logInfo_ "Pool's UTXO" poolTxInput
   -- We define the parameters of the pool
   params <- liftContractM "depositPoolContract: Failed to create parameters" $
-    hardCodedParams adminPkh nftCs assocListCs
+    hardCodedParams adminPkh stateNftCs assocListCs
   logInfo_ "toData Pool Parameters" $ toData params
   -- Get the bonded pool validator and hash
   validator <- liftedE' "depositPoolContract: Cannot create validator" $
     mkBondedPoolValidator params
   logInfo_ "Bonded Pool Validator" validator
   valHash <- liftedM "depositPoolContract: Cannot hash validator"
-    (validatorHash validator)
+    $ validatorHash validator
   logInfo_ "Bonded Pool Validator's hash" valHash
   let
-    depositValue = singleton adaSymbol adaToken (big 5)
+    depositValue = singleton adaSymbol adaToken $ big 5
     scriptAddr = validatorHashEnterpriseAddress networkId valHash
   logInfo_ "BondedPool Validator's address" scriptAddr
   let
