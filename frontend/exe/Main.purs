@@ -5,7 +5,7 @@ import Contract.Prelude
 import Contract.Address ( NetworkId(TestnetId))
 import Contract.Monad
   ( ConfigParams(ConfigParams)
-  , LogLevel(Trace)
+  , LogLevel(Info)
   , defaultDatumCacheWsConfig
   , defaultOgmiosWsConfig
   , defaultServerConfig
@@ -27,7 +27,7 @@ main = launchAff_ $ do
     , ctlServerConfig: defaultServerConfig
     , networkId: TestnetId
     , slotConfig: defaultSlotConfig
-    , logLevel: Trace
+    , logLevel: Info
     , extraConfig: {}
     , wallet
     }
