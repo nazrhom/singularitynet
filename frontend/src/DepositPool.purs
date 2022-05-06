@@ -17,13 +17,14 @@ import Contract.Monad
   , liftedE'
   , liftedM
   )
-import Contract.PlutusData (PlutusData, Datum(Datum), toData, unitDatum)
+import Contract.PlutusData (PlutusData, Datum(Datum), toData, datumHash, unitDatum)
 import Contract.Prim.ByteArray (byteArrayToHex, byteArrayFromAscii)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash, MintingPolicy)
 import Contract.Transaction
   ( BalancedSignedTransaction(BalancedSignedTransaction)
   , balanceAndSignTx
+  , balanceTx
   , submit
   )
 import Contract.TxConstraints
@@ -43,10 +44,10 @@ import Contract.Value
 import Data.Array (head)
 import Data.Map (toUnfoldable)
 import Scripts.BondedPoolValidator (mkBondedPoolValidator)
-import Settings (hardCodedParams)
+import Settings (bondedStakingTokenName, hardCodedParams)
 import Types
   ( BondedStakingAction(AdminAct)
-  , BondedStakingDatum(StateDatum)
+  , BondedStakingDatum(AssetDatum, StateDatum)
   , PoolInfo(PoolInfo)
   )
 import Types.Redeemer (Redeemer(Redeemer))
@@ -72,11 +73,11 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
   bondedPoolUtxos <-
     liftedM "depositPoolContract: Cannot get pool's utxos at pool address" $
       utxosAt poolAddr
-  -- -- Fix this to find the UTXO, not the head:
-  -- poolTxInput <-
-  --   liftContractM "depositPoolContract: Cannot get head Utxo for bonded pool"
-  --     $ fst
-  --     <$> (head $ toUnfoldable $ unwrap bondedPoolUtxos)
+  -- Fix this to find the UTXO, not the head:
+  poolTxInput <-
+    liftContractM "depositPoolContract: Cannot get head Utxo for bonded pool"
+      $ fst
+      <$> (head $ toUnfoldable $ unwrap bondedPoolUtxos)
   -- logInfo_ "Pool's UTXO" poolTxInput
   -- We define the parameters of the pool
   params <- liftContractM "depositPoolContract: Failed to create parameters" $
@@ -87,6 +88,7 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
     mkBondedPoolValidator params
   valHash <- liftedM "depositPoolContract: Cannot hash validator"
     $ validatorHash validator
+  log $ "validatorHash blah" <> show valHash
   -- For whatever reason, minting a dummy token is required to pay to script.
   -- This is a CTL bug.
   dummyMp :: MintingPolicy <- liftContractE
@@ -99,7 +101,10 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
   dummyTn <- liftContractM "Cannot make dummy token"
     $ mkTokenName
     =<< byteArrayFromAscii "DummyToken"
+  tokenName <- liftContractM "createPoolContract: Cannot create TokenName"
+    bondedStakingTokenName
   let
+    mintValue = singleton stateNftCs tokenName one
     depositValue = singleton adaSymbol adaToken $ big 5_000_000
     -- Minting dummy value due to CTL issue
     dummyMintValue = singleton dummyCs dummyTn $ big 12
@@ -112,6 +117,7 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
       { maybeEntryName: Nothing
       , sizeLeft: nat 100
       }
+    assetDatum = Datum $ toData AssetDatum
     -- We build the redeemer
     redeemerData = toData $ AdminAct { sizeLeft: nat 100 }
     redeemer = Redeemer redeemerData
@@ -120,21 +126,29 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
     lookup = mconcat
       [ ScriptLookups.validator validator
       , ScriptLookups.unspentOutputs $ unwrap adminUtxos
-      , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
-      , ScriptLookups.mintingPolicy dummyMp
+      -- , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
+      -- , ScriptLookups.mintingPolicy dummyMp
       ]
 
     -- Seems suspect, not sure if typed constraints are working as expected
     constraints :: TxConstraints Unit Unit
     constraints =
       mconcat
-        [ mustPayToScript valHash unitDatum depositValue
-        , mustMintValue dummyMintValue
+        [ mustPayToScript valHash assetDatum depositValue
+        -- , mustPayToScript valHash bondedStateDatum mintValue
+        -- , mustMintValue dummyMintValue
         -- , mustSpendScriptOutput poolTxInput redeemer
         ]
-
+  dh <- liftedM "depositPoolContract: Cannot Hash AssetDatum" $ datumHash assetDatum
+  dh' <- liftedM "depositPoolContract: Cannot Hash BondedStateDatum" $ datumHash bondedStateDatum
+  logInfo_ "DatumHash of AssetDatum" dh
+  logInfo_ "DatumHash of BondedStateDatum" dh'
   unattachedBalancedTx <-
     liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
+  logInfo_ "unAttachedUnbalancedTx" unattachedBalancedTx
+  let unbalancedTx = (unwrap unattachedBalancedTx).unbalancedTx
+  balancedTx <- liftedE $ balanceTx unbalancedTx
+  logInfo_ "balancedTx" balancedTx
   BalancedSignedTransaction { signedTxCbor } <-
     liftedM
       "depositPoolContract: Cannot balance, reindex redeemers, attach datums/\
