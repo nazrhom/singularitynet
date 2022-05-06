@@ -110,13 +110,17 @@ pbondedPoolValidatorUntyped ::
         :--> PData
         :--> PUnit
     )
-pbondedPoolValidatorUntyped = plam $ \pparams' dat' act' ctx' ->
-  pbondedPoolValidator # unTermCont (ptryFromUndata pparams')
+pbondedPoolValidatorUntyped = plam $ \pparams' dat' act' ctx' -> unTermCont $ do
+  pure $ pbondedPoolValidator
+    # unTermCont (ptryFromUndata pparams')
     # unTermCont (ptryFromUndata dat')
     # unTermCont (ptryFromUndata act')
     # punsafeCoerce ctx'
 
 -- The pool operator calculates the new available size left
+-- TODO: Besides the logic related to updating the entries, there should also
+-- be a check that makes sure the admin is not _reducing_ the stakes or the
+-- rewards
 adminActLogic ::
   forall (s :: S).
   Term s PTxInfo ->
@@ -137,9 +141,11 @@ adminActLogic txInfo purpose params inputStakingDatum sizeLeft = unTermCont $ do
   guardC "transaction not signed by admin" $
     signedByAdmin txInfoF.signatories paramsF.admin
   -- We check that the transaction occurs during a bonding period
-  period <- pure $ getPeriod # txInfoF.validRange # params
-  guardC "admin deposit not done in bonding period" $
-    isBondingPeriod period
+  -- We don't validate this for the demo, otherwise testing becomes
+  -- too difficult
+  --period <- pure $ getPeriod # txInfoF.validRange # params
+  --guardC "admin deposit not done in bonding period" $
+  --  isBondingPeriod period
   -- We get the input's address
   input <- getInput purpose txInfoF.inputs
   inputResolved <- pletC $ pfield @"resolved" # input
@@ -199,8 +205,8 @@ adminActLogic txInfo purpose params inputStakingDatum sizeLeft = unTermCont $ do
           "adminActLogic: update failed because a wrong \
           \datum constructor was provided"
   where
-    isBondingPeriod :: Term s PPeriod -> Term s PBool
-    isBondingPeriod period = pmatch period $ \case
+    __isBondingPeriod :: Term s PPeriod -> Term s PBool
+    __isBondingPeriod period = pmatch period $ \case
       BondingPeriod -> pconstant True
       _ -> pconstant False
 
@@ -226,13 +232,15 @@ closeActLogic txInfo params = unTermCont $ do
   -- We check that the transaction was signed by the pool operator
   guardC "transaction not signed by admin" $
     signedByAdmin txInfoF.signatories paramsF.admin
-  -- We check that the transaction occurs during a bonding period
-  period <- pure $ getPeriod # txInfoF.validRange # params
-  guardC "admin deposit not done in closing period" $
-    isClosingPeriod period
+  -- We check that the transaction occurs during the closing period
+  -- We don't validate this for the demo, otherwise testing becomes
+  -- too difficult
+  --period <- pure $ getPeriod # txInfoF.validRange # params
+  --guardC "admin deposit not done in closing period" $
+  --  isClosingPeriod period
   where
-    isClosingPeriod :: Term s PPeriod -> Term s PBool
-    isClosingPeriod period = pmatch period $ \case
+    _isClosingPeriod :: Term s PPeriod -> Term s PBool
+    _isClosingPeriod period = pmatch period $ \case
       ClosingPeriod -> pconstant True
       _ -> pconstant False
 
@@ -275,14 +283,14 @@ data PPeriod (s :: S)
   deriving stock (GHC.Generic, Eq)
   deriving anyclass (Generic, PlutusType)
 
-getPeriod ::
+__getPeriod ::
   Term
     s
     ( PPOSIXTimeRange
         :--> PBondedPoolParams
         :--> PPeriod
     )
-getPeriod = phoistAcyclic $
+__getPeriod = phoistAcyclic $
   plam $
     \txTimeRange params ->
       getPeriod' txTimeRange params
