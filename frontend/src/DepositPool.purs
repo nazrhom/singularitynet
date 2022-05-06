@@ -10,6 +10,7 @@ import Contract.Address
   )
 import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM)
 import Contract.PlutusData (PlutusData, Datum(Datum), toData)
+import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
 import Contract.Transaction
@@ -41,6 +42,7 @@ depositPoolContract :: PoolInfo -> Contract () Unit
 depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
   -- Fetch information related to the pool
   -- Get network ID and admin's PKH
+  logInfo_ "Pool address" poolAddr
   networkId <- getNetworkId
   adminPkh <- liftedM "depositPoolContract: Cannot get admin's pkh"
     ownPaymentPubKeyHash
@@ -51,7 +53,6 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
   -- Get utxos at the wallet address
   adminUtxos <-
     liftedM "depositPoolContract: Cannot get user Utxos" $ utxosAt adminAddr
-  logInfo_ "Admin's UTXOs" adminUtxos
   -- Get the bonded pool's utxo
   bondedPoolUtxos <-
     liftedM "depositPoolContract: Cannot get pool's utxos at pool address" $
@@ -68,10 +69,8 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
   -- Get the bonded pool validator and hash
   validator <- liftedE' "depositPoolContract: Cannot create validator" $
     mkBondedPoolValidator params
-  logInfo_ "Bonded Pool Validator" validator
   valHash <- liftedM "depositPoolContract: Cannot hash validator"
     $ validatorHash validator
-  logInfo_ "Bonded Pool Validator's hash" valHash
   let
     depositValue = singleton adaSymbol adaToken $ big 5
     scriptAddr = validatorHashEnterpriseAddress networkId valHash
@@ -101,7 +100,7 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
         , mustSpendScriptOutput poolTxInput redeemer
         ]
   unattachedBalancedTx <-
-    liftedE (ScriptLookups.mkUnbalancedTx lookup constraints)
+    liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
   -- `balanceAndSignTx` does the following:
   -- 1) Balance a transaction
   -- 2) Reindex `Spend` redeemers after finalising transaction inputs.
@@ -115,4 +114,4 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
   -- Submit transaction using Cbor-hex encoded `ByteArray`
   transactionHash <- submit signedTxCbor
   logInfo_ "depositPoolContract: Transaction successfully submitted with hash"
-    transactionHash
+    $ byteArrayToHex $ unwrap transactionHash

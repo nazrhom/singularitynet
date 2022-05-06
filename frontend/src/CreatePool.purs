@@ -10,6 +10,7 @@ import Contract.Address
   )
 import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM)
 import Contract.PlutusData (PlutusData, Datum(Datum), toData)
+import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
 import Contract.Transaction
@@ -48,40 +49,30 @@ createPoolContract = do
   -- Get utxos at the wallet address
   adminUtxos <-
     liftedM "createPoolContract: Cannot get user Utxos" $ utxosAt adminAddr
-  logInfo_ "Admin's UTXOs" adminUtxos
   txOutRef <- liftContractM "createPoolContract: Could not get head UTXO"
     $ fst
     <$> (head $ toUnfoldable $ unwrap adminUtxos)
-  logInfo_ "`toData` utxo" $ toData txOutRef
-  logInfo_ "Admin's head UTXO" adminUtxos
   -- Get the minting policy and currency symbol from the state NFT:
   statePolicy <- liftedE $ mkBondedStateNFTPolicy txOutRef
-  logInfo_ "State NFT (applied)" statePolicy
   stateNftCs <-
     liftedM "createPoolContract: Cannot get CurrencySymbol from state NFT"
       $ scriptCurrencySymbol statePolicy
-  logInfo_ "State NFT Currency Symbol" stateNftCs
   -- Get the minting policy and currency symbol from the list NFT:
   listPolicy <- liftedE $ mkBondedListNFTPolicy stateNftCs
-  logInfo_ "List NFT" listPolicy
   assocListCs <-
     liftedM "createPoolContract: Cannot get CurrencySymbol from state NFT"
       $ scriptCurrencySymbol listPolicy
-  logInfo_ "List NFT CurrencySymbol" assocListCs
   -- May want to hardcode this somewhere:
   tokenName <- liftContractM "createPoolContract: Cannot create TokenName"
     bondedStakingTokenName
   -- We define the parameters of the pool
   params <- liftContractM "createPoolContract: Failed to create parameters" $
     hardCodedParams adminPkh stateNftCs assocListCs
-  logInfo_ "`toData` Pool Parameters" $ toData params
   -- Get the bonding validator and hash
   validator <- liftedE' "createPoolContract: Cannot create validator" $
     mkBondedPoolValidator params
-  logInfo_ "Bonded Pool Validator" validator
   valHash <- liftedM "createPoolContract: Cannot hash validator"
     (validatorHash validator)
-  logInfo_ "Bonded Pool Validator's hash" valHash
   let
     mintValue = singleton stateNftCs tokenName one
     poolAddr = validatorHashEnterpriseAddress networkId valHash
@@ -122,6 +113,6 @@ createPoolContract = do
   -- Submit transaction using Cbor-hex encoded `ByteArray`
   transactionHash <- submit signedTxCbor
   logInfo_ "createPoolContract: Transaction successfully submitted with hash"
-    transactionHash
+    $ byteArrayToHex $ unwrap transactionHash
   -- Return the pool info for subsequent transactions
   pure $ wrap { stateNftCs, assocListCs, poolAddr }
