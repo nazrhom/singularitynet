@@ -37,7 +37,7 @@ instance ToData AssetClass where
 
 newtype PoolInfo = PoolInfo
   { stateNftCs :: CurrencySymbol
-  , listNftCs :: CurrencySymbol
+  , assocListCs :: CurrencySymbol
   , poolAddr :: Address
   }
 

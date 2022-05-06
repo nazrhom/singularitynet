@@ -35,12 +35,12 @@ import Scripts.BondedPoolValidator (mkBondedPoolValidator)
 import Scripts.BondedStateNFT (mkBondedStateNFTPolicy)
 import Serialization.Address (addressBech32)
 import Settings (bondedStakingTokenName, hardCodedParams)
-import Types (BondedStakingDatum(StateDatum))
+import Types (BondedStakingDatum(StateDatum), PoolInfo)
 import Utils (logInfo_)
 
 -- Sets up pool configuration, mints the state NFT and deposits
 -- in the pool validator's address
-createPoolContract :: Contract () Unit
+createPoolContract :: Contract () PoolInfo
 createPoolContract = do
   networkId <- getNetworkId
   adminPkh <- liftedM "createPoolContract: Cannot get admin's pkh"
@@ -61,12 +61,12 @@ createPoolContract = do
   -- Get the minting policy and currency symbol from the state NFT:
   statePolicy <- liftedE $ mkBondedStateNFTPolicy txOutRef
   logInfo_ "State NFT (applied)" statePolicy
-  nftCs <-
+  stateNftCs <-
     liftedM "createPoolContract: Cannot get CurrencySymbol from state NFT"
       $ scriptCurrencySymbol statePolicy
-  logInfo_ "State NFT Currency Symbol" nftCs
+  logInfo_ "State NFT Currency Symbol" stateNftCs
   -- Get the minting policy and currency symbol from the list NFT:
-  listPolicy <- liftedE $ mkBondedListNFTPolicy nftCs
+  listPolicy <- liftedE $ mkBondedListNFTPolicy stateNftCs
   logInfo_ "List NFT" listPolicy
   assocListCs <-
     liftedM "createPoolContract: Cannot get CurrencySymbol from state NFT"
@@ -77,7 +77,7 @@ createPoolContract = do
     bondedStakingTokenName
   -- We define the parameters of the pool
   params <- liftContractM "createPoolContract: Failed to create parameters" $
-    hardCodedParams adminPkh nftCs assocListCs
+    hardCodedParams adminPkh stateNftCs assocListCs
   logInfo_ "`toData` Pool Parameters" $ toData params
   -- Get the bonding validator and hash
   validator <- liftedE' "createPoolContract: Cannot create validator" $
@@ -87,9 +87,9 @@ createPoolContract = do
     (validatorHash validator)
   logInfo_ "Bonded Pool Validator's hash" valHash
   let
-    mintValue = singleton nftCs tokenName one
-    scriptAddr = validatorHashEnterpriseAddress networkId valHash
-  logInfo_ "BondedPool Validator's address" scriptAddr
+    mintValue = singleton stateNftCs tokenName one
+    poolAddr = validatorHashEnterpriseAddress networkId valHash
+  logInfo_ "BondedPool Validator's address" poolAddr
   let
     bondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
@@ -99,7 +99,7 @@ createPoolContract = do
     lookup = mconcat
       [ ScriptLookups.mintingPolicy statePolicy
       , ScriptLookups.validator validator
-      , ScriptLookups.unspentOutputs (unwrap adminUtxos)
+      , ScriptLookups.unspentOutputs $ unwrap adminUtxos
       ]
 
     -- Seems suspect, not sure if typed constraints are working as expected
@@ -112,7 +112,7 @@ createPoolContract = do
         ]
 
   unattachedBalancedTx <-
-    liftedE (ScriptLookups.mkUnbalancedTx lookup constraints)
+    liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
   -- `balanceAndSignTx` does the following:
   -- 1) Balance a transaction
   -- 2) Reindex `Spend` redeemers after finalising transaction inputs.
@@ -127,3 +127,5 @@ createPoolContract = do
   transactionHash <- submit signedTxCbor
   logInfo_ "createPoolContract: Transaction successfully submitted with hash"
     transactionHash
+  -- Return the pool info for subsequent transactions
+  pure $ wrap { stateNftCs, assocListCs, poolAddr }
