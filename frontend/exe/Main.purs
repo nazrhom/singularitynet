@@ -37,5 +37,5 @@ main = launchAff_ $ do
   runContract_ cfg $ do
     poolInfo <- createPoolContract
     -- sleep in order to wait for tx
-    liftAff $ delay $ wrap $ toNumber 10000
+    liftAff $ delay $ wrap $ toNumber 15000
     depositPoolContract poolInfo

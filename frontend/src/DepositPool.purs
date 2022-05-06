@@ -99,13 +99,9 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
         [ mustPayToScript valHash bondedStateDatum depositValue
         , mustSpendScriptOutput poolTxInput redeemer
         ]
+
   unattachedBalancedTx <-
     liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
-  -- `balanceAndSignTx` does the following:
-  -- 1) Balance a transaction
-  -- 2) Reindex `Spend` redeemers after finalising transaction inputs.
-  -- 3) Attach datums and redeemers to transaction.
-  -- 3) Sign tx, returning the Cbor-hex encoded `ByteArray`.
   BalancedSignedTransaction { signedTxCbor } <-
     liftedM
       "depositPoolContract: Cannot balance, reindex redeemers, attach datums/\
