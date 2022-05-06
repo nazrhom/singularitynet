@@ -31,5 +31,6 @@ main = launchAff_ $ do
     , extraConfig: {}
     , wallet
     }
-  void $ runContract_ cfg createPoolContract
---runContract_ cfg depositPoolContract
+  runContract_ cfg $ do
+    poolInfo <- createPoolContract
+    depositPoolContract poolInfo
