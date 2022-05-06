@@ -35,7 +35,7 @@ import Scripts.BondedPoolValidator (mkBondedPoolValidator)
 import Scripts.BondedStateNFT (mkBondedStateNFTPolicy)
 import Serialization.Address (addressBech32)
 import Settings (bondedStakingTokenName, hardCodedParams)
-import Types (BondedStakingDatum(..))
+import Types (BondedStakingDatum(StateDatum))
 import Utils (logInfo_)
 
 -- Sets up pool configuration, mints the state NFT and deposits

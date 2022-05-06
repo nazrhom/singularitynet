@@ -5,7 +5,7 @@ module Scripts.BondedPoolValidator
 import Contract.Prelude
 
 import Contract.Monad (Contract, liftedE)
-import Contract.Scripts (Validator(..), applyArgs)
+import Contract.Scripts (Validator(Validator), applyArgs)
 import Data.Argonaut (Json, JsonDecodeError)
 import QueryM (ClientError)
 import ToData (toData)

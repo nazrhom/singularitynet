@@ -5,7 +5,7 @@ module Scripts.BondedListNFT
 import Contract.Prelude
 
 import Contract.Monad (Contract, liftContractE)
-import Contract.Scripts (MintingPolicy(..), applyArgs)
+import Contract.Scripts (MintingPolicy(MintingPolicy), applyArgs)
 import Contract.Value (CurrencySymbol)
 import Data.Argonaut (Json, JsonDecodeError)
 import QueryM (ClientError)

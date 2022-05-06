@@ -7,26 +7,24 @@ module Types
   ) where
 
 import Contract.Prelude
-import Contract.Value (CurrencySymbol, TokenName)
-
-import Data.Tuple (Tuple)
-import Data.BigInt (BigInt)
-import Data.Generic.Rep as G
-import Data.Maybe (Maybe)
-import Data.Newtype (class Newtype)
 
 import ConstrIndices (class HasConstrIndices, defaultConstrIndices)
+import Contract.Value (CurrencySymbol, TokenName)
+import Data.Tuple.Nested ((/\))
+import Data.BigInt (BigInt)
+import Data.Generic.Rep (class Generic)
+import Data.Maybe (Maybe)
+import Data.Newtype (class Newtype)
 import Contract.Numeric.Natural (Natural)
 import Contract.Numeric.Rational (Rational)
 import Contract.PlutusData (class ToData)
-
 import ToData (genericToData)
 import Types.ByteArray (ByteArray)
 import Types.UnbalancedTransaction (PaymentPubKeyHash)
 
-newtype AssetClass = AssetClass (Tuple CurrencySymbol TokenName)
+newtype AssetClass = AssetClass (CurrencySymbol /\ TokenName)
 
-derive instance G.Generic AssetClass _
+derive instance Generic AssetClass _
 derive instance Eq AssetClass
 instance HasConstrIndices AssetClass where
   constrIndices = defaultConstrIndices
@@ -51,7 +49,7 @@ newtype BondedPoolParams =
     , assocListCs :: CurrencySymbol
     }
 
-derive instance G.Generic BondedPoolParams _
+derive instance Generic BondedPoolParams _
 derive instance Eq BondedPoolParams
 derive instance Newtype BondedPoolParams _
 instance HasConstrIndices BondedPoolParams where
@@ -65,7 +63,7 @@ data BondedStakingDatum
   | EntryDatum { entry :: Entry }
   | AssetDatum
 
-derive instance G.Generic BondedStakingDatum _
+derive instance Generic BondedStakingDatum _
 derive instance Eq BondedStakingDatum
 instance HasConstrIndices BondedStakingDatum where
   constrIndices = defaultConstrIndices
@@ -82,7 +80,7 @@ data BondedStakingAction
   | PWithdrawAct { stakeHolder :: PaymentPubKeyHash }
   | PCloseAct
 
-derive instance G.Generic BondedStakingAction _
+derive instance Generic BondedStakingAction _
 derive instance Eq BondedStakingAction
 instance HasConstrIndices BondedStakingAction where
   constrIndices = defaultConstrIndices
@@ -102,7 +100,7 @@ newtype Entry =
     , next :: Maybe ByteArray
     }
 
-derive instance G.Generic Entry _
+derive instance Generic Entry _
 derive instance Eq Entry
 instance HasConstrIndices Entry where
   constrIndices = defaultConstrIndices

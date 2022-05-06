@@ -5,7 +5,7 @@ module Scripts.BondedStateNFT
 import Contract.Prelude
 
 import Contract.Monad (Contract, liftedE)
-import Contract.Scripts (MintingPolicy(..), applyArgs)
+import Contract.Scripts (MintingPolicy(MintingPolicy), applyArgs)
 import Data.Argonaut (Json, JsonDecodeError)
 import QueryM (ClientError)
 import ToData (toData)

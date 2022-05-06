@@ -30,7 +30,7 @@ import PoolInfo.BondedPoolAddress (bondedPoolAddress)
 import PoolInfo.StateNFTSymbol (stateNFTSymbol)
 import Scripts.BondedPoolValidator (mkBondedPoolValidator)
 import Settings (hardCodedParams)
-import Types (BondedStakingAction(..), BondedStakingDatum(..))
+import Types (BondedStakingAction(AdminAct), BondedStakingDatum(StateDatum))
 import Types.Redeemer (Redeemer(Redeemer))
 import Utils (big, nat, logInfo_)
 
@@ -61,7 +61,7 @@ depositPoolContract = do
   -- Get the bonded pool's utxo
   bondedPoolUtxos <-
     liftedM "depositPoolContract: Cannot get pool's utxos at pool address" $
-      (utxosAt poolAddr)
+      utxosAt poolAddr
   poolTxInput <-
     liftContractM "depositPoolContract: Cannot get head Utxo for bonded pool"
       $ fst
@@ -95,8 +95,8 @@ depositPoolContract = do
     lookup :: ScriptLookups.ScriptLookups PlutusData
     lookup = mconcat
       [ ScriptLookups.validator validator
-      , ScriptLookups.unspentOutputs (unwrap adminUtxos)
-      , ScriptLookups.unspentOutputs (unwrap bondedPoolUtxos)
+      , ScriptLookups.unspentOutputs $ unwrap adminUtxos
+      , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
       ]
 
     -- Seems suspect, not sure if typed constraints are working as expected
@@ -116,7 +116,7 @@ depositPoolContract = do
   BalancedSignedTransaction { signedTxCbor } <- liftedM
     "depositPoolContract: Cannot balance, reindex redeemers, attach datums/\
     \redeemers and sign"
-    (balanceAndSignTx unattachedBalancedTx)
+    $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
   transactionHash <- submit signedTxCbor
   logInfo_ "depositPoolContract: Transaction successfully submitted with hash"
