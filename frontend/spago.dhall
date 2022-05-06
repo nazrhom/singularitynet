@@ -18,5 +18,5 @@ You can edit this file as you like.
   , "tuples"
   ]
 , packages = ./packages.dhall
-, sources = [ "exe/**/*.purs", "test/**/*.purs" ]
+, sources = [ "src/**/*.purs", "exe/**/*.purs", "test/**/*.purs" ]
 }

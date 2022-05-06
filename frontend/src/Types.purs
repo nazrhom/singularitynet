@@ -11,7 +11,6 @@ import Contract.Prelude
 
 import ConstrIndices (class HasConstrIndices, defaultConstrIndices)
 import Contract.Value (CurrencySymbol, TokenName)
-import Data.Tuple.Nested ((/\))
 import Data.BigInt (BigInt)
 import Data.Generic.Rep (class Generic)
 import Data.Maybe (Maybe)

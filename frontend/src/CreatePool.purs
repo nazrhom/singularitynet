@@ -10,7 +10,6 @@ import Contract.Address
   )
 import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM)
 import Contract.PlutusData (PlutusData, Datum(Datum), toData)
-import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
 import Contract.Transaction
@@ -25,15 +24,12 @@ import Contract.TxConstraints
   , mustSpendPubKeyOutput
   )
 import Contract.Utxos (utxosAt)
-import Contract.Value (getCurrencySymbol, scriptCurrencySymbol, singleton)
-import Data.Argonaut (stringify)
-import Data.Argonaut.Encode (encodeJson)
+import Contract.Value (scriptCurrencySymbol, singleton)
 import Data.Array (head)
 import Data.Map (toUnfoldable)
 import Scripts.BondedListNFT (mkBondedListNFTPolicy)
 import Scripts.BondedPoolValidator (mkBondedPoolValidator)
 import Scripts.BondedStateNFT (mkBondedStateNFTPolicy)
-import Serialization.Address (addressBech32)
 import Settings (bondedStakingTokenName, hardCodedParams)
 import Types (BondedStakingDatum(StateDatum), PoolInfo)
 import Utils (logInfo_)
