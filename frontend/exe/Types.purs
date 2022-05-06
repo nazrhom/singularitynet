@@ -2,6 +2,7 @@ module Types
   ( BondedPoolParams(..)
   , BondedStakingDatum(..)
   , BondedStakingAction(..)
+  , PoolInfo(..)
   , AssetClass(..)
   , Entry(..)
   ) where
@@ -15,6 +16,8 @@ import Data.BigInt (BigInt)
 import Data.Generic.Rep (class Generic)
 import Data.Maybe (Maybe)
 import Data.Newtype (class Newtype)
+import Data.Show.Generic (genericShow)
+import Contract.Address (Address)
 import Contract.Numeric.Natural (Natural)
 import Contract.Numeric.Rational (Rational)
 import Contract.PlutusData (class ToData)
@@ -31,6 +34,19 @@ instance HasConstrIndices AssetClass where
 
 instance ToData AssetClass where
   toData = genericToData
+
+newtype PoolInfo = PoolInfo
+  { stateNftCs :: CurrencySymbol
+  , listNftCs :: CurrencySymbol
+  , poolAddr :: Address
+  }
+
+derive instance Generic PoolInfo _
+derive instance Newtype PoolInfo _
+derive instance Eq PoolInfo
+
+instance Show PoolInfo where
+  show = genericShow
 
 -- TODO: Add missing `ToData` instances for POSIXTime and NatRatio.
 newtype BondedPoolParams =
