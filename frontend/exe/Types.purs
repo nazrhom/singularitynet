@@ -6,25 +6,26 @@ module Types
   , Entry(..)
   )
   where
+  
+import Contract.Prelude
+import Contract.Value (CurrencySymbol, TokenName)
 
-import ConstrIndices
-import Contract.Numeric.Natural
-import Contract.PlutusData
-import Data.Ratio
-import Data.BigInt(BigInt)
-import Data.Tuple
-import Prelude
-import Types.Interval
-
+import Data.Tuple(Tuple)
+import Data.BigInt (BigInt)
 import Data.Generic.Rep as G
 import Data.Maybe (Maybe)
-import ToData (genericToData)
-import Types.ByteArray (ByteArray(..))
-import Types.NatRatio (NatRatio)
-import Types.UnbalancedTransaction (PubKeyHash(..))
-import Types.Value (CurrencySymbol, TokenName)
+import Data.Newtype (class Newtype)
 
-newtype AssetClass = AssetClass ByteArray
+import ConstrIndices(class HasConstrIndices, defaultConstrIndices)
+import Contract.Numeric.Natural(Natural)
+import Contract.Numeric.Rational(Rational)
+import Contract.PlutusData(class ToData)
+
+import ToData (genericToData)
+import Types.ByteArray (ByteArray)
+import Types.UnbalancedTransaction (PaymentPubKeyHash)
+
+newtype AssetClass = AssetClass (Tuple CurrencySymbol TokenName)
 derive instance G.Generic AssetClass _
 derive instance Eq AssetClass
 instance HasConstrIndices AssetClass where
@@ -40,16 +41,17 @@ newtype BondedPoolParams =
        , end :: BigInt
        , userLength :: BigInt
        , bondingLength :: BigInt
-       , interest :: Ratio Natural
+       , interest :: Rational
        , minStake :: Natural
        , maxStake :: Natural
-       , admin :: PubKeyHash
+       , admin :: PaymentPubKeyHash
        , bondedAssetClass :: AssetClass
        , nftCs :: CurrencySymbol
        , assocListCs :: CurrencySymbol
     }
 derive instance G.Generic BondedPoolParams _
 derive instance Eq BondedPoolParams
+derive instance Newtype BondedPoolParams _
 instance HasConstrIndices BondedPoolParams where
     constrIndices = defaultConstrIndices
 instance ToData BondedPoolParams where
@@ -61,28 +63,40 @@ data BondedStakingDatum =
     | AssetDatum
 derive instance G.Generic BondedStakingDatum _
 derive instance Eq BondedStakingDatum
+instance HasConstrIndices BondedStakingDatum where
+    constrIndices = defaultConstrIndices
+instance ToData BondedStakingDatum where
+    toData = genericToData
 
     
 data BondedStakingAction
     = AdminAct { sizeLeft :: Natural }
     | StakeAct { stakeAmount :: Natural
-                 , stakeHolder :: PubKeyHash
+                 , stakeHolder :: PaymentPubKeyHash
                }
-    | PWithdrawAct { stakeHolder :: PubKeyHash }
+    | PWithdrawAct { stakeHolder :: PaymentPubKeyHash }
     | PCloseAct
 derive instance G.Generic BondedStakingAction _
 derive instance Eq BondedStakingAction 
+instance HasConstrIndices BondedStakingAction where
+    constrIndices = defaultConstrIndices
+instance ToData BondedStakingAction where
+    toData = genericToData
 
 newtype Entry =
     Entry {
         key :: ByteArray
-        , sizeLeft :: Natural
-        , newDeposit :: Natural
-        , deposited :: Natural
-        , staked :: Natural
-        , rewards :: NatRatio
-        , value :: Tuple Natural NatRatio
+        , sizeLeft :: BigInt
+        , newDeposit :: BigInt
+        , deposited :: BigInt
+        , staked :: BigInt
+        , rewards :: Rational
+        , value :: Tuple BigInt Rational
         , next :: Maybe ByteArray
     }
 derive instance G.Generic Entry _
 derive instance Eq Entry
+instance HasConstrIndices Entry where
+    constrIndices = defaultConstrIndices
+instance ToData Entry where
+    toData = genericToData
