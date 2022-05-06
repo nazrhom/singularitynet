@@ -11,4 +11,4 @@ main :: Effect Unit
 main = launchAff_ $ do
   cfg <- defaultContractConfig
   runContract_ cfg createPoolContract
-  --runContract_ cfg depositPoolContract
+--runContract_ cfg depositPoolContract

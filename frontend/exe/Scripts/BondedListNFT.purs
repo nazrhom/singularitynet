@@ -1,6 +1,6 @@
-module Scripts.BondedListNFT(
-    mkBondedListNFTPolicy
-) where
+module Scripts.BondedListNFT
+  ( mkBondedListNFTPolicy
+  ) where
 
 import Contract.Prelude
 
@@ -20,11 +20,12 @@ bondedListNFTPolicy = jsonReader "script" _bondedListNFT
 
 -- | This function takes a `CurrencySymbol` and produces the `MintingPolicy` for
 -- the list NFT
-mkBondedListNFTPolicy ::
-    forall (r :: Row Type) (a :: Type).
-    CurrencySymbol -> Contract r (Either ClientError MintingPolicy)
+mkBondedListNFTPolicy
+  :: forall (r :: Row Type) (a :: Type)
+   . CurrencySymbol
+  -> Contract r (Either ClientError MintingPolicy)
 mkBondedListNFTPolicy nftCs = do
-    unappliedScript <- liftContractE $ bondedListNFTPolicy
-    applyArgs (MintingPolicy unappliedScript) [ toData nftCs ]
-    
+  unappliedScript <- liftContractE $ bondedListNFTPolicy
+  applyArgs (MintingPolicy unappliedScript) [ toData nftCs ]
+
 foreign import _bondedListNFT :: Json

@@ -1,6 +1,6 @@
-module Scripts.BondedStateNFT(
-    mkBondedStateNFTPolicy
-) where
+module Scripts.BondedStateNFT
+  ( mkBondedStateNFTPolicy
+  ) where
 
 import Contract.Prelude
 
@@ -20,14 +20,16 @@ bondedStateNFTPolicy = jsonReader "script" _bondedStateNFT
 
 -- | This function takes a `TxOutRef` and produces the `MintingPolicy` for
 -- the state NFT
-mkBondedStateNFTPolicy ::
-    forall (r :: Row Type) (a :: Type).
-    TxOutRef -> Contract r (Either ClientError MintingPolicy)
+mkBondedStateNFTPolicy
+  :: forall (r :: Row Type) (a :: Type)
+   . TxOutRef
+  -> Contract r (Either ClientError MintingPolicy)
 mkBondedStateNFTPolicy txOutRef = do
-    unappliedScript <- liftedE $ pure $ bondedStateNFTPolicy
-    let txOutRef' = unwrap txOutRef
-    applyArgs (MintingPolicy unappliedScript) [ 
-        toData $ txOutRef'.transactionId
-        , toData txOutRef'.index ]
-    
+  unappliedScript <- liftedE $ pure $ bondedStateNFTPolicy
+  let txOutRef' = unwrap txOutRef
+  applyArgs (MintingPolicy unappliedScript)
+    [ toData $ txOutRef'.transactionId
+    , toData txOutRef'.index
+    ]
+
 foreign import _bondedStateNFT :: Json

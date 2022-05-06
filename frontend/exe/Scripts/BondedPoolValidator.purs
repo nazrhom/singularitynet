@@ -1,6 +1,6 @@
-module Scripts.BondedPoolValidator(
-    mkBondedPoolValidator
-) where
+module Scripts.BondedPoolValidator
+  ( mkBondedPoolValidator
+  ) where
 
 import Contract.Prelude
 
@@ -20,11 +20,12 @@ bondedPoolValidator = jsonReader "script" _bondedPoolValidator
 
 -- | This function takes a `BondedPoolParams` and produces the `Validator`
 -- for the bonded pool
-mkBondedPoolValidator ::
-    forall (r :: Row Type) .
-    BondedPoolParams -> Contract r (Either ClientError Validator)
+mkBondedPoolValidator
+  :: forall (r :: Row Type)
+   . BondedPoolParams
+  -> Contract r (Either ClientError Validator)
 mkBondedPoolValidator params = do
-    unappliedScript <- liftedE $ pure $ bondedPoolValidator
-    applyArgs (Validator unappliedScript) [ toData params ]
-    
+  unappliedScript <- liftedE $ pure $ bondedPoolValidator
+  applyArgs (Validator unappliedScript) [ toData params ]
+
 foreign import _bondedPoolValidator :: Json

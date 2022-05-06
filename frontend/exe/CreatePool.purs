@@ -2,14 +2,28 @@ module CreatePool (createPoolContract) where
 
 import Contract.Prelude
 
-import Contract.Address (getNetworkId, getWalletAddress, ownPaymentPubKeyHash, validatorHashEnterpriseAddress)
+import Contract.Address
+  ( getNetworkId
+  , getWalletAddress
+  , ownPaymentPubKeyHash
+  , validatorHashEnterpriseAddress
+  )
 import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM)
 import Contract.PlutusData (PlutusData, Datum(Datum), toData)
 import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
-import Contract.Transaction (BalancedSignedTransaction(BalancedSignedTransaction), balanceAndSignTx, submit)
-import Contract.TxConstraints (TxConstraints, mustMintValue, mustPayToScript, mustSpendPubKeyOutput)
+import Contract.Transaction
+  ( BalancedSignedTransaction(BalancedSignedTransaction)
+  , balanceAndSignTx
+  , submit
+  )
+import Contract.TxConstraints
+  ( TxConstraints
+  , mustMintValue
+  , mustPayToScript
+  , mustSpendPubKeyOutput
+  )
 import Contract.Utxos (utxosAt)
 import Contract.Value (getCurrencySymbol, scriptCurrencySymbol, singleton)
 import Data.Argonaut (stringify)
@@ -23,14 +37,13 @@ import Serialization.Address (addressBech32)
 import Settings (bondedStakingTokenName, hardCodedParams)
 import Types (BondedStakingDatum(..))
 
-    
 -- Sets up pool configuration, mints the state NFT and deposits
 -- in the pool validator's address
 createPoolContract :: Contract () Unit
 createPoolContract = do
   networkId <- getNetworkId
   adminPkh <- liftedM "createPoolContract: Cannot get admin's pkh"
-                ownPaymentPubKeyHash
+    ownPaymentPubKeyHash
   log $ "Admin PaymentPubKeyHash: " <> show adminPkh
   -- Get the (Nami) wallet address
   adminAddr <- liftedM "createPoolContract: Cannot get wallet Address"
@@ -39,8 +52,9 @@ createPoolContract = do
   adminUtxos <-
     liftedM "createPoolContract: Cannot get user Utxos" (utxosAt adminAddr)
   log $ "Admin's UTXOs: " <> show adminUtxos
-  txOutRef <- liftContractM "createPoolContract: Could not get head UTXO" $
-    fst <$> (head $ toUnfoldable $ unwrap adminUtxos)
+  txOutRef <- liftContractM "createPoolContract: Could not get head UTXO"
+    $ fst
+    <$> (head $ toUnfoldable $ unwrap adminUtxos)
   log $ "toData utxo"
   log $ show (toData txOutRef)
   log $ "Admin's head UTXO: " <> show adminUtxos
@@ -63,7 +77,7 @@ createPoolContract = do
     bondedStakingTokenName
   -- We define the parameters of the pool
   params <- liftContractM "createPoolContract: Failed to create parameters" $
-    hardCodedParams adminPkh nftCs assocListCs 
+    hardCodedParams adminPkh nftCs assocListCs
   log $ "toData Pool Parameters"
   log $ show (toData params)
   -- Get the bonding validator and hash
@@ -78,9 +92,9 @@ createPoolContract = do
     scriptAddr = validatorHashEnterpriseAddress networkId valHash
   log $ "BondedPool Validator's address: " <> show scriptAddr
   let
-    bondedStateDatum = Datum $ toData $ StateDatum {
-      maybeEntryName : Nothing
-    }
+    bondedStateDatum = Datum $ toData $ StateDatum
+      { maybeEntryName: Nothing
+      }
 
     lookup :: ScriptLookups.ScriptLookups PlutusData
     lookup = mconcat

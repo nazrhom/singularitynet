@@ -2,13 +2,26 @@ module DepositPool (depositPoolContract) where
 
 import Contract.Prelude
 
-import Contract.Address (getNetworkId, getWalletAddress, ownPaymentPubKeyHash, validatorHashEnterpriseAddress)
+import Contract.Address
+  ( getNetworkId
+  , getWalletAddress
+  , ownPaymentPubKeyHash
+  , validatorHashEnterpriseAddress
+  )
 import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM)
 import Contract.PlutusData (PlutusData, Datum(Datum), toData)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
-import Contract.Transaction (BalancedSignedTransaction(BalancedSignedTransaction), balanceAndSignTx, submit)
-import Contract.TxConstraints (TxConstraints, mustPayToScript, mustSpendScriptOutput)
+import Contract.Transaction
+  ( BalancedSignedTransaction(BalancedSignedTransaction)
+  , balanceAndSignTx
+  , submit
+  )
+import Contract.TxConstraints
+  ( TxConstraints
+  , mustPayToScript
+  , mustSpendScriptOutput
+  )
 import Contract.Utxos (utxosAt)
 import Contract.Value (adaSymbol, adaToken, singleton)
 import Data.Array (head)
@@ -21,7 +34,6 @@ import Types (BondedStakingAction(..), BondedStakingDatum(..))
 import Types.Redeemer (Redeemer(Redeemer))
 import Utils (big, nat)
 
-    
 -- Deposits a certain amount in the pool
 depositPoolContract :: Contract () Unit
 depositPoolContract = do
@@ -30,14 +42,14 @@ depositPoolContract = do
     stateNFTSymbol
   assocListCs <-
     liftedM "depositPoolContract: Cannot get list NFT currency symbol"
-    stateNFTSymbol
+      stateNFTSymbol
   -- Fix this
   poolAddr <- liftedM "depositPoolContract: Cannot get bonded pool address"
-    bondedPoolAddress 
+    bondedPoolAddress
   -- Get network ID and admin's PKH
   networkId <- getNetworkId
   adminPkh <- liftedM "depositPoolContract: Cannot get admin's pkh"
-                ownPaymentPubKeyHash
+    ownPaymentPubKeyHash
   log $ "Admin PaymentPubKeyHash: " <> show adminPkh
   -- Get the (Nami) wallet address
   adminAddr <- liftedM "depositPoolContract: Cannot get wallet Address"
@@ -51,12 +63,13 @@ depositPoolContract = do
     liftedM "depositPoolContract: Cannot get pool's utxos at pool address" $
       (utxosAt poolAddr)
   poolTxInput <-
-    liftContractM "depositPoolContract: Cannot get head Utxo for bonded pool" $
-      fst <$> (head $ toUnfoldable $ unwrap bondedPoolUtxos)
+    liftContractM "depositPoolContract: Cannot get head Utxo for bonded pool"
+      $ fst
+      <$> (head $ toUnfoldable $ unwrap bondedPoolUtxos)
   log $ "Pool's UTXO: " <> show poolTxInput
   -- We define the parameters of the pool
   params <- liftContractM "depositPoolContract: Failed to create parameters" $
-    hardCodedParams adminPkh nftCs assocListCs 
+    hardCodedParams adminPkh nftCs assocListCs
   log $ "toData Pool Parameters"
   log $ show (toData params)
   -- Get the bonded pool validator and hash
@@ -73,18 +86,20 @@ depositPoolContract = do
   let
     -- We can hardcode the state for now. We should actually fetch the datum
     -- from Ogmios, update it properly and then submit it
-    bondedStateDatum = Datum $ toData $ StateDatum {
-      maybeEntryName : Nothing
-    }
+    bondedStateDatum = Datum $ toData $ StateDatum
+      { maybeEntryName: Nothing
+      }
     -- We build the redeemer
     redeemerData = toData $ AdminAct { sizeLeft: nat 100 }
     redeemer = Redeemer redeemerData
+
     lookup :: ScriptLookups.ScriptLookups PlutusData
     lookup = mconcat
-      [ScriptLookups.validator validator
+      [ ScriptLookups.validator validator
       , ScriptLookups.unspentOutputs (unwrap adminUtxos)
       , ScriptLookups.unspentOutputs (unwrap bondedPoolUtxos)
       ]
+
     -- Seems suspect, not sure if typed constraints are working as expected
     constraints :: TxConstraints Unit Unit
     constraints =
