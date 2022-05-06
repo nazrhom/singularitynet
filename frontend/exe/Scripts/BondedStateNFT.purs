@@ -4,16 +4,13 @@ module Scripts.BondedStateNFT(
 
 import Contract.Prelude
 
+import Contract.Monad (Contract, liftedE)
+import Contract.Scripts (MintingPolicy(..), applyArgs)
 import Data.Argonaut (Json, JsonDecodeError)
-import ToData(toData)
-import Contract.Monad(Contract, liftedE)
-import Contract.Scripts (
-    MintingPolicy(..)
-    , applyArgs
-    )
-import QueryM(ClientError)
+import QueryM (ClientError)
+import ToData (toData)
+import Types.Scripts (PlutusScript)
 import Types.UnbalancedTransaction (TxOutRef)
-import Types.Scripts(PlutusScript)
 import Utils (jsonReader)
 
 -- | This is the parameterized minting policy. It still needs to receive a
@@ -28,6 +25,9 @@ mkBondedStateNFTPolicy ::
     TxOutRef -> Contract r (Either ClientError MintingPolicy)
 mkBondedStateNFTPolicy txOutRef = do
     unappliedScript <- liftedE $ pure $ bondedStateNFTPolicy
-    applyArgs (MintingPolicy unappliedScript) [ toData txOutRef ]
+    let txOutRef' = unwrap txOutRef
+    applyArgs (MintingPolicy unappliedScript) [ 
+        toData $ txOutRef'.transactionId
+        , toData txOutRef'.index ]
     
 foreign import _bondedStateNFT :: Json
