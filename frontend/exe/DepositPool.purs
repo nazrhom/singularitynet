@@ -113,10 +113,11 @@ depositPoolContract = do
   -- 2) Reindex `Spend` redeemers after finalising transaction inputs.
   -- 3) Attach datums and redeemers to transaction.
   -- 3) Sign tx, returning the Cbor-hex encoded `ByteArray`.
-  BalancedSignedTransaction { signedTxCbor } <- liftedM
-    "depositPoolContract: Cannot balance, reindex redeemers, attach datums/\
-    \redeemers and sign"
-    $ balanceAndSignTx unattachedBalancedTx
+  BalancedSignedTransaction { signedTxCbor } <-
+    liftedM
+      "depositPoolContract: Cannot balance, reindex redeemers, attach datums/\
+      \redeemers and sign"
+      $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
   transactionHash <- submit signedTxCbor
   logInfo_ "depositPoolContract: Transaction successfully submitted with hash"
