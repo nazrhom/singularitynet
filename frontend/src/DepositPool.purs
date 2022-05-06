@@ -72,12 +72,12 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
   bondedPoolUtxos <-
     liftedM "depositPoolContract: Cannot get pool's utxos at pool address" $
       utxosAt poolAddr
-  -- Fix this to find the UTXO, not the head:
-  poolTxInput <-
-    liftContractM "depositPoolContract: Cannot get head Utxo for bonded pool"
-      $ fst
-      <$> (head $ toUnfoldable $ unwrap bondedPoolUtxos)
-  logInfo_ "Pool's UTXO" poolTxInput
+  -- -- Fix this to find the UTXO, not the head:
+  -- poolTxInput <-
+  --   liftContractM "depositPoolContract: Cannot get head Utxo for bonded pool"
+  --     $ fst
+  --     <$> (head $ toUnfoldable $ unwrap bondedPoolUtxos)
+  -- logInfo_ "Pool's UTXO" poolTxInput
   -- We define the parameters of the pool
   params <- liftContractM "depositPoolContract: Failed to create parameters" $
     hardCodedParams adminPkh stateNftCs assocListCs
