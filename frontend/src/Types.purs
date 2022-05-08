@@ -92,8 +92,8 @@ data BondedStakingAction
       { stakeAmount :: Natural
       , stakeHolder :: PaymentPubKeyHash
       }
-  | PWithdrawAct { stakeHolder :: PaymentPubKeyHash }
-  | PCloseAct
+  | WithdrawAct { stakeHolder :: PaymentPubKeyHash }
+  | CloseAct
 
 derive instance Generic BondedStakingAction _
 derive instance Eq BondedStakingAction
