@@ -7,7 +7,6 @@ You can edit this file as you like.
   [ "aff"
   , "cardano-transaction-lib"
   , "argonaut"
-  , "argonaut-codecs"
   , "arrays"
   , "bigints"
   , "integers"
@@ -15,8 +14,8 @@ You can edit this file as you like.
   , "newtype"
   , "ordered-collections"
   , "prelude"
-  , "rationals"
   , "tuples"
+  , "identity"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "exe/**/*.purs", "test/**/*.purs" ]

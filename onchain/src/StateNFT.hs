@@ -14,8 +14,8 @@ module StateNFT (
 import Plutarch.Api.V1 (
   PScriptContext,
   PTxInInfo,
-  PTxOutRef(PTxOutRef),
-  PValue,PTxId (PTxId)
+  PTxOutRef,
+  PValue,
  )
 import Plutarch.Monadic qualified as P
 import Plutarch.Unsafe (punsafeCoerce)
@@ -45,22 +45,9 @@ pbondedStateNFTPolicy = plam $ \txOutRef _ ctx' -> P.do
     perror
 
 pbondedStateNFTPolicyUntyped ::
-  forall (s :: S). Term s (
-    PData :--> PData :--> PData :--> PData :--> PUnit
-  )
-pbondedStateNFTPolicyUntyped = plam $ \txHash' txId' _ ctx' -> unTermCont $ do
-  -- We manually build a TxOutRef due to a mismatch between the `ToData`
-  -- representation in CTL and Plutarch
-  txHash <- ptryFromUndata @PByteString txHash'
-  txId <- ptryFromUndata @PInteger txId'
-  let txOutRef :: Term s PTxOutRef
-      txOutRef =
-        pcon $ PTxOutRef $
-          pdcons # (pdata $ pcon $ PTxId $ pdcons # pdata txHash # pdnil) #$
-            pdcons # pdata txId #$
-              pdnil
-  pure $ pbondedStateNFTPolicy
-    # txOutRef
+  forall (s :: S). Term s (PData :--> PData :--> PData :--> PUnit)
+pbondedStateNFTPolicyUntyped = plam $ \utxo' _ ctx' ->
+  pbondedStateNFTPolicy # unTermCont (ptryFromUndata utxo')
     # pconstant ()
     # punsafeCoerce ctx'
 

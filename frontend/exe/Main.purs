@@ -2,6 +2,7 @@ module Main (main) where
 
 import Contract.Prelude
 
+import ClosePool (closePoolContract)
 import Contract.Address (NetworkId(TestnetId))
 import Contract.Monad
   ( ConfigParams(ConfigParams)
@@ -39,3 +40,5 @@ main = launchAff_ $ do
     -- sleep in order to wait for tx
     liftAff $ delay $ wrap $ toNumber 40000
     depositPoolContract poolInfo
+    liftAff $ delay $ wrap $ toNumber 40000
+    closePoolContract poolInfo

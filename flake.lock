@@ -1041,17 +1041,17 @@
         "servant-purescript": "servant-purescript"
       },
       "locked": {
-        "lastModified": 1651746426,
-        "narHash": "sha256-d5N706CjgJ1nmi6Wx3yakxfG/J976WnLo4F+FZsUgTY=",
+        "lastModified": 1651831059,
+        "narHash": "sha256-a/DmcQGTiKWl2DTAbWOx0iX7fynhVROXPClKGo3OaZA=",
         "owner": "Plutonomicon",
         "repo": "cardano-transaction-lib",
-        "rev": "9547d1b9cc933b7ce3d44a50ef086719bd177f0a",
+        "rev": "f2d2b1f6f0c04fe0959591f6f062cd6b17697e2d",
         "type": "github"
       },
       "original": {
         "owner": "Plutonomicon",
         "repo": "cardano-transaction-lib",
-        "rev": "9547d1b9cc933b7ce3d44a50ef086719bd177f0a",
+        "rev": "f2d2b1f6f0c04fe0959591f6f062cd6b17697e2d",
         "type": "github"
       }
     },
