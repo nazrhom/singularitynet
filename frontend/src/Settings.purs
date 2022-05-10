@@ -15,7 +15,6 @@ import Contract.Value
   , mkTokenName
   )
 import Data.Maybe (Maybe)
-import Data.Tuple.Nested ((/\))
 import Types (AssetClass(AssetClass), BondedPoolParams(BondedPoolParams))
 import Types.ByteArray (byteArrayFromAscii)
 import Types.UnbalancedTransaction (PaymentPubKeyHash)
@@ -45,7 +44,10 @@ hardCodedParams adminPkh nftCs assocListCs = do
     , minStake: nat 1000
     , maxStake: nat 10_000
     , admin: adminPkh
-    , bondedAssetClass: AssetClass $ adaSymbol /\ adaToken
+    , bondedAssetClass: AssetClass { 
+        currencySymbol: adaSymbol
+        , tokenName: adaToken
+    }
     , nftCs
     , assocListCs
     }

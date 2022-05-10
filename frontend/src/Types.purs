@@ -10,21 +10,25 @@ module Types
 import Contract.Prelude
 
 import ConstrIndices (class HasConstrIndices, defaultConstrIndices)
+import Contract.Address (Address)
+import Contract.Numeric.Natural (Natural)
+import Contract.Numeric.Rational (Rational)
+import Contract.PlutusData (class ToData, PlutusData(..), toData)
 import Contract.Value (CurrencySymbol, TokenName)
 import Data.BigInt (BigInt)
 import Data.Generic.Rep (class Generic)
 import Data.Maybe (Maybe)
 import Data.Newtype (class Newtype)
 import Data.Show.Generic (genericShow)
-import Contract.Address (Address)
-import Contract.Numeric.Natural (Natural)
-import Contract.Numeric.Rational (Rational)
-import Contract.PlutusData (class ToData)
 import ToData (genericToData)
 import Types.ByteArray (ByteArray)
 import Types.UnbalancedTransaction (PaymentPubKeyHash)
+import Utils (big)
 
-newtype AssetClass = AssetClass (CurrencySymbol /\ TokenName)
+newtype AssetClass = AssetClass {
+  currencySymbol :: CurrencySymbol
+  , tokenName :: TokenName
+}
 
 derive instance Generic AssetClass _
 derive instance Eq AssetClass
@@ -70,8 +74,24 @@ derive instance Newtype BondedPoolParams _
 instance HasConstrIndices BondedPoolParams where
   constrIndices = defaultConstrIndices
 
+-- We copy the order of the fields from the Haskell implementation
 instance ToData BondedPoolParams where
-  toData = genericToData
+  toData (BondedPoolParams params) = 
+    Constr (big 0) [
+      --Integer $ toBigInt params.iterations
+      toData params.iterations
+      , toData params.start
+      , toData params.end
+      , toData params.userLength
+      , toData params.bondingLength
+      , toData params.interest
+      , toData params.minStake
+      , toData params.maxStake
+      , toData params.admin
+      , toData params.bondedAssetClass
+      , toData params.nftCs
+      , toData params.assocListCs
+    ]
 
 data BondedStakingDatum
   = StateDatum { maybeEntryName :: Maybe ByteArray, sizeLeft :: Natural }
