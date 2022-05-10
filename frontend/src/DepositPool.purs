@@ -29,6 +29,7 @@ import Contract.Transaction
   )
 import Contract.TxConstraints
   ( TxConstraints
+  , mustBeSignedBy
   , mustPayToScript
   , mustSpendScriptOutput
   , mustMintValue
@@ -41,8 +42,6 @@ import Contract.Value
   , mkTokenName
   , scriptCurrencySymbol
   )
-import Data.Array (head)
-import Data.Map (toUnfoldable)
 import Scripts.BondedPoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName, hardCodedParams)
 import Types
@@ -51,7 +50,7 @@ import Types
   , PoolInfo(PoolInfo)
   )
 import Types.Redeemer (Redeemer(Redeemer))
-import Utils (big, nat, logInfo_)
+import Utils (big, getUtxoWithNFT, logInfo_, nat)
 
 -- Deposits a certain amount in the pool
 depositPoolContract :: PoolInfo -> Contract () Unit
@@ -73,12 +72,12 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
   bondedPoolUtxos <-
     liftedM "depositPoolContract: Cannot get pool's utxos at pool address" $
       utxosAt poolAddr
-  -- Fix this to find the UTXO, not the head:
-  poolTxInput <-
-    liftContractM "depositPoolContract: Cannot get head Utxo for bonded pool"
-      $ fst
-      <$> (head $ toUnfoldable $ unwrap bondedPoolUtxos)
-  -- logInfo_ "Pool's UTXO" poolTxInput
+  tokenName <- liftContractM "createPoolContract: Cannot create TokenName"
+    bondedStakingTokenName
+  poolTxInput /\ _ <-
+    liftContractM "depositPoolContract: Cannot get state utxo" $
+      getUtxoWithNFT bondedPoolUtxos stateNftCs tokenName
+  logInfo_ "depositPoolContract: Pool's UTXO" poolTxInput
   -- We define the parameters of the pool
   params <- liftContractM "depositPoolContract: Failed to create parameters" $
     hardCodedParams adminPkh stateNftCs assocListCs
@@ -88,7 +87,7 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
     mkBondedPoolValidator params
   valHash <- liftedM "depositPoolContract: Cannot hash validator"
     $ validatorHash validator
-  log $ "validatorHash blah" <> show valHash
+  logInfo_ "validatorHash" valHash
   -- For whatever reason, minting a dummy token is required to pay to script.
   -- This is a CTL bug.
   dummyMp :: MintingPolicy <- liftContractE
@@ -101,8 +100,6 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
   dummyTn <- liftContractM "Cannot make dummy token"
     $ mkTokenName
     =<< byteArrayFromAscii "DummyToken"
-  tokenName <- liftContractM "createPoolContract: Cannot create TokenName"
-    bondedStakingTokenName
   let
     mintValue = singleton stateNftCs tokenName one
     depositValue = singleton adaSymbol adaToken $ big 5_000_000
@@ -126,7 +123,7 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
     lookup = mconcat
       [ ScriptLookups.validator validator
       , ScriptLookups.unspentOutputs $ unwrap adminUtxos
-      -- , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
+      , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
       -- , ScriptLookups.mintingPolicy dummyMp
       ]
 
@@ -135,6 +132,7 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
     constraints =
       mconcat
         [ mustPayToScript valHash assetDatum depositValue
+        , mustBeSignedBy adminPkh
         -- , mustPayToScript valHash bondedStateDatum mintValue
         -- , mustMintValue dummyMintValue
         -- , mustSpendScriptOutput poolTxInput redeemer

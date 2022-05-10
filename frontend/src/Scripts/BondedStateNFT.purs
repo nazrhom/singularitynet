@@ -30,5 +30,5 @@ mkBondedStateNFTPolicy
 mkBondedStateNFTPolicy txOutRef = do
     unappliedScript <- liftedE $ pure $ bondedStateNFTPolicy
     applyArgs (MintingPolicy unappliedScript) [ toData txOutRef ]
-    
+
 foreign import _bondedStateNFT :: Json
