@@ -119,9 +119,6 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
   bondedStateDatumLookup <-
     liftContractM "depositPoolContract: Could not create state datum lookup"
       =<< ScriptLookups.datum bondedStateDatum
-  assetDatumLookup <-
-    liftContractM "depositPoolContract: Could not create asset datum lookup"
-      =<< ScriptLookups.datum assetDatum
   let
     stateTokenValue = singleton stateNftCs tokenName one
     depositValue = singleton adaSymbol adaToken (big 5_000_000)
@@ -144,7 +141,6 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
       , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
       , ScriptLookups.mintingPolicy dummyMp
       , bondedStateDatumLookup
-      , assetDatumLookup
       ]
 
     -- Seems suspect, not sure if typed constraints are working as expected
