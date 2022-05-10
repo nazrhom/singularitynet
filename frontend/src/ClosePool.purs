@@ -38,9 +38,11 @@ closePoolContract (PoolInfo poolInfo) = do
   bondedPoolUtxos <-
     liftedM "closePoolContract: Cannot get pool's utxos at pool address" $
       utxosAt poolAddr
-  (Tuple poolTxInput _poolTxOutput) <-
+  logInfo_ "Pool's UTXOs" bondedPoolUtxos
+  (poolTxInput /\ _) <-
     liftContractM "closePoolContract: Cannot get state utxo" $
       getUtxoWithNFT bondedPoolUtxos nftCs stateTokenName
+  logInfo_ "Pool's state UTXO" poolTxInput
   -- Create parameters of the pool and validator
   params <- liftContractM "closePoolContract: Failed to create parameters" $
     hardCodedParams adminPkh nftCs assocListCs
