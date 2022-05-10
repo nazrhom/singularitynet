@@ -78,11 +78,11 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
   poolTxInput /\ poolTxOutput <-
     liftContractM "depositPoolContract: Cannot get state utxo" $
       getUtxoWithNFT bondedPoolUtxos stateNftCs tokenName
-  logInfo_ "depositPoolContract: Pool's UTXO" poolTxInput
+  logInfo_ "Pool's UTXO" poolTxInput
   poolDatumHash <-
     liftContractM "depositPoolContract: Could not get Pool UTXO's Datum Hash"
       (unwrap poolTxOutput).dataHash
-  logInfo_ "depositPoolContract: Pool's UTXO DatumHash:" poolDatumHash
+  logInfo_ "Pool's UTXO DatumHash:" poolDatumHash
   -- We define the parameters of the pool
   params <- liftContractM "depositPoolContract: Failed to create parameters" $
     hardCodedParams adminPkh stateNftCs assocListCs
@@ -105,14 +105,7 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
   dummyTn <- liftContractM "Cannot make dummy token"
     $ mkTokenName
     =<< byteArrayFromAscii "DummyToken"
-  let
-    stateTokenValue = singleton stateNftCs tokenName one
-    depositValue = singleton adaSymbol adaToken (big 5_000_000)
-                   <> stateTokenValue
-    -- Minting dummy value due to CTL issue
-    dummyMintValue = singleton dummyCs dummyTn $ big 12
-    scriptAddr = validatorHashEnterpriseAddress networkId valHash
-  logInfo_ "BondedPool Validator's address" scriptAddr
+  -- Create the datums and their ScriptLookups
   let
     -- We can hardcode the state for now. We should actually fetch the datum
     -- from Ogmios, update it properly and then submit it
@@ -120,6 +113,23 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
       { maybeEntryName: Nothing
       , sizeLeft: nat 100_000_000
       }
+    -- This is the datum of the UTXO that will hold the rewards
+    assetDatum = Datum $ toData $ AssetDatum
+
+  bondedStateDatumLookup <-
+    liftContractM "depositPoolContract: Could not create state datum lookup"
+      =<< ScriptLookups.datum bondedStateDatum
+  assetDatumLookup <-
+    liftContractM "depositPoolContract: Could not create asset datum lookup"
+      =<< ScriptLookups.datum assetDatum
+  let
+    stateTokenValue = singleton stateNftCs tokenName one
+    depositValue = singleton adaSymbol adaToken (big 5_000_000)
+    -- Minting dummy value due to CTL issue
+    dummyMintValue = singleton dummyCs dummyTn $ big 12
+    scriptAddr = validatorHashEnterpriseAddress networkId valHash
+  logInfo_ "BondedPool Validator's address" scriptAddr
+  let
     -- We build the redeemer. The size does not change because there are no
     -- user stakes. It doesn't make much sense to deposit if there wasn't a
     -- change in the total amount of stakes (and accrued rewards). This will
@@ -133,18 +143,26 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
       , ScriptLookups.unspentOutputs $ unwrap adminUtxos
       , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
       , ScriptLookups.mintingPolicy dummyMp
+      , bondedStateDatumLookup
+      , assetDatumLookup
       ]
 
     -- Seems suspect, not sure if typed constraints are working as expected
     constraints :: TxConstraints Unit Unit
     constraints =
       mconcat
-        [ mustPayToScript valHash bondedStateDatum depositValue
+        [
+          -- Update the pool's state
+          mustPayToScript valHash bondedStateDatum stateTokenValue
+          -- Deposit rewards in a separate UTXO
+        , mustPayToScript valHash assetDatum depositValue
         , mustBeSignedBy adminPkh
         , mustMintValue dummyMintValue
         , mustSpendScriptOutput poolTxInput redeemer
         ]
+  dh <- liftedM "depositPoolContract: Cannot Hash AssetDatum" $ datumHash assetDatum
   dh' <- liftedM "depositPoolContract: Cannot Hash BondedStateDatum" $ datumHash bondedStateDatum
+  logInfo_ "DatumHash of AssetDatum" dh
   logInfo_ "DatumHash of BondedStateDatum" dh'
   unattachedBalancedTx <-
     liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
