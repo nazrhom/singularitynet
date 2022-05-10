@@ -50,7 +50,7 @@ import Types (
     PWithdrawAct
   ),
   PBondedStakingDatum (PAssetDatum, PEntryDatum, PStateDatum),
-  passetClass,BondedStakingDatum (AssetDatum)
+  passetClass
  )
 import Utils (
   getContinuingOutputWithNFT,

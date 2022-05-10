@@ -42,7 +42,6 @@ import Plutarch.DataRepr (
   PIsDataReprInstances (PIsDataReprInstances),
  )
 import Plutarch.Lift (
-  DerivePConstantViaNewtype (DerivePConstantViaNewtype),
   PLifted,
   PUnsafeLiftDecl,
  )
