@@ -17,17 +17,19 @@ import Contract.Monad
   , liftedE'
   , liftedM
   )
-import Contract.PlutusData (PlutusData, Datum(Datum), toData, unitDatum)
+import Contract.PlutusData (PlutusData, Datum(Datum), toData, datumHash, unitDatum)
 import Contract.Prim.ByteArray (byteArrayToHex, byteArrayFromAscii)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash, MintingPolicy)
 import Contract.Transaction
   ( BalancedSignedTransaction(BalancedSignedTransaction)
   , balanceAndSignTx
+  , balanceTx
   , submit
   )
 import Contract.TxConstraints
   ( TxConstraints
+  , mustBeSignedBy
   , mustPayToScript
   , mustSpendScriptOutput
   , mustMintValue
@@ -40,17 +42,15 @@ import Contract.Value
   , mkTokenName
   , scriptCurrencySymbol
   )
-import Data.Array (head)
-import Data.Map (toUnfoldable)
 import Scripts.BondedPoolValidator (mkBondedPoolValidator)
-import Settings (hardCodedParams)
+import Settings (bondedStakingTokenName, hardCodedParams)
 import Types
   ( BondedStakingAction(AdminAct)
-  , BondedStakingDatum(StateDatum)
+  , BondedStakingDatum(AssetDatum, StateDatum)
   , PoolInfo(PoolInfo)
   )
 import Types.Redeemer (Redeemer(Redeemer))
-import Utils (big, nat, logInfo_)
+import Utils (big, getUtxoWithNFT, logInfo_, nat)
 
 -- Deposits a certain amount in the pool
 depositPoolContract :: PoolInfo -> Contract () Unit
@@ -72,12 +72,17 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
   bondedPoolUtxos <-
     liftedM "depositPoolContract: Cannot get pool's utxos at pool address" $
       utxosAt poolAddr
-  -- -- Fix this to find the UTXO, not the head:
-  -- poolTxInput <-
-  --   liftContractM "depositPoolContract: Cannot get head Utxo for bonded pool"
-  --     $ fst
-  --     <$> (head $ toUnfoldable $ unwrap bondedPoolUtxos)
-  -- logInfo_ "Pool's UTXO" poolTxInput
+  logInfo_ "Pool UTXOs" bondedPoolUtxos
+  tokenName <- liftContractM "createPoolContract: Cannot create TokenName"
+    bondedStakingTokenName
+  poolTxInput /\ poolTxOutput <-
+    liftContractM "depositPoolContract: Cannot get state utxo" $
+      getUtxoWithNFT bondedPoolUtxos stateNftCs tokenName
+  logInfo_ "depositPoolContract: Pool's UTXO" poolTxInput
+  poolDatumHash <-
+    liftContractM "depositPoolContract: Could not get Pool UTXO's Datum Hash"
+      (unwrap poolTxOutput).dataHash
+  logInfo_ "depositPoolContract: Pool's UTXO DatumHash:" poolDatumHash
   -- We define the parameters of the pool
   params <- liftContractM "depositPoolContract: Failed to create parameters" $
     hardCodedParams adminPkh stateNftCs assocListCs
@@ -87,6 +92,7 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
     mkBondedPoolValidator params
   valHash <- liftedM "depositPoolContract: Cannot hash validator"
     $ validatorHash validator
+  logInfo_ "validatorHash" valHash
   -- For whatever reason, minting a dummy token is required to pay to script.
   -- This is a CTL bug.
   dummyMp :: MintingPolicy <- liftContractE
@@ -100,7 +106,9 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
     $ mkTokenName
     =<< byteArrayFromAscii "DummyToken"
   let
-    depositValue = singleton adaSymbol adaToken $ big 5_000_000
+    stateTokenValue = singleton stateNftCs tokenName one
+    depositValue = singleton adaSymbol adaToken (big 5_000_000)
+                   <> stateTokenValue
     -- Minting dummy value due to CTL issue
     dummyMintValue = singleton dummyCs dummyTn $ big 12
     scriptAddr = validatorHashEnterpriseAddress networkId valHash
@@ -110,10 +118,13 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
     -- from Ogmios, update it properly and then submit it
     bondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
-      , sizeLeft: nat 100
+      , sizeLeft: nat 100_000_000
       }
-    -- We build the redeemer
-    redeemerData = toData $ AdminAct { sizeLeft: nat 100 }
+    -- We build the redeemer. The size does not change because there are no
+    -- user stakes. It doesn't make much sense to deposit if there wasn't a
+    -- change in the total amount of stakes (and accrued rewards). This will
+    -- change when user staking is added
+    redeemerData = toData $ AdminAct { sizeLeft: nat 100_000_000 }
     redeemer = Redeemer redeemerData
 
     lookup :: ScriptLookups.ScriptLookups PlutusData
@@ -128,13 +139,19 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
     constraints :: TxConstraints Unit Unit
     constraints =
       mconcat
-        [ mustPayToScript valHash unitDatum depositValue
+        [ mustPayToScript valHash bondedStateDatum depositValue
+        , mustBeSignedBy adminPkh
         , mustMintValue dummyMintValue
-        -- , mustSpendScriptOutput poolTxInput redeemer
+        , mustSpendScriptOutput poolTxInput redeemer
         ]
-
+  dh' <- liftedM "depositPoolContract: Cannot Hash BondedStateDatum" $ datumHash bondedStateDatum
+  logInfo_ "DatumHash of BondedStateDatum" dh'
   unattachedBalancedTx <-
     liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
+  logInfo_ "unAttachedUnbalancedTx" unattachedBalancedTx
+  let unbalancedTx = (unwrap unattachedBalancedTx).unbalancedTx
+  balancedTx <- liftedE $ balanceTx unbalancedTx
+  logInfo_ "balancedTx" balancedTx
   BalancedSignedTransaction { signedTxCbor } <-
     liftedM
       "depositPoolContract: Cannot balance, reindex redeemers, attach datums/\
