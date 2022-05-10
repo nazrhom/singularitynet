@@ -78,7 +78,6 @@ instance HasConstrIndices BondedPoolParams where
 instance ToData BondedPoolParams where
   toData (BondedPoolParams params) = 
     Constr (big 0) [
-      --Integer $ toBigInt params.iterations
       toData params.iterations
       , toData params.start
       , toData params.end
