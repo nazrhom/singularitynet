@@ -50,7 +50,7 @@ import Types (
     PWithdrawAct
   ),
   PBondedStakingDatum (PAssetDatum, PEntryDatum, PStateDatum),
-  passetClass,
+  passetClass,BondedStakingDatum (AssetDatum)
  )
 import Utils (
   getContinuingOutputWithNFT,
@@ -85,17 +85,17 @@ pbondedPoolValidator ::
 pbondedPoolValidator =
   phoistAcyclic $
     plam $ \params dat act ctx -> unTermCont $ do
-      -- Retrieve fields from parameters
-      ctxF <- tcont $ pletFields @'["txInfo", "purpose"] ctx
-      -- Match on redeemer and execute the corresponding logic
-      pure $
-        pmatch act $ \case
-          PAdminAct n' ->
-            let n = pfield @"_0" # n'
-             in adminActLogic ctxF.txInfo ctxF.purpose params dat n
-          PStakeAct _pair' -> stakeActLogic
-          PWithdrawAct _pkh' -> withdrawActLogic
-          PCloseAct _ -> closeActLogic ctxF.txInfo params
+    -- Retrieve fields from parameters
+    ctxF <- tcont $ pletFields @'["txInfo", "purpose"] ctx
+    -- Match on redeemer and execute the corresponding logic
+    pure $
+      pmatch act $ \case
+        PAdminAct n' ->
+          let n = pfield @"_0" # n'
+           in adminActLogic ctxF.txInfo ctxF.purpose params dat n
+        PStakeAct _pair' -> stakeActLogic
+        PWithdrawAct _pkh' -> withdrawActLogic
+        PCloseAct _ -> closeActLogic ctxF.txInfo params
 
 -- Untyped version to be serialised. This version is responsible for verifying
 -- that the parameters (pool params, datum and redeemer) have the proper types.
