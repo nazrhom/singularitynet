@@ -389,11 +389,10 @@ getContinuingOutputWithNFT addr ac outputs =
       Term s (PTxOut :--> PBool)
     sameAddrAndNFT addr ac = plam $ \output -> unTermCont $ do
       outputF <- tcont $ pletFields @'["address", "value"] output
-      let cs = pfstData $ pto ac
-          tn = psndData $ pto ac
+      acF <- tcont $ pletFields @'["currencySymbol", "tokenName"] ac
       pure $
         (pdata outputF.address) #== (pdata addr)
-          #&& oneOf # cs # tn # outputF.value
+          #&& oneOf # acF.currencySymbol # acF.tokenName # outputF.value
 
 {- | Gets the `DatumHash` from a `PTxOut`. If not available, it will fail with
  an error.
