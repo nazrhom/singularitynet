@@ -1,13 +1,14 @@
 module Main (main) where
 
-{-
+{- TODO: Update documentation
   This executable can generate CBOR encodings of the NFT minting policy and
   the BondedPool validator. It takes the necessary arguments from the CLI
   to generate them. The resulting scripts are *fully* applied.
 
   Some examples:
 
-  cabal exec serialise -- nft <Transaction Hash> <Output Index>
+  cabal exec serialise -- state-nft <Transaction Hash> <Output Index>
+  cabal exec serialise -- list-nft <Transaction Hash> <Output Index> <Public Key Hash>
   cabal exec serialise -- validator <Transaction Hash> <Output Index> <Public Key Hash>
 
   Use -v to print to console the policy/validator hash and -o to choose a
@@ -55,7 +56,7 @@ writeScriptToFile :: Text -> FilePath -> Script -> IO ()
 writeScriptToFile name filepath script =
   TIO.writeFile filepath $
     "exports._" <> name <> " = {\n"
-      <> "\tvalidator: "
+      <> "\tscript: "
       <> serialisePlutusScript script
       <> ",\n};"
 

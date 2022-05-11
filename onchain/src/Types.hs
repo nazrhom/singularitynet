@@ -25,10 +25,7 @@ module Types (
     rewards
   ),
   PEntry,
-  AssetClass (AssetClass, unAssetClass),
-  acCurrencySymbol,
-  acTokenName,
-  mkAssetClass,
+  AssetClass (..),
   PAssetClass (PAssetClass),
   passetClass,
 ) where
@@ -45,7 +42,6 @@ import Plutarch.DataRepr (
   PIsDataReprInstances (PIsDataReprInstances),
  )
 import Plutarch.Lift (
-  DerivePConstantViaNewtype (DerivePConstantViaNewtype),
   PLifted,
   PUnsafeLiftDecl,
  )
@@ -65,7 +61,6 @@ import Data.Natural (
   PNatRatio,
   PNatural,
  )
-import Plutarch.Builtin (ppairDataBuiltin)
 
 -- Orphan instance for `PMaybeData PByteString`
 deriving via
@@ -112,25 +107,29 @@ deriving via
 -- | An `AssetClass` is simply a wrapper over a pair (CurrencySymbol, TokenName)
 newtype PAssetClass (s :: S)
   = PAssetClass
-      ( Term s (PBuiltinPair (PAsData PCurrencySymbol) (PAsData PTokenName))
+      (Term s 
+        (PDataRecord
+          '[
+            "currencySymbol" ':= PCurrencySymbol
+            , "tokenName" ':= PTokenName
+          ]
+        )
       )
   deriving stock (GHC.Generic)
+  deriving anyclass (Generic, PIsDataRepr)
   deriving
-    (PlutusType)
-    via ( DerivePNewtype
-            PAssetClass
-            (PBuiltinPair (PAsData PCurrencySymbol) (PAsData PTokenName))
-        )
+    (PlutusType, PIsData, PDataFields)
+    via PIsDataReprInstances PAssetClass
 
 deriving via
-  DerivePNewtype
-    (PAsData PAssetClass)
-    (PAsData (PBuiltinPair (PAsData PCurrencySymbol) (PAsData PTokenName)))
+  PAsData (PIsDataReprInstances PAssetClass)
   instance
     PTryFrom PData (PAsData PAssetClass)
 
-newtype AssetClass = AssetClass
-  { unAssetClass :: (CurrencySymbol, TokenName)
+
+data AssetClass = AssetClass
+  { acCurrencySymbol :: CurrencySymbol
+    , acTokenName :: TokenName
   }
   deriving stock (GHC.Generic, Show)
   deriving anyclass (Generic)
@@ -138,31 +137,23 @@ newtype AssetClass = AssetClass
 unstableMakeIsData ''AssetClass
 
 deriving via
-  ( DerivePConstantViaNewtype
+  ( DerivePConstantViaData
       AssetClass
       PAssetClass
-      (PBuiltinPair PCurrencySymbol PTokenName)
   )
-  instance
-    (PConstant AssetClass)
+  instance PConstant AssetClass
 
 instance PUnsafeLiftDecl PAssetClass where
   type PLifted PAssetClass = AssetClass
-
-mkAssetClass :: CurrencySymbol -> TokenName -> AssetClass
-mkAssetClass cs tn = AssetClass (cs, tn)
 
 passetClass ::
   forall (s :: S).
   Term s (PCurrencySymbol :--> PTokenName :--> PAssetClass)
 passetClass = phoistAcyclic $
   plam $ \cs tn ->
-    pcon $ PAssetClass $ ppairDataBuiltin # pdata cs # pdata tn
-
-acCurrencySymbol :: AssetClass -> CurrencySymbol
-acCurrencySymbol = fst . unAssetClass
-acTokenName :: AssetClass -> TokenName
-acTokenName = snd . unAssetClass
+    pcon $ PAssetClass $
+      pdcons # pdata cs #$
+        pdcons # pdata tn # pdnil
 
 {- | Bonded pool's parameters
 
@@ -178,7 +169,8 @@ newtype PBondedPoolParams (s :: S)
       ( Term
           s
           ( PDataRecord
-              '[ "iterations" ':= PNatural
+              '[
+               "iterations" ':= PNatural
                , "start" ':= PPOSIXTime
                , "end" ':= PPOSIXTime
                , "userLength" ':= PPOSIXTime
@@ -205,7 +197,8 @@ deriving via
     PTryFrom PData (PAsData PBondedPoolParams)
 
 data BondedPoolParams = BondedPoolParams
-  { iterations :: Natural
+  { 
+  iterations :: Natural
   , start :: POSIXTime
   , end :: POSIXTime
   , userLength :: POSIXTime
@@ -219,7 +212,7 @@ data BondedPoolParams = BondedPoolParams
   , assocListCs :: CurrencySymbol
   }
   deriving stock (GHC.Generic, Show)
-
+  
 unstableMakeIsData ''BondedPoolParams
 
 deriving via

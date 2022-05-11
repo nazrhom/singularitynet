@@ -18,7 +18,7 @@
       repo = "cardano-transaction-lib";
       # NOTE
       # Keep this in sync with the rev in `frontend/packages.dhall`
-      rev = "201e489837dc0dc753b6a88b9d07eee39d408af0";
+      rev = "03e65b0ebc0be3ccbc98a0621ce786390f887129";
     };
   };
 
@@ -194,15 +194,19 @@
             flake = {
               packages = {
                 frontend-bundle-web = project.bundlePursProject {
-                  sources = [ "exe" ];
+                  sources = [ "src" "exe" ];
                   main = "Main";
                 };
+              };
+
+              apps = {
+                frontend-runtime = pkgs.launchCtlRuntime { };
               };
 
               checks = {
                 frontend = project.runPursTest {
                   name = "singularitynet-frontend";
-                  sources = [ "exe" "test" ];
+                  sources = [ "src" "test" ];
                   testMain = "Test.Main";
                 };
 
@@ -248,6 +252,8 @@
         // self.offchain.flake.${system}.packages
         // self.frontend.flake.${system}.packages
       );
+
+      apps = perSystem (system: self.frontend.flake.${system}.apps);
 
       checks = perSystem (system:
         self.onchain.flake.${system}.checks
