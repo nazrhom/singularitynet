@@ -4,16 +4,17 @@ import Contract.Prelude
 
 import Contract.Address (getWalletAddress, ownPaymentPubKeyHash)
 import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM)
-import Contract.PlutusData (PlutusData, Redeemer(..), toData)
+import Contract.PlutusData (Datum(Datum), PlutusData, Redeemer(Redeemer), toData)
 import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Transaction (BalancedSignedTransaction(BalancedSignedTransaction), balanceAndSignTx, submit)
-import Contract.TxConstraints (TxConstraints, mustSpendScriptOutput)
+import Contract.TxConstraints (TxConstraints, mustBeSignedBy, mustIncludeDatum, mustSpendScriptOutput)
 import Contract.Utxos (utxosAt)
+import Data.Map (toUnfoldable)
 import Scripts.BondedPoolValidator (mkBondedPoolValidator)
-import Settings (bondedStakingTokenName, hardCodedParams)
-import Types (BondedStakingAction(..), PoolInfo(PoolInfo))
-import Utils (getUtxoWithNFT, logInfo_)
+import Settings (hardCodedParams)
+import Types (BondedStakingAction(..), BondedStakingDatum(StateDatum), PoolInfo(PoolInfo))
+import Utils (logInfo_, nat)
 
 closePoolContract :: PoolInfo -> Contract () Unit
 closePoolContract (PoolInfo poolInfo) = do
@@ -30,24 +31,24 @@ closePoolContract (PoolInfo poolInfo) = do
   -- Get utxos at the wallet address
   adminUtxos <-
     liftedM "closePoolContract: Cannot get user Utxos" $ utxosAt adminAddr
-  -- Get the token name of state NFT
-  stateTokenName <-
-    liftContractM "closePoolcontract: Cannot get state token name"
-      bondedStakingTokenName
   -- Get the bonded pool's utxo
   bondedPoolUtxos <-
     liftedM "closePoolContract: Cannot get pool's utxos at pool address" $
       utxosAt poolAddr
   logInfo_ "Pool's UTXOs" bondedPoolUtxos
-  (poolTxInput /\ _) <-
-    liftContractM "closePoolContract: Cannot get state utxo" $
-      getUtxoWithNFT bondedPoolUtxos nftCs stateTokenName
-  logInfo_ "Pool's state UTXO" poolTxInput
   -- Create parameters of the pool and validator
   params <- liftContractM "closePoolContract: Failed to create parameters" $
     hardCodedParams adminPkh nftCs assocListCs
   validator <- liftedE' "closePoolContract: Cannot create validator" $
     mkBondedPoolValidator params
+  let
+    bondedStateDatum = Datum $ toData $ StateDatum
+      { maybeEntryName: Nothing
+      , sizeLeft: nat 100_000_000
+      }
+  bondedStateDatumLookup <-
+    liftContractM "closePoolContract: Could not create state datum lookup"
+      =<< ScriptLookups.datum bondedStateDatum
   -- We build the transaction
   let
     redeemer = Redeemer $ toData $ CloseAct
@@ -57,16 +58,18 @@ closePoolContract (PoolInfo poolInfo) = do
       [ ScriptLookups.validator validator
       , ScriptLookups.unspentOutputs $ unwrap adminUtxos
       , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
+      , bondedStateDatumLookup
       ]
 
     -- Seems suspect, not sure if typed constraints are working as expected
     constraints :: TxConstraints Unit Unit
     constraints =
-      mconcat
-        [
-          mustSpendScriptOutput poolTxInput redeemer
-        ]
-
+      -- Spend all UTXOs to return to Admin:
+      foldMap
+        (flip mustSpendScriptOutput redeemer <<< fst)
+        (toUnfoldable $ unwrap bondedPoolUtxos :: Array _)
+      <> mustBeSignedBy adminPkh
+      <> mustIncludeDatum bondedStateDatum
   unattachedBalancedTx <-
     liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
   BalancedSignedTransaction { signedTxCbor } <-

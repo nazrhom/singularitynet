@@ -31,6 +31,7 @@ newtype AssetClass = AssetClass {
 }
 
 derive instance Generic AssetClass _
+derive instance Newtype AssetClass _
 derive instance Eq AssetClass
 instance HasConstrIndices AssetClass where
   constrIndices = defaultConstrIndices
@@ -76,7 +77,7 @@ instance HasConstrIndices BondedPoolParams where
 
 -- We copy the order of the fields from the Haskell implementation
 instance ToData BondedPoolParams where
-  toData (BondedPoolParams params) = 
+  toData (BondedPoolParams params) =
     Constr (big 0) [
       toData params.iterations
       , toData params.start
@@ -104,6 +105,9 @@ instance HasConstrIndices BondedStakingDatum where
 
 instance ToData BondedStakingDatum where
   toData = genericToData
+
+instance Show BondedStakingDatum where
+  show = genericShow
 
 data BondedStakingAction
   = AdminAct { sizeLeft :: Natural }
@@ -141,3 +145,6 @@ instance HasConstrIndices Entry where
 
 instance ToData Entry where
   toData = genericToData
+
+instance Show Entry where
+  show = genericShow

@@ -40,5 +40,5 @@ main = launchAff_ $ do
     -- sleep in order to wait for tx
     liftAff $ delay $ wrap $ toNumber 80_000
     depositPoolContract poolInfo
-    --liftAff $ delay $ wrap $ toNumber 80_000
-    --closePoolContract poolInfo
+    liftAff $ delay $ wrap $ toNumber 80_000
+    closePoolContract poolInfo

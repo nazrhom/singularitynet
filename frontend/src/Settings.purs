@@ -1,22 +1,28 @@
 module Settings
-  ( bondedStakingTokenName
+  ( agixCs
+  , agixTn
+  , bondedStakingTokenName
   , hardCodedParams
-  ) where
+  , ntxCs
+  , ntxTn
+  )
+  where
 
 import Prelude
 
 import Contract.Numeric.NatRatio (fromNaturals, toRational)
 import Contract.Numeric.Rational (Rational)
+import Contract.Prim.ByteArray (byteArrayFromAscii, hexToByteArray)
 import Contract.Value
   ( CurrencySymbol
   , TokenName
   , adaSymbol
   , adaToken
+  , mkCurrencySymbol
   , mkTokenName
   )
 import Data.Maybe (Maybe)
 import Types (AssetClass(AssetClass), BondedPoolParams(BondedPoolParams))
-import Types.ByteArray (byteArrayFromAscii)
 import Types.UnbalancedTransaction (PaymentPubKeyHash)
 import Utils (nat, big)
 
@@ -26,6 +32,21 @@ bondedStakingTokenName = mkTokenName =<< byteArrayFromAscii "BondedStakingToken"
 interest' :: Maybe Rational
 interest' = toRational <$> fromNaturals (nat 1) (nat 100)
 
+-- Could make these unsafe/partial for convenience:
+agixCs :: Maybe CurrencySymbol
+agixCs = mkCurrencySymbol
+  =<< hexToByteArray "6f1a1f0c7ccf632cc9ff4b79687ed13ffe5b624cce288b364ebdce50"
+
+agixTn :: Maybe TokenName
+agixTn = mkTokenName =<< byteArrayFromAscii "AGIX"
+
+ntxCs :: Maybe CurrencySymbol
+ntxCs = mkCurrencySymbol
+  =<< hexToByteArray "b5094f93ff9fcba9e8b257197d589cbcde3d92a108804e3a378bd2ce"
+
+ntxTn :: Maybe TokenName
+ntxTn = mkTokenName =<< byteArrayFromAscii "NTX"
+
 -- Temporary, serialise to JSON
 hardCodedParams
   :: PaymentPubKeyHash
@@ -34,6 +55,8 @@ hardCodedParams
   -> Maybe BondedPoolParams
 hardCodedParams adminPkh nftCs assocListCs = do
   interest <- interest'
+  -- currencySymbol <- agixCs
+  -- tokenName <- ntxTn
   pure $ BondedPoolParams
     { iterations: nat 3
     , start: big 1000
@@ -44,10 +67,10 @@ hardCodedParams adminPkh nftCs assocListCs = do
     , minStake: nat 1000
     , maxStake: nat 10_000
     , admin: adminPkh
-    , bondedAssetClass: AssetClass { 
-        currencySymbol: adaSymbol
+    , bondedAssetClass: AssetClass
+        { currencySymbol: adaSymbol
         , tokenName: adaToken
-    }
+        }
     , nftCs
     , assocListCs
     }

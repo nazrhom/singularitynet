@@ -2,7 +2,6 @@ module DepositPool (depositPoolContract) where
 
 import Contract.Prelude
 
-import Data.Argonaut (decodeJson, parseJson)
 import Contract.Address
   ( getNetworkId
   , getWalletAddress
@@ -13,14 +12,13 @@ import Contract.Monad
   ( Contract
   , liftContractM
   , liftedE
-  , liftContractE
   , liftedE'
   , liftedM
   )
-import Contract.PlutusData (PlutusData, Datum(Datum), toData, datumHash, unitDatum)
-import Contract.Prim.ByteArray (byteArrayToHex, byteArrayFromAscii)
+import Contract.PlutusData (PlutusData, Datum(Datum), toData, datumHash)
+import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
-import Contract.Scripts (validatorHash, MintingPolicy)
+import Contract.Scripts (validatorHash)
 import Contract.Transaction
   ( BalancedSignedTransaction(BalancedSignedTransaction)
   , balanceAndSignTx
@@ -32,16 +30,9 @@ import Contract.TxConstraints
   , mustBeSignedBy
   , mustPayToScript
   , mustSpendScriptOutput
-  , mustMintValue
   )
 import Contract.Utxos (utxosAt)
-import Contract.Value
-  ( adaSymbol
-  , adaToken
-  , singleton
-  , mkTokenName
-  , scriptCurrencySymbol
-  )
+import Contract.Value (singleton)
 import Scripts.BondedPoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName, hardCodedParams)
 import Types
@@ -107,9 +98,12 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
   bondedStateDatumLookup <-
     liftContractM "depositPoolContract: Could not create state datum lookup"
       =<< ScriptLookups.datum bondedStateDatum
-  let
+  let 
+    assetParams = unwrap (unwrap params).bondedAssetClass
+    assetCs = assetParams.currencySymbol
+    assetTn = assetParams.tokenName
     stateTokenValue = singleton stateNftCs tokenName one
-    depositValue = singleton adaSymbol adaToken (big 5_000_000)
+    depositValue = singleton assetCs assetTn (big 5_000_000)
     scriptAddr = validatorHashEnterpriseAddress networkId valHash
   logInfo_ "BondedPool Validator's address" scriptAddr
   let

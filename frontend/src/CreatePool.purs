@@ -52,6 +52,7 @@ createPoolContract = do
   txOutRef <- liftContractM "createPoolContract: Could not get head UTXO"
     $ fst
     <$> (head $ toUnfoldable $ unwrap adminUtxos)
+  logInfo_ "Admin Utxos" adminUtxos
   -- Get the minting policy and currency symbol from the state NFT:
   statePolicy <- liftedE $ mkBondedStateNFTPolicy txOutRef
   stateNftCs <-

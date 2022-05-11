@@ -238,6 +238,7 @@ closeActLogic txInfo params = unTermCont $ do
   --period <- pure $ getPeriod # txInfoF.validRange # params
   --guardC "admin deposit not done in closing period" $
   --  isClosingPeriod period
+  pconstantC ()
   where
     _isClosingPeriod :: Term s PPeriod -> Term s PBool
     _isClosingPeriod period = pmatch period $ \case
