@@ -31,23 +31,23 @@ import Plutus.V1.Ledger.Api (
   singleton,
  )
 import Settings (bondedStakingTokenName)
+import Test.Common
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
 import Test.Utils (fails, succeeds)
-import Test.Common
 
 nftTests :: TestTree
 nftTests =
   testGroup
     "NFT tests"
     [ testCase "should validate correct transaction" $
-        succeeds $ testStatePolicy  # pconstant () # pconstant goodCtx1
+        succeeds $ testStatePolicy # pconstant () # pconstant goodCtx1
     , testCase "should validate correct transaction with spurious tokens" $
-        succeeds $ testStatePolicy  # pconstant () # pconstant goodCtx2
+        succeeds $ testStatePolicy # pconstant () # pconstant goodCtx2
     , testCase "should not mint more than once" $
-        fails $ testStatePolicy  # pconstant () # pconstant badCtx1
+        fails $ testStatePolicy # pconstant () # pconstant badCtx1
     , testCase "should not consume the wrong outRef" $
-        fails $ testStatePolicy  # pconstant () # pconstant badCtx2
+        fails $ testStatePolicy # pconstant () # pconstant badCtx2
     ]
 
 -- Test data --
@@ -93,11 +93,11 @@ goodCtx1 =
           , txInfoDCert = []
           , txInfoWdrl = []
           , txInfoValidRange = always
-          , txInfoSignatories = [ testAdminPKH ]
+          , txInfoSignatories = [testAdminPKH]
           , txInfoData = []
           , txInfoId = TxId "abcdef12"
           }
-    , scriptContextPurpose = Minting testStateCurrencySymbol 
+    , scriptContextPurpose = Minting testStateCurrencySymbol
     }
 
 -- It's good, but contains spurious tokens with zero quantity in its mint field
@@ -148,7 +148,7 @@ badCtx2 =
     }
 
 goodMint1 :: Value
-goodMint1 = singleton testStateCurrencySymbol  bondedStakingTokenName 1
+goodMint1 = singleton testStateCurrencySymbol bondedStakingTokenName 1
 
 goodMint2 :: Value
 goodMint2 =
@@ -157,4 +157,4 @@ goodMint2 =
     <> singleton "efefef" "RandomTokenName2" 0
 
 badMint1 :: Value
-badMint1 = singleton testStateCurrencySymbol  bondedStakingTokenName 10
+badMint1 = singleton testStateCurrencySymbol bondedStakingTokenName 10

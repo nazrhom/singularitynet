@@ -50,7 +50,7 @@ import Types (
     PWithdrawAct
   ),
   PBondedStakingDatum (PAssetDatum, PEntryDatum, PStateDatum),
-  passetClass
+  passetClass,
  )
 import Utils (
   getContinuingOutputWithNFT,
@@ -85,17 +85,17 @@ pbondedPoolValidator ::
 pbondedPoolValidator =
   phoistAcyclic $
     plam $ \params dat act ctx -> unTermCont $ do
-    -- Retrieve fields from parameters
-    ctxF <- tcont $ pletFields @'["txInfo", "purpose"] ctx
-    -- Match on redeemer and execute the corresponding logic
-    pure $
-      pmatch act $ \case
-        PAdminAct n' ->
-          let n = pfield @"_0" # n'
-           in adminActLogic ctxF.txInfo ctxF.purpose params dat n
-        PStakeAct _pair' -> stakeActLogic
-        PWithdrawAct _pkh' -> withdrawActLogic
-        PCloseAct _ -> closeActLogic ctxF.txInfo params
+      -- Retrieve fields from parameters
+      ctxF <- tcont $ pletFields @'["txInfo", "purpose"] ctx
+      -- Match on redeemer and execute the corresponding logic
+      pure $
+        pmatch act $ \case
+          PAdminAct n' ->
+            let n = pfield @"_0" # n'
+             in adminActLogic ctxF.txInfo ctxF.purpose params dat n
+          PStakeAct _pair' -> stakeActLogic
+          PWithdrawAct _pkh' -> withdrawActLogic
+          PCloseAct _ -> closeActLogic ctxF.txInfo params
 
 -- Untyped version to be serialised. This version is responsible for verifying
 -- that the parameters (pool params, datum and redeemer) have the proper types.
@@ -111,11 +111,12 @@ pbondedPoolValidatorUntyped ::
         :--> PUnit
     )
 pbondedPoolValidatorUntyped = plam $ \pparams' dat' act' ctx' -> unTermCont $ do
-  pure $ pbondedPoolValidator
-    # unTermCont (ptryFromUndata pparams')
-    # unTermCont (ptryFromUndata dat')
-    # unTermCont (ptryFromUndata act')
-    # punsafeCoerce ctx'
+  pure $
+    pbondedPoolValidator
+      # unTermCont (ptryFromUndata pparams')
+      # unTermCont (ptryFromUndata dat')
+      # unTermCont (ptryFromUndata act')
+      # punsafeCoerce ctx'
 
 -- The pool operator calculates the new available size left
 -- TODO: Besides the logic related to updating the entries, there should also
@@ -143,8 +144,8 @@ adminActLogic txInfo purpose params inputStakingDatum sizeLeft = unTermCont $ do
   -- We check that the transaction occurs during a bonding period
   -- We don't validate this for the demo, otherwise testing becomes
   -- too difficult
-  --period <- pure $ getPeriod # txInfoF.validRange # params
-  --guardC "admin deposit not done in bonding period" $
+  -- period <- pure $ getPeriod # txInfoF.validRange # params
+  -- guardC "admin deposit not done in bonding period" $
   --  isBondingPeriod period
   -- We get the input's address
   input <- getInput purpose txInfoF.inputs
@@ -235,8 +236,8 @@ closeActLogic txInfo params = unTermCont $ do
   -- We check that the transaction occurs during the closing period
   -- We don't validate this for the demo, otherwise testing becomes
   -- too difficult
-  --period <- pure $ getPeriod # txInfoF.validRange # params
-  --guardC "admin deposit not done in closing period" $
+  -- period <- pure $ getPeriod # txInfoF.validRange # params
+  -- guardC "admin deposit not done in closing period" $
   --  isClosingPeriod period
   pconstantC ()
   where

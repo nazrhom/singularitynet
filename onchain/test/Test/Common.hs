@@ -1,27 +1,28 @@
-module Test.Common(
-    testStateCurrencySymbol 
-    , testListCurrencySymbol
-    , testStatePolicy
-    , testListPolicy
-    , testStatePolicyInput
-    , testAdminPKH
+module Test.Common (
+  testStateCurrencySymbol,
+  testListCurrencySymbol,
+  testStatePolicy,
+  testListPolicy,
+  testStatePolicyInput,
+  testAdminPKH,
 ) where
-import Plutus.V1.Ledger.Api
+
+import ListNFT (pbondedListNFTPolicy)
 import Plutarch.Api.V1
 import Plutarch.Unsafe
-import StateNFT (pbondedStateNFTPolicy)
-import ListNFT (pbondedListNFTPolicy)
 import Plutus.V1.Ledger.Ada
+import Plutus.V1.Ledger.Api
+import StateNFT (pbondedStateNFTPolicy)
 import Types (PMintingAction)
 
 -- The CurrencySymbol associated with the state NFT
 testStateCurrencySymbol :: CurrencySymbol
 testStateCurrencySymbol =
   mintingPolicySymbol $ mkMintingPolicy $ punsafeCoerce $ testStatePolicy
-  
+
 -- The CurrencySymbol associated with the associacion list NFT
-testListCurrencySymbol :: CurrencySymbol 
-testListCurrencySymbol  =
+testListCurrencySymbol :: CurrencySymbol
+testListCurrencySymbol =
   mintingPolicySymbol $ mkMintingPolicy $ punsafeCoerce $ testListPolicy
 
 -- | The pool's state minting policy

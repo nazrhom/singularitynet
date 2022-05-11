@@ -107,13 +107,13 @@ deriving via
 -- | An `AssetClass` is simply a wrapper over a pair (CurrencySymbol, TokenName)
 newtype PAssetClass (s :: S)
   = PAssetClass
-      (Term s 
-        (PDataRecord
-          '[
-            "currencySymbol" ':= PCurrencySymbol
-            , "tokenName" ':= PTokenName
-          ]
-        )
+      ( Term
+          s
+          ( PDataRecord
+              '[ "currencySymbol" ':= PCurrencySymbol
+               , "tokenName" ':= PTokenName
+               ]
+          )
       )
   deriving stock (GHC.Generic)
   deriving anyclass (Generic, PIsDataRepr)
@@ -126,10 +126,9 @@ deriving via
   instance
     PTryFrom PData (PAsData PAssetClass)
 
-
 data AssetClass = AssetClass
   { acCurrencySymbol :: CurrencySymbol
-    , acTokenName :: TokenName
+  , acTokenName :: TokenName
   }
   deriving stock (GHC.Generic, Show)
   deriving anyclass (Generic)
@@ -141,7 +140,8 @@ deriving via
       AssetClass
       PAssetClass
   )
-  instance PConstant AssetClass
+  instance
+    PConstant AssetClass
 
 instance PUnsafeLiftDecl PAssetClass where
   type PLifted PAssetClass = AssetClass
@@ -151,9 +151,10 @@ passetClass ::
   Term s (PCurrencySymbol :--> PTokenName :--> PAssetClass)
 passetClass = phoistAcyclic $
   plam $ \cs tn ->
-    pcon $ PAssetClass $
-      pdcons # pdata cs #$
-        pdcons # pdata tn # pdnil
+    pcon $
+      PAssetClass $
+        pdcons # pdata cs
+          #$ pdcons # pdata tn # pdnil
 
 {- | Bonded pool's parameters
 
@@ -169,8 +170,7 @@ newtype PBondedPoolParams (s :: S)
       ( Term
           s
           ( PDataRecord
-              '[
-               "iterations" ':= PNatural
+              '[ "iterations" ':= PNatural
                , "start" ':= PPOSIXTime
                , "end" ':= PPOSIXTime
                , "userLength" ':= PPOSIXTime
@@ -197,8 +197,7 @@ deriving via
     PTryFrom PData (PAsData PBondedPoolParams)
 
 data BondedPoolParams = BondedPoolParams
-  { 
-  iterations :: Natural
+  { iterations :: Natural
   , start :: POSIXTime
   , end :: POSIXTime
   , userLength :: POSIXTime
@@ -212,7 +211,7 @@ data BondedPoolParams = BondedPoolParams
   , assocListCs :: CurrencySymbol
   }
   deriving stock (GHC.Generic, Show)
-  
+
 unstableMakeIsData ''BondedPoolParams
 
 deriving via
