@@ -142,6 +142,8 @@ test-suite singularitynet-test
     , tasty-quickcheck
 
   other-modules:
+    Test.Common
+    Test.SpecBondedAdmin
     Test.SpecNFT
     Test.Utils
 
