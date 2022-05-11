@@ -98,7 +98,7 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
   bondedStateDatumLookup <-
     liftContractM "depositPoolContract: Could not create state datum lookup"
       =<< ScriptLookups.datum bondedStateDatum
-  let 
+  let
     assetParams = unwrap (unwrap params).bondedAssetClass
     assetCs = assetParams.currencySymbol
     assetTn = assetParams.tokenName
@@ -129,13 +129,15 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
         [
           -- Update the pool's state
           mustPayToScript valHash bondedStateDatum stateTokenValue
-          -- Deposit rewards in a separate UTXO
+        -- Deposit rewards in a separate UTXO
         , mustPayToScript valHash assetDatum depositValue
         , mustBeSignedBy adminPkh
         , mustSpendScriptOutput poolTxInput redeemer
         ]
-  dh <- liftedM "depositPoolContract: Cannot Hash AssetDatum" $ datumHash assetDatum
-  dh' <- liftedM "depositPoolContract: Cannot Hash BondedStateDatum" $ datumHash bondedStateDatum
+  dh <- liftedM "depositPoolContract: Cannot Hash AssetDatum" $ datumHash
+    assetDatum
+  dh' <- liftedM "depositPoolContract: Cannot Hash BondedStateDatum" $ datumHash
+    bondedStateDatum
   logInfo_ "DatumHash of AssetDatum" dh
   logInfo_ "DatumHash of BondedStateDatum" dh'
   unattachedBalancedTx <-

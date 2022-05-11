@@ -11,7 +11,13 @@ import Contract.Prelude
 import Contract.Monad (Contract, logInfo, tag)
 import Contract.Numeric.Natural (Natural, fromBigInt')
 import Contract.Value (TokenName)
-import Data.Argonaut (Json, class DecodeJson, JsonDecodeError(TypeMismatch), caseJsonObject, getField)
+import Data.Argonaut
+  ( Json
+  , class DecodeJson
+  , JsonDecodeError(TypeMismatch)
+  , caseJsonObject
+  , getField
+  )
 import Data.Array (filter, head)
 import Data.BigInt (BigInt, fromInt)
 import Data.Identity (Identity(Identity))
@@ -35,23 +41,26 @@ jsonReader field = caseJsonObject (Left $ TypeMismatch "Expected Object")
 -- | Get the UTXO with the NFT defined by its `CurrencySymbol` and `TokenName`.
 -- If more than one UTXO contains the NFT, something is seriously wrong and
 -- fails with en error message.
-getUtxoWithNFT ::
-  UtxoM ->
-  CurrencySymbol ->
-  TokenName ->
-  Maybe (Tuple TransactionInput TransactionOutput)
-getUtxoWithNFT utxoM cs tn = head $ filter (hasNFT cs tn) $
-  toUnfoldable $ unwrap utxoM
-  where hasNFT ::
-          CurrencySymbol ->
-          TokenName ->
-          Tuple TransactionInput TransactionOutput ->
-          Boolean
-        hasNFT cs tn (Tuple _txInput txOutput') =
-          let txOutput = unwrap txOutput'
-              (Identity plutusValue) = toPlutusType txOutput.amount
-          in valueOf plutusValue cs tn == one
-
+getUtxoWithNFT
+  :: UtxoM
+  -> CurrencySymbol
+  -> TokenName
+  -> Maybe (Tuple TransactionInput TransactionOutput)
+getUtxoWithNFT utxoM cs tn = head $ filter (hasNFT cs tn)
+  $ toUnfoldable
+  $ unwrap utxoM
+  where
+  hasNFT
+    :: CurrencySymbol
+    -> TokenName
+    -> Tuple TransactionInput TransactionOutput
+    -> Boolean
+  hasNFT cs tn (Tuple _txInput txOutput') =
+    let
+      txOutput = unwrap txOutput'
+      (Identity plutusValue) = toPlutusType txOutput.amount
+    in
+      valueOf plutusValue cs tn == one
 
 -- | Convert from `Int` to `Natural`
 nat :: Int -> Natural

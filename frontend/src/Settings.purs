@@ -5,8 +5,7 @@ module Settings
   , hardCodedParams
   , ntxCs
   , ntxTn
-  )
-  where
+  ) where
 
 import Prelude
 

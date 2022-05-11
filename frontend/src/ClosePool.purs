@@ -4,24 +4,43 @@ import Contract.Prelude
 
 import Contract.Address (getWalletAddress, ownPaymentPubKeyHash)
 import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM)
-import Contract.PlutusData (Datum(Datum), PlutusData, Redeemer(Redeemer), toData)
+import Contract.PlutusData
+  ( Datum(Datum)
+  , PlutusData
+  , Redeemer(Redeemer)
+  , toData
+  )
 import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
-import Contract.Transaction (BalancedSignedTransaction(BalancedSignedTransaction), balanceAndSignTx, submit)
-import Contract.TxConstraints (TxConstraints, mustBeSignedBy, mustIncludeDatum, mustSpendScriptOutput)
+import Contract.Transaction
+  ( BalancedSignedTransaction(BalancedSignedTransaction)
+  , balanceAndSignTx
+  , submit
+  )
+import Contract.TxConstraints
+  ( TxConstraints
+  , mustBeSignedBy
+  , mustIncludeDatum
+  , mustSpendScriptOutput
+  )
 import Contract.Utxos (utxosAt)
 import Data.Map (toUnfoldable)
 import Scripts.BondedPoolValidator (mkBondedPoolValidator)
 import Settings (hardCodedParams)
-import Types (BondedStakingAction(..), BondedStakingDatum(StateDatum), PoolInfo(PoolInfo))
+import Types
+  ( BondedStakingAction(..)
+  , BondedStakingDatum(StateDatum)
+  , PoolInfo(PoolInfo)
+  )
 import Utils (logInfo_, nat)
 
 closePoolContract :: PoolInfo -> Contract () Unit
 closePoolContract (PoolInfo poolInfo) = do
   -- Get fields from pool info
-  let poolAddr = poolInfo.poolAddr
-      nftCs = poolInfo.stateNftCs
-      assocListCs = poolInfo.assocListCs
+  let
+    poolAddr = poolInfo.poolAddr
+    nftCs = poolInfo.stateNftCs
+    assocListCs = poolInfo.assocListCs
   adminPkh <- liftedM "closePoolContract: Cannot get admin's pkh"
     ownPaymentPubKeyHash
   logInfo_ "Admin PaymentPubKeyHash" adminPkh
@@ -68,8 +87,8 @@ closePoolContract (PoolInfo poolInfo) = do
       foldMap
         (flip mustSpendScriptOutput redeemer <<< fst)
         (toUnfoldable $ unwrap bondedPoolUtxos :: Array _)
-      <> mustBeSignedBy adminPkh
-      <> mustIncludeDatum bondedStateDatum
+        <> mustBeSignedBy adminPkh
+        <> mustIncludeDatum bondedStateDatum
   unattachedBalancedTx <-
     liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
   BalancedSignedTransaction { signedTxCbor } <-

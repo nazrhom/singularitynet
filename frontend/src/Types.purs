@@ -25,10 +25,10 @@ import Types.ByteArray (ByteArray)
 import Types.UnbalancedTransaction (PaymentPubKeyHash)
 import Utils (big)
 
-newtype AssetClass = AssetClass {
-  currencySymbol :: CurrencySymbol
+newtype AssetClass = AssetClass
+  { currencySymbol :: CurrencySymbol
   , tokenName :: TokenName
-}
+  }
 
 derive instance Generic AssetClass _
 derive instance Newtype AssetClass _
@@ -78,8 +78,8 @@ instance HasConstrIndices BondedPoolParams where
 -- We copy the order of the fields from the Haskell implementation
 instance ToData BondedPoolParams where
   toData (BondedPoolParams params) =
-    Constr (big 0) [
-      toData params.iterations
+    Constr (big 0)
+      [ toData params.iterations
       , toData params.start
       , toData params.end
       , toData params.userLength
@@ -91,7 +91,7 @@ instance ToData BondedPoolParams where
       , toData params.bondedAssetClass
       , toData params.nftCs
       , toData params.assocListCs
-    ]
+      ]
 
 data BondedStakingDatum
   = StateDatum { maybeEntryName :: Maybe ByteArray, sizeLeft :: Natural }
