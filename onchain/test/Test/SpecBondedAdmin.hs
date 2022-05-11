@@ -8,27 +8,63 @@ module Test.SpecBondedAdmin (
 -}
 
 import BondedPool (pbondedPoolValidator, pbondedPoolValidatorUntyped)
-import Data.Natural
-import Data.Ratio
-import Plutarch
+import Data.Natural (NatRatio (NatRatio), Natural (Natural))
+import Data.Ratio ((%))
+import Plutarch (compile)
 import Plutarch.Api.V1 (
-  PScriptContext,
-  mintingPolicySymbol,
-  mkMintingPolicy,
   validatorHash,
  )
-import Plutarch.Builtin
-import Plutarch.Unsafe (punsafeCoerce)
-import Plutus.V1.Ledger.Ada (adaSymbol, adaToken, lovelaceValueOf)
-import Plutus.V1.Ledger.Api
+import Plutarch.Builtin (pforgetData)
+import Plutus.V1.Ledger.Ada (lovelaceValueOf)
+import Plutus.V1.Ledger.Api (
+  Address (Address, addressCredential, addressStakingCredential),
+  Credential (PubKeyCredential, ScriptCredential),
+  Datum (Datum),
+  DatumHash (DatumHash),
+  POSIXTime (POSIXTime),
+  POSIXTimeRange,
+  ScriptContext (ScriptContext, scriptContextPurpose, scriptContextTxInfo),
+  ScriptPurpose (Spending),
+  ToData (toBuiltinData),
+  TxId (TxId),
+  TxInInfo (TxInInfo, txInInfoOutRef, txInInfoResolved),
+  TxInfo (
+    TxInfo,
+    txInfoDCert,
+    txInfoData,
+    txInfoFee,
+    txInfoId,
+    txInfoInputs,
+    txInfoMint,
+    txInfoOutputs,
+    txInfoSignatories,
+    txInfoValidRange,
+    txInfoWdrl
+  ),
+  TxOut (TxOut, txOutAddress, txOutDatumHash, txOutValue),
+  TxOutRef (TxOutRef, txOutRefId, txOutRefIdx),
+  Validator (Validator),
+  ValidatorHash,
+  adaSymbol,
+  adaToken,
+  singleton,
+ )
 import Plutus.V1.Ledger.Interval (interval)
 import Settings (bondedStakingTokenName)
-import StateNFT (pbondedStateNFTPolicy)
-import Test.Common
+import Test.Common (
+  testAdminPKH,
+  testListCurrencySymbol,
+  testStateCurrencySymbol,
+ )
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
-import Test.Utils (fails, succeeds)
-import Types
+import Test.Utils (succeeds)
+import Types (
+  AssetClass (AssetClass),
+  BondedPoolParams (BondedPoolParams, admin, assocListCs, bondedAssetClass, bondingLength, end, interest, iterations, maxStake, minStake, nftCs, start, userLength),
+  BondedStakingAction (AdminAct),
+  BondedStakingDatum (StateDatum),
+ )
 
 bondedAdminTests :: TestTree
 bondedAdminTests =
@@ -136,7 +172,7 @@ mkParameters =
     , minStake = Natural 100
     , maxStake = Natural 500
     , admin = testAdminPKH
-    , bondedAssetClass = AssetClass (adaSymbol, adaToken)
+    , bondedAssetClass = AssetClass adaSymbol adaToken
     , nftCs = testStateCurrencySymbol
     , assocListCs = testListCurrencySymbol
     }

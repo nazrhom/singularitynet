@@ -6,7 +6,6 @@ import Plutus.V1.Ledger.Ada (lovelaceValueOf)
 import Plutus.V1.Ledger.Api (
   Address (Address, addressCredential, addressStakingCredential),
   Credential (PubKeyCredential),
-  PubKeyHash (PubKeyHash),
   ScriptContext (ScriptContext, scriptContextPurpose, scriptContextTxInfo),
   ScriptPurpose (Minting),
   TxId (TxId),
@@ -31,7 +30,12 @@ import Plutus.V1.Ledger.Api (
   singleton,
  )
 import Settings (bondedStakingTokenName)
-import Test.Common
+import Test.Common (
+  testAdminPKH,
+  testStateCurrencySymbol,
+  testStatePolicy,
+  testStatePolicyInput,
+ )
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
 import Test.Utils (fails, succeeds)
