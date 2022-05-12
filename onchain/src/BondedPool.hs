@@ -41,7 +41,7 @@ import Data.Interval (
 import Data.Natural (
   PNatural,
  )
-import Types (
+import PTypes (
   PBondedPoolParams,
   PBondedStakingAction (
     PAdminAct,

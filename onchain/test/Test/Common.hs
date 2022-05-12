@@ -17,7 +17,7 @@ import Plutus.V1.Ledger.Api (
   TxOutRef (TxOutRef, txOutRefId, txOutRefIdx),
  )
 import StateNFT (pbondedStateNFTPolicy)
-import Types (PMintingAction)
+import PTypes (PMintingAction)
 
 -- The CurrencySymbol associated with the state NFT
 testStateCurrencySymbol :: CurrencySymbol

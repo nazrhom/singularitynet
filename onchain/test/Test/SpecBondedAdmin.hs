@@ -59,7 +59,7 @@ import Test.Common (
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
 import Test.Utils (succeeds)
-import Types (
+import Common.Types (
   AssetClass (AssetClass),
   BondedPoolParams (BondedPoolParams, admin, assocListCs, bondedAssetClass, bondingLength, end, interest, iterations, maxStake, minStake, nftCs, start, userLength),
   BondedStakingAction (AdminAct),

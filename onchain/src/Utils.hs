@@ -44,7 +44,7 @@ import Plutarch.Lift (
  )
 import Plutarch.Monadic qualified as P
 import Plutarch.TryFrom (PTryFrom, ptryFrom)
-import Types (PAssetClass)
+import PTypes(PAssetClass)
 
 -- Term-level boolean functions
 peq :: forall (s :: S) (a :: PType). PEq a => Term s (a :--> a :--> PBool)

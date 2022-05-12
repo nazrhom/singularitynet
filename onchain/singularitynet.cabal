@@ -107,7 +107,8 @@ library
     Settings
     SingularityNet
     StateNFT
-    Types
+    Common.Types
+    PTypes
     Utils
 
   build-depends:

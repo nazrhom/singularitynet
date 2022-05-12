@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Types (
+module Common.Types (
   BondedPoolParams (..),
   BondedStakingAction (..),
   MintingAction (Stake, Withdraw),
