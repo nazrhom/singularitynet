@@ -50,7 +50,6 @@ import Plutus.V1.Ledger.Api (
   singleton,
  )
 import Plutus.V1.Ledger.Interval (interval)
-import Settings (bondedStakingTokenName)
 import Test.Common (
   testAdminPKH,
   testListCurrencySymbol,
@@ -59,6 +58,8 @@ import Test.Common (
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
 import Test.Utils (succeeds)
+
+import Common.Settings (bondedStakingTokenName)
 import Common.Types (
   AssetClass (AssetClass),
   BondedPoolParams (BondedPoolParams, admin, assocListCs, bondedAssetClass, bondingLength, end, interest, iterations, maxStake, minStake, nftCs, start, userLength),

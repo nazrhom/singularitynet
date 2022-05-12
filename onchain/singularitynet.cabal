@@ -100,13 +100,13 @@ common common-lang
 library
   import:          common-lang
   exposed-modules:
-    BondedPool
-    ListNFT
-    Settings
-    SingularityNet
-    StateNFT
+    Common.Settings
     Common.Types
     Common.Natural
+    BondedPool
+    ListNFT
+    SingularityNet
+    StateNFT
     PTypes
     PNatural
     PInterval

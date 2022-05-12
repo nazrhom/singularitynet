@@ -29,7 +29,7 @@ import Plutus.V1.Ledger.Api (
   always,
   singleton,
  )
-import Settings (bondedStakingTokenName)
+import Common.Settings (bondedStakingTokenName)
 import Test.Common (
   testAdminPKH,
   testStateCurrencySymbol,

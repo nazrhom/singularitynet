@@ -70,7 +70,7 @@ import Utils (
 
 import GHC.Records (getField)
 import Plutarch.Api.V1.Scripts (PDatum)
-import Settings (bondedStakingTokenName)
+import Common.Settings (bondedStakingTokenName)
 
 pbondedPoolValidator ::
   forall (s :: S).

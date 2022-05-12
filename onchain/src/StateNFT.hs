@@ -20,7 +20,7 @@ import Plutarch.Api.V1 (
 import Plutarch.Monadic qualified as P
 import Plutarch.Unsafe (punsafeCoerce)
 
-import Settings (bondedStakingTokenName)
+import Common.Settings (bondedStakingTokenName)
 import Utils (
   getCs,
   oneOf,

@@ -1,4 +1,4 @@
-module Settings (bondedStakingTokenName) where
+module Common.Settings (bondedStakingTokenName) where
 
 {-
     This module is for hardcoded platform settings
