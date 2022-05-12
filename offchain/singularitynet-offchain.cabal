@@ -105,15 +105,17 @@ test-suite singularitynet-offchain-test
   type:           exitcode-stdio-1.0
   main-is:        Spec.hs
   build-depends:
-    , cardano-prelude          >=0.1.0.0
-    , containers               >=0.6.5.1
+    , cardano-prelude            >=0.1.0.0
+    , containers                 >=0.6.5.1
     , plutip
-    , plutus-contract          >=0.1.0.0
-    , plutus-ledger            >=0.1.0.0
-    , plutus-pab               >=0.1.0.0
+    , plutus-contract            >=0.1.0.0
+    , plutus-ledger              >=0.1.0.0
+    , plutus-pab                 >=0.1.0.0
+    , plutus-ledger-constraints
     , singularitynet-offchain
-    , tasty                    >=1.4
-    , text                     >=1.2.4.1
+    , tasty                      >=1.4
+    , text                       >=1.2.4.1
 
   ghc-options:    -Wall -threaded -rtsopts
   hs-source-dirs: test
+  other-modules:  SpecStateNFT
