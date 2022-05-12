@@ -29,7 +29,13 @@ common common-lang
     -Wno-name-shadowing -Wunused-foralls -fprint-explicit-foralls
     -fprint-explicit-kinds -fwarn-missing-import-lists -Werror
 
-  build-depends:      base
+  mixins:
+    base hiding (Prelude),
+    npprelude (NPPrelude as Prelude)
+
+  build-depends:
+    , base
+    , npprelude
   default-extensions:
     NoStarIsType
     BangPatterns
@@ -99,6 +105,12 @@ library
                    ../onchain/src
   other-modules:   Common.Types
                    Common.Natural
+
+library npprelude
+  default-language:   Haskell2010
+  build-depends:      base
+  exposed-modules:    NPPrelude
+  hs-source-dirs:     src
 
 test-suite singularitynet-offchain-test
   import:         common-lang

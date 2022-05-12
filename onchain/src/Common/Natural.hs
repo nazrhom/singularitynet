@@ -18,7 +18,6 @@ module Common.Natural (
 -}
 
 import GHC.Natural qualified as Natural
-import Data.Kind(type Type)
 
 import Data.Ratio (
   Ratio,
