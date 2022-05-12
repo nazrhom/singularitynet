@@ -32,7 +32,7 @@ import Plutarch.Api.V1 (
 import GHC.Generics qualified as GHC
 import Generics.SOP (Generic, I (I))
 
-import Data.Natural (PNatural)
+import PNatural (PNatural)
 import Plutarch.Api.V1.Time (PPOSIXTime)
 import Utils (ple, pletC, plt, pmatchC)
 

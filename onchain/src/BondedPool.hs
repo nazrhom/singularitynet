@@ -38,7 +38,7 @@ import Data.Interval (
   pintervalTo,
   pperiodicContains,
  )
-import Data.Natural (
+import PNatural (
   PNatural,
  )
 import PTypes (

@@ -29,8 +29,8 @@ module PTypes(
 import GHC.Generics qualified as GHC
 import Generics.SOP (Generic, I (I))
 
-import Data.Natural (PNatural, PNatRatio)
 import Common.Types(AssetClass, BondedStakingAction, MintingAction, BondedPoolParams, Entry, BondedStakingDatum)
+import PNatural(PNatural, PNatRatio)
 
 import Plutarch.Api.V1 (PMaybeData, PPOSIXTime, PTokenName, PTxId, PTxOutRef)
 import Plutarch.Api.V1.Crypto (PPubKeyHash)

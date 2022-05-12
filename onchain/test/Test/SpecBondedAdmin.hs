@@ -8,7 +8,7 @@ module Test.SpecBondedAdmin (
 -}
 
 import BondedPool (pbondedPoolValidator, pbondedPoolValidatorUntyped)
-import Data.Natural (NatRatio (NatRatio), Natural (Natural))
+import Common.Natural (NatRatio (NatRatio), Natural (Natural))
 import Data.Ratio ((%))
 import Plutarch (compile)
 import Plutarch.Api.V1 (

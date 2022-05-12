@@ -33,7 +33,7 @@ import Generics.SOP (Generic)
 import PlutusTx (unstableMakeIsData)
 import PlutusTx.Builtins.Internal (BuiltinByteString)
 
-import Data.Natural (
+import Common.Natural (
   NatRatio,
   Natural,
  )
