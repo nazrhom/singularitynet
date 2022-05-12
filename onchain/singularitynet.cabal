@@ -101,7 +101,6 @@ library
   import:          common-lang
   exposed-modules:
     BondedPool
-    Data.Interval
     ListNFT
     Settings
     SingularityNet
@@ -110,6 +109,7 @@ library
     Common.Natural
     PTypes
     PNatural
+    PInterval
     Utils
 
   build-depends:

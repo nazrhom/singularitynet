@@ -1,4 +1,4 @@
-module Data.Interval (
+module PInterval (
   PPeriodicInterval (..),
   pinterval,
   pintervalTo,
