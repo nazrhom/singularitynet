@@ -23,7 +23,7 @@ import Plutarch.Api.V1.Time (
 import Plutarch.Builtin (pforgetData)
 import Plutarch.Unsafe (punsafeCoerce)
 
-import Data.Interval (
+import PInterval (
   PPeriodicInterval (
     PPeriodicInterval,
     piBaseOffset,
