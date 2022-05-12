@@ -98,8 +98,7 @@ library
   exposed-modules: SingularityNetOffchain
   build-depends:   plutip
                    , plutus-ledger-api
-                   , plutus-tx
-                   , generics-sop
+                   , aeson
   hs-source-dirs:  src
 library npprelude
   default-language:   Haskell2010
@@ -119,9 +118,12 @@ test-suite singularitynet-offchain-test
     , plutus-ledger              >=0.1.0.0
     , plutus-pab                 >=0.1.0.0
     , plutus-ledger-constraints
+    , plutus-ledger-api
+    , plutus-tx
     , singularitynet-offchain
     , tasty                      >=1.4
     , text                       >=1.2.4.1
+    , generics-sop
 
   ghc-options:    -Wall -threaded -rtsopts
   hs-source-dirs: test
