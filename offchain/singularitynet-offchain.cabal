@@ -91,7 +91,14 @@ library
   import:          common-lang
   exposed-modules: SingularityNetOffchain
   build-depends:   plutip
+                   , plutus-ledger-api
+                   , plutus-tx
+                   , generics-sop
   hs-source-dirs:  src
+                   -- We can only import modules from Common!
+                   ../onchain/src
+  other-modules:   Common.Types
+                   Common.Natural
 
 test-suite singularitynet-offchain-test
   import:         common-lang
