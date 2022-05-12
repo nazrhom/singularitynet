@@ -195,17 +195,17 @@
         "servant-purescript": "servant-purescript_2"
       },
       "locked": {
-        "lastModified": 1645658503,
-        "narHash": "sha256-mduSwSnHJSE0P6NF9NDtSdIz8WtniLRW5S88NPBVs7o=",
+        "lastModified": 1651488509,
+        "narHash": "sha256-WVTYecS6UY0rcxofYj6gBe9yag7Lo63pu/VsC9iyqqs=",
         "owner": "mlabs-haskell",
         "repo": "bot-plutus-interface",
-        "rev": "ca7d096a200a33312484356d9e47e73e1466ce13",
+        "rev": "9ca5939b3b6ef1d052318f25ac88444baea52d8b",
         "type": "github"
       },
       "original": {
         "owner": "mlabs-haskell",
         "repo": "bot-plutus-interface",
-        "rev": "ca7d096a200a33312484356d9e47e73e1466ce13",
+        "rev": "9ca5939b3b6ef1d052318f25ac88444baea52d8b",
         "type": "github"
       }
     },
@@ -3140,21 +3140,21 @@
           "plutip",
           "bot-plutus-interface",
           "haskell-nix",
-          "nixpkgs-unstable"
+          "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1645658802,
-        "narHash": "sha256-8wB1SvLaxmAEUr0aEY+DzpsPzu95b3XcuE5bpzRQG4A=",
+        "lastModified": 1651498064,
+        "narHash": "sha256-zP94GXLt0ezF/6Gu26X7V86bCOtpRJ2EqjGkBRcsR/E=",
         "owner": "mlabs-haskell",
         "repo": "plutip",
-        "rev": "88d069d68c41bfd31b2057446a9d4e584a4d2f32",
+        "rev": "0b92bb7b913d213457713c09bacae06110c47bac",
         "type": "github"
       },
       "original": {
         "owner": "mlabs-haskell",
         "repo": "plutip",
-        "rev": "88d069d68c41bfd31b2057446a9d4e584a4d2f32",
+        "rev": "0b92bb7b913d213457713c09bacae06110c47bac",
         "type": "github"
       }
     },
