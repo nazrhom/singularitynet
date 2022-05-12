@@ -101,12 +101,6 @@ library
                    , plutus-tx
                    , generics-sop
   hs-source-dirs:  src
-                   -- We can only import modules from Common!
-                   ../onchain/src
-  other-modules:   Common.Types
-                   Common.Natural
-                   Common.Settings
-
 library npprelude
   default-language:   Haskell2010
   build-depends:      base
@@ -131,4 +125,9 @@ test-suite singularitynet-offchain-test
 
   ghc-options:    -Wall -threaded -rtsopts
   hs-source-dirs: test
+                  -- We can only import modules from Common!
+                  ../onchain/src
   other-modules:  SpecStateNFT
+                  Common.Types
+                  Common.Natural
+                  Common.Settings
