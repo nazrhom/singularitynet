@@ -1,8 +1,0 @@
-cradle:
-  cabal:
-    - path: "./src"
-      component: "lib:singularitynet"
-    - path: "./test"
-      component: "test:singularitynet-test"
-    - path: "./exe"
-      component: "exe:serialise"
