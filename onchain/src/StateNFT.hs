@@ -46,8 +46,8 @@ pbondedStateNFTPolicy = plam $ \txOutRef _ ctx' -> P.do
 
 pbondedStateNFTPolicyUntyped ::
   forall (s :: S). Term s (PData :--> PData :--> PData :--> PUnit)
-pbondedStateNFTPolicyUntyped = plam $ \utxo' _ ctx' ->
-  pbondedStateNFTPolicy # unTermCont (ptryFromUndata utxo')
+pbondedStateNFTPolicyUntyped = plam $ \utxo _ ctx' ->
+  pbondedStateNFTPolicy # unTermCont (ptryFromUndata utxo)
     # pconstant ()
     # punsafeCoerce ctx'
 
