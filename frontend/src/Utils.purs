@@ -45,10 +45,11 @@ getUtxoWithNFT
   -> CurrencySymbol
   -> TokenName
   -> Maybe (Tuple TransactionInput TransactionOutput)
-getUtxoWithNFT utxoM cs tn = 
-  let utxos = filter (hasNFT cs tn) $ toUnfoldable $ unwrap utxoM
-  in if length utxos > 1
-    then Nothing
+getUtxoWithNFT utxoM cs tn =
+  let
+    utxos = filter (hasNFT cs tn) $ toUnfoldable $ unwrap utxoM
+  in
+    if length utxos > 1 then Nothing
     else head utxos
   where
   hasNFT
