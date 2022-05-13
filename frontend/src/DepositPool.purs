@@ -103,7 +103,7 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
     assetCs = assetParams.currencySymbol
     assetTn = assetParams.tokenName
     stateTokenValue = singleton stateNftCs tokenName one
-    depositValue = singleton assetCs assetTn (big 5_000_000)
+    depositValue = singleton assetCs assetTn (big 2)
     scriptAddr = validatorHashEnterpriseAddress networkId valHash
   logInfo_ "BondedPool Validator's address" scriptAddr
   let
