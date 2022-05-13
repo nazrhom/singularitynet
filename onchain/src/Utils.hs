@@ -5,6 +5,8 @@ module Utils (
   ple,
   pge,
   pgt,
+  ptrue,
+  pfalse,
   pnestedIf,
   pfind,
   pfstData,
@@ -76,6 +78,12 @@ pgt ::
   POrd a =>
   Term s (a :--> a :--> PBool)
 pgt = phoistAcyclic $ plam $ \lim x -> pnot #$ x #<= lim
+
+ptrue :: forall (s :: S). Term s PBool
+ptrue = pconstant True
+
+pfalse :: forall (s :: S). Term s PBool
+pfalse = pconstant False
 
 -- Functions for checking conditions in nested structures
 
