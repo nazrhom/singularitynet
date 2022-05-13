@@ -5,10 +5,10 @@ module Data.Interval (
   pintervalFrom,
   pcontains,
   pperiodicContains,
-  lowerBoundLT,
-  lowerBoundLE,
-  upperBoundLT,
-  upperBoundLE,
+  lowerBoundLt,
+  lowerBoundLe,
+  upperBoundLt,
+  upperBoundLe,
   (<|),
   (|<),
   (<=|),
@@ -34,7 +34,7 @@ import Generics.SOP (Generic, I (I))
 
 import Data.Natural (PNatural)
 import Plutarch.Api.V1.Time (PPOSIXTime)
-import Utils (ple, pletC, plt, pmatchC)
+import Utils (pfalse, ple, pletC, plt, pmatchC, ptrue)
 
 -- Functions for working with intervals
 
@@ -48,7 +48,7 @@ import Utils (ple, pletC, plt, pmatchC)
 
    where _ stands for any closure type (open or closed) and `x` is a given
    point. This is only true when the point `x` is fixed and *NOT* when the two
-   endpoints have different finite valuees.
+   endpoints have different finite values.
 
    This implementation is based on the one from `plutus-ledger-api`. It is a
    bit wasteful, since it pmatches twice the same arguments, but the alternative
@@ -82,7 +82,7 @@ compareEndpoints = phoistAcyclic $
         pif
           equalAndFinite
           (ptrace "equalAndFinite" cmpResult)
-          $ (ptrace "caseLogic" $ caseLogic # p1 # c1 # p2 # c2)
+          (ptrace "caseLogic" $ caseLogic # p1 # c1 # p2 # c2)
 
 -- Returns a tuple of booleans. If the first boolean is true, then the endpoints
 -- are unequal and finite. The second gives gives the result of comparing the
@@ -94,7 +94,7 @@ unequalFiniteEndpoints ::
   Term s (PExtended a) ->
   Term s (a :--> a :--> PBool) ->
   TermCont s (Term s (PTuple PBool PBool))
-unequalFiniteEndpoints p1 p2 cmp = do
+unequalFiniteEndpoints p1 p2 cmp =
   pure $
     pmatch p1 $ \case
       PFinite x' -> pmatch p2 $ \case
@@ -108,7 +108,7 @@ unequalFiniteEndpoints p1 p2 cmp = do
 -- This function handles the case where the comparison operator is `<` and
 -- the two endpoints are the lower bounds of the interval. It assumes that
 -- `p1` == `p2` if both are `PFinite`.
-lowerBoundLT ::
+lowerBoundLt ::
   forall (s :: S) (a :: PType).
   (PIsData a, PEq a, POrd a) =>
   Term
@@ -119,18 +119,18 @@ lowerBoundLT ::
         :--> PClosure
         :--> PBool
     )
-lowerBoundLT = phoistAcyclic $
+lowerBoundLt = phoistAcyclic $
   plam $ \p1 c1 p2 c2 ->
-    ptrace "lowerBoundLT" $
+    ptrace "lowerBoundLt" $
       ptraceIfTrue "True" $
         pmatch p1 $ \case
           PNegInf _ -> pmatch p2 $ \case
-            PNegInf _ -> pconstant False
-            _ -> pconstant True
-          PPosInf _ -> pconstant False
+            PNegInf _ -> pfalse
+            _ -> ptrue
+          PPosInf _ -> pfalse
           PFinite n1' -> pmatch p2 $ \case
-            PNegInf _ -> pconstant False
-            PPosInf _ -> pconstant True
+            PNegInf _ -> pfalse
+            PPosInf _ -> ptrue
             PFinite n2' -> unTermCont $ do
               n1 <- pletC $ pfromData $ pfield @"_0" # n1'
               n2 <- pletC $ pfromData $ pfield @"_0" # n2'
@@ -139,7 +139,7 @@ lowerBoundLT = phoistAcyclic $
 -- This function handles the case where the comparison operator is `<=` and
 -- the two endpoints are the lower bounds of the interval. It assumes that
 -- `p1` == `p2` if both are `PFinite`.
-lowerBoundLE ::
+lowerBoundLe ::
   forall (s :: S) (a :: PType).
   (PIsData a, PEq a, POrd a) =>
   Term
@@ -150,22 +150,21 @@ lowerBoundLE ::
         :--> PClosure
         :--> PBool
     )
-lowerBoundLE = phoistAcyclic $
+lowerBoundLe = phoistAcyclic $
   plam $ \p1 c1 p2 c2 ->
-    ptrace "lowerBoundLE" $
+    ptrace "lowerBoundLe" $
       ptraceIfTrue "True" $
         pmatch p1 $ \case
-          PNegInf _ -> pconstant True
+          PNegInf _ -> ptrue
           PPosInf _ -> pmatch p2 $ \case
-            PPosInf _ -> pconstant True
-            _ -> pconstant False
+            PPosInf _ -> ptrue
+            _ -> pfalse
           PFinite _ -> pmatch p2 $ \case
-            PNegInf _ -> pconstant False
-            PPosInf _ -> pconstant True
-            PFinite _ -> unTermCont $ do
-              pure $ c1 #|| pnot # c2
+            PNegInf _ -> pfalse
+            PPosInf _ -> ptrue
+            PFinite _ -> c1 #|| pnot # c2
 
-upperBoundLT ::
+upperBoundLt ::
   forall (s :: S) (a :: PType).
   (PIsData a, PEq a, POrd a) =>
   Term
@@ -176,13 +175,13 @@ upperBoundLT ::
         :--> PClosure
         :--> PBool
     )
-upperBoundLT = phoistAcyclic $
+upperBoundLt = phoistAcyclic $
   plam $ \p1 c1 p2 c2 ->
-    ptrace "upperBoundLT" $
+    ptrace "upperBoundLt" $
       ptraceIfTrue "True" $
-        pnot #$ lowerBoundLE # p1 # c1 # p2 # c2
+        pnot #$ lowerBoundLe # p1 # c1 # p2 # c2
 
-upperBoundLE ::
+upperBoundLe ::
   forall (s :: S) (a :: PType).
   (PIsData a, PEq a, POrd a) =>
   Term
@@ -193,11 +192,11 @@ upperBoundLE ::
         :--> PClosure
         :--> PBool
     )
-upperBoundLE = phoistAcyclic $
+upperBoundLe = phoistAcyclic $
   plam $ \p1 c1 p2 c2 ->
-    ptrace "upperBoundLE" $
+    ptrace "upperBoundLe" $
       ptraceIfTrue "True" $
-        pnot #$ lowerBoundLT # p1 # c1 # p2 # c2
+        pnot #$ lowerBoundLt # p1 # c1 # p2 # c2
 
 -- Now we define operations on `LowerBound` and `UpperBound` proper
 (|<)
@@ -210,11 +209,11 @@ upperBoundLE = phoistAcyclic $
 x' |< y' = unTermCont $ do
   x <- tcont $ pletFields @'["_0", "_1"] x'
   y <- tcont $ pletFields @'["_0", "_1"] y'
-  pure $ compareEndpoints # x._0 # x._1 # y._0 # y._1 # plt # lowerBoundLT
+  pure $ compareEndpoints # x._0 # x._1 # y._0 # y._1 # plt # lowerBoundLt
 x' |<= y' = unTermCont $ do
   x <- tcont $ pletFields @'["_0", "_1"] x'
   y <- tcont $ pletFields @'["_0", "_1"] y'
-  pure $ compareEndpoints # x._0 # x._1 # y._0 # y._1 # ple # lowerBoundLE
+  pure $ compareEndpoints # x._0 # x._1 # y._0 # y._1 # ple # lowerBoundLe
 
 (<|)
   , (<=|) ::
@@ -226,11 +225,11 @@ x' |<= y' = unTermCont $ do
 x' <| y' = unTermCont $ do
   x <- tcont $ pletFields @'["_0", "_1"] x'
   y <- tcont $ pletFields @'["_0", "_1"] y'
-  pure $ compareEndpoints # x._0 # x._1 # y._0 # y._1 # plt # upperBoundLT
+  pure $ compareEndpoints # x._0 # x._1 # y._0 # y._1 # plt # upperBoundLt
 x' <=| y' = unTermCont $ do
   x <- tcont $ pletFields @'["_0", "_1"] x'
   y <- tcont $ pletFields @'["_0", "_1"] y'
-  pure $ compareEndpoints # x._0 # x._1 # y._0 # y._1 # ple # upperBoundLE
+  pure $ compareEndpoints # x._0 # x._1 # y._0 # y._1 # ple # upperBoundLe
 
 -- | Returns true if the second interval is contained within the first
 pcontains ::
@@ -256,9 +255,9 @@ pinterval ::
 pinterval p1 p2 = pinterval' lBound hBound
   where
     lBound :: Term s (PLowerBound a)
-    lBound = plowerBound p1 $ pconstant True
+    lBound = plowerBound p1 $ ptrue
     hBound :: Term s (PUpperBound a)
-    hBound = pupperBound p2 $ pconstant False
+    hBound = pupperBound p2 $ pfalse
 
 -- | Build an interval out of two bounds.
 pinterval' ::
@@ -279,21 +278,15 @@ pintervalFrom ::
   (PIsData a, PEq a, POrd a) =>
   Term s a ->
   Term s (PInterval a)
-pintervalFrom p =
-  pcon $
-    PInterval $
-      pdcons # lBound
-        #$ pdcons # hBound # pdnil
+pintervalFrom p = pinterval' lBound pposInf
   where
-    hBound :: Term s (PAsData (PUpperBound a))
-    hBound = pdata $ pposInf
-    lBound :: Term s (PAsData (PLowerBound a))
-    lBound = pdata $ plowerBound p $ pconstant True
+    lBound :: Term s (PLowerBound a)
+    lBound = plowerBound p $ ptrue
     pposInf :: forall (s :: S) (a :: PType). Term s (PUpperBound a)
     pposInf =
       pcon $
         PUpperBound $
-          pdcons # (pdata $ pcon $ PNegInf pdnil)
+          pdcons # (pdata $ pcon $ PPosInf pdnil)
             #$ pdcons # pconstantData True # pdnil
 
 -- | Build an open-open interval from -inf. to a given point
@@ -302,16 +295,10 @@ pintervalTo ::
   (PIsData a, PEq a, POrd a) =>
   Term s a ->
   Term s (PInterval a)
-pintervalTo p =
-  pcon $
-    PInterval $
-      pdcons # lBound
-        #$ pdcons # hBound # pdnil
+pintervalTo p = pinterval' pnegInf hBound
   where
-    lBound :: Term s (PAsData (PLowerBound a))
-    lBound = pdata $ pnegInf
-    hBound :: Term s (PAsData (PUpperBound a))
-    hBound = pdata $ pupperBound p $ pconstant False
+    hBound :: Term s (PUpperBound a)
+    hBound = pupperBound p $ pfalse
     pnegInf :: forall (s :: S) (a :: PType). Term s (PLowerBound a)
     pnegInf =
       pcon $
@@ -344,7 +331,7 @@ pupperBound p closed =
       pdcons # pext p #$ pdcons # pdata closed # pdnil
 
 {- | A datatype for periodic intervals. To make non-overlapping intervals easier
- to define, we introduce introduce `piStart` and `piEnd`. This allows
+ to define, we introduce `piStart` and `piEnd`. This allows
  the existence of many periodic intervals in the same segment from
  `piBaseOffset` + i*`piPeriod` to `piBaseOffset` + (i+1)*`piPeriod`
  The cycles field limits the amount of periods allowed.
@@ -369,14 +356,16 @@ pperiodicContains ::
     ( PPeriodicInterval :--> PInterval PPOSIXTime :--> PBool
     )
 pperiodicContains = plam $ \pi i' -> unTermCont $ do
+  -- Get fields from periodic interval
   ( PPeriodicInterval
       piBaseOffset'
-      piStartOffset'
-      piLength'
       piPeriod'
+      piStartOffset'
+      piEndOffset'
       maxCycles'
     ) <-
     pmatchC pi
+  -- Get fields from TX range
   i <- tcont $ pletFields @'["from", "to"] i'
   iLowerBound <- tcont $ pletFields @'["_0", "_1"] i.from
   iUpperBound <- tcont $ pletFields @'["_0", "_1"] i.to
@@ -386,28 +375,28 @@ pperiodicContains = plam $ \pi i' -> unTermCont $ do
   let iStart = pto iStart'
       iEnd = pto iEnd'
       piBaseOffset = pto piBaseOffset'
-      piStartOffset = pto piStartOffset'
-      piLength = pto piLength'
       piPeriod = pto piPeriod'
+      piStartOffset = pto piStartOffset'
+      piEndOffset = pto piEndOffset'
       maxCycles = pto maxCycles'
   -- Calculate cycle number based on transaction's start
   cycleN <- pletC $ pquot # (iStart - piBaseOffset) # piPeriod
   -- Calculate start and end offset
-  iStartOff <- pletC $ prem # (iStart - piBaseOffset) # piPeriod
-  iEndOff <- pletC $ prem # (iEnd - piBaseOffset) # piPeriod
+  iStartOffset <- pletC $ prem # (iStart - piBaseOffset) # piPeriod
+  iEndOffset <- pletC $ prem # (iEnd - piBaseOffset) # piPeriod
   pure $
     ptraceIfFalse
-      "transaction range too wide"
-      (iEnd - iStart #<= piLength)
+      "pperiodicContains: transaction range too wide"
+      (iEndOffset - iStartOffset #<= piEndOffset - piStartOffset)
       #&& ptraceIfFalse
-        "cycle not within bounds"
+        "pperiodicContains: cycle not within bounds"
         (0 #<= cycleN #&& cycleN #<= maxCycles)
       #&& ptraceIfFalse
-        "transaction range starts too soon"
-        (piStartOffset #<= iStartOff)
+        "pperiodicContains: transaction range starts too soon"
+        (piStartOffset #<= iStartOffset)
       #&& ptraceIfFalse
-        "transaction range starts too late"
-        (iEndOff #<= iEndOff)
+        "pperiodicContains: transaction range ends too late"
+        (piEndOffset #<= iEndOffset)
   where
     getTime ::
       Term s (PExtended PPOSIXTime) -> TermCont s (Term s PPOSIXTime)
