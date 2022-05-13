@@ -62,3 +62,11 @@ cabal.project.local*
 
 # Notes
 *.txt
+
+# Spec
+*.aux
+*.log
+*.out
+*.synctex.gz
+*.toc
+spec/_*
