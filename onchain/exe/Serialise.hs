@@ -2,8 +2,8 @@ module Main (main) where
 
 {- TODO: Update documentation
   This executable can generate CBOR encodings of the NFT minting policy and
-  the BondedPool validator. It takes the necessary arguments from the CLI
-  to generate them. The resulting scripts are *fully* applied.
+  the pool validators. It takes the necessary arguments from the CLI to
+  generate them. The resulting scripts are *fully* applied.
 
   Some examples:
 
@@ -45,53 +45,62 @@ import Plutarch.Api.V1 (scriptHash)
 import Plutus.V1.Ledger.Scripts (Script)
 
 import BondedPool (pbondedPoolValidatorUntyped)
-import ListNFT (pbondedListNFTPolicyUntyped)
+import UnbondedStaking.UnbondedPool (punbondedPoolValidatorUntyped)
+import ListNFT (listNFTPolicyUntyped)
 import Plutarch (compile)
-import StateNFT (pbondedStateNFTPolicyUntyped)
+import StateNFT (stateNFTPolicyUntyped)
+import Settings (bondedStakingTokenName, unbondedStakingTokenName)
 
 serialisePlutusScript :: Script -> Text
 serialisePlutusScript script = encodeToLazyText script
 
-writeScriptToFile :: Text -> FilePath -> Script -> IO ()
-writeScriptToFile name filepath script =
-  TIO.writeFile filepath $
-    "exports._" <> name <> " = {\n"
-      <> "\tscript: "
-      <> serialisePlutusScript script
-      <> ",\n};"
+exportScript :: Text -> Script -> Text
+exportScript name script = 
+  "exports._" <> name <> " = {\n"
+  <> "\tscript: "
+  <> serialisePlutusScript script
+  <> ",\n};\n"
 
 main :: IO ()
 main = do
   args <- execParser opts
   case cliCommand args of
     SerialiseStateNFT -> do
-      let script = compile pbondedStateNFTPolicyUntyped
-          hash = scriptHash script
-      writeScriptToFile
-        "bondedStateNFT"
-        (maybe "BondedStateNFT.json" id $ outPath args)
-        script
+      let bscript = compile $ stateNFTPolicyUntyped bondedStakingTokenName
+          bhash = scriptHash bscript
+          uscript = compile $ stateNFTPolicyUntyped unbondedStakingTokenName
+          uhash = scriptHash uscript
+      TIO.writeFile
+        (maybe "StateNFT.json" id $ outPath args)
+        (exportScript "bondedStateNFT" bscript
+        <> exportScript "unbondedStateNFT" uscript)
       when (printHash args) $
-        putStr $ "\nstateNFT hash (unapplied): " <> show hash
+        putStr $ "\nbondedStateNFT hash (unapplied): " <> show bhash
+        <> "\nunbondedStateNFT hash (unapplied): " <> show uhash
+    
     SerialiseListNFT -> do
-      let script = compile pbondedListNFTPolicyUntyped
+      let script = compile listNFTPolicyUntyped
           hash = scriptHash script
-      writeScriptToFile
-        "bondedListNFT"
-        (maybe "BondedListNFT.json" id $ outPath args)
-        script
+      TIO.writeFile
+        (maybe "ListNFT.json" id $ outPath args)
+        (exportScript "bondedListNFT" script
+        <> (exportScript "unbondedListNFT" script))
       when (printHash args) $
         putStr $ "\nlistNFT hash (unapplied): " <> show hash
-    SerialiseBondedValidator -> do
-      let script = compile pbondedPoolValidatorUntyped
-          hash = scriptHash script
-      writeScriptToFile
-        "bondedPoolValidator"
-        (maybe "BondedPoolValidator.json" id $ outPath args)
-        script
+    
+    SerialiseValidator -> do
+      let bscript = compile pbondedPoolValidatorUntyped
+          uscript = compile punbondedPoolValidatorUntyped
+          bhash = scriptHash bscript
+          uhash = scriptHash uscript
+      TIO.writeFile
+        (maybe "PoolValidator.json" id $ outPath args)
+        (exportScript "bondedPoolValidator" bscript
+        <> exportScript "unbondedPoolValidator" uscript)
       when (printHash args) $
-        putStr $ "\npoolValidator hash (unapplied): " <> show hash
-
+        putStr $ "\nbondedPoolValidator hash (unapplied): " <> show bhash
+        <> "\nunbondedPoolValidator hash (unapplied): " <> show uhash
+    
 -- Parsers --
 data CLI = CLI
   { outPath :: Maybe FilePath
@@ -102,14 +111,14 @@ data CLI = CLI
 data CLICommand
   = SerialiseStateNFT
   | SerialiseListNFT
-  | SerialiseBondedValidator
+  | SerialiseValidator
 
 opts :: ParserInfo CLI
 opts =
   info
     parser
     ( fullDesc
-        <> progDesc "Serialise a NFT policy or the bonded pool's validator"
+        <> progDesc "Serialise a NFT policy or the pool validators"
     )
 
 parser :: Parser CLI
@@ -133,7 +142,7 @@ serialiseStateNFTCommand =
       (pure SerialiseStateNFT)
       ( fullDesc
           <> progDesc
-            "Serialise the NFT minting policy of the bonded pool"
+            "Serialise the NFT minting policy of the pools"
       )
 
 serialiseListNFTCommand :: Mod CommandFields CLICommand
@@ -150,10 +159,10 @@ serialiseValidatorCommand :: Mod CommandFields CLICommand
 serialiseValidatorCommand =
   command "validator" $
     info
-      (pure SerialiseBondedValidator)
+      (pure SerialiseValidator)
       ( fullDesc
           <> progDesc
-            "Serialise the bonded pool validator"
+            "Serialise the pool validators"
       )
 
 outOption :: Parser (Maybe FilePath)

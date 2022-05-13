@@ -2,9 +2,11 @@ module Settings
   ( agixCs
   , agixTn
   , bondedStakingTokenName
-  , hardCodedParams
+  , bondedHardCodedParams
   , ntxCs
   , ntxTn
+  , unbondedStakingTokenName
+  , unbondedHardCodedParams
   ) where
 
 import Prelude
@@ -22,6 +24,7 @@ import Contract.Value
   )
 import Data.Maybe (Maybe)
 import Types (AssetClass(AssetClass), BondedPoolParams(BondedPoolParams))
+import UnbondedStaking.Types (UnbondedPoolParams(UnbondedPoolParams))
 import Types.UnbalancedTransaction (PaymentPubKeyHash)
 import Utils (nat, big)
 
@@ -46,13 +49,16 @@ ntxCs = mkCurrencySymbol
 ntxTn :: Maybe TokenName
 ntxTn = mkTokenName =<< byteArrayFromAscii "NTX"
 
+unbondedStakingTokenName :: Maybe TokenName
+unbondedStakingTokenName = mkTokenName =<< byteArrayFromAscii "UnbondedStakingToken"
+
 -- Temporary, serialise to JSON
-hardCodedParams
+bondedHardCodedParams
   :: PaymentPubKeyHash
   -> CurrencySymbol
   -> CurrencySymbol
   -> Maybe BondedPoolParams
-hardCodedParams adminPkh nftCs assocListCs = do
+bondedHardCodedParams adminPkh nftCs assocListCs = do
   interest <- interest'
   -- currencySymbol <- agixCs
   -- tokenName <- ntxTn
@@ -72,4 +78,32 @@ hardCodedParams adminPkh nftCs assocListCs = do
         }
     , nftCs
     , assocListCs
+    }
+
+unbondedHardCodedParams
+  :: PaymentPubKeyHash
+  -> CurrencySymbol
+  -> CurrencySymbol
+  -> Maybe UnbondedPoolParams
+unbondedHardCodedParams adminPkh nftCs assocListCs = do
+  interest <- interest'
+  -- currencySymbol <- agixCs
+  -- tokenName <- ntxTn
+  pure $ UnbondedPoolParams
+    { upp'start: big 1000
+    , upp'userLength: big 100
+    , upp'adminLength: big 100
+    , upp'bondingLength: big 4
+    , upp'interestLength: big 2
+    , upp'increments: nat 2
+    , upp'interest: interest
+    , upp'minStake: nat 1000
+    , upp'maxStake: nat 10_000
+    , upp'admin: adminPkh
+    , upp'unbondedAssetClass: AssetClass
+        { currencySymbol: adaSymbol
+        , tokenName: adaToken
+        }
+    , upp'nftCs: nftCs
+    , upp'assocListCs: assocListCs
     }

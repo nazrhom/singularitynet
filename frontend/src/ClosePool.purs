@@ -25,8 +25,8 @@ import Contract.TxConstraints
   )
 import Contract.Utxos (utxosAt)
 import Data.Map (toUnfoldable)
-import Scripts.BondedPoolValidator (mkBondedPoolValidator)
-import Settings (hardCodedParams)
+import Scripts.PoolValidator (mkBondedPoolValidator)
+import Settings (bondedHardCodedParams)
 import Types
   ( BondedStakingAction(..)
   , BondedStakingDatum(StateDatum)
@@ -57,7 +57,7 @@ closePoolContract (PoolInfo poolInfo) = do
   logInfo_ "Pool's UTXOs" bondedPoolUtxos
   -- Create parameters of the pool and validator
   params <- liftContractM "closePoolContract: Failed to create parameters" $
-    hardCodedParams adminPkh nftCs assocListCs
+    bondedHardCodedParams adminPkh nftCs assocListCs
   validator <- liftedE' "closePoolContract: Cannot create validator" $
     mkBondedPoolValidator params
   let
