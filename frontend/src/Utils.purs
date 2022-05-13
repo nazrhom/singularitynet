@@ -28,7 +28,7 @@ import Plutus.Types.Value (valueOf)
 import Types.Transaction (TransactionInput, TransactionOutput, UtxoM)
 
 -- | Helper to decode the local inputs such as unapplied minting policy and
--- | typed validator
+-- typed validator
 jsonReader
   :: forall (a :: Type)
    . DecodeJson a
@@ -39,26 +39,27 @@ jsonReader field = caseJsonObject (Left $ TypeMismatch "Expected Object")
   $ flip getField field
 
 -- | Get the UTXO with the NFT defined by its `CurrencySymbol` and `TokenName`.
--- If more than one UTXO contains the NFT, something is seriously wrong and
--- fails with en error message.
+-- If more than one UTXO contains the NFT, something is seriously wrong.
 getUtxoWithNFT
   :: UtxoM
   -> CurrencySymbol
   -> TokenName
   -> Maybe (Tuple TransactionInput TransactionOutput)
-getUtxoWithNFT utxoM cs tn = head $ filter (hasNFT cs tn)
-  $ toUnfoldable
-  $ unwrap utxoM
+getUtxoWithNFT utxoM cs tn = 
+  let utxos = filter (hasNFT cs tn) $ toUnfoldable $ unwrap utxoM
+  in if length utxos > 1
+    then Nothing
+    else head utxos
   where
   hasNFT
     :: CurrencySymbol
     -> TokenName
     -> Tuple TransactionInput TransactionOutput
     -> Boolean
-  hasNFT cs tn (Tuple _txInput txOutput') =
+  hasNFT cs tn (Tuple _ txOutput') =
     let
       txOutput = unwrap txOutput'
-      (Identity plutusValue) = toPlutusType txOutput.amount
+      Identity plutusValue = toPlutusType txOutput.amount
     in
       valueOf plutusValue cs tn == one
 
