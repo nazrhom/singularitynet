@@ -3,6 +3,7 @@
 \usepackage{amsmath} 
 \usepackage[english]{babel}
 \usepackage{xcolor}
+\usepackage{soul}
 \usepackage{color}
 \usepackage[linkbordercolor={0.03 .4 .75}, urlbordercolor={0.03 .4 .75}]{hyperref}
 \usepackage{fullpage}
@@ -127,7 +128,7 @@ These are rewards accrued so far (across different cycles). This is updated by t
 \begin{definition}[\texttt{totalRewards}]\label{def:totalRewards} how much the admin deposited during the admin cycle for upcoming rewards in this withdrawal cycle.
 \end{definition}
 
-\begin{definition}[\texttt{totalDeposited}]\label{def:totalDeposited} how much users have depositied for this withdrawal/deposit cycle, allowing the user to proportionally work out their rewards.
+\begin{definition}[\texttt{totalDeposited}]\label{def:totalDeposited} how much users have deposited (including their rewards so far) for this withdrawal/deposit cycle, allowing the user to proportionally work out their rewards.
 \end{definition}
 
 \begin{definition}[\texttt{open}]\label{def:open}
@@ -169,7 +170,7 @@ data UnbondedStakingAction
    | CloseAct
 \end{minted}
 
-\begin{definition}[\texttt{AdminAct}]\label{def:AdminAct} redeemer for the \textbf{Admin} to deposit staking tokens to the validator and update rewards for each users Assoc. List UTXO. The first parameter signifies how much rewards will be added for the upcoming cycle. The second parameter signifies how much has been deposited/staked in total. These respectively fill out \texttt{totalRewards} and \texttt{totalDeposited} in \texttt{EntryDatum}.
+\begin{definition}[\texttt{AdminAct}]\label{def:AdminAct} redeemer for the \textbf{Admin} to deposit staking tokens to the validator and update rewards for each users Assoc. List UTXO. The first parameter signifies how much rewards will be added for the upcoming cycle. The second parameter signifies how much has been deposited (including rewards) in total. These respectively fill out \texttt{totalRewards} and \texttt{totalDeposited} in \texttt{EntryDatum}.
 \end{definition}
 
 \begin{definition}[\texttt{StakeAct}]\label{def:StakeAct} redeemer for staking tokens with \texttt{PaymentPubKeyHash} of \texttt{Natural} amount.
@@ -294,7 +295,7 @@ For reference, here is an example of just over one cycle/iteration
 Here's an explanation of the different windows:
 \begin{itemize}
 \item{Users deposit during the first \texttt{upp'userLength}, these would count towards \texttt{newDeposit} so no rewards are available yet. The only way to get rewards here is to have timestamped UTXOs which would increase complexity. A user could also withdraw their deposited amount here (again with no rewards).}
-\item{Admin updates UTXOs during first \texttt{upp'adminLength}. Usually, the admin should increment \texttt{rewards} for the previous \texttt{upp'bondLength} (\textbf{none for the first cycle}), as well as \texttt{totalRewards} and \texttt{totalDeposited}. The latter two are determined off chain for the \textbf{upcoming} bonding cycle. The admin should also reset all \texttt{newDeposit}s to zero. This is needed because by the next \texttt{upp'userLength}, all new deposits need to be distinguishable from old deposits.}
+\item{Admin updates UTXOs during first \texttt{upp'adminLength}. Usually, the admin should increment \texttt{rewards} for the previous \texttt{upp'bondLength} (\textbf{none for the first cycle}), as well as \texttt{totalRewards} and \texttt{totalDeposited}. The latter two are determined off chain for the \textbf{upcoming} bonding cycle. \texttt{totalDeposited} should include rewards accrued so far so we get can proportionally get how much they own in total. The admin should also reset all \texttt{newDeposit}s to zero. This is needed because by the next \texttt{upp'userLength}, all new deposits need to be distinguishable from old deposits.}
 \item{Bonding begins and the user can withdraw whenever, the longer they wait, the more they are rewarded. Rewards are rounded to the nearest discretised interval.}
 \item{For the next \texttt{upp'userLength} cycle, the user reward is initially zero on the \texttt{EntryDatum}, but they can withdraw all the rewards from the previous bonding period. This is verfiable on chain using time checks. These rewards would be based on their \texttt{deposited} subtract any \texttt{newDeposit} from that round. Of course, they can make further deposits to \texttt{newDeposit} (and \texttt{deposited}) in this phase. \texttt{newDeposit} is required so they cannot get unearned rewards by depositing and withdrawing in this (same) phase.}
 \item{The cycle repeats with admin deposits, and UTXO updates as before. This \texttt{upp'adminLength} should update \texttt{rewards} for the first bonding period, so we can forget about the first cycle. This removes the requirement for timestamped deposits as they are adjusted after every cycle. This however means rewards only accrue during \texttt{upp'bondingLength} and \textit{not} the other windows}
@@ -323,9 +324,9 @@ Here is an example for one user:
 
 \item{\texttt{upp'adminLength} 0
 \begin{itemize}
-\item{Note: admin does not update \texttt{rewards} as we are yet to complete a bonding cycle (\texttt{upp'bondingLength}). This is a special case for the \textbf{first} admin windows, subsequent admin windows will update rewards for the previous bonding window, but because there was no prior bonding, we have no rewards. This also happens to coincide with the \texttt{updatedRewards} formula in $\texttt{upp'adminLength}\ 1$, where $\texttt{updatedRewards} = 0 + f * (8 - 8 + 0) * (1+\texttt{upp'interest})^\texttt{upp'increments} = 0$}
+\item{Note: admin does not update \texttt{rewards} as we are yet to complete a bonding cycle (\texttt{upp'bondingLength}). This is a special case for the \textbf{first} admin windows, subsequent admin windows will update rewards for the previous bonding window, but because there was no prior bonding, we have no rewards. This also happens to coincide with the \texttt{updatedRewards} formula in $\texttt{upp'adminLength}\ 1$, where $\texttt{updatedRewards} = 0 + (8 - 8 + 0) = 0$}
 \item{After ``updating rewards to zero", admin resets  all Assoc. List UTXOs \texttt{newDeposit} to zero}
-\item{After ``updating rewards to zero", admin updates \texttt{totalDeposited} by summing all deposits off chain (using Assoc. List UTXOs)}
+\item{After ``updating rewards to zero", admin updates \texttt{totalDeposited} by summing all deposits and rewards off chain (using Assoc. List UTXOs)}
 \item{After ``updating rewards to zero", admin picks rewards for the upcoming cycle and updates all \texttt{totalRewards} accordingly.}
 
 \end{itemize}
@@ -333,10 +334,10 @@ Here is an example for one user:
 
 \item{\texttt{upp'bondingLength} 0
 \begin{itemize}
-\item{Bonding begins for this cycle, the user can withdraw whenever. Should they decide to withdraw, they will get the following rewards: \\ $\texttt{withdrawRewards} = \texttt{rewards} + f* (\texttt{deposited} + \texttt{rewards})* (1 + \texttt{upp'interest})^k$
+\item{Bonding begins for this cycle, the user can withdraw whenever. Should they decide to withdraw, they will get the following rewards: \\ $\texttt{withdrawRewards} = \texttt{rewards} + \frac{f}{(1 + \texttt{upp'interest})^k}$
 
  where $1 \leq k \leq \texttt{upp'increments}$
-for the appropriate $k$ which should be on-chain verified. The user can submit their $k$ off chain via the appropriate \texttt{POSIXTimeRange} and the validator will check this range has the correct difference (delta). At this point, \texttt{rewards} is still zero but we get interest from our deposit as intended. Furthermore, the user will withdraw their \texttt{deposited} of course. This is \textit{not} an update on the datum (\texttt{EntryDatum}) but an actual withdrawal (burning the token). $f$ is a user factor defined as $f := \frac{\texttt{deposited}}{\texttt{totalDeposited}} * \texttt{totalRewards}$}
+for the appropriate $k$ which should be on-chain verified. The user can submit their $k$ off chain via the appropriate \texttt{POSIXTimeRange} and the validator will check this range has the correct difference (delta). At this point, \texttt{rewards} is still zero but we get interest from our deposit as intended. Furthermore, the user will withdraw their \texttt{deposited} of course. This is \textit{not} an update on the datum (\texttt{EntryDatum}) but an actual withdrawal (burning the token). $f$ is a user factor defined as $f := \frac{\texttt{deposited} - \st{\texttt{newDeposit}} + \texttt{rewards}}{\texttt{totalDeposited}} * \texttt{totalRewards}$. Note the inverse relation between $k$ and time passed by, as we reach the end of the bonding period, $k$ tends to 1 so we get almost the proportioned rewards. Also note that \textbf{\texttt{newDeposit} is zero here from the previous Admin cycle}}
 \item{If they decide to not withdraw, they will reach the next deposit/withdrawal cycle.}
 \end{itemize}
 }
@@ -344,9 +345,9 @@ for the appropriate $k$ which should be on-chain verified. The user can submit t
 \item{\texttt{upp'userLength} 1
 \begin{itemize}
 \item{With \texttt{newDeposit}'s reset to zero. The user decides to make a further deposit +2 (they do not have to of course). So $\texttt{newDeposit}=2$ and $\texttt{deposited}=10$ (incremented).}
-\item{If the user decides to withdraw here, the user will get (along with \texttt{deposited}) \\ $\texttt{withdrawRewards} = \texttt{rewards} +  f * (\texttt{deposited} - \texttt{newDeposit} + \texttt{rewards})* (1 + \texttt{upp'interest})^\texttt{upp'increments}$, no $k$ because they come from the just-completed  bonding cycle. As before, this is \textit{not} an update on the datum but an actual withdrawal (burning the token). We subtract \texttt{newDeposit} so they cannot get unearned rewards from depositing and withdrawing in the same cycle.
+\item{If the user decides to withdraw here, the user will get (along with \texttt{deposited}) \\ $\texttt{withdrawRewards} = \texttt{rewards} +  f$, no $k$ because they come from the just-completed  bonding cycle. As before, this is \textit{not} an update on the datum but an actual withdrawal (burning the token). We subtract \texttt{newDeposit} so they cannot get unearned rewards from depositing and withdrawing in the same cycle.
 
-$f$ is a user factor defined as $f := \frac{\texttt{deposited}}{\texttt{totalDeposited}} * \texttt{totalRewards}$
+$f$ is a user factor defined as $f := \frac{\texttt{deposited} - \texttt{newDeposit} + \texttt{rewards}}{\texttt{totalDeposited}} * \texttt{totalRewards}$
 }
 \item{We emphasise: no rewards accrue during \texttt{upp'userLength}s}
 \end{itemize}
@@ -355,9 +356,9 @@ $f$ is a user factor defined as $f := \frac{\texttt{deposited}}{\texttt{totalDep
 
 \item{\texttt{upp'adminLength} 1
 \begin{itemize}
-\item{Finally, if the user did not withdraw in the recent deposit/withdrawal cycle (with previously accrued rewards), the admin updates rewards of this user to \\ $\texttt{updatedRewards} = \texttt{rewards} + f *(\texttt{deposited} - \texttt{newDeposit} + \texttt{rewards})* (1 + \texttt{upp'interest})^\texttt{upp'increments}$ with $f$ as before. This is an increment on the original \texttt{rewards} from recent bonding cycle. This update should be reflected in the datum}
+\item{Finally, if the user did not withdraw in the recent deposit/withdrawal cycle (with previously accrued rewards), the admin updates rewards of this user to \\ $\texttt{updatedRewards} = \texttt{rewards} + f $ with $f := \frac{\texttt{deposited} - \texttt{newDeposit} + \texttt{rewards}}{\texttt{totalDeposited}} * \texttt{totalRewards}$. This is an increment on the original \texttt{rewards} from recent bonding cycle. This update should be reflected in the datum}
 \item{After updating rewards, admin resets all Assoc. List UTXOs \texttt{newDeposit} to zero}
-\item{After updating rewards, admin updates \texttt{totalDeposited} by summing all deposits off chain (using Assoc. List UTXOs) for the upcoming cycle}
+\item{After updating rewards, admin updates \texttt{totalDeposited} by summing all deposits (including rewards) off chain (using Assoc. List UTXOs) for the upcoming cycle}
 \item{After updating rewards, admin picks rewards for the upcoming cycle and updates \texttt{totalRewards} accordingly.}
 \end{itemize}
 }
@@ -419,10 +420,10 @@ For \textbf{Further deposits}:
 \subsection{Admin Deposit (Bonding Period)}\label{subsection:adminDeposit}
 The admin should update Assoc. List UTXOs and deposit rewards for users. Use \\ $\texttt{adminAct newTotalRewards newTotalDeposited}$.  The admin is required to update the said UTXOs \textit{during} the designated admin window (\texttt{upp'adminLength}) to:
 \begin{enumerate}
-\item{Update the datum's \texttt{rewards} $\texttt{updatedRewards} = \texttt{rewards} + f *(\texttt{deposited} - \texttt{newDeposit} + \texttt{rewards})* (1 + \texttt{upp'interest})^\texttt{upp'increments}$ with $f := \frac{\texttt{deposited}}{\texttt{totalDeposited}} * \texttt{totalRewards}$. These are just rewards for the last complete bonding period (which would exclude any new deposits). Note this is zero for the \textbf{first} admin period since $\texttt{rewards}=0$ and $\texttt{deposited} = \texttt{newDeposit}.$}
+\item{Update the datum's \texttt{rewards}, $\texttt{updatedRewards} = \texttt{rewards} + f $ with $f := \frac{\texttt{deposited} - \texttt{newDeposit} + \texttt{rewards}}{\texttt{totalDeposited}} * \texttt{totalRewards}$. These are just rewards for the last complete bonding period (which would exclude any new deposits). Note this is zero for the \textbf{first} admin period since $\texttt{rewards}=0$ and $\texttt{deposited} = \texttt{newDeposit}.$}
 \item{\textit{After} the above, update Assoc. List datum's \texttt{newDeposit} to zero}
 \item{\textit{After} \texttt{rewards} are updated, set the datum's \texttt{totalRewards} (Definition~\ref{def:totalRewards}) to something \textit{new} (admin's choice)}
-\item{\textit{After} \texttt{rewards} are updated, set the datum's \texttt{totalDeposited} (Definition~\ref{def:totalDeposited}) to how much has be deposited in total so far (this can be checked off chain).}
+\item{\textit{After} \texttt{rewards} are updated, set the datum's \texttt{totalDeposited} (Definition~\ref{def:totalDeposited}) to how much has be deposited (including rewards) in total so far (this can be checked off chain).}
 
 \end{enumerate}
 
@@ -497,18 +498,17 @@ Definition~\ref{def:EntryDatum} provides the correct withdrawal rewards amount d
 \begin{enumerate}
 \item{\textbf{Closed pool:}
  $\texttt{rewards}$.  Recall, the admin sorts out the rewards in the closing admin cycle}
-\item{\textbf{Open pool:} $\texttt{withdrawRewards} = \texttt{rewards} + f* (\texttt{deposited} + \texttt{rewards})* (1 + \texttt{upp'interest})^k$
+\item{\textbf{Open pool:} $\texttt{withdrawRewards} = \texttt{rewards} + \frac{f}{(1 + \texttt{upp'interest})^k}$
 
- where $1 \leq k \leq \texttt{upp'increments}$ with $f := \frac{\texttt{deposited}}{\texttt{totalDeposited}} * \texttt{totalRewards}$. $k$ can be found off chain via the correct \texttt{POSIXTimeRange} and its length (delta) should be verified on chain}
+ where $1 \leq k \leq \texttt{upp'increments}$ with $f := \frac{\texttt{deposited} - \st{\texttt{newDeposit}} + \texttt{rewards}}{\texttt{totalDeposited}} * \texttt{totalRewards}$. $k$ can be found off chain via the correct \texttt{POSIXTimeRange} and its length (delta) should be verified on chain. Note that \texttt{newDeposit} was recently set to zero, furthermore, there is an inverse relation betweek $k$ and time passed. As we tend towards the end of the bonding period, $k=1$ and we almost get all rewards. But closer to the start, $k \sim \texttt{upp'increments}$ and we get less.}
 \end{enumerate}
 
 The withdrawal during \texttt{upp'userLength} is:
 \begin{enumerate}
 \item{\textbf{Closed pool:}
  $\texttt{rewards}$.  Recall, the admin sorts out the rewards in the closing admin cycle. Same as before.}
-\item{\textbf{Open pool:} $\texttt{withdrawRewards} = \texttt{rewards} + f* (\texttt{deposited} - \texttt{newDeposit}  + \texttt{rewards})* (1 + \texttt{upp'interest})^\texttt{upp'increments}$
-
-with $f$ as before. These are rewards for the last completed bonding cycle that should not include any recent deposits whilst open.}
+\item{\textbf{Open pool:} $\texttt{withdrawRewards} = \texttt{rewards} + f$
+with $f := \frac{\texttt{deposited} - \texttt{newDeposit} + \texttt{rewards}}{\texttt{totalDeposited}} * \texttt{totalRewards}$. These are rewards for the last completed bonding cycle that should not include any recent deposits whilst open.}
 \end{enumerate}
 
  If the NFT State UTXO is spent (as part of \textbf{open withdrawal} induction), it must be sent back to the validator also, potentially altered by head withdrawal. The on-chain associated should be correctly updated as part of the inductive conditions.
@@ -788,12 +788,12 @@ Entry
 The validator should check the (non staking) UTXOs are all unit value in inputs and outputs with correct \texttt{CurrencySymbol}s. Note that the validator is essentially doing minting checks.
 
 \begin{itemize}
-\item{If \textbf{open} during \texttt{upp'userLength}, withdraw \texttt{amount} plus \\ $\texttt{withdrawRewards} = \texttt{rewards} + f * (\texttt{amount} - \texttt{newDeposit} + \texttt{rewards})* (1 + \texttt{upp'interest})^\texttt{upp'increments}$
-(rewards for the last bonding cycle).}
-\item{If \textbf{open} during \texttt{upp'bondingLength}, withdraw \texttt{amount} plus \\ $\texttt{withdrawRewards} = \texttt{rewards} + f * (\texttt{amount} + \texttt{rewards})* (1 + \texttt{upp'interest})^\texttt{k}$ for $1 \le k \le \texttt{upp'increments}$ (rewards for current incomplete bonding window).}
+\item{If \textbf{open} during \texttt{upp'userLength}, withdraw \texttt{amount} plus \\ $\texttt{withdrawRewards} = \texttt{rewards} + f$ with $f := \frac{\texttt{amount} - \texttt{newDeposit} + \texttt{rewards}}{\texttt{totalDeposited}} * \texttt{totalRewards}$ (rewards for the last bonding cycle).}
+\item{If \textbf{open} during \texttt{upp'bondingLength}, withdraw \texttt{amount} plus \\ $\texttt{withdrawRewards} = \texttt{rewards} + \frac{f}{(1 + \texttt{upp'interest})^k}$ for $1 \le k \le \texttt{upp'increments}$
+ with $f := \frac{\texttt{amount} - \st{\texttt{newDeposit}} + \texttt{rewards}}{\texttt{totalDeposited}} * \texttt{totalRewards}$ (rewards for current incomplete bonding window).}
 \end{itemize}
 
-This all assumes the admin doesn't automatically distribute rewards upon closure. Here, $f$ is a user factor defined as $f := \frac{\texttt{deposited}}{\texttt{totalDeposited}} * \texttt{totalRewards}$. This is all verifiable on chain.
+This all assumes the admin doesn't automatically distribute rewards upon closure. This is all verifiable on chain.
 }
 
 \item{
@@ -874,12 +874,16 @@ Entry
 The validator should check the (non staking) UTXOs are all unit value in inputs and outputs with correct \texttt{CurrencySymbol}s.
 
 \begin{itemize}
-\item{If \textbf{open} during \texttt{upp'userLength}, withdraw \texttt{amount} plus \\ $\texttt{withdrawRewards'} = \texttt{rewards'} + f * (\texttt{amount'} - \texttt{newDeposit} +  \texttt{rewards'})* (1 + \texttt{upp'interest})^\texttt{upp'increments}$
-(rewards for the last bonding cycle).}
-\item{If \textbf{open} during \texttt{upp'bondingLength}, withdraw \texttt{amount} plus \\ $\texttt{withdrawRewards'} = \texttt{rewards'} + f * (\texttt{amount'} + \texttt{rewards'})* (1 + \texttt{upp'interest})^\texttt{k}$ for $1 \le k \le \texttt{upp'increments}$ (rewards for current incomplete bonding window).}
+\item{If \textbf{open} during \texttt{upp'userLength}, withdraw \texttt{amount'} plus \\ $\texttt{withdrawRewards'} = \texttt{rewards'} + f$
+ with $f := \frac{\texttt{amount'} - \texttt{newDeposit'} + \texttt{rewards'}}{\texttt{totalDeposited}} * \texttt{totalRewards}$ (rewards for the last bonding cycle).}
+\item{If \textbf{open} during \texttt{upp'bondingLength}, withdraw \texttt{amount'} plus \\ $\texttt{withdrawRewards'} = \texttt{rewards'} + \frac{f}{(1 + \texttt{upp'interest})^k}$ for $1 \le k \le \texttt{upp'increments}$
+ with $f := \frac{\texttt{amount'} - \st{\texttt{newDeposit'}} + \texttt{rewards'}}{\texttt{totalDeposited}} * \texttt{totalRewards}$
+
+ (rewards for current incomplete bonding window).}
 \end{itemize}
 
-This all assumes the admin doesn't automatically distribute rewards upon closure. Here, $f$ is a user factor defined as $f := \frac{\texttt{deposited}}{\texttt{totalDeposited}} * \texttt{totalRewards}$. This is all verifiable on chain.
+
+This all assumes the admin doesn't automatically distribute rewards upon closure.This is all verifiable on chain.
 }
 \end{enumerate}
 
