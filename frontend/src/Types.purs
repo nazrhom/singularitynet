@@ -23,7 +23,6 @@ import Data.Show.Generic (genericShow)
 import ToData (genericToData)
 import Types.ByteArray (ByteArray)
 import Types.UnbalancedTransaction (PaymentPubKeyHash)
-import Utils (big)
 
 newtype AssetClass = AssetClass
   { currencySymbol :: CurrencySymbol
@@ -78,7 +77,7 @@ instance HasConstrIndices BondedPoolParams where
 -- We copy the order of the fields from the Haskell implementation
 instance ToData BondedPoolParams where
   toData (BondedPoolParams params) =
-    Constr (big 0)
+    Constr zero
       [ toData params.iterations
       , toData params.start
       , toData params.end

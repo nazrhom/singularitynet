@@ -47,17 +47,15 @@ getUtxoWithNFT
   -> Maybe (Tuple TransactionInput TransactionOutput)
 getUtxoWithNFT utxoM cs tn =
   let
-    utxos = filter (hasNFT cs tn) $ toUnfoldable $ unwrap utxoM
+    utxos = filter hasNFT $ toUnfoldable $ unwrap utxoM
   in
     if length utxos > 1 then Nothing
     else head utxos
   where
   hasNFT
-    :: CurrencySymbol
-    -> TokenName
-    -> Tuple TransactionInput TransactionOutput
+    :: Tuple TransactionInput TransactionOutput
     -> Boolean
-  hasNFT cs tn (Tuple _ txOutput') =
+  hasNFT (Tuple _ txOutput') =
     let
       txOutput = unwrap txOutput'
       Identity plutusValue = toPlutusType txOutput.amount
