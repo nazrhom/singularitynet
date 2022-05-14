@@ -8,6 +8,7 @@ module Test.Common (
 ) where
 
 import ListNFT (pbondedListNFTPolicy)
+import PTypes (PMintingAction)
 import Plutarch.Api.V1 (PScriptContext, mintingPolicySymbol, mkMintingPolicy)
 import Plutarch.Unsafe (punsafeCoerce)
 import Plutus.V1.Ledger.Api (
@@ -17,7 +18,6 @@ import Plutus.V1.Ledger.Api (
   TxOutRef (TxOutRef, txOutRefId, txOutRefIdx),
  )
 import StateNFT (pbondedStateNFTPolicy)
-import PTypes (PMintingAction)
 
 -- The CurrencySymbol associated with the state NFT
 testStateCurrencySymbol :: CurrencySymbol

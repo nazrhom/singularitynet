@@ -1,6 +1,6 @@
-module NPPrelude(
-    module Prelude
-    , Type
+module NPPrelude (
+  module Prelude,
+  Type,
 ) where
 
 {-
@@ -13,4 +13,4 @@ module NPPrelude(
     one side and the other
 -}
 
-import Data.Kind(Type)
+import Data.Kind (Type)

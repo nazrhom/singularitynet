@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
+
 module Common.Types (
   BondedPoolParams (..),
   BondedStakingAction (..),
@@ -38,11 +39,11 @@ import Common.Natural (
   Natural,
  )
 
-import Plutus.V1.Ledger.Api (CurrencySymbol, TokenName, POSIXTime, PubKeyHash)
+import Plutus.V1.Ledger.Api (CurrencySymbol, POSIXTime, PubKeyHash, TokenName)
 
-
--- | An `AssetClass` is simply a convenient type that wraps a CurrencySymbol
--- and TokenName
+{- | An `AssetClass` is simply a convenient type that wraps a CurrencySymbol
+ and TokenName
+-}
 data AssetClass = AssetClass
   { acCurrencySymbol :: CurrencySymbol
   , acTokenName :: TokenName
@@ -78,7 +79,6 @@ data BondedPoolParams = BondedPoolParams
   deriving stock (GHC.Generic, Show)
 
 unstableMakeIsData ''BondedPoolParams
-
 
 {- | Associacion list's entry
 

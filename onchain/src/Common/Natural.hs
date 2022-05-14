@@ -7,7 +7,7 @@ module Common.Natural (
   Natural (Natural),
   NatRatio (NatRatio),
   toTuple,
-  toRatio
+  toRatio,
 ) where
 
 {-
@@ -26,15 +26,12 @@ import Data.Ratio (
   (%),
  )
 
-import Plutus.V1.Ledger.Api (
-  BuiltinData (BuiltinData),
- )
+import Plutus.V1.Ledger.Api (BuiltinData (BuiltinData), toData)
 import PlutusTx (
   FromData (fromBuiltinData),
   ToData (toBuiltinData),
   UnsafeFromData (unsafeFromBuiltinData),
  )
-import Plutus.V1.Ledger.Api (toData)
 
 {- | A natural datatype that wraps GHC's `Natural`. By using `Natural` instead
  of `Integer` we at least get a warning when using negative literals.
@@ -106,7 +103,6 @@ instance NonNegative NatRatio where
       else Just . NatRatio . fromRational $ subtraction
     where
       subtraction = toRational r - toRational q
-
 
 -- Auxiliary functions
 gt0 :: Integer -> Maybe Natural

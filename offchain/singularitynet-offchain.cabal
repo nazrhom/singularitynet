@@ -36,6 +36,7 @@ common common-lang
   build-depends:
     , base
     , npprelude
+
   default-extensions:
     NoStarIsType
     BangPatterns
@@ -96,15 +97,18 @@ common common-lang
 library
   import:          common-lang
   exposed-modules: SingularityNetOffchain
-  build-depends:   plutip
-                   , plutus-ledger-api
-                   , aeson
+  build-depends:
+    , aeson
+    , plutip
+    , plutus-ledger-api
+
   hs-source-dirs:  src
+
 library npprelude
-  default-language:   Haskell2010
-  build-depends:      base
-  exposed-modules:    NPPrelude
-  hs-source-dirs:     src
+  default-language: Haskell2010
+  build-depends:    base
+  exposed-modules:  NPPrelude
+  hs-source-dirs:   src
 
 test-suite singularitynet-offchain-test
   import:         common-lang
@@ -113,23 +117,24 @@ test-suite singularitynet-offchain-test
   build-depends:
     , cardano-prelude            >=0.1.0.0
     , containers                 >=0.6.5.1
+    , generics-sop
     , plutip
     , plutus-contract            >=0.1.0.0
     , plutus-ledger              >=0.1.0.0
-    , plutus-pab                 >=0.1.0.0
-    , plutus-ledger-constraints
     , plutus-ledger-api
+    , plutus-ledger-constraints
+    , plutus-pab                 >=0.1.0.0
     , plutus-tx
     , singularitynet-offchain
     , tasty                      >=1.4
     , text                       >=1.2.4.1
-    , generics-sop
 
   ghc-options:    -Wall -threaded -rtsopts
-  hs-source-dirs: test
-                  -- We can only import modules from Common!
-                  ../onchain/src
-  other-modules:  SpecStateNFT
-                  Common.Types
-                  Common.Natural
-                  Common.Settings
+  hs-source-dirs: test ../onchain/src
+
+  -- We can only import modules from Common!
+  other-modules:
+    Common.Natural
+    Common.Settings
+    Common.Types
+    SpecStateNFT

@@ -1,6 +1,6 @@
 {-# LANGUAGE UndecidableInstances #-}
 {- This module contains orphan instances. This is because of two reasons:
- 
+
     * Some Plutarch types don't have `PTryFrom` instances upstream. This might
       be related to the fact that we are not using Plutarch staging, but rather
       the master version with a backport of the TryFrom feature
@@ -11,7 +11,7 @@
 -}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module PTypes(
+module PTypes (
   PBondedPoolParams (..),
   PBondedStakingAction (..),
   PMintingAction,
@@ -29,8 +29,8 @@ module PTypes(
 import GHC.Generics qualified as GHC
 import Generics.SOP (Generic, I (I))
 
-import Common.Types(AssetClass, BondedStakingAction, MintingAction, BondedPoolParams, Entry, BondedStakingDatum)
-import PNatural(PNatural, PNatRatio)
+import Common.Types (AssetClass, BondedPoolParams, BondedStakingAction, BondedStakingDatum, Entry, MintingAction)
+import PNatural (PNatRatio, PNatural)
 
 import Plutarch.Api.V1 (PMaybeData, PPOSIXTime, PTokenName, PTxId, PTxOutRef)
 import Plutarch.Api.V1.Crypto (PPubKeyHash)
@@ -46,7 +46,7 @@ import Plutarch.Lift (
  )
 import Plutarch.TryFrom (PTryFrom)
 
------ Plutarch synonyms ----- 
+----- Plutarch synonyms -----
 
 -- | `AssetClass` synonym
 newtype PAssetClass (s :: S)
@@ -102,7 +102,7 @@ newtype PBondedPoolParams (s :: S)
                , "bondedAssetClass" ':= PAssetClass
                , "nftCs" ':= PCurrencySymbol
                , "assocListCs" ':= PCurrencySymbol
-              ]
+               ]
           )
       )
   deriving stock (GHC.Generic)

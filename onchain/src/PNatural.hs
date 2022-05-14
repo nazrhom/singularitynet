@@ -1,28 +1,29 @@
 {-# LANGUAGE UndecidableInstances #-}
 {- This module contains orphan instances. This is because of one reason:
- 
+
     * The module `Types` needs to be compiled separately in the off-chain side,
       which does not have Plutarch. Because of this, the `PConstant`
       instance for `Natural` need to be defined here instead
-      
+
    Some functions from `Utils` (like `pletC` and `pfstData`) are re-defined here
    to avoid a cyclic dependency between `Utils`, `Common.Natural` and
    `Common.Types`
 -}
 {-# OPTIONS_GHC -Wno-orphans #-}
-module PNatural(
-    PNatural(..)
-    , PNatRatio(..)
-    , PNonNegative(..)
-    ) where
+
+module PNatural (
+  PNatural (..),
+  PNatRatio (..),
+  PNonNegative (..),
+) where
 
 import GHC.Generics qualified as GHC
 
-import Common.Natural(Natural(Natural), NatRatio(NatRatio), toTuple, toRatio)
+import Common.Natural (NatRatio (NatRatio), Natural (Natural), toRatio, toTuple)
 
 import Plutarch.Lift (
+  PConstant (PConstantRepr, PConstanted, pconstantFromRepr, pconstantToRepr),
   PLifted,
-  PConstant(PConstantRepr, PConstanted, pconstantToRepr, pconstantFromRepr),
   PUnsafeLiftDecl,
  )
 import Plutarch.TryFrom (PTryFrom)
@@ -113,7 +114,6 @@ class PNonNegative (a :: PType) where
   (#*) :: forall (s :: S). Term s a -> Term s a -> Term s a
   (#-) :: forall (s :: S). Term s a -> Term s a -> Term s (PMaybe a)
 
-
 instance PNonNegative PNatural where
   x #+ y = pcon . PNatural $ pto x + pto y
   x #* y = pcon . PNatural $ pto x * pto y
@@ -121,10 +121,11 @@ instance PNonNegative PNatural where
     let x' = pto x
         y' = pto y
     diff <- pletC $ x' - y'
-    pure $ pif
-      (diff #< 0)
-      (pcon PNothing)
-      (pcon . PJust $ pcon . PNatural $ diff)
+    pure $
+      pif
+        (diff #< 0)
+        (pcon PNothing)
+        (pcon . PJust $ pcon . PNatural $ diff)
 
 -- TODO: Add `PNonNegative` instances for NatRatio
 
