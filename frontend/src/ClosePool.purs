@@ -2,7 +2,7 @@ module ClosePool (closePoolContract) where
 
 import Contract.Prelude
 
-import Contract.Address (getWalletAddress, ownPaymentPubKeyHash)
+import Contract.Address (ownPaymentPubKeyHash)
 import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM)
 import Contract.PlutusData
   ( Datum(Datum)
@@ -43,18 +43,12 @@ closePoolContract (PoolInfo poolInfo) = do
     assocListCs = poolInfo.assocListCs
   adminPkh <- liftedM "closePoolContract: Cannot get admin's pkh"
     ownPaymentPubKeyHash
-  logInfo_ "Admin PaymentPubKeyHash" adminPkh
-  -- Get the (Nami) wallet address
-  adminAddr <- liftedM "closePoolContract: Cannot get wallet Address"
-    getWalletAddress
-  -- Get utxos at the wallet address
-  adminUtxos <-
-    liftedM "closePoolContract: Cannot get user Utxos" $ utxosAt adminAddr
+  logInfo_ "closePoolContract: Admin PaymentPubKeyHash" adminPkh
   -- Get the bonded pool's utxo
   bondedPoolUtxos <-
     liftedM "closePoolContract: Cannot get pool's utxos at pool address" $
       utxosAt poolAddr
-  logInfo_ "Pool's UTXOs" bondedPoolUtxos
+  logInfo_ "closePoolContract: Pool's UTXOs" bondedPoolUtxos
   -- Create parameters of the pool and validator
   params <- liftContractM "closePoolContract: Failed to create parameters" $
     hardCodedParams adminPkh nftCs assocListCs
@@ -75,7 +69,6 @@ closePoolContract (PoolInfo poolInfo) = do
     lookup :: ScriptLookups.ScriptLookups PlutusData
     lookup = mconcat
       [ ScriptLookups.validator validator
-      , ScriptLookups.unspentOutputs $ unwrap adminUtxos
       , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
       , bondedStateDatumLookup
       ]

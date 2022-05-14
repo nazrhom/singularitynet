@@ -51,7 +51,7 @@ import Plutus.V1.Ledger.Api (
  )
 import Plutus.V1.Ledger.Interval (interval)
 import Test.Common (
-  testAdminPKH,
+  testAdminPkh,
   testListCurrencySymbol,
   testStateCurrencySymbol,
  )
@@ -141,7 +141,7 @@ poolStateTxOutRef =
 adminAddr :: Address
 adminAddr =
   Address
-    { addressCredential = PubKeyCredential testAdminPKH
+    { addressCredential = PubKeyCredential testAdminPkh
     , addressStakingCredential = Nothing
     }
 
@@ -172,7 +172,7 @@ mkParameters =
     , interest = NatRatio $ 1 % 100
     , minStake = Natural 100
     , maxStake = Natural 500
-    , admin = testAdminPKH
+    , admin = testAdminPkh
     , bondedAssetClass = AssetClass adaSymbol adaToken
     , nftCs = testStateCurrencySymbol
     , assocListCs = testListCurrencySymbol
@@ -206,7 +206,7 @@ mkContext range =
           , txInfoDCert = []
           , txInfoWdrl = []
           , txInfoValidRange = range
-          , txInfoSignatories = [testAdminPKH]
+          , txInfoSignatories = [testAdminPkh]
           , txInfoData =
               [ (poolStateDatumHash, Datum $ toBuiltinData datum)
               , (poolStateNewDatumHash, Datum $ toBuiltinData newDatum)

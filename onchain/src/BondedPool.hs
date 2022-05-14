@@ -16,7 +16,6 @@ import Plutarch.Api.V1 (
   PScriptPurpose,
   PTxInfo,
  )
-import Plutarch.Api.V1.Maybe ()
 import Plutarch.Api.V1.Time (
   PPOSIXTimeRange,
  )
@@ -63,7 +62,6 @@ import Utils (
   pletDataC,
   pmatchC,
   pnestedIf,
-  ptryFromData,
   ptryFromUndata,
   (>:),
  )
@@ -110,13 +108,12 @@ pbondedPoolValidatorUntyped ::
         :--> PData
         :--> PUnit
     )
-pbondedPoolValidatorUntyped = plam $ \pparams' dat' act' ctx' -> unTermCont $ do
-  pure $
-    pbondedPoolValidator
-      # unTermCont (ptryFromUndata pparams')
-      # unTermCont (ptryFromUndata dat')
-      # unTermCont (ptryFromUndata act')
-      # punsafeCoerce ctx'
+pbondedPoolValidatorUntyped = plam $ \pparams dat act ctx ->
+  pbondedPoolValidator
+    # unTermCont (ptryFromUndata pparams)
+    # unTermCont (ptryFromUndata dat)
+    # unTermCont (ptryFromUndata act)
+    # punsafeCoerce ctx
 
 -- The pool operator calculates the new available size left
 -- TODO: Besides the logic related to updating the entries, there should also
@@ -144,7 +141,7 @@ adminActLogic txInfo purpose params inputStakingDatum sizeLeft = unTermCont $ do
   -- We check that the transaction occurs during a bonding period
   -- We don't validate this for the demo, otherwise testing becomes
   -- too difficult
-  -- period <- pure $ getPeriod # txInfoF.validRange # params
+  -- let period = getPeriod # txInfoF.validRange # params
   -- guardC "admin deposit not done in bonding period" $
   --  isBondingPeriod period
   -- We get the input's address
@@ -169,7 +166,7 @@ adminActLogic txInfo purpose params inputStakingDatum sizeLeft = unTermCont $ do
         coOutputDatum <- getDatum coOutputDatumHash $ getField @"data" txInfoF
         coOutputStakingDatum <- parseStakingDatum coOutputDatum
         -- Get new state
-        (PStateDatum state) <- pmatchC coOutputStakingDatum
+        PStateDatum state <- pmatchC coOutputStakingDatum
         stateF <- tcont $ pletFields @'["_0", "_1"] state
         -- Check conditions
         guardC "adminActLogic: update failed because of list head change" $
@@ -259,9 +256,8 @@ parseStakingDatum ::
   forall (s :: S).
   Term s PDatum ->
   TermCont s (Term s PBondedStakingDatum)
-parseStakingDatum datum = do
-  datum' <- ptryFromData @PBondedStakingDatum . pforgetData $ pdata datum
-  pure $ pfromData datum'
+parseStakingDatum datum =
+  ptryFromUndata @PBondedStakingDatum . pforgetData . pdata $ datum
 
 {- A newtype used internally for encoding different periods.
 

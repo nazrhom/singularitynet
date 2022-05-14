@@ -19,6 +19,7 @@ module Main (main) where
 import Control.Monad (when)
 import Data.Aeson.Text (encodeToLazyText)
 import Data.Text.Lazy (Text)
+import Data.Text.Lazy qualified as T
 import Data.Text.Lazy.IO qualified as TIO
 import Options.Applicative (
   CommandFields,
@@ -46,7 +47,7 @@ import Plutus.V1.Ledger.Scripts (Script)
 
 import BondedPool (pbondedPoolValidatorUntyped)
 import ListNFT (pbondedListNFTPolicyUntyped)
-import Plutarch (compile)
+import Plutarch (ClosedTerm, compile)
 import StateNFT (pbondedStateNFTPolicyUntyped)
 
 serialisePlutusScript :: Script -> Text
@@ -60,37 +61,40 @@ writeScriptToFile name filepath script =
       <> serialisePlutusScript script
       <> ",\n};"
 
+serialiseClosedTerm ::
+  forall (s :: PType). ClosedTerm s -> CLI -> String -> String -> IO ()
+serialiseClosedTerm closedTerm args name json = do
+  let script = compile closedTerm
+      hash = scriptHash script
+  writeScriptToFile
+    (T.pack name)
+    (maybe json id $ outPath args)
+    script
+  when (printHash args) $
+    putStr $ "\n" <> name <> " hash (unapplied): " <> show hash
+
 main :: IO ()
 main = do
   args <- execParser opts
   case cliCommand args of
-    SerialiseStateNFT -> do
-      let script = compile pbondedStateNFTPolicyUntyped
-          hash = scriptHash script
-      writeScriptToFile
+    SerialiseStateNFT ->
+      serialiseClosedTerm
+        pbondedStateNFTPolicyUntyped
+        args
         "bondedStateNFT"
-        (maybe "BondedStateNFT.json" id $ outPath args)
-        script
-      when (printHash args) $
-        putStr $ "\nstateNFT hash (unapplied): " <> show hash
-    SerialiseListNFT -> do
-      let script = compile pbondedListNFTPolicyUntyped
-          hash = scriptHash script
-      writeScriptToFile
+        "BondedStateNFT.json"
+    SerialiseListNFT ->
+      serialiseClosedTerm
+        pbondedListNFTPolicyUntyped
+        args
         "bondedListNFT"
-        (maybe "BondedListNFT.json" id $ outPath args)
-        script
-      when (printHash args) $
-        putStr $ "\nlistNFT hash (unapplied): " <> show hash
-    SerialiseBondedValidator -> do
-      let script = compile pbondedPoolValidatorUntyped
-          hash = scriptHash script
-      writeScriptToFile
+        "BondedListNFT.json"
+    SerialiseBondedValidator ->
+      serialiseClosedTerm
+        pbondedPoolValidatorUntyped
+        args
         "bondedPoolValidator"
-        (maybe "BondedPoolValidator.json" id $ outPath args)
-        script
-      when (printHash args) $
-        putStr $ "\npoolValidator hash (unapplied): " <> show hash
+        "BondedPoolValidator.json"
 
 -- Parsers --
 data CLI = CLI
