@@ -1,68 +1,146 @@
-module SpecStateNFT(specStateNFT) where
+module SpecStateNFT (specStateNFT) where
 
-import Data.Text(Text)
+import Data.Map (Map)
+import Data.Map qualified as Map
+import Data.Text (Text)
+import Data.Void (Void)
 
-import Plutus.V1.Ledger.Api
-import Ledger.Ada
-import Ledger.Constraints
-import Ledger.Address
-import Ledger.Scripts
-import Plutus.Contract
+import Plutus.V1.Ledger.Api (
+  MintingPolicy (MintingPolicy),
+  Script,
+  TxOutRef,
+  singleton,
+ )
+import Plutus.V1.Ledger.Scripts (
+  applyArguments,
+ )
+import PlutusTx (toData)
 
-import Test.Plutip.Contract
-import Test.Plutip.LocalCluster
-import Test.Plutip.Predicate
-import Test.Tasty (TestTree, localOption, testGroup)
+import Ledger.Address (Address, PaymentPubKeyHash)
+import Ledger.Constraints qualified as Constraints
+import Ledger.Tx qualified as Tx
+import Plutus.Contract (
+  Contract,
+  EmptySchema,
+ )
+import Plutus.Contract qualified as Contract
+import Test.Plutip.Contract (
+  assertExecution,
+  initAda,
+  withContract,
+ )
+import Test.Plutip.LocalCluster (withCluster)
+import Test.Plutip.Predicate (shouldFail, shouldSucceed)
+import Test.Tasty (TestTree)
 
-import Common.Settings(bondedStakingTokenName)
-
+import Common.Settings (bondedStakingTokenName)
+import Ledger (ChainIndexTxOut, scriptCurrencySymbol)
+import Ledger qualified as Contract
+import Ledger.Constraints (ScriptLookups)
+import Ledger.Constraints.TxConstraints (TxConstraints)
 
 specStateNFT :: Script -> TestTree
-specStateNFT _policyScript =
+specStateNFT policyScript =
   Test.Plutip.LocalCluster.withCluster
     "State NFT Policy"
-    [
-    assertExecution
+    [ assertExecution
         "should validate correct transaction"
         (initAda [100])
-        (withContract correctMint)
-        [ shouldSucceed ]
-    , assertExecution
-        "should validate correct transaction with spurious tokens"
-        (initAda [100])
-        (withContract spuriousButCorrectMint)
-        [ shouldSucceed ]
+        (withContract $ const correctMint)
+        [shouldSucceed]
     , assertExecution
         "should not mint more than once"
         (initAda [100])
-        (withContract multipleMint)
-        [ shouldFail ]
+        (withContract $ const multipleMint)
+        [shouldFail]
     , assertExecution
         "should not consume the wrong outRef"
-        (initAda [100])
-        (withContract wrongOutRefMint)
-        [ shouldFail ]
+        (initAda [100, 100])
+        (withContract $ const wrongOutRefMint)
+        [shouldFail]
     ]
+  where
+    correctMint :: Contract String EmptySchema Text ()
+    correctMint = do
+      (pkh, utxos, outRef, policy) <- initContract
+      let nftCs = scriptCurrencySymbol policy
+          value = singleton nftCs bondedStakingTokenName 1
 
-correctMint :: [PaymentPubKeyHash] -> Contract String EmptySchema Text ()
-correctMint [] = do
-    pure ()
-correctMint _ = error "correctMint: wrong number of wallets"
+          lookups :: ScriptLookups Void
+          lookups =
+            Constraints.mintingPolicy policy
+              <> Constraints.unspentOutputs utxos
+          constraints :: TxConstraints Void Void
+          constraints =
+            Constraints.mustSpendPubKeyOutput outRef
+              <> Constraints.mustMintValue value
+              <> Constraints.mustPayToPubKey pkh value
+      tx <- Contract.submitTxConstraintsWith lookups constraints
+      Contract.awaitTxConfirmed . Tx.getCardanoTxId $ tx
 
-spuriousButCorrectMint ::
-    [PaymentPubKeyHash] ->
-    Contract String EmptySchema Text ()
-spuriousButCorrectMint [] = pure ()
-spuriousButCorrectMint _ =
-    error "spuriousButCorrectMint: wrong number of wallets"
+    multipleMint :: Contract String EmptySchema Text ()
+    multipleMint = do
+      (pkh, utxos, outRef, policy) <- initContract
+      let nftCs = scriptCurrencySymbol policy
+          -- Multiple minting here
+          value = singleton nftCs bondedStakingTokenName 5
 
-multipleMint :: [PaymentPubKeyHash] -> Contract String EmptySchema Text ()
-multipleMint [] = pure ()
-multipleMint _ = error "multipleMint: wrong number of wallets"
+          lookups :: ScriptLookups Void
+          lookups =
+            Constraints.mintingPolicy policy
+              <> Constraints.unspentOutputs utxos
+          constraints :: TxConstraints Void Void
+          constraints =
+            Constraints.mustSpendPubKeyOutput outRef
+              <> Constraints.mustMintValue value
+              <> Constraints.mustPayToPubKey pkh value
+      tx <- Contract.submitTxConstraintsWith lookups constraints
+      Contract.awaitTxConfirmed . Tx.getCardanoTxId $ tx
 
-wrongOutRefMint :: [PaymentPubKeyHash] -> Contract String EmptySchema Text ()
-wrongOutRefMint [] = pure ()
-wrongOutRefMint _ = error "wrongOutRefMint: wrong number of wallets"
+    wrongOutRefMint :: Contract String EmptySchema Text ()
+    wrongOutRefMint = do
+      (pkh, utxos, outRef, policy) <- initContract
+      Contract.logInfo $ "my utxos: " <> show utxos
+      Contract.logInfo $ "state nft utxo: " <> show outRef
+      -- There should only be two UTXOs in this wallet
+      let wrongOutRef = Map.keys utxos !! 1
+      Contract.logInfo $ "will spend this utxo: " <> show wrongOutRef
 
-createPolicy :: TxOutRef -> Script -> MintingPolicy
-createPolicy outRef script = undefined
+      let nftCs = scriptCurrencySymbol policy
+          value = singleton nftCs bondedStakingTokenName 1
+
+          lookups :: ScriptLookups Void
+          lookups =
+            Constraints.mintingPolicy policy
+              <> Constraints.unspentOutputs utxos
+          constraints :: TxConstraints Void Void
+          constraints =
+            Constraints.mustSpendPubKeyOutput wrongOutRef
+              <> Constraints.mustMintValue value
+              <> Constraints.mustPayToPubKey pkh value
+      tx <- Contract.submitTxConstraintsWith lookups constraints
+      Contract.awaitTxConfirmed . Tx.getCardanoTxId $ tx
+
+    -- Common code used in all tests
+    initContract ::
+      Contract
+        String
+        EmptySchema
+        Text
+        ( PaymentPubKeyHash
+        , Map TxOutRef ChainIndexTxOut
+        , TxOutRef
+        , MintingPolicy
+        )
+    initContract = do
+      pkh <- Contract.ownPaymentPubKeyHash
+      let ownAddress :: Address
+          ownAddress = Contract.pubKeyHashAddress pkh Nothing
+      utxos <- Contract.utxosAt ownAddress
+      let outRef = head . Map.keys $ utxos
+      pure (pkh, utxos, outRef, stateNFTPolicy outRef)
+
+    -- Apply parameters of script
+    stateNFTPolicy :: TxOutRef -> MintingPolicy
+    stateNFTPolicy outRef =
+      MintingPolicy $ applyArguments policyScript [PlutusTx.toData outRef]
