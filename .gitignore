@@ -66,3 +66,11 @@ cabal.project.local*
 # hie-bios files
 onchain/hie.yaml
 offchain/hie.yaml
+
+# Spec
+*.aux
+*.log
+*.out
+*.synctex.gz
+*.toc
+spec/_*
