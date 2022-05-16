@@ -1,12 +1,16 @@
 module Main (main) where
 
 import Test.SpecNFT (nftTests)
-import Test.Tasty (TestTree, defaultMain, testGroup)
+import Test.SpecPeriod (specPeriodTests)
 import Prelude (IO)
+import Test.Tasty (TestTree, defaultMain, testGroup)
+import GHC.IO.Encoding (setLocaleEncoding, utf8)
 
 -- | @since 0.1
 main :: IO ()
-main = defaultMain tests
+main = do
+  setLocaleEncoding utf8
+  defaultMain tests
 
 {- | Project wide tests
 
@@ -18,4 +22,5 @@ tests =
     "SingularityNet"
     [
       nftTests
+      , specPeriodTests
     ]
