@@ -4,7 +4,7 @@ module Test.Common (
   testStatePolicy,
   testListPolicy,
   testStatePolicyInput,
-  testAdminPKH,
+  testAdminPkh,
 ) where
 
 import ListNFT (listNFTPolicy)
@@ -47,5 +47,5 @@ testStatePolicyInput =
     }
 
 -- | The public key hash used by the pool administrator
-testAdminPKH :: PubKeyHash
-testAdminPKH = PubKeyHash "deadbeef"
+testAdminPkh :: PubKeyHash
+testAdminPkh = PubKeyHash "deadbeef"

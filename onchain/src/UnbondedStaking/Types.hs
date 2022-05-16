@@ -23,15 +23,12 @@ module UnbondedStaking.Types (
     next
   ),
   PEntry,
-  AssetClass (..),
-  PAssetClass (PAssetClass),
-  passetClass,
 ) where
 
 import GHC.Generics qualified as GHC
 import Generics.SOP (Generic, I (I))
 
-import Plutarch.Api.V1 (PMaybeData, PPOSIXTime, PTokenName, PTxId, PTxOutRef)
+import Plutarch.Api.V1 (PMaybeData, PPOSIXTime)
 import Plutarch.Api.V1.Crypto (PPubKeyHash)
 import Plutarch.Api.V1.Value (PCurrencySymbol)
 import Plutarch.DataRepr (
@@ -48,7 +45,6 @@ import Plutus.V1.Ledger.Api (
   CurrencySymbol,
   POSIXTime,
   PubKeyHash,
-  TokenName,
  )
 import PlutusTx (unstableMakeIsData)
 import PlutusTx.Builtins.Internal (BuiltinByteString)
@@ -59,106 +55,13 @@ import Data.Natural (
   PNatRatio,
   PNatural,
  )
-
--- Orphan instance for `PMaybeData PByteString`
-deriving via
-  PAsData (PIsDataReprInstances (PMaybeData PByteString))
-  instance
-    PTryFrom PData (PAsData (PMaybeData PByteString))
-
--- Orphan instance for `PTxOutRef`
-deriving via
-  PAsData (PIsDataReprInstances PTxOutRef)
-  instance
-    PTryFrom PData (PAsData PTxOutRef)
-
--- Orphan instance for `PTxId`
-deriving via
-  PAsData (PIsDataReprInstances PTxId)
-  instance
-    PTryFrom PData (PAsData PTxId)
-
--- Orphan instance for `PCurrencySymbol`
-deriving via
-  DerivePNewtype (PAsData PCurrencySymbol) (PAsData PByteString)
-  instance
-    PTryFrom PData (PAsData PCurrencySymbol)
-
--- Orphan instance for `PPubKeyHash`
-deriving via
-  DerivePNewtype (PAsData PPubKeyHash) (PAsData PByteString)
-  instance
-    PTryFrom PData (PAsData PPubKeyHash)
-
--- Orphan instance for `PPOSIXTime`
-deriving via
-  DerivePNewtype (PAsData PPOSIXTime) (PAsData PInteger)
-  instance
-    PTryFrom PData (PAsData PPOSIXTime)
-
--- Orphan instance for `PTokenName`
-deriving via
-  DerivePNewtype (PAsData PTokenName) (PAsData PByteString)
-  instance
-    PTryFrom PData (PAsData PTokenName)
+import Types (PAssetClass, AssetClass)
 
 -- Orphan instance for `PBool`
 deriving via
   DerivePNewtype (PAsData PBool) (PAsData PByteString)
   instance
     PTryFrom PData (PAsData PBool)
-
--- | An `AssetClass` is simply a wrapper over a pair (CurrencySymbol, TokenName)
-newtype PAssetClass (s :: S)
-  = PAssetClass
-      ( Term
-          s
-          ( PDataRecord
-              '[ "currencySymbol" ':= PCurrencySymbol
-               , "tokenName" ':= PTokenName
-               ]
-          )
-      )
-  deriving stock (GHC.Generic)
-  deriving anyclass (Generic, PIsDataRepr)
-  deriving
-    (PlutusType, PIsData, PDataFields)
-    via PIsDataReprInstances PAssetClass
-
-deriving via
-  PAsData (PIsDataReprInstances PAssetClass)
-  instance
-    PTryFrom PData (PAsData PAssetClass)
-
-data AssetClass = AssetClass
-  { acCurrencySymbol :: CurrencySymbol
-  , acTokenName :: TokenName
-  }
-  deriving stock (GHC.Generic, Show)
-  deriving anyclass (Generic)
-
-unstableMakeIsData ''AssetClass
-
-deriving via
-  ( DerivePConstantViaData
-      AssetClass
-      PAssetClass
-  )
-  instance
-    PConstant AssetClass
-
-instance PUnsafeLiftDecl PAssetClass where
-  type PLifted PAssetClass = AssetClass
-
-passetClass ::
-  forall (s :: S).
-  Term s (PCurrencySymbol :--> PTokenName :--> PAssetClass)
-passetClass = phoistAcyclic $
-  plam $ \cs tn ->
-    pcon $
-      PAssetClass $
-        pdcons # pdata cs
-          #$ pdcons # pdata tn # pdnil
 
 {- | Unbonded pool's parameters
 
@@ -340,41 +243,6 @@ deriving via
 
 instance PUnsafeLiftDecl PUnbondedStakingDatum where
   type PLifted PUnbondedStakingDatum = UnbondedStakingDatum
-
-{- | Minting redeemers
-
-     These are used for staking and withdrawing funds but they are *not* used
-     for consuming the bonded pool's contract, but rather for minting the NFTs
-     that comprise each entry in the association list.
--}
-data PMintingAction (s :: S)
-  = PStake (Term s (PDataRecord '[]))
-  | PWithdraw (Term s (PDataRecord '[]))
-  deriving stock (GHC.Generic)
-  deriving anyclass (Generic, PIsDataRepr)
-  deriving
-    (PlutusType, PIsData)
-    via PIsDataReprInstances PMintingAction
-
-deriving via
-  PAsData (PIsDataReprInstances PMintingAction)
-  instance
-    PTryFrom PData (PAsData PMintingAction)
-
-data MintingAction
-  = Stake
-  | Withdraw
-  deriving stock (GHC.Generic)
-
-unstableMakeIsData ''MintingAction
-
-deriving via
-  (DerivePConstantViaData MintingAction PMintingAction)
-  instance
-    (PConstant MintingAction)
-
-instance PUnsafeLiftDecl PMintingAction where
-  type PLifted PMintingAction = MintingAction
 
 {- | Validator redeemers
 

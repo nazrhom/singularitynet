@@ -19,6 +19,7 @@ module Main (main) where
 import Control.Monad (when)
 import Data.Aeson.Text (encodeToLazyText)
 import Data.Text.Lazy (Text)
+import Data.Text.Lazy qualified as T
 import Data.Text.Lazy.IO qualified as TIO
 import Options.Applicative (
   CommandFields,
@@ -47,60 +48,89 @@ import Plutus.V1.Ledger.Scripts (Script)
 import BondedPool (pbondedPoolValidatorUntyped)
 import UnbondedStaking.UnbondedPool (punbondedPoolValidatorUntyped)
 import ListNFT (listNFTPolicyUntyped)
-import Plutarch (compile)
+import Plutarch (ClosedTerm, compile)
 import StateNFT (stateNFTPolicyUntyped)
 import Settings (bondedStakingTokenName, unbondedStakingTokenName)
 
 serialisePlutusScript :: Script -> Text
 serialisePlutusScript script = encodeToLazyText script
 
-exportScript :: Text -> Script -> Text
-exportScript name script = 
-  "exports._" <> name <> " = {\n"
-  <> "\tscript: "
-  <> serialisePlutusScript script
-  <> ",\n};\n"
+writeScriptToFile ::
+  (FilePath -> Text -> IO ()) ->
+  Text ->
+  FilePath ->
+  Script ->
+  IO ()
+writeScriptToFile writerFunc name filepath script =
+  writerFunc filepath $
+    "exports._" <> name <> " = {\n"
+      <> "\tscript: "
+      <> serialisePlutusScript script
+      <> ",\n};"
+
+serialiseClosedTerm ::
+  forall (s :: PType).
+  ClosedTerm s ->
+  (FilePath -> Text -> IO ()) ->
+  CLI ->
+  String ->
+  String ->
+  IO ()
+serialiseClosedTerm closedTerm writerFunc args name json = do
+  let script = compile closedTerm
+      hash = scriptHash script
+  writeScriptToFile
+    (writerFunc)
+    (T.pack name)
+    (maybe json id $ outPath args)
+    script
+  when (printHash args) $
+    putStr $ "\n" <> name <> " hash (unapplied): " <> show hash
 
 main :: IO ()
 main = do
   args <- execParser opts
   case cliCommand args of
     SerialiseStateNFT -> do
-      let bscript = compile $ stateNFTPolicyUntyped bondedStakingTokenName
-          bhash = scriptHash bscript
-          uscript = compile $ stateNFTPolicyUntyped unbondedStakingTokenName
-          uhash = scriptHash uscript
-      TIO.writeFile
-        (maybe "StateNFT.json" id $ outPath args)
-        (exportScript "bondedStateNFT" bscript
-        <> exportScript "unbondedStateNFT" uscript)
-      when (printHash args) $
-        putStr $ "\nbondedStateNFT hash (unapplied): " <> show bhash
-        <> "\nunbondedStateNFT hash (unapplied): " <> show uhash
-    
+      serialiseClosedTerm
+        (stateNFTPolicyUntyped bondedStakingTokenName)
+        (TIO.writeFile)
+        args
+        "bondedStateNFT"
+        "StateNFT.json"
+      serialiseClosedTerm
+        (stateNFTPolicyUntyped unbondedStakingTokenName)
+        (TIO.appendFile)
+        args
+        "unbondedStateNFT"
+        "StateNFT.json"
     SerialiseListNFT -> do
-      let script = compile listNFTPolicyUntyped
-          hash = scriptHash script
-      TIO.writeFile
-        (maybe "ListNFT.json" id $ outPath args)
-        (exportScript "bondedListNFT" script
-        <> (exportScript "unbondedListNFT" script))
-      when (printHash args) $
-        putStr $ "\nlistNFT hash (unapplied): " <> show hash
-    
+      serialiseClosedTerm
+        listNFTPolicyUntyped
+        (TIO.writeFile)
+        args
+        "bondedListNFT"
+        "ListNFT.json"
+      serialiseClosedTerm
+        listNFTPolicyUntyped
+        (TIO.appendFile)
+        args
+        "unbondedListNFT"
+        "ListNFT.json"
     SerialiseValidator -> do
-      let bscript = compile pbondedPoolValidatorUntyped
-          uscript = compile punbondedPoolValidatorUntyped
-          bhash = scriptHash bscript
-          uhash = scriptHash uscript
-      TIO.writeFile
-        (maybe "PoolValidator.json" id $ outPath args)
-        (exportScript "bondedPoolValidator" bscript
-        <> exportScript "unbondedPoolValidator" uscript)
-      when (printHash args) $
-        putStr $ "\nbondedPoolValidator hash (unapplied): " <> show bhash
-        <> "\nunbondedPoolValidator hash (unapplied): " <> show uhash
-    
+      serialiseClosedTerm
+        pbondedPoolValidatorUntyped
+        (TIO.writeFile)
+        args
+        "bondedPoolValidator"
+        "PoolValidator.json"
+      serialiseClosedTerm
+        punbondedPoolValidatorUntyped
+        (TIO.appendFile)
+        args
+        "unbondedPoolValidator"
+        "PoolValidator.json"
+
 -- Parsers --
 data CLI = CLI
   { outPath :: Maybe FilePath

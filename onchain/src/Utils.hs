@@ -5,6 +5,8 @@ module Utils (
   ple,
   pge,
   pgt,
+  ptrue,
+  pfalse,
   pnestedIf,
   pfind,
   pfstData,
@@ -55,27 +57,33 @@ pxor = phoistAcyclic $ plam $ \x y -> pnot #$ pdata x #== pdata y
 
 plt ::
   forall (s :: S) (a :: PType).
-  (POrd a) =>
+  POrd a =>
   Term s (a :--> a :--> PBool)
 plt = phoistAcyclic $ plam $ \lim x -> x #< lim
 
 ple ::
   forall (s :: S) (a :: PType).
-  (POrd a) =>
+  POrd a =>
   Term s (a :--> a :--> PBool)
 ple = phoistAcyclic $ plam $ \lim x -> x #<= lim
 
 pge ::
   forall (s :: S) (a :: PType).
-  (POrd a) =>
+  POrd a =>
   Term s (a :--> a :--> PBool)
 pge = phoistAcyclic $ plam $ \lim x -> pnot #$ x #< lim
 
 pgt ::
   forall (s :: S) (a :: PType).
-  (POrd a) =>
+  POrd a =>
   Term s (a :--> a :--> PBool)
 pgt = phoistAcyclic $ plam $ \lim x -> pnot #$ x #<= lim
+
+ptrue :: forall (s :: S). Term s PBool
+ptrue = pconstant True
+
+pfalse :: forall (s :: S). Term s PBool
+pfalse = pconstant False
 
 -- Functions for checking conditions in nested structures
 
@@ -97,7 +105,7 @@ pnestedIf ((cond, x) : conds) def = pif cond x $ pnestedIf conds def
 infixr 1 >:
 
 (>:) :: forall (a :: Type) (b :: Type). a -> b -> (a, b)
-a >: b = (a, b)
+(>:) = (,)
 
 -- Convenient functions for accessing a pair's elements
 
@@ -128,18 +136,15 @@ pfind ::
   Term s (a :--> PBool) ->
   Term s (PBuiltinList (PAsData a)) ->
   TermCont s (Term s a)
-pfind pred ls = pure $ pfind' # pred # ls
+pfind pred ls = pure $ (pfix # plam go) # ls
   where
-    pfind' :: Term s ((a :--> PBool) :--> PBuiltinList (PAsData a) :--> a)
-    pfind' = phoistAcyclic $
-      plam $ \pred ls ->
-        pforce $
-          pfoldr
-            # ( plam $ \a' err ->
-                  pif (pred # pfromData a') (pdelay $ pfromData a') err
-              )
-            # pdelay (ptraceError "pfind: element not found")
-            # ls
+    go ::
+      Term s (PBuiltinList (PAsData a) :--> a) ->
+      Term s (PBuiltinList (PAsData a)) ->
+      Term s a
+    go self ls = pmatch ls $ \case
+      PNil -> ptraceError "pfind: could not find element in list"
+      PCons x xs -> plet (pfromData x) $ \x' -> pif (pred # x') x' (self # xs)
 
 -- Functions for evaluating predicates on `PValue`s
 
@@ -259,7 +264,7 @@ pconstantC ::
   PUnsafeLiftDecl a =>
   PLifted a ->
   TermCont s (Term s a)
-pconstantC x = pure $ pconstant x
+pconstantC = pure . pconstant
 
 -- | `pmatch` for the `TermCont` monad
 pmatchC ::
@@ -279,7 +284,7 @@ pletDataC ::
   PIsData a =>
   Term s (PAsData a) ->
   TermCont s (Term s a)
-pletDataC x = pletC $ pfromData x
+pletDataC = pletC . pfromData
 
 -- | Boolean guard for the `TermCont` monad
 guardC ::
@@ -293,14 +298,14 @@ guardC errMsg cond = pure $ pif cond (pconstant ()) $ ptraceError errMsg
 
 -- | Copied from plutarch-extra
 ptryFromData ::
-  forall a s.
+  forall (a :: PType) (s :: S).
   PTryFrom PData (PAsData a) =>
   Term s PData ->
   TermCont s (Term s (PAsData a))
 ptryFromData x = fst <$> tcont (ptryFrom @(PAsData a) x)
 
 ptryFromUndata ::
-  forall a s.
+  forall (a :: PType) (s :: S).
   (PIsData a, PTryFrom PData (PAsData a)) =>
   Term s PData ->
   TermCont s (Term s a)
@@ -317,8 +322,8 @@ getCs ::
   TermCont s (Term s PCurrencySymbol)
 getCs purpose = pure $
   pmatch purpose $ \case
-    PMinting cs' -> pfield @"_0" # cs'
-    _ -> ptraceError "not a minting transaction"
+    PMinting cs -> pfield @"_0" # cs
+    _ -> ptraceError "getCs: not a minting transaction"
 
 {- | Gets the input being spent. If not available, it will fail with
  an error.
@@ -340,20 +345,24 @@ getInput purpose txInInfos = pure $ getInput' # purpose # txInInfos
         )
     getInput' = phoistAcyclic $
       plam $ \purpose txInInfos -> unTermCont $ do
-        inputOutRef <- pure $ getSpendingRef purpose
+        let inputOutRef = getSpendingRef purpose
         pfind (predicate # inputOutRef) txInInfos
     predicate ::
       forall (s :: S).
       Term s (PTxOutRef :--> PTxInInfo :--> PBool)
-    predicate = plam $ \inputOutRef txInInfo -> unTermCont $ do
-      pure $ (pdata inputOutRef) #== pdata (pfield @"outRef" # txInInfo)
+    predicate = phoistAcyclic $
+      plam $ \inputOutRef txInInfo ->
+        pdata inputOutRef #== pdata (pfield @"outRef" # txInInfo)
     getSpendingRef ::
       forall (s :: S).
       Term s PScriptPurpose ->
       Term s PTxOutRef
     getSpendingRef = flip pmatch $ \case
       PSpending outRef -> pfield @"_0" # outRef
-      _ -> ptraceError "cannot get input because tx is not of spending type"
+      _ ->
+        ptraceError
+          "getInput: cannot get input because tx is not of \
+          \spending type"
 
 {- | Gets the continuing output that shares the same address and contains the
  the given NFT. If no such output exists, it will fail with an error.
@@ -378,7 +387,7 @@ getContinuingOutputWithNFT addr ac outputs =
         )
     getContinuingOutputWithNFT' = phoistAcyclic $
       plam $ \addr ac outputs ->
-        unTermCont $ do
+        unTermCont $
           pfind
             (sameAddrAndNFT addr ac)
             outputs
@@ -391,7 +400,7 @@ getContinuingOutputWithNFT addr ac outputs =
       outputF <- tcont $ pletFields @'["address", "value"] output
       acF <- tcont $ pletFields @'["currencySymbol", "tokenName"] ac
       pure $
-        (pdata outputF.address) #== (pdata addr)
+        pdata outputF.address #== pdata addr
           #&& oneOf # acF.currencySymbol # acF.tokenName # outputF.value
 
 {- | Gets the `DatumHash` from a `PTxOut`. If not available, it will fail with
@@ -408,7 +417,10 @@ getDatumHash txOut = pure $ getDatumHash' # txOut
       plam $ \txOut ->
         pmatch (pfield @"datumHash" # txOut) $ \case
           PDJust datumHash' -> pfield @"_0" # datumHash'
-          PDNothing _ -> ptraceError "could not find datum hash in txOut"
+          PDNothing _ ->
+            ptraceError
+              "getDatumHash: could not find datum hash \
+              \in txOut"
 
 {- | Gets `Datum` by its `DatumHash`. If not available, it will fail with an
  error.
@@ -436,5 +448,6 @@ getDatum datHash dats = pure $ getDatum' # datHash # dats
     checkHash ::
       forall (s :: S).
       Term s (PDatumHash :--> PTuple PDatumHash PDatum :--> PBool)
-    checkHash = plam $ \datHash tup -> unTermCont $ do
-      pure $ pfield @"_0" # tup #== datHash
+    checkHash = phoistAcyclic $
+      plam $ \datHash tup ->
+        pfield @"_0" # tup #== datHash

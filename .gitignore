@@ -62,3 +62,15 @@ cabal.project.local*
 
 # Notes
 *.txt
+
+# hie-bios files
+onchain/hie.yaml
+offchain/hie.yaml
+
+# Spec
+*.aux
+*.log
+*.out
+*.synctex.gz
+*.toc
+spec/_*

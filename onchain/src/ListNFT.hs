@@ -75,12 +75,12 @@ getSignatory ::
   Term s (PBuiltinList (PAsData PPubKeyHash)) ->
   TermCont s (Term s PPubKeyHash)
 getSignatory ls = pure . pmatch ls $ \case
-  PCons pkh' ps ->
+  PCons pkh ps ->
     pif
       (pnull # ps)
-      (pfromData pkh')
-      (ptraceError "transaction has more than one signatory")
-  PNil -> ptraceError "empty list of signatories"
+      (pfromData pkh)
+      (ptraceError "getSignatory: transaction has more than one signatory")
+  PNil -> ptraceError "getSignatory: empty list of signatories"
 
 burnsOrMintsOnce ::
   forall (s :: S).
@@ -92,5 +92,5 @@ burnsOrMintsOnce cs tn val =
   oneOfWith
     # (peq # cs)
     # (peq # tn)
-    # (plam $ \n -> n #== 1 #|| n #== (-1))
+    # (plam $ \n -> n #== 1 #|| n #== -1)
     # val

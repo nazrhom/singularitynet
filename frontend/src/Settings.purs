@@ -60,8 +60,8 @@ bondedHardCodedParams
   -> Maybe BondedPoolParams
 bondedHardCodedParams adminPkh nftCs assocListCs = do
   interest <- interest'
-  -- currencySymbol <- agixCs
-  -- tokenName <- ntxTn
+  currencySymbol <- agixCs
+  tokenName <- agixTn
   pure $ BondedPoolParams
     { iterations: nat 3
     , start: big 1000
@@ -73,8 +73,8 @@ bondedHardCodedParams adminPkh nftCs assocListCs = do
     , maxStake: nat 10_000
     , admin: adminPkh
     , bondedAssetClass: AssetClass
-        { currencySymbol: adaSymbol
-        , tokenName: adaToken
+        { currencySymbol
+        , tokenName
         }
     , nftCs
     , assocListCs

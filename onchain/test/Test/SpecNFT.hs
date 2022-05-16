@@ -31,7 +31,7 @@ import Plutus.V1.Ledger.Api (
  )
 import Settings (bondedStakingTokenName)
 import Test.Common (
-  testAdminPKH,
+  testAdminPkh,
   testStateCurrencySymbol,
   testStatePolicy,
   testStatePolicyInput,
@@ -68,7 +68,7 @@ nftTests =
 testTxOutAddr :: Address
 testTxOutAddr =
   Address
-    { addressCredential = PubKeyCredential testAdminPKH
+    { addressCredential = PubKeyCredential testAdminPkh
     , addressStakingCredential = Nothing
     }
 
@@ -105,7 +105,7 @@ goodCtx1 =
           , txInfoDCert = []
           , txInfoWdrl = []
           , txInfoValidRange = always
-          , txInfoSignatories = [testAdminPKH]
+          , txInfoSignatories = [testAdminPkh]
           , txInfoData = []
           , txInfoId = TxId "abcdef12"
           }

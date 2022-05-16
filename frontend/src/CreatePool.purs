@@ -42,7 +42,7 @@ createBondedPoolContract = do
   networkId <- getNetworkId
   adminPkh <- liftedM "createBondedPoolContract: Cannot get admin's pkh"
     ownPaymentPubKeyHash
-  logInfo_ "Admin PaymentPubKeyHash" adminPkh
+  logInfo_ "createPoolContract: Admin PaymentPubKeyHash" adminPkh
   -- Get the (Nami) wallet address
   adminAddr <- liftedM "createBondedPoolContract: Cannot get wallet Address"
     getWalletAddress
@@ -53,7 +53,7 @@ createBondedPoolContract = do
   txOutRef <- liftContractM "createBondedPoolContract: Could not get head UTXO"
     $ fst
     <$> (head $ toUnfoldable $ unwrap adminUtxos)
-  logInfo_ "Admin Utxos" adminUtxos
+  logInfo_ "createPoolContract: Admin Utxos" adminUtxos
   -- Get the minting policy and currency symbol from the state NFT:
   statePolicy <- liftedE $ mkStateNFTPolicy Bonded txOutRef
   stateNftCs <-
@@ -83,7 +83,7 @@ createBondedPoolContract = do
   let
     mintValue = singleton stateNftCs tokenName one
     poolAddr = validatorHashEnterpriseAddress networkId valHash
-  logInfo_ "BondedPool Validator's address" poolAddr
+  logInfo_ "createPoolContract: BondedPool Validator's address" poolAddr
   let
     -- We initalize the pool with no head entry and a pool size of 100_000_000
     bondedStateDatum = Datum $ toData $ StateDatum
