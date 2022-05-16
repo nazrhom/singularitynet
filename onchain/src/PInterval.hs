@@ -9,6 +9,7 @@ module PInterval (
   lowerBoundLe,
   upperBoundLt,
   upperBoundLe,
+  getBondedPeriod,
   (<|),
   (|<),
   (<=|),
@@ -24,6 +25,7 @@ import Plutarch.Api.V1 (
   ),
   PInterval (PInterval),
   PLowerBound (PLowerBound),
+  PPOSIXTimeRange,
   PTuple,
   PUpperBound (PUpperBound),
   ptuple,
@@ -33,8 +35,10 @@ import GHC.Generics qualified as GHC
 import Generics.SOP (Generic, I (I))
 
 import PNatural (PNatural)
+import PTypes (PBondedPoolParams, PPeriod (BondingPeriod, ClosingPeriod, DepositWithdrawPeriod, OnlyWithdrawPeriod, UnavailablePeriod))
 import Plutarch.Api.V1.Time (PPOSIXTime)
-import Utils (pfalse, ple, pletC, plt, pmatchC, ptrue)
+import Plutarch.Unsafe (punsafeCoerce)
+import Utils (pfalse, ple, pletC, pletDataC, plt, pmatchC, pnestedIf, ptrue, (>:))
 
 -- Functions for working with intervals
 
@@ -411,3 +415,75 @@ pext ::
   Term s a ->
   Term s (PAsData (PExtended a))
 pext p = pdata $ pcon $ PFinite $ pdcons # pdata p # pdnil
+
+-- | Get the BondedPool's period a certain POSIXTimeRange belongs to
+getBondedPeriod ::
+  Term
+    s
+    ( PPOSIXTimeRange
+        :--> PBondedPoolParams
+        :--> PPeriod
+    )
+getBondedPeriod = phoistAcyclic $
+  plam $
+    \txTimeRange params ->
+      getPeriod' txTimeRange params
+  where
+    getPeriod' ::
+      forall (s :: S).
+      Term s PPOSIXTimeRange ->
+      Term s PBondedPoolParams ->
+      Term s PPeriod
+    getPeriod' txTimeRange params = unTermCont $ do
+      -- Retrieve fields
+      paramsF <-
+        tcont $
+          pletFields
+            @'["iterations", "start", "end", "userLength", "bondingLength"]
+            params
+      -- Convert from data
+      iterations' <- pletDataC paramsF.iterations
+      let iterations :: Term s PInteger
+          iterations = pto iterations'
+      start <- pletDataC paramsF.start
+      end <- pletDataC paramsF.end
+      userLength <- pletDataC paramsF.userLength
+      bondingLength <- pletDataC paramsF.bondingLength
+      -- We define the periodic intervals in which the Deposit/Withdrawal
+      -- and Bonding will happen
+      period <- pletC $ punsafeCoerce $ pto userLength + pto bondingLength
+      let depositWithdrawal =
+            PPeriodicInterval
+              { piBaseOffset = start
+              , piPeriod = period
+              , piStartOffset = pconstant 0
+              , piEndOffset = userLength
+              , piMaxCycles = iterations'
+              }
+          bonding =
+            depositWithdrawal
+              { piStartOffset = userLength
+              , piEndOffset = bondingLength
+              }
+      piDepositWithdrawal <- pletC $ pcon depositWithdrawal
+      piBonding <- pletC $ pcon bonding
+      pure $
+        pnestedIf
+          [ pintervalTo start `pcontains` txTimeRange
+              >: pcon UnavailablePeriod
+          , pperiodicContains # piDepositWithdrawal # txTimeRange
+              >: pcon DepositWithdrawPeriod
+          , pperiodicContains # piBonding # txTimeRange
+              >: pcon BondingPeriod
+          , pcontains
+              ( pinterval
+                  (punsafeCoerce $ iterations * pto period + pto start)
+                  end
+              )
+              txTimeRange
+              >: pcon OnlyWithdrawPeriod
+          , pintervalFrom end `pcontains` txTimeRange
+              >: pcon ClosingPeriod
+          ]
+          $ ptraceError
+            "the transaction's range does not belong to any valid period"
