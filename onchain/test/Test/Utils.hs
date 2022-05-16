@@ -26,7 +26,9 @@ fails x = case evaluateScript $ compile x of
   Right (_, _, s) -> assertFailure $ "Script did not err: " <> printScript s
 
 returnsTrue :: ClosedTerm PBool -> Assertion
-returnsTrue x = succeeds $ pif x (pconstant ()) perror
+returnsTrue x = succeeds $
+  pif x (pconstant ()) $ ptraceError "returnsTrue: script returned False"
 
 returnsFalse :: ClosedTerm PBool -> Assertion
-returnsFalse x = succeeds $ pif x perror $ pconstant ()
+returnsFalse x = succeeds $
+  pif x (ptraceError "returnsFalse: script returned True") $ pconstant ()
