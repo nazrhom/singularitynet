@@ -1,6 +1,5 @@
 module Main (main) where
 
-import Test.SpecBondedAdmin (bondedAdminTests)
 import Test.SpecNFT (nftTests)
 import Test.Tasty (TestTree, defaultMain, testGroup)
 import Prelude (IO)
@@ -17,6 +16,6 @@ tests :: TestTree
 tests =
   testGroup
     "SingularityNet"
-    [ nftTests
-    , bondedAdminTests
+    [
+      nftTests
     ]
