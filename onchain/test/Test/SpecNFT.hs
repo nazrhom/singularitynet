@@ -45,21 +45,25 @@ nftTests =
   testGroup
     "NFT tests"
     [ testCase "should validate correct transaction" $
-        succeeds $ (testStatePolicy bondedStakingTokenName)
-          # pconstant ()
-          # pconstant goodCtx1
+        succeeds $
+          (testStatePolicy bondedStakingTokenName)
+            # pconstant ()
+            # pconstant goodCtx1
     , testCase "should validate correct transaction with spurious tokens" $
-        succeeds $ (testStatePolicy bondedStakingTokenName)
-          # pconstant ()
-          # pconstant goodCtx2
+        succeeds $
+          (testStatePolicy bondedStakingTokenName)
+            # pconstant ()
+            # pconstant goodCtx2
     , testCase "should not mint more than once" $
-        fails $ (testStatePolicy bondedStakingTokenName)
-          # pconstant ()
-          # pconstant badCtx1
+        fails $
+          (testStatePolicy bondedStakingTokenName)
+            # pconstant ()
+            # pconstant badCtx1
     , testCase "should not consume the wrong outRef" $
-        fails $ (testStatePolicy bondedStakingTokenName)
-          # pconstant ()
-          # pconstant badCtx2
+        fails $
+          (testStatePolicy bondedStakingTokenName)
+            # pconstant ()
+            # pconstant badCtx2
     ]
 
 -- Test data --
@@ -109,8 +113,9 @@ goodCtx1 =
           , txInfoData = []
           , txInfoId = TxId "abcdef12"
           }
-    , scriptContextPurpose = Minting
-        $ testStateCurrencySymbol bondedStakingTokenName
+    , scriptContextPurpose =
+        Minting $
+          testStateCurrencySymbol bondedStakingTokenName
     }
 
 -- It's good, but contains spurious tokens with zero quantity in its mint field
@@ -161,10 +166,11 @@ badCtx2 =
     }
 
 goodMint1 :: Value
-goodMint1 = singleton
-  (testStateCurrencySymbol bondedStakingTokenName)
-  bondedStakingTokenName
-  1
+goodMint1 =
+  singleton
+    (testStateCurrencySymbol bondedStakingTokenName)
+    bondedStakingTokenName
+    1
 
 goodMint2 :: Value
 goodMint2 =
@@ -173,7 +179,8 @@ goodMint2 =
     <> singleton "efefef" "RandomTokenName2" 0
 
 badMint1 :: Value
-badMint1 = singleton
-  (testStateCurrencySymbol bondedStakingTokenName)
-  bondedStakingTokenName
-  10
+badMint1 =
+  singleton
+    (testStateCurrencySymbol bondedStakingTokenName)
+    bondedStakingTokenName
+    10

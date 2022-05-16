@@ -1,6 +1,6 @@
 module Settings (
-    bondedStakingTokenName,
-    unbondedStakingTokenName
+  bondedStakingTokenName,
+  unbondedStakingTokenName,
 ) where
 
 {-

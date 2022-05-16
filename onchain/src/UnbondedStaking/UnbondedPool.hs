@@ -15,6 +15,7 @@ import Plutarch.Unsafe (punsafeCoerce)
 import UnbondedStaking.Types (
   PUnbondedPoolParams,
   PUnbondedStakingAction (
+
   ),
   PUnbondedStakingDatum,
  )
@@ -36,7 +37,6 @@ punbondedPoolValidator =
   phoistAcyclic $
     plam $ \_ _ _ _ -> unTermCont $ do
       pure $ pconstant ()
-
 
 -- Untyped version to be serialised. This version is responsible for verifying
 -- that the parameters (pool params, datum and redeemer) have the proper types.

@@ -55,7 +55,7 @@ import Data.Natural (
   PNatRatio,
   PNatural,
  )
-import Types (PAssetClass, AssetClass)
+import Types (AssetClass, PAssetClass)
 
 -- Orphan instance for `PBool`
 deriving via
@@ -278,7 +278,7 @@ data PUnbondedStakingAction (s :: S)
   deriving
     (PlutusType, PIsData)
     via PIsDataReprInstances PUnbondedStakingAction
-  
+
 deriving via
   PAsData (PIsDataReprInstances PUnbondedStakingAction)
   instance
