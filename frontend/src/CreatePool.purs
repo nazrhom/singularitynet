@@ -31,14 +31,18 @@ import Data.Map (toUnfoldable)
 import Scripts.BondedListNFT (mkBondedListNFTPolicy)
 import Scripts.BondedPoolValidator (mkBondedPoolValidator)
 import Scripts.BondedStateNFT (mkBondedStateNFTPolicy)
-import Settings (bondedStakingTokenName, hardCodedParams)
-import Types (BondedStakingDatum(StateDatum), PoolInfo)
-import Utils (logInfo_, nat)
+import Settings (bondedStakingTokenName)
+import Types
+  ( BondedPoolParams
+  , BondedStakingDatum(StateDatum)
+  , InitialBondedParams
+  )
+import Utils (logInfo_, mkBondedPoolParams, nat)
 
 -- Sets up pool configuration, mints the state NFT and deposits
 -- in the pool validator's address
-createPoolContract :: Contract () PoolInfo
-createPoolContract = do
+createPoolContract :: InitialBondedParams -> Contract () BondedPoolParams
+createPoolContract ibp = do
   networkId <- getNetworkId
   adminPkh <- liftedM "createPoolContract: Cannot get admin's pkh"
     ownPaymentPubKeyHash
@@ -67,8 +71,7 @@ createPoolContract = do
   tokenName <- liftContractM "createPoolContract: Cannot create TokenName"
     bondedStakingTokenName
   -- We define the parameters of the pool
-  params <- liftContractM "createPoolContract: Failed to create parameters" $
-    hardCodedParams adminPkh stateNftCs assocListCs
+  let params = mkBondedPoolParams adminPkh stateNftCs assocListCs ibp
   -- Get the bonding validator and hash
   validator <- liftedE' "createPoolContract: Cannot create validator" $
     mkBondedPoolValidator params
@@ -119,4 +122,4 @@ createPoolContract = do
     $ byteArrayToHex
     $ unwrap transactionHash
   -- Return the pool info for subsequent transactions
-  pure $ wrap { stateNftCs, assocListCs, poolAddr }
+  pure params

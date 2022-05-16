@@ -12,6 +12,7 @@ import Contract.Monad
   , defaultServerConfig
   , defaultSlotConfig
   , launchAff_
+  , liftContractM
   , mkContractConfig
   , runContract_
   )
@@ -20,7 +21,7 @@ import CreatePool (createPoolContract)
 import Data.Int (toNumber)
 import DepositPool (depositPoolContract)
 import Effect.Aff (delay)
-import Effect.Aff.Class (liftAff)
+import Settings (testInitBondedParams)
 
 main :: Effect Unit
 main = launchAff_ $ do
@@ -36,9 +37,11 @@ main = launchAff_ $ do
     , wallet
     }
   runContract_ cfg $ do
-    poolInfo <- createPoolContract
+    initParams <- liftContractM "main: Cannot initiate bonded parameters"
+      testInitBondedParams
+    bondedParams <- createPoolContract initParams
     -- sleep in order to wait for tx
     liftAff $ delay $ wrap $ toNumber 80_000
-    depositPoolContract poolInfo
+    depositPoolContract bondedParams
     liftAff $ delay $ wrap $ toNumber 80_000
-    closePoolContract poolInfo
+    closePoolContract bondedParams

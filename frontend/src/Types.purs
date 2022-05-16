@@ -1,16 +1,17 @@
 module Types
-  ( BondedPoolParams(..)
-  , BondedStakingDatum(..)
+  ( AssetClass(..)
+  , BondedPoolParams(..)
   , BondedStakingAction(..)
-  , PoolInfo(..)
-  , AssetClass(..)
+  , BondedStakingDatum(..)
   , Entry(..)
+  , InitialBondedParams(..)
+  , PoolInfo(..)
   ) where
 
 import Contract.Prelude
 
 import ConstrIndices (class HasConstrIndices, defaultConstrIndices)
-import Contract.Address (Address)
+import Contract.Address (Address, PaymentPubKeyHash)
 import Contract.Numeric.Natural (Natural)
 import Contract.Numeric.Rational (Rational)
 import Contract.PlutusData (class ToData, PlutusData(..), toData)
@@ -22,7 +23,6 @@ import Data.Newtype (class Newtype)
 import Data.Show.Generic (genericShow)
 import ToData (genericToData)
 import Types.ByteArray (ByteArray)
-import Types.UnbalancedTransaction (PaymentPubKeyHash)
 
 newtype AssetClass = AssetClass
   { currencySymbol :: CurrencySymbol
@@ -37,6 +37,9 @@ instance HasConstrIndices AssetClass where
 
 instance ToData AssetClass where
   toData = genericToData
+
+instance Show AssetClass where
+  show = genericShow
 
 newtype PoolInfo = PoolInfo
   { stateNftCs :: CurrencySymbol
@@ -73,6 +76,25 @@ derive instance Eq BondedPoolParams
 derive instance Newtype BondedPoolParams _
 instance HasConstrIndices BondedPoolParams where
   constrIndices = defaultConstrIndices
+
+newtype InitialBondedParams = InitialBondedParams
+  { iterations :: Natural
+  , start :: BigInt
+  , end :: BigInt
+  , userLength :: BigInt
+  , bondingLength :: BigInt
+  , interest :: Rational
+  , minStake :: Natural
+  , maxStake :: Natural
+  , bondedAssetClass :: AssetClass
+  }
+
+derive instance Generic InitialBondedParams _
+derive instance Newtype InitialBondedParams _
+derive instance Eq InitialBondedParams
+
+instance Show InitialBondedParams where
+  show = genericShow
 
 -- We copy the order of the fields from the Haskell implementation
 instance ToData BondedPoolParams where
