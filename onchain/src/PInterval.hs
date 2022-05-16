@@ -400,7 +400,7 @@ pperiodicContains = plam $ \pi i' -> unTermCont $ do
         (piStartOffset #<= iStartOffset)
       #&& ptraceIfFalse
         "pperiodicContains: transaction range ends too late"
-        (piEndOffset #<= iEndOffset)
+        (iEndOffset #<= piEndOffset)
   where
     getTime ::
       Term s (PExtended PPOSIXTime) -> TermCont s (Term s PPOSIXTime)
