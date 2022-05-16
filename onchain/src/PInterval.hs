@@ -255,9 +255,9 @@ pinterval ::
 pinterval p1 p2 = pinterval' lBound hBound
   where
     lBound :: Term s (PLowerBound a)
-    lBound = plowerBound p1 $ ptrue
+    lBound = plowerBound p1 ptrue
     hBound :: Term s (PUpperBound a)
-    hBound = pupperBound p2 $ pfalse
+    hBound = pupperBound p2 pfalse
 
 -- | Build an interval out of two bounds.
 pinterval' ::
@@ -281,7 +281,7 @@ pintervalFrom ::
 pintervalFrom p = pinterval' lBound pposInf
   where
     lBound :: Term s (PLowerBound a)
-    lBound = plowerBound p $ ptrue
+    lBound = plowerBound p ptrue
     pposInf :: forall (s :: S) (a :: PType). Term s (PUpperBound a)
     pposInf =
       pcon $
