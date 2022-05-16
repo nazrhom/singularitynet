@@ -391,7 +391,7 @@ pperiodicContains = plam $ \pi i' -> unTermCont $ do
   pure $
     ptraceIfFalse
       "pperiodicContains: transaction range too wide"
-      (iEndOffset - iStartOffset #<= piEndOffset - piStartOffset)
+      (iEnd - iStart #<= piEndOffset - piStartOffset)
       #&& ptraceIfFalse
         "pperiodicContains: cycle not within bounds"
         (0 #<= cycleN #&& cycleN #<= maxCycles)
