@@ -394,7 +394,7 @@ getInput purpose txInInfos = pure $ getInput' # purpose # txInInfos
       Term s (PTxOutRef :--> PTxInInfo :--> PBool)
     predicate = phoistAcyclic $
       plam $ \inputOutRef txInInfo ->
-        (pdata inputOutRef) #== pdata (pfield @"outRef" # txInInfo)
+        pdata inputOutRef #== pdata (pfield @"outRef" # txInInfo)
     getSpendingRef ::
       forall (s :: S).
       Term s PScriptPurpose ->
@@ -442,7 +442,7 @@ getContinuingOutputWithNFT addr ac outputs =
       outputF <- tcont $ pletFields @'["address", "value"] output
       acF <- tcont $ pletFields @'["currencySymbol", "tokenName"] ac
       pure $
-        pdata outputF.address #== (pdata addr)
+        pdata outputF.address #== pdata addr
           #&& oneOf # acF.currencySymbol # acF.tokenName # outputF.value
 
 {- | Gets the `DatumHash` from a `PTxOut`. If not available, it will fail with
