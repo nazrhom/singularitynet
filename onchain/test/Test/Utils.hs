@@ -1,6 +1,8 @@
 module Test.Utils (
   succeeds,
   fails,
+  returnsTrue,
+  returnsFalse
 ) where
 
 import Test.Tasty ()
@@ -22,3 +24,9 @@ fails x = case evaluateScript $ compile x of
   Left (Scripts.EvaluationException _ _) -> mempty
   Left e -> assertFailure $ "Script is malformed" <> show e
   Right (_, _, s) -> assertFailure $ "Script did not err: " <> printScript s
+
+returnsTrue :: ClosedTerm PBool -> Assertion
+returnsTrue x = succeeds $ pif x (pconstant ()) perror
+
+returnsFalse :: ClosedTerm PBool -> Assertion
+returnsFalse x = succeeds $ pif x perror $ pconstant ()
