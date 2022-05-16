@@ -136,57 +136,15 @@ pfind ::
   Term s (a :--> PBool) ->
   Term s (PBuiltinList (PAsData a)) ->
   TermCont s (Term s a)
-pfind pred ls = pure $ pfind' # pred # ls
-  where
-    pfind' :: Term s ((a :--> PBool) :--> PBuiltinList (PAsData a) :--> a)
-    pfind' =
-      plam $ \pred ls ->
-        extract $
-          pfoldlEither
-            (accumF pred)
-            (pconstant ())
-            ls
-    accumF ::
-      Term s (a :--> PBool) -> Term s (PUnit :--> a :--> PEither a PUnit)
-    accumF pred = plam $ \_ x ->
-      pif
-        (pred # x)
-        (pcon . PLeft $ x)
-        (pcon . PRight $ pconstant ())
-    extract :: Term s (PEither a PUnit) -> Term s a
-    extract = flip pmatch $ \case
-      PLeft x -> x
-      PRight _ -> ptraceError "pfind: could not find element in list"
-
-{- | A `foldl` that can short-circuit whenever the accumulating function
- produces `PLeft`.
--}
-pfoldlEither ::
-  forall (s :: S) (a :: PType) (b :: PType) (e :: PType).
-  PIsData a =>
-  Term s (b :--> a :--> PEither e b) ->
-  Term s b ->
-  Term s (PBuiltinList (PAsData a)) ->
-  Term s (PEither e b)
-pfoldlEither accumF acc ls = (pfix # plam go) # accumF # acc # ls
+pfind pred ls = pure $ (pfix # plam go) # ls
   where
     go ::
-      Term
-        s
-        ( (b :--> a :--> PEither e b)
-            :--> b
-            :--> PBuiltinList (PAsData a)
-            :--> PEither e b
-        ) ->
-      Term s (b :--> a :--> PEither e b) ->
-      Term s b ->
+      Term s (PBuiltinList (PAsData a) :--> a) ->
       Term s (PBuiltinList (PAsData a)) ->
-      Term s (PEither e b)
-    go self accumF acc ls = pmatch ls $ \case
-      PCons x xs -> pmatch (accumF # acc # pfromData x) $ \case
-        PRight newAcc -> self # accumF # newAcc # xs
-        PLeft e -> pcon . PLeft $ e
-      PNil -> pcon . PRight $ acc
+      Term s a
+    go self ls = pmatch ls $ \case
+      PNil -> ptraceError "pfind: could not find element in list"
+      PCons x xs -> plet (pfromData x) $ \x' -> pif (pred # x') x' (self # xs)
 
 -- Functions for evaluating predicates on `PValue`s
 
