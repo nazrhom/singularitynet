@@ -1,11 +1,16 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
+-- This module contains some orphan instances for common Plutarch datatypes. For
+-- some reason, these are not available upstream.
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Types (
-  BondedPoolParams (BondedPoolParams, operator, bondedStakingStateCs),
+  BondedPoolParams (..),
   PBondedPoolParams,
   BondedStakingAction (..),
   PBondedStakingAction (..),
+  MintingAction (Stake, Withdraw),
+  PMintingAction,
   BondedStakingDatum (..),
   PBondedStakingDatum (..),
   Entry (
@@ -20,17 +25,15 @@ module Types (
     rewards
   ),
   PEntry,
-  AssetClass (AssetClass, unAssetClass),
-  acCurrencySymbol,
-  acTokenName,
-  mkAssetClass,
-  PAssetClass,
+  AssetClass (..),
+  PAssetClass (PAssetClass),
+  passetClass,
 ) where
 
 import GHC.Generics qualified as GHC
 import Generics.SOP (Generic, I (I))
 
-import Plutarch.Api.V1 (PMaybeData, PPOSIXTime, PTokenName)
+import Plutarch.Api.V1 (PMaybeData, PPOSIXTime, PTokenName, PTxId, PTxOutRef)
 import Plutarch.Api.V1.Crypto (PPubKeyHash)
 import Plutarch.Api.V1.Value (PCurrencySymbol)
 import Plutarch.DataRepr (
@@ -39,40 +42,93 @@ import Plutarch.DataRepr (
   PIsDataReprInstances (PIsDataReprInstances),
  )
 import Plutarch.Lift (
-  DerivePConstantViaNewtype (DerivePConstantViaNewtype),
   PLifted,
   PUnsafeLiftDecl,
  )
+import Plutarch.TryFrom (PTryFrom)
 import Plutus.V1.Ledger.Api (
   CurrencySymbol,
+  POSIXTime,
   PubKeyHash,
   TokenName,
  )
 import PlutusTx (unstableMakeIsData)
 import PlutusTx.Builtins.Internal (BuiltinByteString)
 
-import Numeric (
+import Data.Natural (
   NatRatio,
   Natural,
   PNatRatio,
   PNatural,
  )
 
+-- Orphan instance for `PMaybeData PByteString`
+deriving via
+  PAsData (PIsDataReprInstances (PMaybeData PByteString))
+  instance
+    PTryFrom PData (PAsData (PMaybeData PByteString))
+
+-- Orphan instance for `PTxOutRef`
+deriving via
+  PAsData (PIsDataReprInstances PTxOutRef)
+  instance
+    PTryFrom PData (PAsData PTxOutRef)
+
+-- Orphan instance for `PTxId`
+deriving via
+  PAsData (PIsDataReprInstances PTxId)
+  instance
+    PTryFrom PData (PAsData PTxId)
+
+-- Orphan instance for `PCurrencySymbol`
+deriving via
+  DerivePNewtype (PAsData PCurrencySymbol) (PAsData PByteString)
+  instance
+    PTryFrom PData (PAsData PCurrencySymbol)
+
+-- Orphan instance for `PPubKeyHash`
+deriving via
+  DerivePNewtype (PAsData PPubKeyHash) (PAsData PByteString)
+  instance
+    PTryFrom PData (PAsData PPubKeyHash)
+
+-- Orphan instance for `PPOSIXTime`
+deriving via
+  DerivePNewtype (PAsData PPOSIXTime) (PAsData PInteger)
+  instance
+    PTryFrom PData (PAsData PPOSIXTime)
+
+-- Orphan instance for `PTokenName`
+deriving via
+  DerivePNewtype (PAsData PTokenName) (PAsData PByteString)
+  instance
+    PTryFrom PData (PAsData PTokenName)
+
 -- | An `AssetClass` is simply a wrapper over a pair (CurrencySymbol, TokenName)
 newtype PAssetClass (s :: S)
   = PAssetClass
-      ( Term s (PBuiltinPair PCurrencySymbol PTokenName)
+      ( Term
+          s
+          ( PDataRecord
+              '[ "currencySymbol" ':= PCurrencySymbol
+               , "tokenName" ':= PTokenName
+               ]
+          )
       )
   deriving stock (GHC.Generic)
+  deriving anyclass (Generic, PIsDataRepr)
   deriving
-    (PlutusType)
-    via ( DerivePNewtype
-            PAssetClass
-            (PBuiltinPair PCurrencySymbol PTokenName)
-        )
+    (PlutusType, PIsData, PDataFields)
+    via PIsDataReprInstances PAssetClass
 
-newtype AssetClass = AssetClass
-  { unAssetClass :: (CurrencySymbol, TokenName)
+deriving via
+  PAsData (PIsDataReprInstances PAssetClass)
+  instance
+    PTryFrom PData (PAsData PAssetClass)
+
+data AssetClass = AssetClass
+  { acCurrencySymbol :: CurrencySymbol
+  , acTokenName :: TokenName
   }
   deriving stock (GHC.Generic, Show)
   deriving anyclass (Generic)
@@ -80,25 +136,25 @@ newtype AssetClass = AssetClass
 unstableMakeIsData ''AssetClass
 
 deriving via
-  ( DerivePConstantViaNewtype
+  ( DerivePConstantViaData
       AssetClass
       PAssetClass
-      (PBuiltinPair PCurrencySymbol PTokenName)
   )
   instance
-    (PConstant AssetClass)
+    PConstant AssetClass
 
 instance PUnsafeLiftDecl PAssetClass where
   type PLifted PAssetClass = AssetClass
 
--- | A Natural is a wrapper over integer
-mkAssetClass :: CurrencySymbol -> TokenName -> AssetClass
-mkAssetClass cs tn = AssetClass (cs, tn)
-
-acCurrencySymbol :: AssetClass -> CurrencySymbol
-acCurrencySymbol = fst . unAssetClass
-acTokenName :: AssetClass -> TokenName
-acTokenName = snd . unAssetClass
+passetClass ::
+  forall (s :: S).
+  Term s (PCurrencySymbol :--> PTokenName :--> PAssetClass)
+passetClass = phoistAcyclic $
+  plam $ \cs tn ->
+    pcon $
+      PAssetClass $
+        pdcons # pdata cs
+          #$ pdcons # pdata tn # pdnil
 
 {- | Bonded pool's parameters
 
@@ -135,9 +191,24 @@ newtype PBondedPoolParams (s :: S)
     (PlutusType, PIsData, PDataFields)
     via PIsDataReprInstances PBondedPoolParams
 
+deriving via
+  PAsData (PIsDataReprInstances PBondedPoolParams)
+  instance
+    PTryFrom PData (PAsData PBondedPoolParams)
+
 data BondedPoolParams = BondedPoolParams
-  { operator :: PubKeyHash
-  , bondedStakingStateCs :: CurrencySymbol
+  { iterations :: Natural
+  , start :: POSIXTime
+  , end :: POSIXTime
+  , userLength :: POSIXTime
+  , bondingLength :: POSIXTime
+  , interest :: NatRatio
+  , minStake :: Natural
+  , maxStake :: Natural
+  , admin :: PubKeyHash
+  , bondedAssetClass :: AssetClass
+  , nftCs :: CurrencySymbol
+  , assocListCs :: CurrencySymbol
   }
   deriving stock (GHC.Generic, Show)
 
@@ -164,11 +235,11 @@ data PEntry (s :: S)
           ( PDataRecord
               '[ "key" ':= PByteString
                , "sizeLeft" ':= PNatural
-               , "newDeposit" ':= PMaybeData PNatural
+               , "newDeposit" ':= PNatural
                , "deposited" ':= PNatural
                , "staked" ':= PNatural
                , "rewards" ':= PNatRatio
-               , "value" ':= PBuiltinPair PNatural PNatRatio
+               , "value" ':= PBuiltinPair (PAsData PNatural) (PAsData PNatRatio)
                , "next" ':= PMaybeData PByteString
                ]
           )
@@ -179,10 +250,15 @@ data PEntry (s :: S)
     (PlutusType, PIsData, PDataFields)
     via PIsDataReprInstances PEntry
 
+deriving via
+  PAsData (PIsDataReprInstances PEntry)
+  instance
+    PTryFrom PData (PAsData PEntry)
+
 data Entry = Entry
   { key :: BuiltinByteString
   , sizeLeft :: Natural
-  , newDeposit :: Maybe Natural
+  , newDeposit :: Natural
   , deposited :: Natural
   , staked :: Natural
   , rewards :: NatRatio
@@ -238,6 +314,11 @@ data PBondedStakingDatum (s :: S)
     (PlutusType, PIsData)
     via PIsDataReprInstances PBondedStakingDatum
 
+deriving via
+  PAsData (PIsDataReprInstances PBondedStakingDatum)
+  instance
+    (PTryFrom PData (PAsData PBondedStakingDatum))
+
 data BondedStakingDatum
   = StateDatum (Maybe BuiltinByteString) Natural
   | EntryDatum Entry
@@ -268,6 +349,11 @@ data PMintingAction (s :: S)
   deriving
     (PlutusType, PIsData)
     via PIsDataReprInstances PMintingAction
+
+deriving via
+  PAsData (PIsDataReprInstances PMintingAction)
+  instance
+    PTryFrom PData (PAsData PMintingAction)
 
 data MintingAction
   = Stake
@@ -310,6 +396,11 @@ data PBondedStakingAction (s :: S)
   deriving
     (PlutusType, PIsData)
     via PIsDataReprInstances PBondedStakingAction
+
+deriving via
+  PAsData (PIsDataReprInstances PBondedStakingAction)
+  instance
+    PTryFrom PData (PAsData PBondedStakingAction)
 
 data BondedStakingAction
   = AdminAct Natural

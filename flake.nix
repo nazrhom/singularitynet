@@ -8,7 +8,7 @@
 
     plutip.url = "github:mlabs-haskell/plutip?rev=88d069d68c41bfd31b2057446a9d4e584a4d2f32";
 
-    plutarch.url = "github:Plutonomicon/plutarch";
+    plutarch.url = "github:CardaxDEX/plutarch?rev=e5a50283a0cb01ce1fee880943becda1ac19f3a0";
     plutarch.inputs.haskell-nix.follows = "plutip/haskell-nix";
     plutarch.inputs.nixpkgs.follows = "plutip/nixpkgs";
 
@@ -18,7 +18,7 @@
       repo = "cardano-transaction-lib";
       # NOTE
       # Keep this in sync with the rev in `frontend/packages.dhall`
-      rev = "cb0af8f023a7f5f1cadeba8a8f2e02523f661371";
+      rev = "03e65b0ebc0be3ccbc98a0621ce786390f887129";
     };
   };
 
@@ -194,7 +194,7 @@
             flake = {
               packages = {
                 frontend-bundle-web = project.bundlePursProject {
-                  sources = [ "exe" ];
+                  sources = [ "src" "exe" ];
                   main = "Main";
                 };
               };
@@ -206,7 +206,7 @@
               checks = {
                 frontend = project.runPursTest {
                   name = "singularitynet-frontend";
-                  sources = [ "exe" "test" ];
+                  sources = [ "src" "test" ];
                   testMain = "Test.Main";
                 };
 

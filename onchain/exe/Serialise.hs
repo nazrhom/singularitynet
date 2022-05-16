@@ -1,13 +1,14 @@
 module Main (main) where
 
-{-
+{- TODO: Update documentation
   This executable can generate CBOR encodings of the NFT minting policy and
   the BondedPool validator. It takes the necessary arguments from the CLI
   to generate them. The resulting scripts are *fully* applied.
 
   Some examples:
 
-  cabal exec serialise -- nft <Transaction Hash> <Output Index>
+  cabal exec serialise -- state-nft <Transaction Hash> <Output Index>
+  cabal exec serialise -- list-nft <Transaction Hash> <Output Index> <Public Key Hash>
   cabal exec serialise -- validator <Transaction Hash> <Output Index> <Public Key Hash>
 
   Use -v to print to console the policy/validator hash and -o to choose a
@@ -15,19 +16,16 @@ module Main (main) where
   the result to screen.
 -}
 
-import BondedPool (hbondedPoolValidator)
 import Control.Monad (when)
-import Data.Aeson (encode, toJSON)
-import Data.ByteString.Lazy qualified as LBS
-import NFT (hbondedStakingNFTPolicy)
+import Data.Aeson.Text (encodeToLazyText)
+import Data.Text.Lazy (Text)
+import Data.Text.Lazy qualified as T
+import Data.Text.Lazy.IO qualified as TIO
 import Options.Applicative (
   CommandFields,
   Mod,
   Parser,
   ParserInfo,
-  ReadM,
-  argument,
-  auto,
   command,
   execParser,
   fullDesc,
@@ -40,62 +38,63 @@ import Options.Applicative (
   short,
   showDefault,
   str,
-  strArgument,
   subparser,
   switch,
   value,
  )
-import Plutarch.Api.V1 (mintingPolicySymbol, validatorHash)
-import Plutus.V1.Ledger.Api (
-  CurrencySymbol,
-  MintingPolicy (getMintingPolicy),
-  PubKeyHash,
-  TokenName (unTokenName),
-  Validator (getValidator),
- )
-import Plutus.V1.Ledger.Bytes (LedgerBytes (LedgerBytes))
+import Plutarch.Api.V1 (scriptHash)
 import Plutus.V1.Ledger.Scripts (Script)
-import Plutus.V1.Ledger.Tx (TxOutRef (TxOutRef))
-import Plutus.V1.Ledger.TxId (TxId)
-import Settings (bondedStakingTokenName)
-import Types (BondedPoolParams (BondedPoolParams))
 
-serialisePlutusScript :: FilePath -> Script -> IO ()
-serialisePlutusScript filepath script =
-  let content = encode $ toJSON script
-   in LBS.writeFile filepath content
+import BondedPool (pbondedPoolValidatorUntyped)
+import ListNFT (pbondedListNFTPolicyUntyped)
+import Plutarch (ClosedTerm, compile)
+import StateNFT (pbondedStateNFTPolicyUntyped)
+
+serialisePlutusScript :: Script -> Text
+serialisePlutusScript script = encodeToLazyText script
+
+writeScriptToFile :: Text -> FilePath -> Script -> IO ()
+writeScriptToFile name filepath script =
+  TIO.writeFile filepath $
+    "exports._" <> name <> " = {\n"
+      <> "\tscript: "
+      <> serialisePlutusScript script
+      <> ",\n};"
+
+serialiseClosedTerm ::
+  forall (s :: PType). ClosedTerm s -> CLI -> String -> String -> IO ()
+serialiseClosedTerm closedTerm args name json = do
+  let script = compile closedTerm
+      hash = scriptHash script
+  writeScriptToFile
+    (T.pack name)
+    (maybe json id $ outPath args)
+    script
+  when (printHash args) $
+    putStr $ "\n" <> name <> " hash (unapplied): " <> show hash
 
 main :: IO ()
 main = do
   args <- execParser opts
   case cliCommand args of
-    SerialiseNFT txOutRef -> do
-      let policy = hbondedStakingNFTPolicy txOutRef
-          cs = mintingPolicySymbol policy
-      serialisePlutusScript
-        (maybe "nft_policy.json" id $ outPath args)
-        (getMintingPolicy policy)
-      when (printHash args) $
-        printVerbose cs
-    SerialiseValidator txOutRef pkh -> do
-      let policy = hbondedStakingNFTPolicy txOutRef
-          cs = mintingPolicySymbol policy
-          validator = hbondedPoolValidator $ BondedPoolParams pkh cs
-          vh = validatorHash validator
-      serialisePlutusScript
-        (maybe "validator.json" id $ outPath args)
-        (getValidator validator)
-      when (printHash args) $ do
-        putStrLn $ "Validator hash: " <> show vh
-        printVerbose cs
-
-printVerbose :: CurrencySymbol -> IO ()
-printVerbose cs = do
-  putStrLn $ "Currency symbol: " <> show cs
-  putStrLn $ "Token name: " <> show bondedStakingTokenName
-  putStrLn $
-    "Token name (hex): "
-      <> (show . LedgerBytes . unTokenName $ bondedStakingTokenName)
+    SerialiseStateNFT ->
+      serialiseClosedTerm
+        pbondedStateNFTPolicyUntyped
+        args
+        "bondedStateNFT"
+        "BondedStateNFT.json"
+    SerialiseListNFT ->
+      serialiseClosedTerm
+        pbondedListNFTPolicyUntyped
+        args
+        "bondedListNFT"
+        "BondedListNFT.json"
+    SerialiseBondedValidator ->
+      serialiseClosedTerm
+        pbondedPoolValidatorUntyped
+        args
+        "bondedPoolValidator"
+        "BondedPoolValidator.json"
 
 -- Parsers --
 data CLI = CLI
@@ -105,15 +104,16 @@ data CLI = CLI
   }
 
 data CLICommand
-  = SerialiseNFT TxOutRef
-  | SerialiseValidator TxOutRef PubKeyHash
+  = SerialiseStateNFT
+  | SerialiseListNFT
+  | SerialiseBondedValidator
 
 opts :: ParserInfo CLI
 opts =
   info
     parser
     ( fullDesc
-        <> progDesc "Serialise the NFT policy or the validator"
+        <> progDesc "Serialise a NFT policy or the bonded pool's validator"
     )
 
 parser :: Parser CLI
@@ -124,58 +124,41 @@ parser =
     <*> commandParser
 
 commandParser :: Parser CLICommand
-commandParser = subparser $ serialiseNFTCommand <> serialiseValidatorCommand
+commandParser =
+  subparser $
+    serialiseStateNFTCommand
+      <> serialiseListNFTCommand
+      <> serialiseValidatorCommand
 
-serialiseNFTCommand :: Mod CommandFields CLICommand
-serialiseNFTCommand =
-  command "nft" $
+serialiseStateNFTCommand :: Mod CommandFields CLICommand
+serialiseStateNFTCommand =
+  command "state-policy" $
     info
-      (SerialiseNFT <$> txOutRefParser)
+      (pure SerialiseStateNFT)
       ( fullDesc
           <> progDesc
-            "Serialise the NFT minting policy by providing a \
-            \UTXO"
+            "Serialise the NFT minting policy of the bonded pool"
+      )
+
+serialiseListNFTCommand :: Mod CommandFields CLICommand
+serialiseListNFTCommand =
+  command "list-policy" $
+    info
+      (pure SerialiseListNFT)
+      ( fullDesc
+          <> progDesc
+            "Serialise the NFT minting policy of the association list"
       )
 
 serialiseValidatorCommand :: Mod CommandFields CLICommand
 serialiseValidatorCommand =
   command "validator" $
     info
-      ( SerialiseValidator
-          <$> txOutRefParser
-          <*> pubKeyHashParser
-      )
+      (pure SerialiseBondedValidator)
       ( fullDesc
           <> progDesc
-            "Serialise the validator by providing a UTXO (used to obtain the \
-            \appropiate minting policy) and the stake pool operator's public \
-            \key hash"
+            "Serialise the bonded pool validator"
       )
-
-pubKeyHashParser :: Parser PubKeyHash
-pubKeyHashParser =
-  strArgument
-    ( metavar "PKH"
-        <> help "The public key hash corresponding to the stake pool's wallet"
-    )
-
-txOutRefParser :: Parser TxOutRef
-txOutRefParser = TxOutRef <$> txIdParser <*> integerParser
-
-txIdParser :: Parser TxId
-txIdParser =
-  strArgument
-    ( metavar "TXID"
-        <> help "The transaction id containing the desired output"
-    )
-
-integerParser :: Parser Integer
-integerParser =
-  argument
-    (auto :: ReadM Integer)
-    ( metavar "IDX"
-        <> help "The index of the output"
-    )
 
 outOption :: Parser (Maybe FilePath)
 outOption =

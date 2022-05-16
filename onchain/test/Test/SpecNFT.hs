@@ -2,19 +2,10 @@
 
 module Test.SpecNFT (nftTests) where
 
-import NFT (pbondedStakingNFTPolicy)
-import Plutarch.Api.V1 (
-  PScriptContext,
-  mintingPolicySymbol,
-  mkMintingPolicy,
- )
-import Plutarch.Unsafe (punsafeCoerce)
 import Plutus.V1.Ledger.Ada (lovelaceValueOf)
 import Plutus.V1.Ledger.Api (
   Address (Address, addressCredential, addressStakingCredential),
   Credential (PubKeyCredential),
-  CurrencySymbol,
-  PubKeyHash (PubKeyHash),
   ScriptContext (ScriptContext, scriptContextPurpose, scriptContextTxInfo),
   ScriptPurpose (Minting),
   TxId (TxId),
@@ -39,6 +30,12 @@ import Plutus.V1.Ledger.Api (
   singleton,
  )
 import Settings (bondedStakingTokenName)
+import Test.Common (
+  testAdminPkh,
+  testStateCurrencySymbol,
+  testStatePolicy,
+  testStatePolicyInput,
+ )
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
 import Test.Utils (fails, succeeds)
@@ -48,32 +45,23 @@ nftTests =
   testGroup
     "NFT tests"
     [ testCase "should validate correct transaction" $
-        succeeds $ testPolicy # pconstant () # pconstant goodCtx1
+        succeeds $ testStatePolicy # pconstant () # pconstant goodCtx1
     , testCase "should validate correct transaction with spurious tokens" $
-        succeeds $ testPolicy # pconstant () # pconstant goodCtx2
+        succeeds $ testStatePolicy # pconstant () # pconstant goodCtx2
     , testCase "should not mint more than once" $
-        fails $ testPolicy # pconstant () # pconstant badCtx1
+        fails $ testStatePolicy # pconstant () # pconstant badCtx1
     , testCase "should not consume the wrong outRef" $
-        fails $ testPolicy # pconstant () # pconstant badCtx2
+        fails $ testStatePolicy # pconstant () # pconstant badCtx2
     ]
 
 -- Test data --
 
--- The CurrencySymbol associated with the policy
-testCurrencySymbol :: CurrencySymbol
-testCurrencySymbol =
-  mintingPolicySymbol $ mkMintingPolicy $ punsafeCoerce $ testPolicy
-
--- The policy
-testPolicy :: forall (s :: S). Term s (PUnit :--> PScriptContext :--> PUnit)
-testPolicy = pbondedStakingNFTPolicy # pconstant testInputTxOutRef
-
--- The UTXO used to mint the NFT
-testInputTxOutRef :: TxOutRef
-testInputTxOutRef =
-  TxOutRef
-    { txOutRefId = TxId "ffffeeee"
-    , txOutRefIdx = 0
+-- The address of all the the UTXOs involved (no validators are used)
+testTxOutAddr :: Address
+testTxOutAddr =
+  Address
+    { addressCredential = PubKeyCredential testAdminPkh
+    , addressStakingCredential = Nothing
     }
 
 -- The value contained by the previous UTXO
@@ -85,18 +73,6 @@ testInputTxOut =
     , txOutDatumHash = Nothing
     }
 
--- The address of all the the UTXOs involved (no validators are used)
-testTxOutAddr :: Address
-testTxOutAddr =
-  Address
-    { addressCredential = PubKeyCredential testPubKeyHash
-    , addressStakingCredential = Nothing
-    }
-
--- The public key hash used for signing
-testPubKeyHash :: PubKeyHash
-testPubKeyHash = PubKeyHash "deadbeef"
-
 -- Contexts
 goodCtx1 :: ScriptContext
 goodCtx1 =
@@ -105,7 +81,7 @@ goodCtx1 =
         TxInfo
           { txInfoInputs =
               [ TxInInfo
-                  { txInInfoOutRef = testInputTxOutRef
+                  { txInInfoOutRef = testStatePolicyInput
                   , txInInfoResolved = testInputTxOut
                   }
               ]
@@ -121,11 +97,11 @@ goodCtx1 =
           , txInfoDCert = []
           , txInfoWdrl = []
           , txInfoValidRange = always
-          , txInfoSignatories = [testPubKeyHash]
+          , txInfoSignatories = [testAdminPkh]
           , txInfoData = []
           , txInfoId = TxId "abcdef12"
           }
-    , scriptContextPurpose = Minting testCurrencySymbol
+    , scriptContextPurpose = Minting testStateCurrencySymbol
     }
 
 -- It's good, but contains spurious tokens with zero quantity in its mint field
@@ -176,7 +152,7 @@ badCtx2 =
     }
 
 goodMint1 :: Value
-goodMint1 = singleton testCurrencySymbol bondedStakingTokenName 1
+goodMint1 = singleton testStateCurrencySymbol bondedStakingTokenName 1
 
 goodMint2 :: Value
 goodMint2 =
@@ -185,4 +161,4 @@ goodMint2 =
     <> singleton "efefef" "RandomTokenName2" 0
 
 badMint1 :: Value
-badMint1 = singleton testCurrencySymbol bondedStakingTokenName 10
+badMint1 = singleton testStateCurrencySymbol bondedStakingTokenName 10

@@ -101,10 +101,12 @@ library
   import:          common-lang
   exposed-modules:
     BondedPool
-    NFT
-    Numeric
+    Data.Interval
+    Data.Natural
+    ListNFT
     Settings
     SingularityNet
+    StateNFT
     Types
     Utils
 
@@ -140,6 +142,8 @@ test-suite singularitynet-test
     , tasty-quickcheck
 
   other-modules:
+    Test.Common
+    Test.SpecBondedAdmin
     Test.SpecNFT
     Test.Utils
 

@@ -1,6 +1,6 @@
-module NFT (
-  pbondedStakingNFTPolicy,
-  hbondedStakingNFTPolicy,
+module StateNFT (
+  pbondedStateNFTPolicy,
+  pbondedStateNFTPolicyUntyped,
 ) where
 
 {-
@@ -12,27 +12,26 @@ module NFT (
 -}
 
 import Plutarch.Api.V1 (
-  PCurrencySymbol,
   PScriptContext,
-  PScriptPurpose (PMinting),
   PTxInInfo,
   PTxOutRef,
   PValue,
-  mkMintingPolicy,
  )
 import Plutarch.Monadic qualified as P
 import Plutarch.Unsafe (punsafeCoerce)
-import Plutus.V1.Ledger.Api (MintingPolicy)
-import Plutus.V1.Ledger.Tx (TxOutRef)
 
 import Settings (bondedStakingTokenName)
-import Utils (oneOf)
+import Utils (
+  getCs,
+  oneOf,
+  ptryFromUndata,
+ )
 
-pbondedStakingNFTPolicy ::
+pbondedStateNFTPolicy ::
   forall (s :: S). Term s (PTxOutRef :--> PUnit :--> PScriptContext :--> PUnit)
-pbondedStakingNFTPolicy = plam $ \txOutRef _ ctx' -> P.do
+pbondedStateNFTPolicy = plam $ \txOutRef _ ctx' -> P.do
   ctx <- pletFields @'["txInfo", "purpose"] ctx'
-  cs <- getCs ctx.purpose
+  cs <- runTermCont $ getCs ctx.purpose
   txInfo <- pletFields @'["inputs", "mint", "id"] $ ctx.txInfo
   let mint :: Term s PValue
       mint = pfromData txInfo.mint
@@ -45,20 +44,12 @@ pbondedStakingNFTPolicy = plam $ \txOutRef _ ctx' -> P.do
     (pconstant ())
     perror
 
-hbondedStakingNFTPolicy :: TxOutRef -> MintingPolicy
-hbondedStakingNFTPolicy utxo =
-  mkMintingPolicy $ punsafeCoerce $ pbondedStakingNFTPolicy # pconstant utxo
-
--- Gets the currency symbol of the script (equivalent to ownCurrencySymbol)
-getCs ::
-  forall (s :: S).
-  Term s PScriptPurpose ->
-  (Term s PCurrencySymbol -> Term s PUnit) ->
-  Term s PUnit
-getCs purpose cont = P.do
-  pmatch purpose $ \case
-    PMinting cs' -> cont $ pfield @"_0" # cs'
-    _ -> ptrace "not a minting transaction" perror
+pbondedStateNFTPolicyUntyped ::
+  forall (s :: S). Term s (PData :--> PData :--> PData :--> PUnit)
+pbondedStateNFTPolicyUntyped = plam $ \utxo _ ctx' ->
+  pbondedStateNFTPolicy # unTermCont (ptryFromUndata utxo)
+    # pconstant ()
+    # punsafeCoerce ctx'
 
 consumesRef ::
   forall (s :: S).
