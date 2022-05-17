@@ -51,16 +51,16 @@ listNFTPolicy = plam $ \nftCs _mintAct ctx' -> unTermCont $ do
   _cs <- pletC nftCs
   ctx <- tcont $ pletFields @'["txInfo", "purpose"] ctx'
   -- Own CurrencySymbol
-  cs <- getCs ctx . purpose
-  txInfo <- tcont $ pletFields @'["signatories", "mint"] ctx . txInfo
+  cs <- getCs ctx.purpose
+  txInfo <- tcont $ pletFields @'["signatories", "mint"] ctx.txInfo
   -- Get a *single* signatory or fail
-  signatory <- getSignatory txInfo . signatories
+  signatory <- getSignatory txInfo.signatories
   -- Calculate TokenName based on PubKeyHash
   let tn :: Term s PTokenName
       tn = pcon . PTokenName $ pblake2b_256 # pto signatory
   -- Check the token was minted or burnt *once*
   guardC "failed when checking minted value" $
-    burnsOrMintsOnce cs tn txInfo . mint
+    burnsOrMintsOnce cs tn txInfo.mint
   pconstantC ()
 
 listNFTPolicyUntyped ::
