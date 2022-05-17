@@ -4,8 +4,7 @@ module CallContract
   , callCreatePool
   , callDepositPool
   , mkContractConfiguration
-  )
-  where
+  ) where
 
 import Contract.Prelude
 
