@@ -176,10 +176,9 @@ fromInitialBondedArgs iba = do
     note
       ( error
           $
-            "fromInitialBondedArgs: Could not convert \
-            \ "
+            "fromInitialBondedArgs: Could not convert "
           <> name
-          <> " to  Natural"
+          <> " to Natural"
       ) $ fromBigInt bint
 
 toBondedPoolArgs :: BondedPoolParams -> BondedPoolArgs
@@ -242,10 +241,9 @@ fromBondedPoolArgs bpa = do
     note
       ( error
           $
-            "fromBondedPoolArgs: Could not convert \
-            \ "
+            "fromBondedPoolArgs: Could not convert "
           <> name
-          <> " to  Natural"
+          <> " to Natural"
       ) $ fromBigInt bint
 
   toCs :: String -> Either Error CurrencySymbol
