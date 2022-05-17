@@ -188,6 +188,7 @@
               inherit src;
               projectName = "singularitynet-frontend";
               nodejs = pkgs.nodejs-12_x;
+              shell.packages = [ pkgs.fd ];
             };
           in
           {

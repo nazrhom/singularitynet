@@ -8,8 +8,9 @@
   },
   "scripts": {
     "test": "spago run --main Test.Main",
-    "dev": "make run-dev",
-    "build": "make run-build"
+    "ps:dev": "make ps-dev",
+    "ps:build": "make ps-build",
+    "js:build": "make js-build"
   },
   "author": "",
   "dependencies": {
