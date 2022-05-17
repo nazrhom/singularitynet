@@ -15,12 +15,12 @@ import Plutarch.Evaluate (evaluateScript)
 import Plutus.V1.Ledger.Scripts qualified as Scripts
 
 -- Most of these are taken from Plutarch's example tests
-succeeds :: ClosedTerm PUnit -> Assertion
+succeeds :: forall (a :: PType) . ClosedTerm a -> Assertion
 succeeds x = case evaluateScript $ compile x of
   Left e -> assertFailure $ "Script evaluation failed: " <> show e
   Right _ -> pure ()
 
-fails :: ClosedTerm PUnit -> Assertion
+fails :: forall (a :: PType) . ClosedTerm a -> Assertion
 fails x = case evaluateScript $ compile x of
   Left (Scripts.EvaluationError _ _) -> mempty
   Left (Scripts.EvaluationException _ _) -> mempty
