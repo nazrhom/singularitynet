@@ -11,17 +11,7 @@ module UnbondedStaking.Types (
   PUnbondedStakingAction (..),
   UnbondedStakingDatum (..),
   PUnbondedStakingDatum (..),
-  Entry (
-    Entry,
-    key,
-    deposited,
-    newDeposit,
-    rewards,
-    totalRewards,
-    totalDeposited,
-    open,
-    next
-  ),
+  Entry (..),
   PEntry,
 ) where
 
@@ -77,19 +67,19 @@ newtype PUnbondedPoolParams (s :: S)
       ( Term
           s
           ( PDataRecord
-              '[ "upp'start" ':= PPOSIXTime
-               , "upp'userLength" ':= PPOSIXTime
-               , "upp'adminLength" ':= PPOSIXTime
-               , "upp'bondingLength" ':= PPOSIXTime
-               , "upp'interestLength" ':= PPOSIXTime
-               , "upp'increments" ':= PNatural
-               , "upp'interest" ':= PNatRatio
-               , "upp'minStake" ':= PNatural
-               , "upp'maxStake" ':= PNatural
-               , "upp'admin" ':= PPubKeyHash
-               , "upp'unbondedAssetClass" ':= PAssetClass
-               , "upp'nftCs" ':= PCurrencySymbol
-               , "upp'assocListCs" ':= PCurrencySymbol
+              '[ "start" ':= PPOSIXTime
+               , "userLength" ':= PPOSIXTime
+               , "adminLength" ':= PPOSIXTime
+               , "bondingLength" ':= PPOSIXTime
+               , "interestLength" ':= PPOSIXTime
+               , "increments" ':= PNatural
+               , "interest" ':= PNatRatio
+               , "minStake" ':= PNatural
+               , "maxStake" ':= PNatural
+               , "admin" ':= PPubKeyHash
+               , "unbondedAssetClass" ':= PAssetClass
+               , "nftCs" ':= PCurrencySymbol
+               , "assocListCs" ':= PCurrencySymbol
                ]
           )
       )
@@ -105,19 +95,19 @@ deriving via
     PTryFrom PData (PAsData PUnbondedPoolParams)
 
 data UnbondedPoolParams = UnbondedPoolParams
-  { upp'start :: POSIXTime -- absolute time
-  , upp'userLength :: POSIXTime -- a time delta
-  , upp'adminLength :: POSIXTime -- a time delta
-  , upp'bondingLength :: POSIXTime -- a time delta
-  , upp'interestLength :: POSIXTime -- a time delta
-  , upp'increments :: Natural
-  , upp'interest :: NatRatio -- interest per increment
-  , upp'minStake :: Natural
-  , upp'maxStake :: Natural
-  , upp'admin :: PubKeyHash -- #NOTE# Spec divergence in bonded (PaymentPubKeyHash)
-  , upp'unbondedAssetClass :: AssetClass
-  , upp'nftCs :: CurrencySymbol -- this uniquely parametrizes the validator
-  , upp'assocListCs :: CurrencySymbol -- CurrencySymbol for on-chain associated list UTXOs
+  { start :: POSIXTime -- absolute time
+  , userLength :: POSIXTime -- a time delta
+  , adminLength :: POSIXTime -- a time delta
+  , bondingLength :: POSIXTime -- a time delta
+  , interestLength :: POSIXTime -- a time delta
+  , increments :: Natural
+  , interest :: NatRatio -- interest per increment
+  , minStake :: Natural
+  , maxStake :: Natural
+  , admin :: PubKeyHash
+  , unbondedAssetClass :: AssetClass
+  , nftCs :: CurrencySymbol -- this uniquely parametrizes the validator
+  , assocListCs :: CurrencySymbol -- CurrencySymbol for on-chain associated list UTXOs
   }
   deriving stock (GHC.Generic, Show)
 

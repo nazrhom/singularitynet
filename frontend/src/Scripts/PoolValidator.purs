@@ -6,13 +6,12 @@ module Scripts.PoolValidator
 import Contract.Prelude
 
 import Contract.Monad (Contract, liftedE)
-import Contract.Scripts (Validator(Validator), applyArgs)
+import Contract.Scripts (ClientError, Validator(Validator), applyArgs)
+import Contract.PlutusData (class ToData, toData)
 import Data.Argonaut (Json, JsonDecodeError)
-import QueryM (ClientError)
-import ToData (toData)
 import Types (BondedPoolParams)
-import UnbondedStaking.Types (UnbondedPoolParams)
 import Types.Scripts (PlutusScript)
+import UnbondedStaking.Types (UnbondedPoolParams)
 import Utils (jsonReader)
 
 -- | This is the parameterized validator script. It still needs to receive a
@@ -29,9 +28,7 @@ mkBondedPoolValidator
   :: forall (r :: Row Type)
    . BondedPoolParams
   -> Contract r (Either ClientError Validator)
-mkBondedPoolValidator params = do
-  unappliedScript <- liftedE $ pure $ bondedPoolValidator
-  applyArgs (Validator unappliedScript) [ toData params ]
+mkBondedPoolValidator = mkValidator bondedPoolValidator
 
 -- | This function takes a `UnbondedPoolParams` and produces the `Validator`
 -- for the bonded pool
@@ -39,8 +36,16 @@ mkUnbondedPoolValidator
   :: forall (r :: Row Type)
    . UnbondedPoolParams
   -> Contract r (Either ClientError Validator)
-mkUnbondedPoolValidator params = do
-  unappliedScript <- liftedE $ pure $ unbondedPoolValidator
+mkUnbondedPoolValidator = mkValidator unbondedPoolValidator
+
+mkValidator
+  :: forall (a :: Type) (r :: Row Type)
+   . ToData a
+  => Either JsonDecodeError PlutusScript
+  -> a
+  -> Contract r (Either ClientError Validator)
+mkValidator ps params = do
+  unappliedScript <- liftedE $ pure ps
   applyArgs (Validator unappliedScript) [ toData params ]
 
 foreign import _bondedPoolValidator :: Json

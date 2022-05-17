@@ -31,19 +31,24 @@ import Data.Map (toUnfoldable)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Scripts.StateNFT (mkStateNFTPolicy)
-import Settings (unbondedStakingTokenName, unbondedHardCodedParams)
-import Types (PoolInfo, StakingType(Unbonded))
-import UnbondedStaking.Types (UnbondedStakingDatum(StateDatum))
-import Utils (logInfo_)
+import Settings (unbondedStakingTokenName)
+import Types (StakingType(Unbonded))
+import UnbondedStaking.Types
+ ( InitialUnbondedParams
+ , UnbondedPoolParams
+ , UnbondedStakingDatum(StateDatum)
+ )
+import Utils (logInfo_, mkUnbondedPoolParams)
 
 -- Sets up pool configuration, mints the state NFT and deposits
 -- in the pool validator's address
-createUnbondedPoolContract :: Contract () PoolInfo
-createUnbondedPoolContract = do
+createUnbondedPoolContract
+  :: InitialUnbondedParams -> Contract () UnbondedPoolParams
+createUnbondedPoolContract iup = do
   networkId <- getNetworkId
   adminPkh <- liftedM "createUnbondedPoolContract: Cannot get admin's pkh"
     ownPaymentPubKeyHash
-  logInfo_ "Admin PaymentPubKeyHash" adminPkh
+  logInfo_ "createUnbondedPoolContract: Admin PaymentPubKeyHash" adminPkh
   -- Get the (Nami) wallet address
   adminAddr <- liftedM "createUnbondedPoolContract: Cannot get wallet Address"
     getWalletAddress
@@ -55,7 +60,7 @@ createUnbondedPoolContract = do
     liftContractM "createUnbondedPoolContract: Could not get head UTXO"
       $ fst
       <$> (head $ toUnfoldable $ unwrap adminUtxos)
-  logInfo_ "Admin Utxos" adminUtxos
+  logInfo_ "createUnbondedPoolContract: Admin Utxos" adminUtxos
   -- Get the minting policy and currency symbol from the state NFT:
   statePolicy <- liftedE $ mkStateNFTPolicy Unbonded txOutRef
   stateNftCs <-
@@ -75,9 +80,7 @@ createUnbondedPoolContract = do
     liftContractM "createUnbondedPoolContract: Cannot create TokenName"
       unbondedStakingTokenName
   -- We define the parameters of the pool
-  params <-
-    liftContractM "createUnbondedPoolContract: Failed to create parameters"
-      $ unbondedHardCodedParams adminPkh stateNftCs assocListCs
+  let params = mkUnbondedPoolParams adminPkh stateNftCs assocListCs iup
   -- Get the bonding validator and hash
   validator <- liftedE' "createUnbondedPoolContract: Cannot create validator"
     $ mkUnbondedPoolValidator params
@@ -86,7 +89,8 @@ createUnbondedPoolContract = do
   let
     mintValue = singleton stateNftCs tokenName one
     poolAddr = validatorHashEnterpriseAddress networkId valHash
-  logInfo_ "UnbondedPool Validator's address" poolAddr
+  logInfo_
+    "createUnbondedPoolContract: UnbondedPool Validator's address" poolAddr
   let
     unbondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
@@ -129,4 +133,4 @@ createUnbondedPoolContract = do
     $ byteArrayToHex
     $ unwrap transactionHash
   -- Return the pool info for subsequent transactions
-  pure $ wrap { stateNftCs, assocListCs, poolAddr }
+  pure params

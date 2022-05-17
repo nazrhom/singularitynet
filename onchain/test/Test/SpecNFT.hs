@@ -46,22 +46,22 @@ nftTests =
     "NFT tests"
     [ testCase "should validate correct transaction" $
         succeeds $
-          (testStatePolicy bondedStakingTokenName)
+          testStatePolicy bondedStakingTokenName
             # pconstant ()
             # pconstant goodCtx1
     , testCase "should validate correct transaction with spurious tokens" $
         succeeds $
-          (testStatePolicy bondedStakingTokenName)
+          testStatePolicy bondedStakingTokenName
             # pconstant ()
             # pconstant goodCtx2
     , testCase "should not mint more than once" $
         fails $
-          (testStatePolicy bondedStakingTokenName)
+          testStatePolicy bondedStakingTokenName
             # pconstant ()
             # pconstant badCtx1
     , testCase "should not consume the wrong outRef" $
         fails $
-          (testStatePolicy bondedStakingTokenName)
+          testStatePolicy bondedStakingTokenName
             # pconstant ()
             # pconstant badCtx2
     ]

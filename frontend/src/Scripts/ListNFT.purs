@@ -11,7 +11,7 @@ import Data.Argonaut (Json, JsonDecodeError)
 import QueryM (ClientError)
 import ToData (toData)
 import Types.Scripts (PlutusScript)
-import Types (StakingType(..))
+import Types (StakingType(Bonded, Unbonded))
 import Utils (jsonReader)
 
 -- | This is the parameterized minting policy. It still needs to receive a

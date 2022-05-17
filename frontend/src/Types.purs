@@ -39,6 +39,9 @@ instance HasConstrIndices AssetClass where
 instance ToData AssetClass where
   toData = genericToData
 
+instance Show AssetClass where
+  show = genericShow
+
 newtype PoolInfo = PoolInfo
   { stateNftCs :: CurrencySymbol
   , assocListCs :: CurrencySymbol

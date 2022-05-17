@@ -7,7 +7,7 @@ module Test.Common (
   testAdminPkh,
 ) where
 
-import ListNFT (listNFTPolicy)
+import ListNFT (plistNFTPolicy)
 import Plutarch.Api.V1 (PScriptContext, mintingPolicySymbol, mkMintingPolicy)
 import Plutarch.Unsafe (punsafeCoerce)
 import Plutus.V1.Ledger.Api (
@@ -17,7 +17,7 @@ import Plutus.V1.Ledger.Api (
   TxId (TxId),
   TxOutRef (TxOutRef, txOutRefId, txOutRefIdx),
  )
-import StateNFT (stateNFTPolicy)
+import StateNFT (pstateNFTPolicy)
 import Types (PMintingAction)
 
 -- The CurrencySymbol associated with the state NFT
@@ -31,12 +31,16 @@ testListCurrencySymbol tn =
   mintingPolicySymbol $ mkMintingPolicy $ punsafeCoerce $ testListPolicy tn
 
 -- | The pool's state minting policy
-testStatePolicy :: forall (s :: S). TokenName -> Term s (PUnit :--> PScriptContext :--> PUnit)
-testStatePolicy tn = (stateNFTPolicy tn) # pconstant testStatePolicyInput
+testStatePolicy
+  :: forall (s :: S). TokenName -> Term s (PUnit :--> PScriptContext :--> PUnit)
+testStatePolicy tn = pstateNFTPolicy tn # pconstant testStatePolicyInput
 
 -- | The association list's minting policy
-testListPolicy :: forall (s :: S). TokenName -> Term s (PMintingAction :--> PScriptContext :--> PUnit)
-testListPolicy tn = listNFTPolicy # pconstant (testStateCurrencySymbol tn)
+testListPolicy ::
+  forall (s :: S).
+  TokenName ->
+  Term s (PMintingAction :--> PScriptContext :--> PUnit)
+testListPolicy tn = plistNFTPolicy # pconstant (testStateCurrencySymbol tn)
 
 -- | The UTXO used to mint the pool's state NFT
 testStatePolicyInput :: TxOutRef

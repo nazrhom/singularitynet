@@ -1,6 +1,6 @@
 module ListNFT (
-  listNFTPolicy,
-  listNFTPolicyUntyped,
+  plistNFTPolicy,
+  plistNFTPolicyUntyped,
 ) where
 
 import Plutarch.Api.V1 (
@@ -37,7 +37,7 @@ import Utils (getCs, guardC, oneOfWith, pconstantC, peq, pletC, ptryFromUndata)
 -- (that's why the redeemer isn't used yet). `burnsOrMintsOnce` ought to be
 -- split in two parts, one for each of the two use cases (staking and
 -- withdrawing).
-listNFTPolicy ::
+plistNFTPolicy ::
   forall (s :: S).
   Term
     s
@@ -46,7 +46,7 @@ listNFTPolicy ::
         :--> PScriptContext
         :--> PUnit
     )
-listNFTPolicy = plam $ \nftCs _mintAct ctx' -> unTermCont $ do
+plistNFTPolicy = plam $ \nftCs _mintAct ctx' -> unTermCont $ do
   -- This CurrencySymbol is only used for parametrization
   _cs <- pletC nftCs
   ctx <- tcont $ pletFields @'["txInfo", "purpose"] ctx'
@@ -63,12 +63,12 @@ listNFTPolicy = plam $ \nftCs _mintAct ctx' -> unTermCont $ do
     burnsOrMintsOnce cs tn txInfo.mint
   pconstantC ()
 
-listNFTPolicyUntyped ::
+plistNFTPolicyUntyped ::
   forall (s :: S). Term s (PData :--> PData :--> PData :--> PUnit)
-listNFTPolicyUntyped = plam $ \nftCs' mintAct' ctx' ->
-  listNFTPolicy # unTermCont (ptryFromUndata nftCs')
-    # unTermCont (ptryFromUndata mintAct')
-    # punsafeCoerce ctx'
+plistNFTPolicyUntyped = plam $ \nftCs mintAct ctx ->
+  plistNFTPolicy # unTermCont (ptryFromUndata nftCs)
+    # unTermCont (ptryFromUndata mintAct)
+    # punsafeCoerce ctx
 
 getSignatory ::
   forall (s :: S).

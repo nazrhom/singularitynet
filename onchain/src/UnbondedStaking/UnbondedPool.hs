@@ -9,7 +9,7 @@ module UnbondedStaking.UnbondedPool (
 import Plutarch.Api.V1 (
   PScriptContext,
  )
-import Plutarch.Api.V1.Maybe ()
+
 import Plutarch.Unsafe (punsafeCoerce)
 
 import UnbondedStaking.Types (
@@ -51,10 +51,9 @@ punbondedPoolValidatorUntyped ::
         :--> PData
         :--> PUnit
     )
-punbondedPoolValidatorUntyped = plam $ \pparams' dat' act' ctx' -> unTermCont $ do
-  pure $
+punbondedPoolValidatorUntyped = plam $ \pparams dat act ctx ->
     punbondedPoolValidator
-      # unTermCont (ptryFromUndata pparams')
-      # unTermCont (ptryFromUndata dat')
-      # unTermCont (ptryFromUndata act')
-      # punsafeCoerce ctx'
+      # unTermCont (ptryFromUndata pparams)
+      # unTermCont (ptryFromUndata dat)
+      # unTermCont (ptryFromUndata act)
+      # punsafeCoerce ctx

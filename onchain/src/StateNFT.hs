@@ -1,6 +1,6 @@
 module StateNFT (
-  stateNFTPolicy,
-  stateNFTPolicyUntyped,
+  pstateNFTPolicy,
+  pstateNFTPolicyUntyped,
 ) where
 
 {-
@@ -26,9 +26,11 @@ import Utils (
   ptryFromUndata,
  )
 
-stateNFTPolicy ::
-  forall (s :: S). TokenName -> Term s (PTxOutRef :--> PUnit :--> PScriptContext :--> PUnit)
-stateNFTPolicy tn = plam $ \txOutRef _ ctx' -> P.do
+pstateNFTPolicy ::
+  forall (s :: S).
+  TokenName ->
+  Term s (PTxOutRef :--> PUnit :--> PScriptContext :--> PUnit)
+pstateNFTPolicy tn = plam $ \txOutRef _ ctx' -> P.do
   ctx <- pletFields @'["txInfo", "purpose"] ctx'
   cs <- runTermCont $ getCs ctx.purpose
   txInfo <- pletFields @'["inputs", "mint", "id"] $ ctx.txInfo
@@ -43,10 +45,10 @@ stateNFTPolicy tn = plam $ \txOutRef _ ctx' -> P.do
     (pconstant ())
     perror
 
-stateNFTPolicyUntyped ::
+pstateNFTPolicyUntyped ::
   forall (s :: S). TokenName -> Term s (PData :--> PData :--> PData :--> PUnit)
-stateNFTPolicyUntyped tn = plam $ \utxo' _ ctx' ->
-  (stateNFTPolicy tn) # unTermCont (ptryFromUndata utxo')
+pstateNFTPolicyUntyped tn = plam $ \utxo' _ ctx' ->
+  pstateNFTPolicy tn # unTermCont (ptryFromUndata utxo')
     # pconstant ()
     # punsafeCoerce ctx'
 

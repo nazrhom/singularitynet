@@ -1,45 +1,42 @@
 module UnbondedStaking.Types
-  ( UnbondedPoolParams(..)
-  , UnbondedStakingDatum(..)
-  , UnbondedStakingAction(..)
-  , Entry(..)
+  ( Entry(..)
+  , InitialUnbondedParams(..)
   , StakingType
-  ) where
+  , UnbondedPoolParams(..)
+  , UnbondedStakingAction(..)
+  , UnbondedStakingDatum(..)
+  )
+  where
 
 import Contract.Prelude
 
 import ConstrIndices (class HasConstrIndices, defaultConstrIndices)
+import Contract.Address (PaymentPubKeyHash)
 import Contract.Numeric.Natural (Natural)
 import Contract.Numeric.Rational (Rational)
-import Contract.PlutusData (class ToData, PlutusData(..), toData)
+import Contract.PlutusData (class ToData, PlutusData(Constr), toData)
+import Contract.Prim.ByteArray (ByteArray)
 import Contract.Value (CurrencySymbol)
 import Data.BigInt (BigInt)
-import Data.Generic.Rep (class Generic)
-import Data.Maybe (Maybe)
-import Data.Newtype (class Newtype)
-import Data.Show.Generic (genericShow)
 import ToData (genericToData)
 import Types (AssetClass)
-import Types.ByteArray (ByteArray)
-import Types.UnbalancedTransaction (PaymentPubKeyHash)
-import Utils (big)
 
 -- TODO: Add missing `ToData` instances for POSIXTime and NatRatio.
 newtype UnbondedPoolParams =
   UnbondedPoolParams
-    { upp'start :: BigInt
-    , upp'userLength :: BigInt
-    , upp'adminLength :: BigInt
-    , upp'bondingLength :: BigInt
-    , upp'interestLength :: BigInt
-    , upp'increments :: Natural
-    , upp'interest :: Rational
-    , upp'minStake :: Natural
-    , upp'maxStake :: Natural
-    , upp'admin :: PaymentPubKeyHash
-    , upp'unbondedAssetClass :: AssetClass
-    , upp'nftCs :: CurrencySymbol
-    , upp'assocListCs :: CurrencySymbol
+    { start :: BigInt
+    , userLength :: BigInt
+    , adminLength :: BigInt
+    , bondingLength :: BigInt
+    , interestLength :: BigInt
+    , increments :: Natural
+    , interest :: Rational
+    , minStake :: Natural
+    , maxStake :: Natural
+    , admin :: PaymentPubKeyHash
+    , unbondedAssetClass :: AssetClass
+    , nftCs :: CurrencySymbol
+    , assocListCs :: CurrencySymbol
     }
 
 derive instance Generic UnbondedPoolParams _
@@ -48,23 +45,43 @@ derive instance Newtype UnbondedPoolParams _
 instance HasConstrIndices UnbondedPoolParams where
   constrIndices = defaultConstrIndices
 
+newtype InitialUnbondedParams = InitialUnbondedParams
+    { start :: BigInt
+    , userLength :: BigInt
+    , adminLength :: BigInt
+    , bondingLength :: BigInt
+    , interestLength :: BigInt
+    , increments :: Natural
+    , interest :: Rational
+    , minStake :: Natural
+    , maxStake :: Natural
+    , unbondedAssetClass :: AssetClass
+    }
+
+derive instance Generic InitialUnbondedParams _
+derive instance Newtype InitialUnbondedParams _
+derive instance Eq InitialUnbondedParams
+
+instance Show InitialUnbondedParams where
+  show = genericShow
+
 -- We copy the order of the fields from the Haskell implementation
 instance ToData UnbondedPoolParams where
   toData (UnbondedPoolParams params) =
-    Constr (big 0)
-      [ toData params.upp'start
-      , toData params.upp'userLength
-      , toData params.upp'adminLength
-      , toData params.upp'bondingLength
-      , toData params.upp'interestLength
-      , toData params.upp'increments
-      , toData params.upp'interest
-      , toData params.upp'minStake
-      , toData params.upp'maxStake
-      , toData params.upp'admin
-      , toData params.upp'unbondedAssetClass
-      , toData params.upp'nftCs
-      , toData params.upp'assocListCs
+    Constr zero
+      [ toData params.start
+      , toData params.userLength
+      , toData params.adminLength
+      , toData params.bondingLength
+      , toData params.interestLength
+      , toData params.increments
+      , toData params.interest
+      , toData params.minStake
+      , toData params.maxStake
+      , toData params.admin
+      , toData params.unbondedAssetClass
+      , toData params.nftCs
+      , toData params.assocListCs
       ]
 
 data UnbondedStakingDatum

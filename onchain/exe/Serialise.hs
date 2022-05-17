@@ -46,10 +46,10 @@ import Plutarch.Api.V1 (scriptHash)
 import Plutus.V1.Ledger.Scripts (Script)
 
 import BondedPool (pbondedPoolValidatorUntyped)
-import ListNFT (listNFTPolicyUntyped)
+import ListNFT (plistNFTPolicyUntyped)
 import Plutarch (ClosedTerm, compile)
 import Settings (bondedStakingTokenName, unbondedStakingTokenName)
-import StateNFT (stateNFTPolicyUntyped)
+import StateNFT (pstateNFTPolicyUntyped)
 import UnbondedStaking.UnbondedPool (punbondedPoolValidatorUntyped)
 
 serialisePlutusScript :: Script -> Text
@@ -66,7 +66,7 @@ writeScriptToFile writerFunc name filepath script =
     "exports._" <> name <> " = {\n"
       <> "\tscript: "
       <> serialisePlutusScript script
-      <> ",\n};"
+      <> ",\n};\n"
 
 serialiseClosedTerm ::
   forall (s :: PType).
@@ -80,7 +80,7 @@ serialiseClosedTerm closedTerm writerFunc args name json = do
   let script = compile closedTerm
       hash = scriptHash script
   writeScriptToFile
-    (writerFunc)
+    writerFunc
     (T.pack name)
     (maybe json id $ outPath args)
     script
@@ -93,40 +93,40 @@ main = do
   case cliCommand args of
     SerialiseStateNFT -> do
       serialiseClosedTerm
-        (stateNFTPolicyUntyped bondedStakingTokenName)
-        (TIO.writeFile)
+        (pstateNFTPolicyUntyped bondedStakingTokenName)
+        TIO.writeFile
         args
         "bondedStateNFT"
         "StateNFT.json"
       serialiseClosedTerm
-        (stateNFTPolicyUntyped unbondedStakingTokenName)
-        (TIO.appendFile)
+        (pstateNFTPolicyUntyped unbondedStakingTokenName)
+        TIO.appendFile
         args
         "unbondedStateNFT"
         "StateNFT.json"
     SerialiseListNFT -> do
       serialiseClosedTerm
-        listNFTPolicyUntyped
-        (TIO.writeFile)
+        plistNFTPolicyUntyped
+        TIO.writeFile
         args
         "bondedListNFT"
         "ListNFT.json"
       serialiseClosedTerm
-        listNFTPolicyUntyped
-        (TIO.appendFile)
+        plistNFTPolicyUntyped
+        TIO.appendFile
         args
         "unbondedListNFT"
         "ListNFT.json"
     SerialiseValidator -> do
       serialiseClosedTerm
         pbondedPoolValidatorUntyped
-        (TIO.writeFile)
+        TIO.writeFile
         args
         "bondedPoolValidator"
         "PoolValidator.json"
       serialiseClosedTerm
         punbondedPoolValidatorUntyped
-        (TIO.appendFile)
+        TIO.appendFile
         args
         "unbondedPoolValidator"
         "PoolValidator.json"
