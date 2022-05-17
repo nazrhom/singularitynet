@@ -7,10 +7,10 @@ ps-entrypoint := Main
 ps-bundle = spago bundle-module -m ${ps-entrypoint} --to output.js
 
 run-dev:
-	@${ps-bundle} && BROWSER_RUNTIME=1 webpack-dev-server --progress
+	@${ps-bundle} && BROWSER_RUNTIME=1 webpack-dev-server --progress --entry ./main.js
 
 run-build:
-	@${ps-bundle} && BROWSER_RUNTIME=1 webpack --mode=production
+	@${ps-bundle} && BROWSER_RUNTIME=1 webpack --mode=production --entry ./main.js
 
 check-format:
 	@purs-tidy check ${ps-sources}
