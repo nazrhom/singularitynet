@@ -1,8 +1,11 @@
 module CallContract
-  ( callClosePool
+  ( ContractConfiguration
+  , callClosePool
   , callCreatePool
   , callDepositPool
-  ) where
+  , mkContractConfiguration
+  )
+  where
 
 import Contract.Prelude
 
@@ -43,6 +46,20 @@ import Effect.Aff (error)
 import Effect.Exception (Error)
 import Types (BondedPoolParams(BondedPoolParams), InitialBondedParams)
 import Types.Rational (denominator, numerator) -- fix this with updated CTL
+
+foreign import mkContractConfiguration
+  :: String -- serverHost
+  -> Int -- serverPort
+  -> Boolean -- serverSecure
+  -> String -- ogmiosHost
+  -> Int -- ogmiosPort
+  -> Boolean -- ogmiosSecure
+  -> String -- datumCacheHost
+  -> Int -- datumCachePort
+  -> Boolean -- datumCacheSecure
+  -> Int -- networkId
+  -> LogLevel -- logLevel
+  -> ContractConfiguration
 
 -- | Configuation needed to call contracts from JS.
 type ContractConfiguration =
