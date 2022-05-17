@@ -45,6 +45,6 @@ a `shouldBe` b = succeeds $
 shouldNotBe :: forall (a :: PType) . PEq a =>
             ClosedTerm a -> ClosedTerm a -> Assertion
 a `shouldNotBe` b = succeeds $
-  pif (a #== b)
+  pif (pnot #$ a #== b)
     (pconstant ()) 
-    $ ptraceError "shouldBe: terms are not equal"
+    $ ptraceError "shouldNotBe: terms are equal"
