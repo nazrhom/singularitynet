@@ -14,15 +14,11 @@ import ConstrIndices (class HasConstrIndices, defaultConstrIndices)
 import Contract.Address (Address, PaymentPubKeyHash)
 import Contract.Numeric.Natural (Natural)
 import Contract.Numeric.Rational (Rational)
-import Contract.PlutusData (class ToData, PlutusData(..), toData)
+import Contract.PlutusData (class ToData, PlutusData(Constr), toData)
+import Contract.Prim.ByteArray (ByteArray)
 import Contract.Value (CurrencySymbol, TokenName)
 import Data.BigInt (BigInt)
-import Data.Generic.Rep (class Generic)
-import Data.Maybe (Maybe)
-import Data.Newtype (class Newtype)
-import Data.Show.Generic (genericShow)
 import ToData (genericToData)
-import Types.ByteArray (ByteArray)
 
 newtype AssetClass = AssetClass
   { currencySymbol :: CurrencySymbol

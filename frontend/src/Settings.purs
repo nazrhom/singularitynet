@@ -7,7 +7,7 @@ module Settings
   , testInitBondedParams
   ) where
 
-import Prelude
+import Contract.Prelude
 
 import Contract.Numeric.NatRatio (fromNaturals, toRational)
 import Contract.Numeric.Rational (Rational)
@@ -18,7 +18,6 @@ import Contract.Value
   , mkCurrencySymbol
   , mkTokenName
   )
-import Data.Maybe (Maybe)
 import Types
   ( AssetClass(AssetClass)
   , InitialBondedParams(InitialBondedParams)
