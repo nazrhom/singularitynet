@@ -2,7 +2,9 @@ module Test.Utils (
   succeeds,
   fails,
   returnsTrue,
-  returnsFalse
+  returnsFalse,
+  shouldBe,
+  shouldNotBe
 ) where
 
 import Test.Tasty ()
@@ -32,3 +34,17 @@ returnsTrue x = succeeds $
 returnsFalse :: ClosedTerm PBool -> Assertion
 returnsFalse x = succeeds $
   pif x (ptraceError "returnsFalse: script returned True") $ pconstant ()
+
+shouldBe :: forall (a :: PType) . PEq a =>
+            ClosedTerm a -> ClosedTerm a -> Assertion
+a `shouldBe` b = succeeds $
+  pif (a #== b)
+    (pconstant ()) 
+    $ ptraceError "shouldBe: terms are not equal"
+
+shouldNotBe :: forall (a :: PType) . PEq a =>
+            ClosedTerm a -> ClosedTerm a -> Assertion
+a `shouldNotBe` b = succeeds $
+  pif (a #== b)
+    (pconstant ()) 
+    $ ptraceError "shouldBe: terms are not equal"
