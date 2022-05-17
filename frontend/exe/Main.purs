@@ -47,7 +47,7 @@ main = launchAff_ $ do
     -- liftAff $ delay $ wrap $ toNumber 80_000
     -- closePoolContract poolInfo
 
--- Unbonded test
+    -- Unbonded test
     initParams <- liftContractM "main: Cannot initiate unbonded parameters"
       testInitUnbondedParams
     void $ createUnbondedPoolContract initParams

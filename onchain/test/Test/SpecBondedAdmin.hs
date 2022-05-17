@@ -75,7 +75,7 @@ import Types (
     nftCs,
     start,
     userLength
-   ),
+  ),
   BondedStakingAction (AdminAct),
   BondedStakingDatum (StateDatum),
  )

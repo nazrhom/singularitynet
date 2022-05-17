@@ -29,9 +29,9 @@ import Plutus.Types.CurrencySymbol (CurrencySymbol)
 import Plutus.Types.Value (valueOf)
 import Types.Transaction (TransactionInput, TransactionOutput, UtxoM)
 import UnbondedStaking.Types
- ( UnbondedPoolParams(UnbondedPoolParams)
- , InitialUnbondedParams(InitialUnbondedParams)
- )
+  ( UnbondedPoolParams(UnbondedPoolParams)
+  , InitialUnbondedParams(InitialUnbondedParams)
+  )
 
 -- | Helper to decode the local inputs such as unapplied minting policy and
 -- typed validator

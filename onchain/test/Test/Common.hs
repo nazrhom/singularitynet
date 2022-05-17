@@ -31,8 +31,8 @@ testListCurrencySymbol tn =
   mintingPolicySymbol $ mkMintingPolicy $ punsafeCoerce $ testListPolicy tn
 
 -- | The pool's state minting policy
-testStatePolicy
-  :: forall (s :: S). TokenName -> Term s (PUnit :--> PScriptContext :--> PUnit)
+testStatePolicy ::
+  forall (s :: S). TokenName -> Term s (PUnit :--> PScriptContext :--> PUnit)
 testStatePolicy tn = pstateNFTPolicy tn # pconstant testStatePolicyInput
 
 -- | The association list's minting policy

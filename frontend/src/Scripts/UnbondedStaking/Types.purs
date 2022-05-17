@@ -5,8 +5,7 @@ module UnbondedStaking.Types
   , UnbondedPoolParams(..)
   , UnbondedStakingAction(..)
   , UnbondedStakingDatum(..)
-  )
-  where
+  ) where
 
 import Contract.Prelude
 
@@ -46,17 +45,17 @@ instance HasConstrIndices UnbondedPoolParams where
   constrIndices = defaultConstrIndices
 
 newtype InitialUnbondedParams = InitialUnbondedParams
-    { start :: BigInt
-    , userLength :: BigInt
-    , adminLength :: BigInt
-    , bondingLength :: BigInt
-    , interestLength :: BigInt
-    , increments :: Natural
-    , interest :: Rational
-    , minStake :: Natural
-    , maxStake :: Natural
-    , unbondedAssetClass :: AssetClass
-    }
+  { start :: BigInt
+  , userLength :: BigInt
+  , adminLength :: BigInt
+  , bondingLength :: BigInt
+  , interestLength :: BigInt
+  , increments :: Natural
+  , interest :: Rational
+  , minStake :: Natural
+  , maxStake :: Natural
+  , unbondedAssetClass :: AssetClass
+  }
 
 derive instance Generic InitialUnbondedParams _
 derive instance Newtype InitialUnbondedParams _

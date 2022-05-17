@@ -52,8 +52,8 @@ punbondedPoolValidatorUntyped ::
         :--> PUnit
     )
 punbondedPoolValidatorUntyped = plam $ \pparams dat act ctx ->
-    punbondedPoolValidator
-      # unTermCont (ptryFromUndata pparams)
-      # unTermCont (ptryFromUndata dat)
-      # unTermCont (ptryFromUndata act)
-      # punsafeCoerce ctx
+  punbondedPoolValidator
+    # unTermCont (ptryFromUndata pparams)
+    # unTermCont (ptryFromUndata dat)
+    # unTermCont (ptryFromUndata act)
+    # punsafeCoerce ctx

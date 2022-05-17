@@ -34,10 +34,10 @@ import Scripts.StateNFT (mkStateNFTPolicy)
 import Settings (unbondedStakingTokenName)
 import Types (StakingType(Unbonded))
 import UnbondedStaking.Types
- ( InitialUnbondedParams
- , UnbondedPoolParams
- , UnbondedStakingDatum(StateDatum)
- )
+  ( InitialUnbondedParams
+  , UnbondedPoolParams
+  , UnbondedStakingDatum(StateDatum)
+  )
 import Utils (logInfo_, mkUnbondedPoolParams)
 
 -- Sets up pool configuration, mints the state NFT and deposits
@@ -90,7 +90,8 @@ createUnbondedPoolContract iup = do
     mintValue = singleton stateNftCs tokenName one
     poolAddr = validatorHashEnterpriseAddress networkId valHash
   logInfo_
-    "createUnbondedPoolContract: UnbondedPool Validator's address" poolAddr
+    "createUnbondedPoolContract: UnbondedPool Validator's address"
+    poolAddr
   let
     unbondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
