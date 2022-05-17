@@ -50,7 +50,8 @@ ntxTn :: Maybe TokenName
 ntxTn = mkTokenName =<< byteArrayFromAscii "NTX"
 
 unbondedStakingTokenName :: Maybe TokenName
-unbondedStakingTokenName = mkTokenName =<< byteArrayFromAscii "UnbondedStakingToken"
+unbondedStakingTokenName = mkTokenName =<< byteArrayFromAscii
+  "UnbondedStakingToken"
 
 -- Temporary, serialise to JSON
 bondedHardCodedParams

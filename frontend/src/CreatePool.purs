@@ -121,7 +121,8 @@ createBondedPoolContract = do
       $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
   transactionHash <- submit signedTxCbor
-  logInfo_ "createBondedPoolContract: Transaction successfully submitted /\
+  logInfo_
+    "createBondedPoolContract: Transaction successfully submitted /\
     \with hash"
     $ byteArrayToHex
     $ unwrap transactionHash

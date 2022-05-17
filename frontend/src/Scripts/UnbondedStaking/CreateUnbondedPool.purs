@@ -59,13 +59,15 @@ createUnbondedPoolContract = do
   -- Get the minting policy and currency symbol from the state NFT:
   statePolicy <- liftedE $ mkStateNFTPolicy Unbonded txOutRef
   stateNftCs <-
-    liftedM "createUnbondedPoolContract: Cannot get CurrencySymbol from /\
+    liftedM
+      "createUnbondedPoolContract: Cannot get CurrencySymbol from /\
       \state NFT"
       $ scriptCurrencySymbol statePolicy
   -- Get the minting policy and currency symbol from the list NFT:
   listPolicy <- liftedE $ mkListNFTPolicy Unbonded stateNftCs
   assocListCs <-
-    liftedM "createUnbondedPoolContract: Cannot get CurrencySymbol from /\
+    liftedM
+      "createUnbondedPoolContract: Cannot get CurrencySymbol from /\
       \state NFT"
       $ scriptCurrencySymbol listPolicy
   -- May want to hardcode this somewhere:
@@ -121,7 +123,8 @@ createUnbondedPoolContract = do
       $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
   transactionHash <- submit signedTxCbor
-  logInfo_ "createUnbondedPoolContract: Transaction successfully submitted /\
+  logInfo_
+    "createUnbondedPoolContract: Transaction successfully submitted /\
     \with hash"
     $ byteArrayToHex
     $ unwrap transactionHash

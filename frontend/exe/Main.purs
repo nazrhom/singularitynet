@@ -45,5 +45,5 @@ main = launchAff_ $ do
     liftAff $ delay $ wrap $ toNumber 80_000
     closePoolContract poolInfo
 
-    -- Unbonded test
-    --void createUnbondedPoolContract
+-- Unbonded test
+--void createUnbondedPoolContract
