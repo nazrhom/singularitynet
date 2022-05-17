@@ -20,6 +20,11 @@ module PTypes (
   PAssetClass (PAssetClass),
   PPeriod (..),
   passetClass,
+  unavailablePeriod,
+  depositWithdrawPeriod,
+  bondingPeriod,
+  onlyWithdrawPeriod,
+  closingPeriod,
 ) where
 
 {-
@@ -258,6 +263,18 @@ data PPeriod (s :: S)
   | ClosingPeriod
   deriving stock (GHC.Generic, Eq)
   deriving anyclass (Generic, PlutusType)
+
+-- Useful constants
+unavailablePeriod :: forall (s :: S) . Term s PPeriod
+unavailablePeriod = pcon $ UnavailablePeriod
+depositWithdrawPeriod :: forall (s :: S) . Term s PPeriod
+depositWithdrawPeriod = pcon $ DepositWithdrawPeriod
+bondingPeriod :: forall (s :: S) . Term s PPeriod
+bondingPeriod = pcon $ BondingPeriod
+onlyWithdrawPeriod :: forall (s :: S) . Term s PPeriod
+onlyWithdrawPeriod = pcon $ OnlyWithdrawPeriod
+closingPeriod :: forall (s :: S) . Term s PPeriod
+closingPeriod = pcon $ ClosingPeriod
 
 ------ Orphans ------
 
