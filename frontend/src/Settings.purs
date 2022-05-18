@@ -84,7 +84,7 @@ bondedHardCodedParams adminPkh nftCs assocListCs = do
 testInitUnbondedParams :: Maybe InitialUnbondedParams
 testInitUnbondedParams = do
   interest <- interest'
-  -- currencySymbol <- agixCs
+  -- currencySymbol <- agixTn
   -- tokenName <- ntxTn
   pure $ InitialUnbondedParams
     { start: big 1000

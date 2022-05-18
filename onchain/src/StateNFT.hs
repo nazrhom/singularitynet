@@ -47,10 +47,10 @@ pstateNFTPolicy tn = plam $ \txOutRef _ ctx' -> P.do
 
 pstateNFTPolicyUntyped ::
   forall (s :: S). TokenName -> Term s (PData :--> PData :--> PData :--> PUnit)
-pstateNFTPolicyUntyped tn = plam $ \utxo' _ ctx' ->
-  pstateNFTPolicy tn # unTermCont (ptryFromUndata utxo')
+pstateNFTPolicyUntyped tn = plam $ \utxo _ ctx ->
+  pstateNFTPolicy tn # unTermCont (ptryFromUndata utxo)
     # pconstant ()
-    # punsafeCoerce ctx'
+    # punsafeCoerce ctx
 
 consumesRef ::
   forall (s :: S).
