@@ -197,7 +197,6 @@
                 frontend-bundle-web = project.bundlePursProject {
                   sources = [ "src" "exe" ];
                   main = "Main";
-                  entrypoint = "main.js";
                 };
               };
 
