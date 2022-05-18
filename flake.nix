@@ -90,6 +90,11 @@
                 src = inputs.plutarch;
                 subdirs = [ "." ];
               }
+
+	      {
+	      	src = "${self}/common";
+		subdirs = [ "." ];
+	      }
             ];
             modules = [ (plutarch.haskellModule system) ];
             shell = {
@@ -138,6 +143,10 @@
                   src = "${plutip}";
                   subdirs = [ "." ];
                 }
+		{
+		  src = "${self}/common";
+	          subdirs = [ "." ];
+		}
               ];
               modules = [
                 ({ config, ... }: {
