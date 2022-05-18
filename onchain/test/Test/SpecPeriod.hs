@@ -6,41 +6,117 @@ module Test.SpecPeriod (
     module description here
 -}
 
-import PTypes(PPeriod(..))
+import Common.Types (
+  BondedPoolParams(
+    BondedPoolParams,
+    iterations,
+    start,
+    end,
+    userLength,
+    bondingLength,
+    interest,
+    minStake,
+    maxStake,
+    admin,
+    nftCs,
+    assocListCs,
+    bondedAssetClass)
+    , AssetClass (AssetClass)
+  )
+import Common.Natural (Natural(Natural), NatRatio (NatRatio))
+import Common.Settings (bondedStakingTokenName)
+import PTypes(
+  PPeriod(..)
+  , PBondedPoolParams
+  , bondingPeriod
+  , depositWithdrawPeriod
+  , onlyWithdrawPeriod
+  , closingPeriod
+  )
 import PInterval (
   PPeriodicInterval(..),
   pperiodicContains,
+  getBondedPeriod,
   pinterval)
+
 import Plutarch.Api.V1 (PPOSIXTime)
 import Plutarch.Api.V1.Interval(PInterval)
-import Common.Natural (Natural(Natural))
 
 import Test.Tasty
 import Test.Tasty.HUnit(testCase)
-import Test.Utils (returnsTrue, returnsFalse)
+import Test.Utils (fails, returnsTrue, returnsFalse, shouldBe, shouldNotBe)
+import Test.Common (testAdminPkh)
+import Plutus.V1.Ledger.Api (CurrencySymbol(CurrencySymbol))
+import Data.Ratio ((%))
 
 specPeriodTests :: TestTree
 specPeriodTests =
-    testGroup
-      "pperiodicContains tests"
-      [
-        testCase "[2200; 2800) ∈ 1000 + [1000; 2000) % 5000" $
-          returnsTrue $ testWith rangeInside
-        , testCase "[1000; 2000) ∈ 1000 + [1000; 2000) % 5000" $
-          returnsTrue $ testWith rangeExact
-        , testCase "[12,000; 13,000) ∈ 1000 + 3 * [1000; 2000) % 5000" $
-          returnsTrue $ testWith rangeExactOtherCycle
-        , testCase "[27,000; 28,000) ∈ 1000 + [1000; 2000) % 5000" $
-          returnsFalse $ testWith rangeInsideBadCycle
-        , testCase "[1500; 2500) ∈ 1000 + [1000; 2000) % 5000" $
-          returnsFalse $ testWith rangeStartsTooSoon
-        , testCase "[2500; 3500) ∈ 1000 + [1000; 2000) % 5000" $
-          returnsFalse $ testWith rangeEndsTooLate
-        , testCase "[2500; 7500) ∈ 1000 + [1000; 2000) % 5000" $
-          returnsFalse $ testWith rangeTooWide
-      ]
+  testGroup
+    "Period tests"
+    [
+      pperiodTests
+      , getBondedPeriodTests
+    ]
 
-testPeriodicInterval :: Term s PPeriodicInterval
+pperiodTests :: TestTree
+pperiodTests = 
+  testGroup
+    "pperiodicContains tests"
+    [
+      testCase "[2200; 2800) ∈ 1000 + [1000; 2000) % 5000" $
+        returnsTrue $ testWithRange rangeInside
+      , testCase "[2000; 3000) ∈ 1000 + [1000; 2000) % 5000" $
+        returnsTrue $ testWithRange rangeExact
+      , testCase "[12,000; 13,000) ∈ 1000 + 3 * [1000; 2000) % 5000" $
+        returnsTrue $ testWithRange rangeExactOtherCycle
+      , testCase "[27,000; 28,000) ∈ 1000 + [1000; 2000) % 5000" $
+        returnsFalse $ testWithRange rangeInsideBadCycle
+      , testCase "[1500; 2500) ∈ 1000 + [1000; 2000) % 5000" $
+        returnsFalse $ testWithRange rangeStartsTooSoon
+      , testCase "[2500; 3500) ∈ 1000 + [1000; 2000) % 5000" $
+        returnsFalse $ testWithRange rangeEndsTooLate
+      , testCase "[2500; 7500) ∈ 1000 + [1000; 2000) % 5000" $
+        returnsFalse $ testWithRange rangeTooWide
+    ]
+
+getBondedPeriodTests :: TestTree
+getBondedPeriodTests =
+  testGroup
+    "getBondedPeriod tests"
+    [
+      testCase "valid deposit range" $
+        getPeriod rangeDeposit `shouldBe` depositWithdrawPeriod 
+      , testCase "valid deposit range, exact" $
+        getPeriod rangeDepositExact `shouldBe` depositWithdrawPeriod 
+      , testCase "invalid deposit, off by one" $
+        fails $ getPeriod rangeDepositOffByOne
+      , testCase "valid bonding range" $
+        getPeriod rangeBonding `shouldBe` bondingPeriod 
+      , testCase "valid bonding range, exact" $
+        getPeriod rangeBondingExact `shouldBe` bondingPeriod  
+      , testCase "invalid bonding range, off by one" $
+        fails $ getPeriod rangeBondingOffByOne
+      , testCase "last withdrawal range" $
+        getPeriod rangeLastWithdrawal `shouldBe` onlyWithdrawPeriod 
+      , testCase "last withdrawal range, exact" $
+        getPeriod rangeLastWithdrawalExact `shouldBe` onlyWithdrawPeriod 
+      , testCase "closing pool range" $
+        getPeriod rangeClose `shouldBe` closingPeriod
+    ]
+
+---- Auxiliary functions ----
+testWithRange :: forall (s :: S) . 
+  Term s (PInterval PPOSIXTime) ->
+  Term s PBool
+testWithRange txRange = pperiodicContains # testPeriodicInterval # txRange
+
+getPeriod :: forall (s :: S) .
+  Term s (PInterval PPOSIXTime) ->
+  Term s PPeriod
+getPeriod txRange = getBondedPeriod # txRange # testPoolParams
+
+---- Test data ----
+testPeriodicInterval :: forall (s :: S) . Term s PPeriodicInterval
 testPeriodicInterval = pcon $ PPeriodicInterval {
   piBaseOffset = pconstant 1000
   , piPeriod = pconstant 5000
@@ -49,8 +125,64 @@ testPeriodicInterval = pcon $ PPeriodicInterval {
   , piMaxCycles = pconstant (Natural 5)
 }
 
-testWith :: Term s (PInterval PPOSIXTime) -> Term s PBool
-testWith txRange = pperiodicContains # testPeriodicInterval # txRange
+testPoolParams :: forall (s :: S) . Term s PBondedPoolParams
+testPoolParams = pconstant params
+  where params :: BondedPoolParams
+        params = BondedPoolParams {
+          iterations = Natural 3
+          , start = 5000
+          , end = 20_000
+          , userLength = 3500
+          , bondingLength = 1500
+          -- We are not testing any of the parameters below
+          , bondedAssetClass = AssetClass (nftCs params) bondedStakingTokenName
+          , interest = NatRatio $ 1 % 100
+          , minStake = Natural 50
+          , maxStake = Natural 500
+          , admin = testAdminPkh
+          , nftCs = CurrencySymbol "deadbeef"
+          , assocListCs = CurrencySymbol "abababab"
+        }
+
+-- Data for getBondedPeriod
+
+-- TX range inside first deposit period
+rangeDeposit :: Term s (PInterval PPOSIXTime)
+rangeDeposit = pinterval (pconstant 5500) (pconstant 8000)
+
+-- TX range exactly the same as first deposit period
+rangeDepositExact :: Term s (PInterval PPOSIXTime)
+rangeDepositExact = pinterval (pconstant 5000) (pconstant 8500)
+
+-- TX range fails to be in first deposit period by 1 unit
+rangeDepositOffByOne :: Term s (PInterval PPOSIXTime)
+rangeDepositOffByOne = pinterval (pconstant 5001) (pconstant 8501)
+
+-- TX range inside first bonding period
+rangeBonding :: Term s (PInterval PPOSIXTime)
+rangeBonding = pinterval (pconstant 9000) (pconstant 9800)
+
+-- TX range exactly the same as first bonding period
+rangeBondingExact :: Term s (PInterval PPOSIXTime)
+rangeBondingExact = pinterval (pconstant 8500) (pconstant 10_000)
+
+-- TX range fails to be in first deposit period by 1 unit
+rangeBondingOffByOne :: Term s (PInterval PPOSIXTime)
+rangeBondingOffByOne = pinterval (pconstant 8501) (pconstant 10_001)
+
+-- TX range inside last withdrawal period
+rangeLastWithdrawal :: Term s (PInterval PPOSIXTime)
+rangeLastWithdrawal = pinterval (pconstant 21_000) (pconstant 22_500)
+
+-- TX range is exactly last withdrawal period
+rangeLastWithdrawalExact :: Term s (PInterval PPOSIXTime)
+rangeLastWithdrawalExact = pinterval (pconstant 20_000) (pconstant 23_500)
+
+-- TX range is in closing period 
+rangeClose :: Term s (PInterval PPOSIXTime)
+rangeClose = pinterval (pconstant 30_000) (pconstant 50_000)
+
+-- Data for pperiodTests
 
 -- TX range is inside interval in first cycle
 rangeInside :: Term s (PInterval PPOSIXTime)
