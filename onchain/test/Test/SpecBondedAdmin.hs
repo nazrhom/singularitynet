@@ -61,7 +61,21 @@ import Test.Tasty.HUnit (testCase)
 import Test.Utils (succeeds)
 import Types (
   AssetClass (AssetClass),
-  BondedPoolParams (BondedPoolParams, admin, assocListCs, bondedAssetClass, bondingLength, end, interest, iterations, maxStake, minStake, nftCs, start, userLength),
+  BondedPoolParams (
+    BondedPoolParams,
+    admin,
+    assocListCs,
+    bondedAssetClass,
+    bondingLength,
+    end,
+    interest,
+    iterations,
+    maxStake,
+    minStake,
+    nftCs,
+    start,
+    userLength
+  ),
   BondedStakingAction (AdminAct),
   BondedStakingDatum (StateDatum),
  )
@@ -125,7 +139,10 @@ poolStateTxOut =
     { txOutAddress = poolAddr
     , txOutValue =
         lovelaceValueOf 50_000_000
-          <> singleton testStateCurrencySymbol bondedStakingTokenName 1
+          <> singleton
+            (testStateCurrencySymbol bondedStakingTokenName)
+            bondedStakingTokenName
+            1
     , txOutDatumHash = Just poolStateDatumHash
     }
 
@@ -173,8 +190,8 @@ mkParameters =
     , maxStake = Natural 500
     , admin = testAdminPkh
     , bondedAssetClass = AssetClass adaSymbol adaToken
-    , nftCs = testStateCurrencySymbol
-    , assocListCs = testListCurrencySymbol
+    , nftCs = testStateCurrencySymbol bondedStakingTokenName
+    , assocListCs = testListCurrencySymbol bondedStakingTokenName
     }
 
 mkContext :: POSIXTimeRange -> ScriptContext

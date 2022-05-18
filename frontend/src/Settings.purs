@@ -2,9 +2,11 @@ module Settings
   ( agixCs
   , agixTn
   , bondedStakingTokenName
-  , hardCodedParams
+  , bondedHardCodedParams
   , ntxCs
   , ntxTn
+  , testInitUnbondedParams
+  , unbondedStakingTokenName
   ) where
 
 import Prelude
@@ -15,11 +17,14 @@ import Contract.Prim.ByteArray (byteArrayFromAscii, hexToByteArray)
 import Contract.Value
   ( CurrencySymbol
   , TokenName
+  , adaSymbol
+  , adaToken
   , mkCurrencySymbol
   , mkTokenName
   )
 import Data.Maybe (Maybe)
 import Types (AssetClass(AssetClass), BondedPoolParams(BondedPoolParams))
+import UnbondedStaking.Types (InitialUnbondedParams(InitialUnbondedParams))
 import Types.UnbalancedTransaction (PaymentPubKeyHash)
 import Utils (nat, big)
 
@@ -44,13 +49,17 @@ ntxCs = mkCurrencySymbol
 ntxTn :: Maybe TokenName
 ntxTn = mkTokenName =<< byteArrayFromAscii "NTX"
 
+unbondedStakingTokenName :: Maybe TokenName
+unbondedStakingTokenName = mkTokenName =<< byteArrayFromAscii
+  "UnbondedStakingToken"
+
 -- Temporary, serialise to JSON
-hardCodedParams
+bondedHardCodedParams
   :: PaymentPubKeyHash
   -> CurrencySymbol
   -> CurrencySymbol
   -> Maybe BondedPoolParams
-hardCodedParams adminPkh nftCs assocListCs = do
+bondedHardCodedParams adminPkh nftCs assocListCs = do
   interest <- interest'
   currencySymbol <- agixCs
   tokenName <- agixTn
@@ -70,4 +79,25 @@ hardCodedParams adminPkh nftCs assocListCs = do
         }
     , nftCs
     , assocListCs
+    }
+
+testInitUnbondedParams :: Maybe InitialUnbondedParams
+testInitUnbondedParams = do
+  interest <- interest'
+  -- currencySymbol <- agixTn
+  -- tokenName <- ntxTn
+  pure $ InitialUnbondedParams
+    { start: big 1000
+    , userLength: big 100
+    , adminLength: big 100
+    , bondingLength: big 4
+    , interestLength: big 2
+    , increments: nat 2
+    , interest: interest
+    , minStake: nat 1000
+    , maxStake: nat 10_000
+    , unbondedAssetClass: AssetClass
+        { currencySymbol: adaSymbol
+        , tokenName: adaToken
+        }
     }

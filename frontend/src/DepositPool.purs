@@ -33,8 +33,8 @@ import Contract.TxConstraints
   )
 import Contract.Utxos (utxosAt)
 import Contract.Value (singleton)
-import Scripts.BondedPoolValidator (mkBondedPoolValidator)
-import Settings (bondedStakingTokenName, hardCodedParams)
+import Scripts.PoolValidator (mkBondedPoolValidator)
+import Settings (bondedStakingTokenName, bondedHardCodedParams)
 import Types
   ( BondedStakingAction(AdminAct)
   , BondedStakingDatum(AssetDatum, StateDatum)
@@ -76,7 +76,7 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
   logInfo_ "depositPoolContract: Pool's UTXO DatumHash" poolDatumHash
   -- We define the parameters of the pool
   params <- liftContractM "depositPoolContract: Failed to create parameters" $
-    hardCodedParams adminPkh stateNftCs assocListCs
+    bondedHardCodedParams adminPkh stateNftCs assocListCs
   logInfo_ "depositPoolContract: toData Pool Parameters" $ toData params
   -- Get the bonded pool validator and hash
   validator <- liftedE' "depositPoolContract: Cannot create validator" $
