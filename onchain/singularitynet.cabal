@@ -101,16 +101,18 @@ library
   import:          common-lang
   exposed-modules:
     BondedPool
-    Common.Natural
-    Common.Settings
-    Common.Types
     ListNFT
     PInterval
     PNatural
     PTypes
     SingularityNet
     StateNFT
+    UnbondedStaking.Types
+    UnbondedStaking.UnbondedPool
     Utils
+    Common.Natural
+    Common.Settings
+    Common.Types
 
   build-depends:
     , singularitynet-common
