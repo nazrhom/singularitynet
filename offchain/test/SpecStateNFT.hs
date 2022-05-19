@@ -33,11 +33,11 @@ import Test.Plutip.LocalCluster (withCluster)
 import Test.Plutip.Predicate (shouldFail, shouldSucceed)
 import Test.Tasty (TestTree)
 
-import SingularityNet.Settings (bondedStakingTokenName)
 import Ledger (ChainIndexTxOut, scriptCurrencySymbol)
 import Ledger qualified as Contract
 import Ledger.Constraints (ScriptLookups)
 import Ledger.Constraints.TxConstraints (TxConstraints)
+import SingularityNet.Settings (bondedStakingTokenName)
 
 specStateNFT :: Script -> TestTree
 specStateNFT policyScript =

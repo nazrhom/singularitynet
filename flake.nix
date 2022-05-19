@@ -77,7 +77,6 @@
 
       onchain = rec {
         ghcVersion = "ghc921";
-        cabalProjectFile = "cabal.project.onchain";
         projectFor = system:
           let pkgs = nixpkgsFor system; in
           let pkgs' = nixpkgsFor' system; in
