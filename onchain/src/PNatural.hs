@@ -1,13 +1,9 @@
 {-# LANGUAGE UndecidableInstances #-}
 {- This module contains orphan instances. This is because of one reason:
 
-    * The module `Types` needs to be compiled separately in the off-chain side,
-      which does not have Plutarch. Because of this, the `PConstant`
-      instance for `Natural` need to be defined here instead
-
-   Some functions from `Utils` (like `pletC` and `pfstData`) are re-defined here
-   to avoid a cyclic dependency between `Utils`, `Common.Natural` and
-   `Common.Types`
+    * The module `SingularityNet.Types` needs to be compiled separately in the
+      `common` package, which does not have Plutarch. Because of this, the
+      `PConstant` instance for `Natural` needs to be defined here instead
 -}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -19,7 +15,12 @@ module PNatural (
 
 import GHC.Generics qualified as GHC
 
-import Common.Natural (NatRatio (NatRatio), Natural (Natural), toRatio, toTuple)
+import SingularityNet.Natural (
+  NatRatio (NatRatio),
+  Natural (Natural),
+  toRatio,
+  toTuple,
+ )
 
 import Plutarch.Lift (
   PConstant (PConstantRepr, PConstanted, pconstantFromRepr, pconstantToRepr),

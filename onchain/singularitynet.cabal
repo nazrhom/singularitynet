@@ -101,9 +101,6 @@ library
   import:          common-lang
   exposed-modules:
     BondedPool
-    Common.Natural
-    Common.Settings
-    Common.Types
     ListNFT
     PInterval
     PNatural
@@ -142,6 +139,7 @@ test-suite singularitynet-test
     , QuickCheck
     , quickcheck-instances
     , singularitynet
+    , singularitynet-common
     , tasty
     , tasty-hunit
     , tasty-quickcheck
@@ -167,6 +165,7 @@ executable serialise
     , plutus-ledger-api
     , serialise
     , singularitynet
+    , singularitynet-common
     , text
 
   hs-source-dirs: exe

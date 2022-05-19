@@ -39,7 +39,7 @@ import Plutus.V1.Ledger.Api (
 import PlutusTx (unstableMakeIsData)
 import PlutusTx.Builtins.Internal (BuiltinByteString)
 
-import Common.Natural (
+import SingularityNet.Natural (
   NatRatio,
   Natural,
  )
@@ -49,8 +49,8 @@ import PNatural (
   PNatural,
  )
 
-import Common.Types (AssetClass)
 import PTypes (PAssetClass)
+import SingularityNet.Types (AssetClass)
 
 -- Orphan instance for `PBool`
 deriving via

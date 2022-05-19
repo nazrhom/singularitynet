@@ -8,7 +8,6 @@ module Test.SpecBondedAdmin (
 -}
 
 import BondedPool (pbondedPoolValidator, pbondedPoolValidatorUntyped)
-import Common.Natural (NatRatio (NatRatio), Natural (Natural))
 import Data.Ratio ((%))
 import Plutarch (compile)
 import Plutarch.Api.V1 (
@@ -50,6 +49,7 @@ import Plutus.V1.Ledger.Api (
   singleton,
  )
 import Plutus.V1.Ledger.Interval (interval)
+import SingularityNet.Natural (NatRatio (NatRatio), Natural (Natural))
 import Test.Common (
   testAdminPkh,
   testListCurrencySymbol,
@@ -59,8 +59,8 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
 import Test.Utils (succeeds)
 
-import Common.Settings (bondedStakingTokenName)
-import Common.Types (
+import SingularityNet.Settings (bondedStakingTokenName)
+import SingularityNet.Types (
   AssetClass (AssetClass),
   BondedPoolParams (
     BondedPoolParams,

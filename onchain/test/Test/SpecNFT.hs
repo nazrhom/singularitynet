@@ -2,7 +2,6 @@
 
 module Test.SpecNFT (nftTests) where
 
-import Common.Settings (bondedStakingTokenName)
 import Plutus.V1.Ledger.Ada (lovelaceValueOf)
 import Plutus.V1.Ledger.Api (
   Address (Address, addressCredential, addressStakingCredential),
@@ -30,6 +29,7 @@ import Plutus.V1.Ledger.Api (
   always,
   singleton,
  )
+import SingularityNet.Settings (bondedStakingTokenName)
 import Test.Common (
   testAdminPkh,
   testStateCurrencySymbol,
