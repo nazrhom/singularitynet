@@ -21,6 +21,6 @@ tests =
   testGroup
     "SingularityNet"
     [
-      --nftTests
-      specPeriodTests
+      nftTests
+      , specPeriodTests
     ]
