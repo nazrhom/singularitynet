@@ -33,7 +33,7 @@ import Test.Plutip.LocalCluster (withCluster)
 import Test.Plutip.Predicate (shouldFail, shouldSucceed)
 import Test.Tasty (TestTree)
 
-import Common.Settings (bondedStakingTokenName)
+import SingularityNet.Settings (bondedStakingTokenName)
 import Ledger (ChainIndexTxOut, scriptCurrencySymbol)
 import Ledger qualified as Contract
 import Ledger.Constraints (ScriptLookups)

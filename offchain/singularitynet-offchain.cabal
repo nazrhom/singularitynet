@@ -14,6 +14,7 @@ category:           TODO
 build-type:         Simple
 tested-with:        GHC ==8.10.7
 extra-source-files: README.md
+                    scripts/*
 
 source-repository head
   type:     git
@@ -131,11 +132,8 @@ test-suite singularitynet-offchain-test
     , text                       >=1.2.4.1
 
   ghc-options:    -Wall -threaded -rtsopts
-  hs-source-dirs: test ../onchain/src
+  hs-source-dirs: test
 
   -- We can only import modules from Common!
   other-modules:
-    Common.Natural
-    Common.Settings
-    Common.Types
     SpecStateNFT
