@@ -26,7 +26,7 @@ import Common.Types (
 import Common.Natural (Natural(Natural), NatRatio (NatRatio))
 import Common.Settings (bondedStakingTokenName)
 import PTypes(
-  PPeriod(..)
+  PPeriod
   , PBondedPoolParams
   , bondingPeriod
   , depositWithdrawPeriod
@@ -34,17 +34,25 @@ import PTypes(
   , closingPeriod
   )
 import PInterval (
-  PPeriodicInterval(..),
-  pperiodicContains,
-  getBondedPeriod,
-  pinterval)
+  PPeriodicInterval(
+    PPeriodicInterval
+  , piBaseOffset
+  , piPeriod
+  , piStartOffset
+  , piEndOffset
+  , piMaxCycles
+  )
+  , pperiodicContains
+  , getBondedPeriod
+  , pinterval
+  )
 
 import Plutarch.Api.V1 (PPOSIXTime)
 import Plutarch.Api.V1.Interval(PInterval)
 
-import Test.Tasty
+import Test.Tasty(TestTree, testGroup)
 import Test.Tasty.HUnit(testCase)
-import Test.Utils (fails, returnsTrue, returnsFalse, shouldBe, shouldNotBe)
+import Test.Utils (fails, returnsTrue, returnsFalse, shouldBe)
 import Test.Common (testAdminPkh)
 import Plutus.V1.Ledger.Api (CurrencySymbol(CurrencySymbol))
 import Data.Ratio ((%))
