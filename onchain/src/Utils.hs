@@ -151,15 +151,19 @@ pfind pred ls = pure $ (pfix # plam go) # ls
 
 -- | Print one message or the other depending on the boolean condition.
 ptraceBool ::
-  forall (s :: S) .
-  Term s PString -> -- |^ The common message
-  Term s PString -> -- |^ The `ptrue` part
-  Term s PString -> -- |^ The `pfalse` part
+  forall (s :: S).
+  Term s PString ->
+  -- |^ The common message
+  Term s PString ->
+  -- |^ The `ptrue` part
+  Term s PString ->
+  -- |^ The `pfalse` part
   Term s PBool ->
   Term s PBool
 ptraceBool common trueMsg falseMsg cond = ptrace msg cond
-  where msg :: Term s PString
-        msg = pif cond (common <> " " <> trueMsg) (common <> " " <> falseMsg) 
+  where
+    msg :: Term s PString
+    msg = pif cond (common <> " " <> trueMsg) (common <> " " <> falseMsg)
 
 -- Functions for evaluating predicates on `PValue`s
 

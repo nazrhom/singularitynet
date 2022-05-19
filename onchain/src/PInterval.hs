@@ -345,8 +345,9 @@ pperiodicContains = plam $ \pi i' -> unTermCont $ do
     getTime x = pure $
       pmatch x $ \case
         PFinite n -> pfield @"_0" # n
-        _ -> ptraceError
-          "pperiodicContains: received a non-finite interval"
+        _ ->
+          ptraceError
+            "pperiodicContains: received a non-finite interval"
 
 pext ::
   forall (s :: S) (a :: PType).

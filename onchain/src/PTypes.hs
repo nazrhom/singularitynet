@@ -264,25 +264,30 @@ data PPeriod (s :: S)
   deriving stock (GHC.Generic, Eq)
   deriving anyclass (Generic, PlutusType)
 
--- | Compares datatypes that don't have a `PEq` instance but do have a `Eq`
--- and `PlutusType` instance
-plutusEq :: forall (s :: S) (a :: PType) . (PlutusType a, Eq (a s)) =>
-  Term s a -> Term s a -> Term s PBool
+{- | Compares datatypes that don't have a `PEq` instance but do have a `Eq`
+ and `PlutusType` instance
+-}
+plutusEq ::
+  forall (s :: S) (a :: PType).
+  (PlutusType a, Eq (a s)) =>
+  Term s a ->
+  Term s a ->
+  Term s PBool
 a' `plutusEq` b' = pmatch a' $ \a -> pmatch b' $ \b -> pconstant $ a == b
 
 instance PEq PPeriod where
   (#==) = plutusEq
 
 -- Useful constants
-unavailablePeriod :: forall (s :: S) . Term s PPeriod
+unavailablePeriod :: forall (s :: S). Term s PPeriod
 unavailablePeriod = pcon $ UnavailablePeriod
-depositWithdrawPeriod :: forall (s :: S) . Term s PPeriod
+depositWithdrawPeriod :: forall (s :: S). Term s PPeriod
 depositWithdrawPeriod = pcon $ DepositWithdrawPeriod
-bondingPeriod :: forall (s :: S) . Term s PPeriod
+bondingPeriod :: forall (s :: S). Term s PPeriod
 bondingPeriod = pcon $ BondingPeriod
-onlyWithdrawPeriod :: forall (s :: S) . Term s PPeriod
+onlyWithdrawPeriod :: forall (s :: S). Term s PPeriod
 onlyWithdrawPeriod = pcon $ OnlyWithdrawPeriod
-closingPeriod :: forall (s :: S) . Term s PPeriod
+closingPeriod :: forall (s :: S). Term s PPeriod
 closingPeriod = pcon $ ClosingPeriod
 
 ------ Orphans ------

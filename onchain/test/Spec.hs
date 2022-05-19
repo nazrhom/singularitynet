@@ -1,10 +1,10 @@
 module Main (main) where
 
+import GHC.IO.Encoding (setLocaleEncoding, utf8)
 import Test.SpecNFT (nftTests)
 import Test.SpecPeriod (specPeriodTests)
-import Prelude (IO)
 import Test.Tasty (TestTree, defaultMain, testGroup)
-import GHC.IO.Encoding (setLocaleEncoding, utf8)
+import Prelude (IO)
 
 -- | @since 0.1
 main :: IO ()
@@ -20,7 +20,6 @@ tests :: TestTree
 tests =
   testGroup
     "SingularityNet"
-    [
-      nftTests
-      , specPeriodTests
+    [ nftTests
+    , specPeriodTests
     ]
