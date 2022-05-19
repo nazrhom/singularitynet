@@ -44,13 +44,13 @@ import Common.Natural (
   Natural,
  )
 
-import PNatural(
+import PNatural (
   PNatRatio,
-  PNatural
-  )
+  PNatural,
+ )
 
 import Common.Types (AssetClass)
-import PTypes(PAssetClass)
+import PTypes (PAssetClass)
 
 -- Orphan instance for `PBool`
 deriving via

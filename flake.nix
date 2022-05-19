@@ -84,7 +84,7 @@
           (nixpkgsFor system).haskell-nix.cabalProject' {
             src = ./.;
             compiler-nix-name = ghcVersion;
-	    cabalProjectFileName = "cabal.project.onchain";
+            cabalProjectFileName = "cabal.project.onchain";
             inherit (plutarch) cabalProjectLocal;
             extraSources = plutarch.extraSources ++ [
               {
@@ -116,10 +116,10 @@
                 ps.tasty-quickcheck
               ];
 
-	      shellHook = ''
-		export NIX_SHELL_TARGET="onchain"
-		ln -fs cabal.project.onchain cabal.project
-	      '';
+              shellHook = ''
+                export NIX_SHELL_TARGET="onchain"
+                ln -fs cabal.project.onchain cabal.project
+              '';
             };
           };
       };
@@ -180,10 +180,10 @@
 
                 additional = ps: [ ps.plutip ];
 
-		shellHook = ''
-		  export NIX_SHELL_TARGET="offchain"
-	          ln -fs cabal.project.offchain cabal.project
-	        '';
+                shellHook = ''
+                  export NIX_SHELL_TARGET="offchain"
+                        ln -fs cabal.project.offchain cabal.project
+                '';
               };
             };
           in

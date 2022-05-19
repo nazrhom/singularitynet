@@ -115,8 +115,6 @@ test-suite singularitynet-offchain-test
   type:           exitcode-stdio-1.0
   main-is:        Spec.hs
   build-depends:
-    , singularitynet-common
-    , singularitynet-offchain
     , cardano-prelude            >=0.1.0.0
     , containers                 >=0.6.5.1
     , generics-sop
@@ -127,6 +125,8 @@ test-suite singularitynet-offchain-test
     , plutus-ledger-constraints
     , plutus-pab                 >=0.1.0.0
     , plutus-tx
+    , singularitynet-common
+    , singularitynet-offchain
     , tasty                      >=1.4
     , text                       >=1.2.4.1
 

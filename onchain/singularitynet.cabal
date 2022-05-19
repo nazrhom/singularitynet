@@ -101,6 +101,9 @@ library
   import:          common-lang
   exposed-modules:
     BondedPool
+    Common.Natural
+    Common.Settings
+    Common.Types
     ListNFT
     PInterval
     PNatural
@@ -110,16 +113,13 @@ library
     UnbondedStaking.Types
     UnbondedStaking.UnbondedPool
     Utils
-    Common.Natural
-    Common.Settings
-    Common.Types
 
   build-depends:
-    , singularitynet-common
     , generics-sop
     , plutarch
     , plutus-ledger-api
     , plutus-tx
+    , singularitynet-common
 
   hs-source-dirs:  src
 

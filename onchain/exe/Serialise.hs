@@ -46,9 +46,9 @@ import Plutarch.Api.V1 (scriptHash)
 import Plutus.V1.Ledger.Scripts (Script)
 
 import BondedPool (pbondedPoolValidatorUntyped)
+import Common.Settings (bondedStakingTokenName, unbondedStakingTokenName)
 import ListNFT (plistNFTPolicyUntyped)
 import Plutarch (ClosedTerm, compile)
-import Common.Settings (bondedStakingTokenName, unbondedStakingTokenName)
 import StateNFT (pstateNFTPolicyUntyped)
 import UnbondedStaking.UnbondedPool (punbondedPoolValidatorUntyped)
 
