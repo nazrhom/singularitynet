@@ -1,4 +1,4 @@
-module UnbondedStaking.CreatePool (createUnbondedPoolContract) where
+module UnbondedStaking.CreateUnbondedPool (createUnbondedPoolContract) where
 
 import Contract.Prelude
 
