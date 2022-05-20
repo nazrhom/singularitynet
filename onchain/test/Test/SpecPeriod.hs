@@ -6,9 +6,9 @@ module Test.SpecPeriod (
     module description here
 -}
 
-import Common.Natural (NatRatio (NatRatio), Natural (Natural))
-import Common.Settings (bondedStakingTokenName)
-import Common.Types (
+import SingularityNet.Natural (NatRatio (NatRatio), Natural (Natural))
+import SingularityNet.Settings (bondedStakingTokenName)
+import SingularityNet.Types (
   AssetClass (AssetClass),
   BondedPoolParams (
     BondedPoolParams,
