@@ -70,19 +70,19 @@ pperiodTests :: TestTree
 pperiodTests =
   testGroup
     "pperiodicContains tests"
-    [ testCase "[2200; 2800) ∈ 1000 + [1000; 2000) % 5000" $
+    [ testCase "range inside" $
         returnsTrue $ testWithRange rangeInside
-    , testCase "[2000; 3000) ∈ 1000 + [1000; 2000) % 5000" $
+    , testCase "range inside and exactly the same" $
         returnsTrue $ testWithRange rangeExact
-    , testCase "[12,000; 13,000) ∈ 1000 + 3 * [1000; 2000) % 5000" $
+    , testCase "range is exactly the same, third cycle" $
         returnsTrue $ testWithRange rangeExactOtherCycle
-    , testCase "[27,000; 28,000) ∈ 1000 + [1000; 2000) % 5000" $
+    , testCase "range is inside, but the cycle exceeds the maximum" $
         returnsFalse $ testWithRange rangeInsideBadCycle
-    , testCase "[1500; 2500) ∈ 1000 + [1000; 2000) % 5000" $
+    , testCase "range starts too soon" $
         returnsFalse $ testWithRange rangeStartsTooSoon
-    , testCase "[2500; 3500) ∈ 1000 + [1000; 2000) % 5000" $
+    , testCase "range ends too late" $
         returnsFalse $ testWithRange rangeEndsTooLate
-    , testCase "[2500; 7500) ∈ 1000 + [1000; 2000) % 5000" $
+    , testCase "range starts in cycle 3 and ends in cycle 4, too wide" $
         returnsFalse $ testWithRange rangeTooWide
     ]
 
