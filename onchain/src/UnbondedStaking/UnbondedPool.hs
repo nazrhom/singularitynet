@@ -6,12 +6,8 @@ module UnbondedStaking.UnbondedPool (
   punbondedPoolValidatorUntyped,
 ) where
 
-import Data.Natural (
+import SingularityNet.Natural (
   Natural (Natural),
-  PNatRatio,
-  PNatural,
-
-  PNonNegative ((#+), (#*), (#-)),
 
   NatRatio (NatRatio),
  )
@@ -28,8 +24,15 @@ import Plutarch.Api.V1.Scripts (PDatum)
 import Plutarch.Builtin (pforgetData)
 import Plutarch.Unsafe (punsafeCoerce)
 
-import Settings (unbondedStakingTokenName)
-import Types (
+import PNatural (
+  PNatRatio,
+  PNatural,
+
+  PNonNegative ((#+), (#*), (#-)),
+ )
+
+import SingularityNet.Settings (unbondedStakingTokenName)
+import PTypes (
   passetClass,
  )
 import UnbondedStaking.Types (
