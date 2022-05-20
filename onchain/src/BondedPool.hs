@@ -22,7 +22,7 @@ import Plutarch.Api.V1.Time (
 import Plutarch.Builtin (pforgetData)
 import Plutarch.Unsafe (punsafeCoerce)
 
-import Data.Interval (
+import PInterval (
   PPeriodicInterval (
     PPeriodicInterval,
     piBaseOffset,
@@ -37,10 +37,10 @@ import Data.Interval (
   pintervalTo,
   pperiodicContains,
  )
-import Data.Natural (
+import PNatural (
   PNatural,
  )
-import Types (
+import PTypes (
   PBondedPoolParams,
   PBondedStakingAction (
     PAdminAct,
@@ -68,7 +68,7 @@ import Utils (
 
 import GHC.Records (getField)
 import Plutarch.Api.V1.Scripts (PDatum)
-import Settings (bondedStakingTokenName)
+import SingularityNet.Settings (bondedStakingTokenName)
 
 pbondedPoolValidator ::
   forall (s :: S).

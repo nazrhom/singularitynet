@@ -1,0 +1,6 @@
+packages: ./onchain ./common
+
+tests: true
+
+package plutarch
+    flags: +development

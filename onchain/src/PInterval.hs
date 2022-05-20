@@ -1,4 +1,4 @@
-module Data.Interval (
+module PInterval (
   PPeriodicInterval (..),
   pinterval,
   pintervalTo,
@@ -32,7 +32,7 @@ import Plutarch.Api.V1 (
 import GHC.Generics qualified as GHC
 import Generics.SOP (Generic, I (I))
 
-import Data.Natural (PNatural)
+import PNatural (PNatural)
 import Plutarch.Api.V1.Time (PPOSIXTime)
 import Utils (pfalse, ple, pletC, plt, pmatchC, ptrue)
 

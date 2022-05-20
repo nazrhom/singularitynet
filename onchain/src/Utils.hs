@@ -28,6 +28,7 @@ module Utils (
   (>:),
 ) where
 
+import PTypes (PAssetClass)
 import Plutarch.Api.V1 (
   PAddress,
   PCurrencySymbol,
@@ -46,7 +47,6 @@ import Plutarch.Lift (
  )
 import Plutarch.Monadic qualified as P
 import Plutarch.TryFrom (PTryFrom, ptryFrom)
-import Types (PAssetClass)
 
 -- Term-level boolean functions
 peq :: forall (s :: S) (a :: PType). PEq a => Term s (a :--> a :--> PBool)

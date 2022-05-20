@@ -6,7 +6,7 @@
     nixpkgs.follows = "plutip/nixpkgs";
     haskell-nix.follows = "plutip/haskell-nix";
 
-    plutip.url = "github:mlabs-haskell/plutip?rev=88d069d68c41bfd31b2057446a9d4e584a4d2f32";
+    plutip.url = "github:mlabs-haskell/plutip?rev=0b92bb7b913d213457713c09bacae06110c47bac";
 
     plutarch.url = "github:CardaxDEX/plutarch?rev=e5a50283a0cb01ce1fee880943becda1ac19f3a0";
     plutarch.inputs.haskell-nix.follows = "plutip/haskell-nix";
@@ -77,13 +77,13 @@
 
       onchain = rec {
         ghcVersion = "ghc921";
-
         projectFor = system:
           let pkgs = nixpkgsFor system; in
           let pkgs' = nixpkgsFor' system; in
           (nixpkgsFor system).haskell-nix.cabalProject' {
-            src = ./onchain;
+            src = ./.;
             compiler-nix-name = ghcVersion;
+            cabalProjectFileName = "cabal.project.onchain";
             inherit (plutarch) cabalProjectLocal;
             extraSources = plutarch.extraSources ++ [
               {
@@ -114,6 +114,11 @@
                 ps.plutarch
                 ps.tasty-quickcheck
               ];
+
+              shellHook = ''
+                export NIX_SHELL_TARGET="onchain"
+                ln -fs cabal.project.onchain cabal.project
+              '';
             };
           };
       };
@@ -122,7 +127,6 @@
 
       offchain = rec {
         ghcVersion = "ghc8107";
-
         projectFor = system:
           let
             pkgs = nixpkgsFor system;
@@ -130,9 +134,10 @@
             plutipin = inputs.plutip.inputs;
             fourmolu = pkgs.haskell-nix.tool "ghc921" "fourmolu" { };
             project = pkgs.haskell-nix.cabalProject' {
-              src = ./offchain;
+              src = ./.;
               compiler-nix-name = ghcVersion;
               inherit (plutip) cabalProjectLocal;
+              cabalProjectFileName = "cabal.project.offchain";
               extraSources = plutip.extraSources ++ [
                 {
                   src = "${plutip}";
@@ -173,6 +178,11 @@
                 tools.haskell-language-server = { };
 
                 additional = ps: [ ps.plutip ];
+
+                shellHook = ''
+                  export NIX_SHELL_TARGET="offchain"
+                        ln -fs cabal.project.offchain cabal.project
+                '';
               };
             };
           in

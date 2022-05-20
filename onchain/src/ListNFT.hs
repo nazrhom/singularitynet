@@ -13,8 +13,8 @@ import Plutarch.Api.V1 (
 import Plutarch.Api.V1.Scripts ()
 import Plutarch.Unsafe (punsafeCoerce)
 
+import PTypes (PMintingAction)
 import Plutarch.Crypto (pblake2b_256)
-import Types (PMintingAction)
 import Utils (getCs, guardC, oneOfWith, pconstantC, peq, pletC, ptryFromUndata)
 
 {-
