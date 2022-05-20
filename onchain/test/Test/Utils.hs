@@ -43,7 +43,7 @@ shouldBe ::
   ClosedTerm a ->
   ClosedTerm a ->
   Assertion
-shouldBe a b =
+a `shouldBe` b =
   succeeds $
     pif
       (a #== b)
@@ -56,7 +56,7 @@ shouldNotBe ::
   ClosedTerm a ->
   ClosedTerm a ->
   Assertion
-shouldNotBe a b =
+a `shouldNotBe` b =
   succeeds $
     pif
       (pnot #$ a #== b)
