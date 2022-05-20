@@ -7,7 +7,13 @@ module UnbondedStaking.UnbondedPool (
 ) where
 
 import Data.Natural (
+  Natural (Natural),
+  PNatRatio,
   PNatural,
+
+  PNonNegative ((#+), (#*), (#-)),
+
+  NatRatio (NatRatio),
  )
 import GHC.Records (getField)
 
@@ -51,6 +57,10 @@ import Utils (
   -- (>:),
  )
 
+import Data.Ratio (
+  (%),
+ )
+
 punbondedPoolValidator ::
   forall (s :: S).
   Term
@@ -79,8 +89,8 @@ punbondedPoolValidator =
                   dat
                   totalRewards
                   totalDeposited
-          PStakeAct _pair' -> stakeActLogic
-          PWithdrawAct _pkh' -> withdrawActLogic
+          PStakeAct _pair -> stakeActLogic
+          PWithdrawAct _pkh -> withdrawActLogic
           PCloseAct _ -> closeActLogic ctxF.txInfo params
 
 -- Untyped version to be serialised. This version is responsible for verifying
@@ -103,10 +113,6 @@ punbondedPoolValidatorUntyped = plam $ \pparams dat act ctx ->
     # unTermCont (ptryFromUndata act)
     # punsafeCoerce ctx
 
--- The pool operator calculates the new available size left
--- TODO: Besides the logic related to updating the entries, there should also
--- be a check that makes sure the admin is not _reducing_ the stakes or the
--- rewards
 adminActLogic ::
   forall (s :: S).
   Term s PTxInfo ->
@@ -143,55 +149,148 @@ adminActLogic
     -- constructor
     pure $
       pmatch inputStakingDatum $ \case
-        PStateDatum oldState -> unTermCont $ do
-          oldStateF <- tcont $ pletFields @'["_0", "_1"] oldState
+        PStateDatum _ ->
+          ptraceError
+            "adminActLogic: update failed because a wrong \
+            \datum constructor was provided"
+        PEntryDatum oldEntryRecord -> unTermCont $ do
+          -- Retrieve fields from oldEntry
+          oldEntry <- pletC $ pfield @"_0" # oldEntryRecord
+          oldEntryF <-
+            tcont $
+              pletFields
+                @'[ "key"
+                  , "deposited"
+                  , "newDeposit"
+                  , "rewards"
+                  , "totalRewards"
+                  , "totalDeposited"
+                  , "open"
+                  , "next"
+                  ]
+                oldEntry
+          -- Ensure pool is open
+          guardC
+            "adminActLogic: update failed because pool is not open"
+            oldEntryF.open
+          -- Validate new Entry datum
           -- We obtain the asset class of the NFT
-          let cs = pfield @"nftCs" # params
+          let cs = pfield @"assocListCs" # params
               tn = pconstant unbondedStakingTokenName
               ac = passetClass # cs # tn
           -- We retrieve the continuing output's datum
           coOutput <- getContinuingOutputWithNFT inputAddress ac txInfoF.outputs
           coOutputDatumHash <- getDatumHash coOutput
-          -- coOutputDatum <- getDatum coOutputDatumHash (pfield @"data" # txInfo)
           coOutputDatum <- getDatum coOutputDatumHash $ getField @"data" txInfoF
           coOutputStakingDatum <- parseStakingDatum coOutputDatum
-          -- Get new state
-          PStateDatum state <- pmatchC coOutputStakingDatum
-          stateF <- tcont $ pletFields @'["_0", "_1"] state
-          -- Check conditions
-          guardC "adminActLogic: update failed because of list head change" $
-            stateF._0 #== oldStateF._0
-          guardC
-            "adminActLogic: update failed because new size was not updated \
-            \correctly"
-            $ stateF._1 #== sizeLeft
-        PEntryDatum oldEntry' -> unTermCont $ do
-          -- Retrieve fields from oldEntry
-          oldEntry <- pletC $ pfield @"_0" # oldEntry'
-          _oldEntryF <-
+          -- Retrieve fields from new Entry
+          PEntryDatum newEntryRecord <- pmatchC coOutputStakingDatum
+          newEntry <- pletC $ pfield @"_0" # newEntryRecord
+          newEntryF <-
             tcont $
               pletFields
                 @'[ "key"
-                  , "sizeLeft"
-                  , "newDeposit"
                   , "deposited"
-                  , "staked"
+                  , "newDeposit"
                   , "rewards"
-                  , "value"
+                  , "totalRewards"
+                  , "totalDeposited"
+                  , "open"
                   , "next"
                   ]
-                oldEntry
-          -- We obtain the asset class of the NFT
-          let _cs = pfield @"assocListCs" # params
-              _tn = pconstant unbondedStakingTokenName
-              _ac = passetClass # _cs # _tn
-          -- TODO: Verify that most fields are kept intact, that size is updated
-          -- and that interests are calculated correctly
+                newEntry
+          -- Check updated values
+          guardC
+            "adminActLogic: update failed because entry field 'key' \
+            \is changed"
+            $ oldEntryF.key #== newEntryF.key
+          guardC
+            "adminActLogic: update failed because entry field 'deposited' \
+            \is changed"
+            $ oldEntryF.deposited #== newEntryF.deposited
+          guardC
+            "adminActLogic: update failed because entry field 'newDeposit' \
+            \is not zero"
+            $ newEntryF.newDeposit #==
+              pconstant @PNatural (Natural $ fromInteger 0)
+          guardC
+            "adminActLogic: update failed because entry field 'rewards' \
+            \is not updatedRewards"
+            $ newEntryF.rewards #==
+              updatedRewards
+                oldEntryF.rewards
+                tRewards
+                oldEntryF.deposited
+                oldEntryF.newDeposit
+                tDeposited
+          guardC
+            "adminActLogic: update failed because entry field 'totalRewards' \
+            \is not newTotalRewards"
+            $ newEntryF.totalRewards #== tRewards
+          guardC
+            "adminActLogic: update failed because entry field \
+            \'totalDeposited' is not newTotalDeposited"
+            $ newEntryF.totalDeposited #== tDeposited
+          guardC
+            "adminActLogic: update failed because entry field 'open' \
+            \is changed"
+            $ oldEntryF.open #== newEntryF.open
+          guardC
+            "adminActLogic: update failed because entry field 'next' \
+            \is changed"
+            $ oldEntryF.next #== newEntryF.next
+
           pconstantC ()
         PAssetDatum _ ->
           ptraceError
             "adminActLogic: update failed because a wrong \
             \datum constructor was provided"
+
+  where
+    updatedRewards ::
+      forall (s :: S).
+      Term s PNatRatio ->
+      Term s PNatural ->
+      Term s PNatural ->
+      Term s PNatural ->
+      Term s PNatural ->
+      Term s PNatRatio
+    updatedRewards _ _ _ _ _ = pconstant @PNatRatio (NatRatio (fromInteger 1 % fromInteger 1))
+    updatedRewards r tr d nd td = r #+ f
+      where
+
+        f = tr #* ((d - nd #+ r) / td)
+
+-- instance POrd PNatRatio where
+--   a #<= b = P.do
+--     a' <- plet $ pto a
+--     b' <- plet $ pto b
+--     let n1 = pfstData # a'
+--         d1 = psndData # a'
+--         n2 = pfstData # b'
+--         d2 = psndData # b'
+--     n1 * d2 #<= n2 * d1
+--   a #< b = P.do
+--     a' <- plet $ pto a
+--     b' <- plet $ pto b
+--     let n1 = pfstData # a'
+--         d1 = psndData # a'
+--         n2 = pfstData # b'
+--         d2 = psndData # b'
+--     n1 * d2 #< n2 * d1
+
+-- pfstData ::
+--   forall (s :: S) (a :: PType) (b :: PType).
+--   PIsData a =>
+--   Term s (PBuiltinPair (PAsData a) b :--> a)
+-- pfstData = phoistAcyclic $ plam $ \x -> pfromData $ pfstBuiltin # x
+
+-- psndData ::
+--   forall (s :: S) (a :: PType) (b :: PType).
+--   PIsData b =>
+--   Term s (PBuiltinPair a (PAsData b) :--> b)
+-- psndData = phoistAcyclic $ plam $ \x -> pfromData $ psndBuiltin # x
+
     -- where
     --   __isBondingPeriod :: Term s PPeriod -> Term s PBool
     --   __isBondingPeriod period = pmatch period $ \case
