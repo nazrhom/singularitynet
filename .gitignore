@@ -1,7 +1,18 @@
-# Node artifact files
-node_modules/
-dist/
-dist-newstyle/
+# Build artifacts
+**/node_modules/
+**/node_modules
+**/dist/
+**/dist-newstyle/
+**/output/
+**/output.js
+**/generated-docs/
+**/.psc-package/
+**/.psc*
+**/.purs*
+**/.psa*
+**/.spago
+**/.spago2nix*
+**/dist/
 
 # nix-build results
 result
@@ -51,3 +62,19 @@ cabal.project.local*
 
 # Notes
 *.txt
+
+# hie-bios files
+onchain/hie.yaml
+offchain/hie.yaml
+
+# Spec
+*.aux
+*.log
+*.out
+*.synctex.gz
+*.toc
+spec/_*
+
+# The cabal.project file is generated dynamically by the nix shell as a symbolic
+# to cabal.project.onchain or cabal.project.offchain
+cabal.project

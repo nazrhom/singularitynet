@@ -6,15 +6,32 @@
     nixpkgs.follows = "plutip/nixpkgs";
     haskell-nix.follows = "plutip/haskell-nix";
 
-    plutip.url = "github:mlabs-haskell/plutip?rev=88d069d68c41bfd31b2057446a9d4e584a4d2f32";
+    plutip.url = "github:mlabs-haskell/plutip?rev=0b92bb7b913d213457713c09bacae06110c47bac";
 
-    plutarch.url = "github:Plutonomicon/plutarch";
+    plutarch.url = "github:CardaxDEX/plutarch?rev=e5a50283a0cb01ce1fee880943becda1ac19f3a0";
     plutarch.inputs.haskell-nix.follows = "plutip/haskell-nix";
     plutarch.inputs.nixpkgs.follows = "plutip/nixpkgs";
+
+    ctl = {
+      type = "github";
+      owner = "Plutonomicon";
+      repo = "cardano-transaction-lib";
+      # NOTE
+      # Keep this in sync with the rev in `frontend/packages.dhall`
+      rev = "03e65b0ebc0be3ccbc98a0621ce786390f887129";
+    };
   };
 
 
-  outputs = inputs@{ self, nixpkgs, haskell-nix, plutarch, plutip, ... }:
+  outputs =
+    inputs@{ self
+    , nixpkgs
+    , haskell-nix
+    , plutarch
+    , plutip
+    , ctl
+    , ...
+    }:
     let
       # GENERAL
       supportedSystems = with nixpkgs.lib.systems.supported; tier1 ++ tier2 ++ tier3;
@@ -25,7 +42,10 @@
         overlays = [ haskell-nix.overlay (import "${plutip.inputs.iohk-nix}/overlays/crypto") ];
         inherit (haskell-nix) config;
       };
-      nixpkgsFor' = system: import nixpkgs { inherit system; };
+      nixpkgsFor' = system: import nixpkgs {
+        inherit system;
+        overlays = [ ctl.overlay.${system} ];
+      };
 
       formatCheckFor = system:
         let
@@ -57,13 +77,13 @@
 
       onchain = rec {
         ghcVersion = "ghc921";
-
         projectFor = system:
           let pkgs = nixpkgsFor system; in
           let pkgs' = nixpkgsFor' system; in
           (nixpkgsFor system).haskell-nix.cabalProject' {
-            src = ./onchain;
+            src = ./.;
             compiler-nix-name = ghcVersion;
+            cabalProjectFileName = "cabal.project.onchain";
             inherit (plutarch) cabalProjectLocal;
             extraSources = plutarch.extraSources ++ [
               {
@@ -94,6 +114,11 @@
                 ps.plutarch
                 ps.tasty-quickcheck
               ];
+
+              shellHook = ''
+                export NIX_SHELL_TARGET="onchain"
+                ln -fs cabal.project.onchain cabal.project
+              '';
             };
           };
       };
@@ -102,7 +127,6 @@
 
       offchain = rec {
         ghcVersion = "ghc8107";
-
         projectFor = system:
           let
             pkgs = nixpkgsFor system;
@@ -110,9 +134,10 @@
             plutipin = inputs.plutip.inputs;
             fourmolu = pkgs.haskell-nix.tool "ghc921" "fourmolu" { };
             project = pkgs.haskell-nix.cabalProject' {
-              src = ./offchain;
+              src = ./.;
               compiler-nix-name = ghcVersion;
               inherit (plutip) cabalProjectLocal;
+              cabalProjectFileName = "cabal.project.offchain";
               extraSources = plutip.extraSources ++ [
                 {
                   src = "${plutip}";
@@ -153,11 +178,67 @@
                 tools.haskell-language-server = { };
 
                 additional = ps: [ ps.plutip ];
+
+                shellHook = ''
+                  export NIX_SHELL_TARGET="offchain"
+                        ln -fs cabal.project.offchain cabal.project
+                '';
               };
             };
           in
           project;
       };
+
+      frontend = {
+        projectFor = system:
+          let
+            pkgs = nixpkgsFor' system;
+            src = ./frontend;
+            project = pkgs.purescriptProject {
+              inherit src;
+              projectName = "singularitynet-frontend";
+              nodejs = pkgs.nodejs-12_x;
+            };
+          in
+          {
+            flake = {
+              packages = {
+                frontend-bundle-web = project.bundlePursProject {
+                  sources = [ "src" "exe" ];
+                  main = "Main";
+                };
+              };
+
+              apps = {
+                frontend-runtime = pkgs.launchCtlRuntime { };
+              };
+
+              checks = {
+                frontend = project.runPursTest {
+                  name = "singularitynet-frontend";
+                  sources = [ "src" "test" ];
+                  testMain = "Test.Main";
+                };
+
+                format-check = pkgs.runCommand "formatting-check"
+                  {
+                    nativeBuildInputs = [
+                      pkgs.easy-ps.purs-tidy
+                      pkgs.fd
+                    ];
+                  }
+                  ''
+                    cd ${src}
+                    purs-tidy check $(fd -epurs)
+                    touch $out
+                  '';
+              };
+
+              devShell = project.devShell;
+            };
+          };
+      };
+
     in
     {
       inherit nixpkgsFor;
@@ -172,17 +253,27 @@
         flake = perSystem (system: (offchain.projectFor system).flake { });
       };
 
+      frontend = {
+        flake = perSystem (system: (frontend.projectFor system).flake);
+      };
+
       packages = perSystem (system:
         self.onchain.flake.${system}.packages
         // self.offchain.flake.${system}.packages
+        // self.frontend.flake.${system}.packages
       );
+
+      apps = perSystem (system: self.frontend.flake.${system}.apps);
+
       checks = perSystem (system:
         self.onchain.flake.${system}.checks
         // self.offchain.flake.${system}.checks
+        // self.frontend.flake.${system}.checks # includes formatting check as well
         // {
           formatCheck = formatCheckFor system;
         }
       );
+
       check = perSystem (system:
         (nixpkgsFor system).runCommand "combined-test"
           {
@@ -192,6 +283,7 @@
               ++ [
                 self.devShells.${system}.onchain.inputDerivation
                 self.devShells.${system}.offchain.inputDerivation
+                self.devShells.${system}.frontend.inputDerivation
               ];
           } ''
           echo $checksss
@@ -202,8 +294,7 @@
       devShells = perSystem (system: {
         onchain = self.onchain.flake.${system}.devShell;
         offchain = self.offchain.flake.${system}.devShell;
+        frontend = self.frontend.flake.${system}.devShell;
       });
     };
 }
-
-

@@ -1,0 +1,36 @@
+"WBS #","Name / Title",Type,"Start Date","End Date","Estimated Hours","Actual Hours","Percent Complete",Resources,Predecessors,Notes,Comments,"Task Color"
+1,"SingularityNET Staking Pool",project,2022-04-06,2022-06-14,0,0,66.94,,,,,
+1.1,"Spec Work",group,2022-04-06,2022-05-04,0,0,95.65,,,,,
+1.1.1,"Bonded Spec",task,2022-04-06,2022-04-13,0,0,100,,,,,green1
+1.1.2,"Feedback and update bonded spec",task,2022-04-14,2022-04-19,0,0,90,,1.1.1,,,green1
+1.1.3,"Unbonded Spec",task,2022-04-18,2022-04-26,0,0,100,,,,,green1
+1.1.4,"Feedback and update unbonded spec",task,2022-04-27,2022-05-04,0,0,90,,1.1.3,,,green1
+1.2,Demos,group,2022-04-06,2022-05-10,0,0,100,,,,,
+1.2.1,"Admin create and deposit (no time constraints)",task,2022-04-06,2022-04-15,0,0,100,,,,,green1
+1.2.2,"Admin create, deposit, withdraw (no time constraints)",task,2022-04-29,2022-05-10,0,0,100,,,,,green1
+1.3,"Environment Setup",group,2022-04-06,2022-04-15,0,0,100,,,,,
+1.3.1,"Plutarch and offchain dependency",task,2022-04-06,2022-04-06,0,0,100,,,,,green1
+1.3.2,CI/CD,task,2022-04-08,2022-04-08,0,0,100,,,,,green1
+1.3.3,"CTL Dependency",task,2022-04-08,2022-04-15,0,0,100,,,,,green1
+1.4,Contract,group,2022-04-07,2022-06-01,0,0,61.03,,,,,
+1.4.1,"Datatypes and helper functions",task,2022-04-07,2022-05-16,0,0,80,,,,,green1
+1.4.2,"Create Pool (Bonded)",task,2022-04-07,2022-04-11,0,0,100,,,,,green1
+1.4.3,"Admin Deposit (Bonded)",task,2022-04-12,2022-04-25,0,0,80,,1.4.2,,,green1
+1.4.4,"Admin Withdraw (Bonded)",task,2022-04-26,2022-05-10,0,0,80,,1.4.3,,,green1
+1.4.5,"Testing Framework",task,2022-05-11,2022-05-13,0,0,80,,,,,green1
+1.4.6,"User Stake (Bonded)",task,2022-05-16,2022-05-18,0,0,0,,1.4.5,,,green1
+1.4.7,"User Withdraw (Bonded)",task,2022-05-19,2022-05-24,0,0,0,,1.4.6,,,green1
+1.4.8,"Create Pool (Unbonded)",task,2022-05-11,2022-05-13,0,0,100,,,,,green1
+1.4.9,"Admin Deposit (Unbonded)",task,2022-05-16,2022-05-18,0,0,0,,1.4.8,,,green1
+1.4.10,"Admin Withdraw (Unbonded)",task,2022-05-19,2022-05-23,0,0,0,,1.4.9,,,green1
+1.4.11,"User Stake (Unbonded)",task,2022-05-24,2022-05-30,0,0,0,,1.4.10,,,green1
+1.4.12,"User Withdraw (Unbonded)",task,2022-05-31,2022-06-01,0,0,0,,1.4.11,,,green1
+1.5,"JS SDK",group,2022-05-16,2022-05-27,0,0,28,,,,,
+1.5.1,"Liaise with SingularityNET Frontend",task,2022-05-16,2022-05-18,0,0,0,,,,,green1
+1.5.2,"Set up SDK",task,2022-05-19,2022-05-27,0,0,40,,1.5.1,,,green1
+1.6,Onboarding,group,2022-04-06,2022-05-09,0,0,100,,,,,
+1.6.1,"Onboarding Developer 1",task,2022-04-06,2022-04-06,0,0,100,,,,,green1
+1.6.2,"Onboarding Developer 2",task,2022-05-09,2022-05-09,0,0,100,,,,,green1
+1.7,Audit,group,2022-06-01,2022-06-14,0,0,0,,,,,
+1.7.1,Audit,task,2022-06-01,2022-06-07,0,0,0,,,,,green1
+1.7.2,"Respond to Audit",task,2022-06-08,2022-06-14,0,0,0,,1.7.1,,,green1

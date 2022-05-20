@@ -99,9 +99,25 @@ common common-lang
 
 library
   import:          common-lang
-  exposed-modules: SingularityNet
-                 , Types
-  build-depends:   plutarch
+  exposed-modules:
+    BondedPool
+    ListNFT
+    PInterval
+    PNatural
+    PTypes
+    SingularityNet
+    StateNFT
+    UnbondedStaking.Types
+    UnbondedStaking.UnbondedPool
+    Utils
+
+  build-depends:
+    , generics-sop
+    , plutarch
+    , plutus-ledger-api
+    , plutus-tx
+    , singularitynet-common
+
   hs-source-dirs:  src
 
 library pprelude
@@ -119,10 +135,37 @@ test-suite singularitynet-test
   main-is:        Spec.hs
   build-depends:
     , plutarch
+    , plutus-ledger-api
     , QuickCheck
     , quickcheck-instances
     , singularitynet
+    , singularitynet-common
     , tasty
+    , tasty-hunit
     , tasty-quickcheck
 
+  other-modules:
+    Test.Common
+    Test.SpecBondedAdmin
+    Test.SpecNFT
+    Test.Utils
+
   hs-source-dirs: test
+
+executable serialise
+  import:         common-lang
+  main-is:        Serialise.hs
+  build-depends:
+    , aeson
+    , base
+    , base16-bytestring
+    , bytestring
+    , optparse-applicative
+    , plutarch
+    , plutus-ledger-api
+    , serialise
+    , singularitynet
+    , singularitynet-common
+    , text
+
+  hs-source-dirs: exe
