@@ -12,15 +12,19 @@ import Contract.Monad
   , defaultServerConfig
   , defaultSlotConfig
   , launchAff_
+  -- , liftContractM
   , mkContractConfig
   , runContract_
   )
 import Contract.Wallet (mkNamiWalletAff)
-import CreatePool (createPoolContract)
+import CreatePool (createBondedPoolContract)
 import Data.Int (toNumber)
 import DepositPool (depositPoolContract)
 import Effect.Aff (delay)
 import Effect.Aff.Class (liftAff)
+
+-- import Settings (testInitUnbondedParams)
+-- import UnbondedStaking.CreatePool (createUnbondedPoolContract)
 
 main :: Effect Unit
 main = launchAff_ $ do
@@ -36,9 +40,15 @@ main = launchAff_ $ do
     , wallet
     }
   runContract_ cfg $ do
-    poolInfo <- createPoolContract
+    -- Bonded test
+    poolInfo <- createBondedPoolContract
     -- sleep in order to wait for tx
     liftAff $ delay $ wrap $ toNumber 80_000
     depositPoolContract poolInfo
     liftAff $ delay $ wrap $ toNumber 80_000
     closePoolContract poolInfo
+
+-- Unbonded test
+-- initParams <- liftContractM "main: Cannot initiate unbonded parameters"
+--   testInitUnbondedParams
+-- void $ createUnbondedPoolContract initParams

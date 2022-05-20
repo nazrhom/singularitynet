@@ -43,9 +43,9 @@ import Utils (
   ptryFromUndata,
  )
 
-import Common.Settings (bondedStakingTokenName)
 import GHC.Records (getField)
 import Plutarch.Api.V1.Scripts (PDatum)
+import SingularityNet.Settings (bondedStakingTokenName)
 
 pbondedPoolValidator ::
   forall (s :: S).

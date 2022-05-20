@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Common.Natural (
+module SingularityNet.Natural (
   -- | Typeclasses
   NonNegative ((^+), (^*), (^-)),
   Natural (Natural),
@@ -53,7 +53,7 @@ instance ToData Natural where
   toBuiltinData (Natural n) = toBuiltinData (fromIntegral n :: Integer)
 
 instance FromData Natural where
-  fromBuiltinData x = maybe Nothing gt0 $ fromBuiltinData x
+  fromBuiltinData = maybe Nothing gt0 . fromBuiltinData
 
 {- | A rational datatype that wraps a `Ratio Natural`. By using `Natural`
  instead of `Integer` we at least get a warning when using negative literals.
@@ -65,7 +65,7 @@ newtype NatRatio = NatRatio (Ratio Natural.Natural)
 
 instance ToData NatRatio where
   toBuiltinData (NatRatio r) =
-    BuiltinData $ toData . toTuple $ r
+    BuiltinData . toData . toTuple $ r
 
 instance UnsafeFromData NatRatio where
   unsafeFromBuiltinData x =
@@ -73,8 +73,7 @@ instance UnsafeFromData NatRatio where
      in NatRatio $ fromInteger n % fromInteger d
 
 instance FromData NatRatio where
-  fromBuiltinData x = maybe Nothing toRatio $ fromBuiltinData x
-    where
+  fromBuiltinData = maybe Nothing toRatio . fromBuiltinData
 
 {- | A class for numeric types on which we want safe arithmetic operations that
  cannot change the signum

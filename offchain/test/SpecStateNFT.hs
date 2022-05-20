@@ -33,11 +33,11 @@ import Test.Plutip.LocalCluster (withCluster)
 import Test.Plutip.Predicate (shouldFail, shouldSucceed)
 import Test.Tasty (TestTree)
 
-import Common.Settings (bondedStakingTokenName)
 import Ledger (ChainIndexTxOut, scriptCurrencySymbol)
 import Ledger qualified as Contract
 import Ledger.Constraints (ScriptLookups)
 import Ledger.Constraints.TxConstraints (TxConstraints)
+import SingularityNet.Settings (bondedStakingTokenName)
 
 specStateNFT :: Script -> TestTree
 specStateNFT policyScript =
@@ -46,12 +46,12 @@ specStateNFT policyScript =
     [ assertExecution
         "should validate correct transaction"
         (initAda [100])
-        (withContract $ const correctMint)
+        (withContract . const $ nftMint 1)
         [shouldSucceed]
     , assertExecution
         "should not mint more than once"
         (initAda [100])
-        (withContract $ const multipleMint)
+        (withContract . const $ nftMint 5)
         [shouldFail]
     , assertExecution
         "should not consume the wrong outRef"
@@ -60,11 +60,11 @@ specStateNFT policyScript =
         [shouldFail]
     ]
   where
-    correctMint :: Contract String EmptySchema Text ()
-    correctMint = do
-      (pkh, utxos, outRef, policy) <- initContract
+    nftMint :: Integer -> Contract String EmptySchema Text ()
+    nftMint amt = do
+      (_, utxos, outRef, policy) <- initContract
       let nftCs = scriptCurrencySymbol policy
-          value = singleton nftCs bondedStakingTokenName 1
+          value = singleton nftCs bondedStakingTokenName amt
 
           lookups :: ScriptLookups Void
           lookups =
@@ -74,32 +74,12 @@ specStateNFT policyScript =
           constraints =
             Constraints.mustSpendPubKeyOutput outRef
               <> Constraints.mustMintValue value
-              <> Constraints.mustPayToPubKey pkh value
-      tx <- Contract.submitTxConstraintsWith lookups constraints
-      Contract.awaitTxConfirmed . Tx.getCardanoTxId $ tx
-
-    multipleMint :: Contract String EmptySchema Text ()
-    multipleMint = do
-      (pkh, utxos, outRef, policy) <- initContract
-      let nftCs = scriptCurrencySymbol policy
-          -- Multiple minting here
-          value = singleton nftCs bondedStakingTokenName 5
-
-          lookups :: ScriptLookups Void
-          lookups =
-            Constraints.mintingPolicy policy
-              <> Constraints.unspentOutputs utxos
-          constraints :: TxConstraints Void Void
-          constraints =
-            Constraints.mustSpendPubKeyOutput outRef
-              <> Constraints.mustMintValue value
-              <> Constraints.mustPayToPubKey pkh value
       tx <- Contract.submitTxConstraintsWith lookups constraints
       Contract.awaitTxConfirmed . Tx.getCardanoTxId $ tx
 
     wrongOutRefMint :: Contract String EmptySchema Text ()
     wrongOutRefMint = do
-      (pkh, utxos, outRef, policy) <- initContract
+      (_, utxos, outRef, policy) <- initContract
       Contract.logInfo $ "my utxos: " <> show utxos
       Contract.logInfo $ "state nft utxo: " <> show outRef
       -- There should only be two UTXOs in this wallet
@@ -117,7 +97,6 @@ specStateNFT policyScript =
           constraints =
             Constraints.mustSpendPubKeyOutput wrongOutRef
               <> Constraints.mustMintValue value
-              <> Constraints.mustPayToPubKey pkh value
       tx <- Contract.submitTxConstraintsWith lookups constraints
       Contract.awaitTxConfirmed . Tx.getCardanoTxId $ tx
 

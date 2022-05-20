@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Common.Types (
+module SingularityNet.Types (
   BondedPoolParams (..),
   BondedStakingAction (..),
   MintingAction (Stake, Withdraw),
@@ -34,7 +34,7 @@ import Generics.SOP (Generic)
 import PlutusTx (unstableMakeIsData)
 import PlutusTx.Builtins.Internal (BuiltinByteString)
 
-import Common.Natural (
+import SingularityNet.Natural (
   NatRatio,
   Natural,
  )

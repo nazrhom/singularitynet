@@ -1,5 +1,5 @@
 index-state: 2022-01-22T00:00:00Z
 
-packages: ./.
+packages: ./offchain ./common
 
 tests: true

@@ -77,13 +77,13 @@
 
       onchain = rec {
         ghcVersion = "ghc921";
-
         projectFor = system:
           let pkgs = nixpkgsFor system; in
           let pkgs' = nixpkgsFor' system; in
           (nixpkgsFor system).haskell-nix.cabalProject' {
-            src = ./onchain;
+            src = ./.;
             compiler-nix-name = ghcVersion;
+            cabalProjectFileName = "cabal.project.onchain";
             inherit (plutarch) cabalProjectLocal;
             extraSources = plutarch.extraSources ++ [
               {
@@ -114,6 +114,11 @@
                 ps.plutarch
                 ps.tasty-quickcheck
               ];
+
+              shellHook = ''
+                export NIX_SHELL_TARGET="onchain"
+                ln -fs cabal.project.onchain cabal.project
+              '';
             };
           };
       };
@@ -122,7 +127,6 @@
 
       offchain = rec {
         ghcVersion = "ghc8107";
-
         projectFor = system:
           let
             pkgs = nixpkgsFor system;
@@ -130,9 +134,10 @@
             plutipin = inputs.plutip.inputs;
             fourmolu = pkgs.haskell-nix.tool "ghc921" "fourmolu" { };
             project = pkgs.haskell-nix.cabalProject' {
-              src = ./offchain;
+              src = ./.;
               compiler-nix-name = ghcVersion;
               inherit (plutip) cabalProjectLocal;
+              cabalProjectFileName = "cabal.project.offchain";
               extraSources = plutip.extraSources ++ [
                 {
                   src = "${plutip}";
@@ -173,6 +178,11 @@
                 tools.haskell-language-server = { };
 
                 additional = ps: [ ps.plutip ];
+
+                shellHook = ''
+                  export NIX_SHELL_TARGET="offchain"
+                        ln -fs cabal.project.offchain cabal.project
+                '';
               };
             };
           in

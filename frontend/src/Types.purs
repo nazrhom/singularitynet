@@ -5,6 +5,7 @@ module Types
   , PoolInfo(..)
   , AssetClass(..)
   , Entry(..)
+  , StakingType(..)
   ) where
 
 import Contract.Prelude
@@ -37,6 +38,9 @@ instance HasConstrIndices AssetClass where
 
 instance ToData AssetClass where
   toData = genericToData
+
+instance Show AssetClass where
+  show = genericShow
 
 newtype PoolInfo = PoolInfo
   { stateNftCs :: CurrencySymbol
@@ -147,3 +151,5 @@ instance ToData Entry where
 
 instance Show Entry where
   show = genericShow
+
+data StakingType = Bonded | Unbonded
