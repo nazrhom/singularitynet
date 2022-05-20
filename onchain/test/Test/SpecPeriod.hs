@@ -6,26 +6,6 @@ module Test.SpecPeriod (
     module description here
 -}
 
-import SingularityNet.Natural (NatRatio (NatRatio), Natural (Natural))
-import SingularityNet.Settings (bondedStakingTokenName)
-import SingularityNet.Types (
-  AssetClass (AssetClass),
-  BondedPoolParams (
-    BondedPoolParams,
-    admin,
-    assocListCs,
-    bondedAssetClass,
-    bondingLength,
-    end,
-    interest,
-    iterations,
-    maxStake,
-    minStake,
-    nftCs,
-    start,
-    userLength
-  ),
- )
 import PInterval (
   PPeriodicInterval (
     PPeriodicInterval,
@@ -47,12 +27,32 @@ import PTypes (
   depositWithdrawPeriod,
   onlyWithdrawPeriod,
  )
+import SingularityNet.Natural (NatRatio (NatRatio), Natural (Natural))
+import SingularityNet.Settings (bondedStakingTokenName)
+import SingularityNet.Types (
+  AssetClass (AssetClass),
+  BondedPoolParams (
+    BondedPoolParams,
+    admin,
+    assocListCs,
+    bondedAssetClass,
+    bondingLength,
+    end,
+    interest,
+    iterations,
+    maxStake,
+    minStake,
+    nftCs,
+    start,
+    userLength
+  ),
+ )
 
 import Plutarch.Api.V1 (PPOSIXTime)
 import Plutarch.Api.V1.Interval (PInterval)
 
 import Data.Ratio ((%))
-import Plutus.V1.Ledger.Api (CurrencySymbol (CurrencySymbol))
+import Plutus.V1.Ledger.Api (CurrencySymbol (CurrencySymbol), POSIXTime)
 import Test.Common (testAdminPkh)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
@@ -123,6 +123,10 @@ getPeriod ::
   Term s PPeriod
 getPeriod txRange = getBondedPeriod # txRange # testPoolParams
 
+mkInterval ::
+  forall (s :: S). POSIXTime -> POSIXTime -> Term s (PInterval PPOSIXTime)
+mkInterval start end = pinterval (pconstant start) (pconstant end)
+
 ---- Test data ----
 testPeriodicInterval :: forall (s :: S). Term s PPeriodicInterval
 testPeriodicInterval =
@@ -160,67 +164,67 @@ testPoolParams = pconstant params
 
 -- TX range inside first deposit period
 rangeDeposit :: Term s (PInterval PPOSIXTime)
-rangeDeposit = pinterval (pconstant 5500) (pconstant 8000)
+rangeDeposit = mkInterval 5500 8000
 
 -- TX range exactly the same as first deposit period
 rangeDepositExact :: Term s (PInterval PPOSIXTime)
-rangeDepositExact = pinterval (pconstant 5000) (pconstant 8500)
+rangeDepositExact = mkInterval 5000 8500
 
 -- TX range fails to be in first deposit period by 1 unit
 rangeDepositOffByOne :: Term s (PInterval PPOSIXTime)
-rangeDepositOffByOne = pinterval (pconstant 5001) (pconstant 8501)
+rangeDepositOffByOne = mkInterval 5001 8501
 
 -- TX range inside first bonding period
 rangeBonding :: Term s (PInterval PPOSIXTime)
-rangeBonding = pinterval (pconstant 9000) (pconstant 9800)
+rangeBonding = mkInterval 9000 9800
 
 -- TX range exactly the same as first bonding period
 rangeBondingExact :: Term s (PInterval PPOSIXTime)
-rangeBondingExact = pinterval (pconstant 8500) (pconstant 10_000)
+rangeBondingExact = mkInterval 8500 10_000
 
 -- TX range fails to be in first deposit period by 1 unit
 rangeBondingOffByOne :: Term s (PInterval PPOSIXTime)
-rangeBondingOffByOne = pinterval (pconstant 8501) (pconstant 10_001)
+rangeBondingOffByOne = mkInterval 8501 10_001
 
 -- TX range inside last withdrawal period
 rangeLastWithdrawal :: Term s (PInterval PPOSIXTime)
-rangeLastWithdrawal = pinterval (pconstant 21_000) (pconstant 22_500)
+rangeLastWithdrawal = mkInterval 21_000 22_500
 
 -- TX range is exactly last withdrawal period
 rangeLastWithdrawalExact :: Term s (PInterval PPOSIXTime)
-rangeLastWithdrawalExact = pinterval (pconstant 20_000) (pconstant 23_500)
+rangeLastWithdrawalExact = mkInterval 20_000 23_500
 
 -- TX range is in closing period
 rangeClose :: Term s (PInterval PPOSIXTime)
-rangeClose = pinterval (pconstant 30_000) (pconstant 50_000)
+rangeClose = mkInterval 30_000 50_000
 
 -- Data for pperiodTests
 
 -- TX range is inside interval in first cycle
 rangeInside :: Term s (PInterval PPOSIXTime)
-rangeInside = pinterval (pconstant 2200) (pconstant 2800)
+rangeInside = mkInterval 2200 2800
 
 -- TX range is *exactly* the interval in first cycle
 rangeExact :: Term s (PInterval PPOSIXTime)
-rangeExact = pinterval (pconstant 2000) (pconstant 3000)
+rangeExact = mkInterval 2000 3000
 
 -- TX range is inside interval in 3rd cycle. It is also exact.
 rangeExactOtherCycle :: Term s (PInterval PPOSIXTime)
-rangeExactOtherCycle = pinterval (pconstant 12_000) (pconstant 13_000)
+rangeExactOtherCycle = mkInterval 12_000 13_000
 
 -- TX range is inside interval in 6th cycle, which is off bounds
 rangeInsideBadCycle :: Term s (PInterval PPOSIXTime)
-rangeInsideBadCycle = pinterval (pconstant 27_000) (pconstant 28_000)
+rangeInsideBadCycle = mkInterval 27_000 28_000
 
 -- TX range starts too soon and ends inside interval
 rangeStartsTooSoon :: Term s (PInterval PPOSIXTime)
-rangeStartsTooSoon = pinterval (pconstant 1500) (pconstant 2500)
+rangeStartsTooSoon = mkInterval 1500 2500
 
 -- TX range starts inside interval but ends too late
 rangeEndsTooLate :: Term s (PInterval PPOSIXTime)
-rangeEndsTooLate = pinterval (pconstant 2500) (pconstant 3500)
+rangeEndsTooLate = mkInterval 2500 3500
 
 -- TX range starts inside interval in cycle 3 and ends inside interval in
 -- cycle 4. This range is too wide and should fail.
 rangeTooWide :: Term s (PInterval PPOSIXTime)
-rangeTooWide = pinterval (pconstant 2500) (pconstant 7500)
+rangeTooWide = mkInterval 2500 7500
