@@ -14,7 +14,7 @@
 module PTypes (
   PBondedPoolParams (..),
   PBondedStakingAction (..),
-  PMintingAction,
+  PMintingAction (..),
   PBondedStakingDatum (..),
   PEntry,
   PAssetClass (PAssetClass),

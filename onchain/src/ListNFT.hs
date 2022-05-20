@@ -13,9 +13,18 @@ import Plutarch.Api.V1 (
 import Plutarch.Api.V1.Scripts ()
 import Plutarch.Unsafe (punsafeCoerce)
 
-import PTypes (PMintingAction)
+import PTypes (PMintingAction (PStake, PWithdraw))
 import Plutarch.Crypto (pblake2b_256)
-import Utils (getCs, guardC, oneOfWith, pconstantC, peq, pletC, ptryFromUndata)
+import Utils (
+  getCs,
+  guardC,
+  oneOf,
+  oneOfWith,
+  pconstantC,
+  peq,
+  pletC,
+  ptryFromUndata,
+ )
 
 {-
     This module implements the minting policy for the NFTs used as entries for
@@ -46,7 +55,7 @@ plistNFTPolicy ::
         :--> PScriptContext
         :--> PUnit
     )
-plistNFTPolicy = plam $ \nftCs _mintAct ctx' -> unTermCont $ do
+plistNFTPolicy = plam $ \nftCs mintAct ctx' -> unTermCont $ do
   -- This CurrencySymbol is only used for parametrization
   _cs <- pletC nftCs
   ctx <- tcont $ pletFields @'["txInfo", "purpose"] ctx'
@@ -58,10 +67,11 @@ plistNFTPolicy = plam $ \nftCs _mintAct ctx' -> unTermCont $ do
   -- Calculate TokenName based on PubKeyHash
   let tn :: Term s PTokenName
       tn = pcon . PTokenName $ pblake2b_256 # pto signatory
-  -- Check the token was minted or burnt *once*
-  guardC "failed when checking minted value" $
-    burnsOrMintsOnce cs tn txInfo.mint
-  pconstantC ()
+  -- Dispatch to appropiate handler based on redeemer
+  pure $
+    pmatch mintAct $ \case
+      PStake _ -> stakeActLogic cs tn txInfo.mint
+      PWithdraw _ -> withdrawActLogic cs tn txInfo.mint
 
 plistNFTPolicyUntyped ::
   forall (s :: S). Term s (PData :--> PData :--> PData :--> PUnit)
@@ -82,15 +92,30 @@ getSignatory ls = pure . pmatch ls $ \case
       (ptraceError "getSignatory: transaction has more than one signatory")
   PNil -> ptraceError "getSignatory: empty list of signatories"
 
-burnsOrMintsOnce ::
+stakeActLogic ::
   forall (s :: S).
   Term s PCurrencySymbol ->
   Term s PTokenName ->
   Term s PValue ->
-  Term s PBool
-burnsOrMintsOnce cs tn val =
-  oneOfWith
-    # (peq # cs)
-    # (peq # tn)
-    # (plam $ \n -> n #== 1 #|| n #== -1)
-    # val
+  Term s PUnit
+stakeActLogic cs tn mintVal = unTermCont $ do
+  -- Check that the token was minted once
+  guardC "stakeActLogic: failed when checking minted value" $
+    oneOf # cs # tn # mintVal
+  pconstantC ()
+
+withdrawActLogic ::
+  forall (s :: S).
+  Term s PCurrencySymbol ->
+  Term s PTokenName ->
+  Term s PValue ->
+  Term s PUnit
+withdrawActLogic cs tn mintVal = unTermCont $ do
+  -- Check that the token was burnt once
+  guardC "withdrawActLogic: failed when checking minted value" $
+    oneOfWith
+      # (peq # cs)
+      # (peq # tn)
+      # (plam $ \n -> n #== -1)
+      # mintVal
+  pconstantC ()
