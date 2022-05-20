@@ -43,9 +43,6 @@ import Utils (
 -}
 
 -- TODO: Inductive conditions related to staking and withdrawing not implemented
--- (that's why the redeemer isn't used yet). `burnsOrMintsOnce` ought to be
--- split in two parts, one for each of the two use cases (staking and
--- withdrawing).
 plistNFTPolicy ::
   forall (s :: S).
   Term
