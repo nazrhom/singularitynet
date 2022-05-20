@@ -1,7 +1,7 @@
-module Settings (
-  bondedStakingTokenName,
-  unbondedStakingTokenName,
-) where
+module SingularityNet.Settings (
+    bondedStakingTokenName,
+    unbondedStakingTokenName
+    ) where
 
 {-
     This module is for hardcoded platform settings
