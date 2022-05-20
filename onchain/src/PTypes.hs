@@ -280,22 +280,26 @@ plutusEq ::
   Term s a ->
   Term s a ->
   Term s PBool
-a' `plutusEq` b' = pmatch a' $ \a -> pmatch b' $ \b -> pconstant $ a == b
+plutusEq a' b' = pmatch a' $ \a -> pmatch b' $ \b -> pconstant $ a == b
 
 instance PEq PPeriod where
   (#==) = plutusEq
 
 -- Useful constants
 unavailablePeriod :: forall (s :: S). Term s PPeriod
-unavailablePeriod = pcon $ UnavailablePeriod
+unavailablePeriod = pcon UnavailablePeriod
+
 depositWithdrawPeriod :: forall (s :: S). Term s PPeriod
-depositWithdrawPeriod = pcon $ DepositWithdrawPeriod
+depositWithdrawPeriod = pcon DepositWithdrawPeriod
+
 bondingPeriod :: forall (s :: S). Term s PPeriod
-bondingPeriod = pcon $ BondingPeriod
+bondingPeriod = pcon BondingPeriod
+
 onlyWithdrawPeriod :: forall (s :: S). Term s PPeriod
-onlyWithdrawPeriod = pcon $ OnlyWithdrawPeriod
+onlyWithdrawPeriod = pcon OnlyWithdrawPeriod
+
 closingPeriod :: forall (s :: S). Term s PPeriod
-closingPeriod = pcon $ ClosingPeriod
+closingPeriod = pcon ClosingPeriod
 
 ------ Orphans ------
 

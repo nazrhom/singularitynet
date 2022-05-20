@@ -163,68 +163,68 @@ testPoolParams = pconstant params
 -- Data for getBondedPeriod
 
 -- TX range inside first deposit period
-rangeDeposit :: Term s (PInterval PPOSIXTime)
+rangeDeposit :: forall (s :: S). Term s (PInterval PPOSIXTime)
 rangeDeposit = mkInterval 5500 8000
 
 -- TX range exactly the same as first deposit period
-rangeDepositExact :: Term s (PInterval PPOSIXTime)
+rangeDepositExact :: forall (s :: S). Term s (PInterval PPOSIXTime)
 rangeDepositExact = mkInterval 5000 8500
 
 -- TX range fails to be in first deposit period by 1 unit
-rangeDepositOffByOne :: Term s (PInterval PPOSIXTime)
+rangeDepositOffByOne :: forall (s :: S). Term s (PInterval PPOSIXTime)
 rangeDepositOffByOne = mkInterval 5001 8501
 
 -- TX range inside first bonding period
-rangeBonding :: Term s (PInterval PPOSIXTime)
+rangeBonding :: forall (s :: S). Term s (PInterval PPOSIXTime)
 rangeBonding = mkInterval 9000 9800
 
 -- TX range exactly the same as first bonding period
-rangeBondingExact :: Term s (PInterval PPOSIXTime)
+rangeBondingExact :: forall (s :: S). Term s (PInterval PPOSIXTime)
 rangeBondingExact = mkInterval 8500 10_000
 
 -- TX range fails to be in first deposit period by 1 unit
-rangeBondingOffByOne :: Term s (PInterval PPOSIXTime)
+rangeBondingOffByOne :: forall (s :: S). Term s (PInterval PPOSIXTime)
 rangeBondingOffByOne = mkInterval 8501 10_001
 
 -- TX range inside last withdrawal period
-rangeLastWithdrawal :: Term s (PInterval PPOSIXTime)
+rangeLastWithdrawal :: forall (s :: S). Term s (PInterval PPOSIXTime)
 rangeLastWithdrawal = mkInterval 21_000 22_500
 
 -- TX range is exactly last withdrawal period
-rangeLastWithdrawalExact :: Term s (PInterval PPOSIXTime)
+rangeLastWithdrawalExact :: forall (s :: S). Term s (PInterval PPOSIXTime)
 rangeLastWithdrawalExact = mkInterval 20_000 23_500
 
 -- TX range is in closing period
-rangeClose :: Term s (PInterval PPOSIXTime)
+rangeClose :: forall (s :: S). Term s (PInterval PPOSIXTime)
 rangeClose = mkInterval 30_000 50_000
 
 -- Data for pperiodTests
 
 -- TX range is inside interval in first cycle
-rangeInside :: Term s (PInterval PPOSIXTime)
+rangeInside :: forall (s :: S). Term s (PInterval PPOSIXTime)
 rangeInside = mkInterval 2200 2800
 
 -- TX range is *exactly* the interval in first cycle
-rangeExact :: Term s (PInterval PPOSIXTime)
+rangeExact :: forall (s :: S). Term s (PInterval PPOSIXTime)
 rangeExact = mkInterval 2000 3000
 
 -- TX range is inside interval in 3rd cycle. It is also exact.
-rangeExactOtherCycle :: Term s (PInterval PPOSIXTime)
+rangeExactOtherCycle :: forall (s :: S). Term s (PInterval PPOSIXTime)
 rangeExactOtherCycle = mkInterval 12_000 13_000
 
 -- TX range is inside interval in 6th cycle, which is off bounds
-rangeInsideBadCycle :: Term s (PInterval PPOSIXTime)
+rangeInsideBadCycle :: forall (s :: S). Term s (PInterval PPOSIXTime)
 rangeInsideBadCycle = mkInterval 27_000 28_000
 
 -- TX range starts too soon and ends inside interval
-rangeStartsTooSoon :: Term s (PInterval PPOSIXTime)
+rangeStartsTooSoon :: forall (s :: S). Term s (PInterval PPOSIXTime)
 rangeStartsTooSoon = mkInterval 1500 2500
 
 -- TX range starts inside interval but ends too late
-rangeEndsTooLate :: Term s (PInterval PPOSIXTime)
+rangeEndsTooLate :: forall (s :: S). Term s (PInterval PPOSIXTime)
 rangeEndsTooLate = mkInterval 2500 3500
 
 -- TX range starts inside interval in cycle 3 and ends inside interval in
 -- cycle 4. This range is too wide and should fail.
-rangeTooWide :: Term s (PInterval PPOSIXTime)
+rangeTooWide :: forall (s :: S). Term s (PInterval PPOSIXTime)
 rangeTooWide = mkInterval 2500 7500

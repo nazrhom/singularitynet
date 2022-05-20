@@ -77,74 +77,82 @@ pcompare = phoistAcyclic $
     pif
       (x #< y)
       (pcon PLT)
-      ( pif
-          ((x #<= y) #&& (pnot # (x #< y))) -- "local eq instance"
-          (pcon PEQ)
-          (pcon PGT)
-      )
+      $ pif
+        (x #<= y) -- "local eq instance"
+        (pcon PEQ)
+        (pcon PGT)
 
 -- We define `POrd` instances for `PUpperBound` and `PLowerBound`
 
 instance (POrd a, PIsData a) => POrd (PLowerBound a) where
   lb0 #<= lb1 = leq # lb0 # lb1
     where
+      leq ::
+        forall (s :: S). Term s (PLowerBound a :--> PLowerBound a :--> PBool)
       leq = phoistAcyclic $
         plam $ \x y -> unTermCont $ do
-          x' <- tcont $ pletFields @'["_0", "_1"] x
-          y' <- tcont $ pletFields @'["_0", "_1"] y
-          fst' <- pmatchC $ pcompare @(PExtended a) # x'._0 # y'._0
-          pure $ case fst' of
+          xF <- tcont $ pletFields @'["_0", "_1"] x
+          yF <- tcont $ pletFields @'["_0", "_1"] y
+          fst <- pmatchC $ pcompare @(PExtended a) # xF._0 # yF._0
+          pure $ case fst of
             -- An open lower bound is bigger than a closed lower bound.
-            PEQ -> pnot # y'._1 #|| x'._1
+            PEQ -> xF._1 #|| pnot # yF._1
             PLT -> pcon PTrue
             PGT -> pcon PFalse
 
   lb0 #< lb1 = lt # lb0 # lb1
     where
+      lt ::
+        forall (s :: S). Term s (PLowerBound a :--> PLowerBound a :--> PBool)
       lt = phoistAcyclic $
         plam $ \x y -> unTermCont $ do
-          x' <- tcont $ pletFields @'["_0", "_1"] x
-          y' <- tcont $ pletFields @'["_0", "_1"] y
-          fst' <- pmatchC $ pcompare @(PExtended a) # x'._0 # y'._0
-          pure $ case fst' of
-            -- An open lower bound is bigger than a closed lower bound. This corresponds
-            -- to the *reverse* of the normal order on Bool.
-            PEQ -> pnot # y'._1 #&& x'._1
+          xF <- tcont $ pletFields @'["_0", "_1"] x
+          yF <- tcont $ pletFields @'["_0", "_1"] y
+          fst <- pmatchC $ pcompare @(PExtended a) # xF._0 # yF._0
+          pure $ case fst of
+            -- An open lower bound is bigger than a closed lower bound
+            PEQ -> xF._1 #&& pnot # yF._1
             PLT -> pcon PTrue
             PGT -> pcon PFalse
 
 instance (PIsData a, POrd a) => POrd (PUpperBound a) where
   ub0 #<= ub1 = leq # ub0 # ub1
     where
+      leq ::
+        forall (s :: S). Term s (PUpperBound a :--> PUpperBound a :--> PBool)
       leq = phoistAcyclic $
         plam $ \x y -> unTermCont $ do
           xF <- tcont $ pletFields @'["_0", "_1"] x
           yF <- tcont $ pletFields @'["_0", "_1"] y
-          fst' <- pmatchC $ pcompare @(PExtended a) # xF._0 # yF._0
-          pure $ case fst' of
+          fst <- pmatchC $ pcompare @(PExtended a) # xF._0 # yF._0
+          pure $ case fst of
             -- A closed upper bound is bigger than an open upper bound
             -- If x == y, then either x is open or y is closed
-            PEQ -> pnot # xF._1 #|| yF._1
+            PEQ -> yF._1 #|| pnot # xF._1
             PLT -> pcon PTrue
             PGT -> pcon PFalse
 
   ub0 #< ub1 = lt # ub0 # ub1
     where
+      lt ::
+        forall (s :: S). Term s (PUpperBound a :--> PUpperBound a :--> PBool)
       lt = phoistAcyclic $
         plam $ \x y -> unTermCont $ do
-          x' <- tcont $ pletFields @'["_0", "_1"] x
-          y' <- tcont $ pletFields @'["_0", "_1"] y
-          fst' <- pmatchC $ pcompare @(PExtended a) # x'._0 # y'._0
+          xF <- tcont $ pletFields @'["_0", "_1"] x
+          yF <- tcont $ pletFields @'["_0", "_1"] y
+          fst' <- pmatchC $ pcompare @(PExtended a) # xF._0 # yF._0
           pure $ case fst' of
             -- A closed upper bound is bigger than an open upper bound.
             -- If x == y, then x must be open and y must be closed
-            PEQ -> pnot # x'._1 #&& y'._1
+            PEQ -> yF._1 #&& pnot # xF._1
             PLT -> pcon PTrue
             PGT -> pcon PFalse
 
 instance (POrd a, PIsData a) => POrd (PExtended a) where
   ex0 #<= ex1 = leq # ex0 # ex1
     where
+      leq ::
+        forall (s :: S). Term s (PExtended a :--> PExtended a :--> PBool)
       leq = phoistAcyclic $
         plam $ \x' y' -> unTermCont $ do
           x <- pmatchC x'
@@ -159,6 +167,8 @@ instance (POrd a, PIsData a) => POrd (PExtended a) where
 
   ex0 #< ex1 = lt # ex0 # ex1
     where
+      lt ::
+        forall (s :: S). Term s (PExtended a :--> PExtended a :--> PBool)
       lt = phoistAcyclic $
         plam $ \x' y' -> unTermCont $ do
           x <- pmatchC x'
@@ -295,7 +305,7 @@ pperiodicContains ::
   forall (s :: S).
   Term
     s
-    ( PPeriodicInterval :--> PInterval PPOSIXTime :--> PBool
+    ( PPeriodicInterval :--> PPOSIXTimeRange :--> PBool
     )
 pperiodicContains = plam $ \pi i' -> unTermCont $ do
   -- Get fields from periodic interval
@@ -358,6 +368,7 @@ pext p = pdata $ pcon $ PFinite $ pdcons # pdata p # pdnil
 
 -- | Get the BondedPool's period a certain POSIXTimeRange belongs to
 getBondedPeriod ::
+  forall (s :: S).
   Term
     s
     ( PPOSIXTimeRange
