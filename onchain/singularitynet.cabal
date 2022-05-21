@@ -146,8 +146,8 @@ test-suite singularitynet-test
 
   other-modules:
     Test.Common
-    Test.SpecBondedAdmin
     Test.SpecNFT
+    Test.SpecPeriod
     Test.Utils
 
   hs-source-dirs: test

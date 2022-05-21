@@ -18,12 +18,19 @@ module PTypes (
   PBondedStakingDatum (..),
   PEntry,
   PAssetClass (PAssetClass),
+  PPeriod (..),
   passetClass,
+  unavailablePeriod,
+  depositWithdrawPeriod,
+  bondingPeriod,
+  onlyWithdrawPeriod,
+  closingPeriod,
 ) where
 
 {-
  This module contains all the Plutarch-level synonyms of the types defined in
- `Types`
+ `Types`. There are also other Plutarch types that are only used internally (like
+ `PPeriod`)
 -}
 
 import GHC.Generics qualified as GHC
@@ -241,6 +248,58 @@ deriving via
 
 instance PUnsafeLiftDecl PBondedStakingAction where
   type PLifted PBondedStakingAction = BondedStakingAction
+
+{- | A newtype used internally for encoding different periods.
+
+   Depending on the pool's parameters, a certain period can either be:
+
+   0. UnavailablePeriod: The pool has not started yet and no actions are
+      permitted.
+   1. DepositWithdrawPeriod: A user can both stake and deposit
+   2. BondingPeriod: Only admin actions are allowed
+   3. OnlyWithdrawPeriod: Users can only withdraw, this happens once in the
+      lifetime of a pool, before closing.
+   4. ClosingPeriod: The admin can withdraw the remaining funds and close the
+      pool
+-}
+data PPeriod (s :: S)
+  = UnavailablePeriod
+  | DepositWithdrawPeriod
+  | BondingPeriod
+  | OnlyWithdrawPeriod
+  | ClosingPeriod
+  deriving stock (GHC.Generic, Eq)
+  deriving anyclass (Generic, PlutusType)
+
+{- | Compares datatypes that don't have a `PEq` instance but do have a `Eq`
+ and `PlutusType` instance
+-}
+plutusEq ::
+  forall (s :: S) (a :: PType).
+  (PlutusType a, Eq (a s)) =>
+  Term s a ->
+  Term s a ->
+  Term s PBool
+plutusEq a' b' = pmatch a' $ \a -> pmatch b' $ \b -> pconstant $ a == b
+
+instance PEq PPeriod where
+  (#==) = plutusEq
+
+-- Useful constants
+unavailablePeriod :: forall (s :: S). Term s PPeriod
+unavailablePeriod = pcon UnavailablePeriod
+
+depositWithdrawPeriod :: forall (s :: S). Term s PPeriod
+depositWithdrawPeriod = pcon DepositWithdrawPeriod
+
+bondingPeriod :: forall (s :: S). Term s PPeriod
+bondingPeriod = pcon BondingPeriod
+
+onlyWithdrawPeriod :: forall (s :: S). Term s PPeriod
+onlyWithdrawPeriod = pcon OnlyWithdrawPeriod
+
+closingPeriod :: forall (s :: S). Term s PPeriod
+closingPeriod = pcon ClosingPeriod
 
 ------ Orphans ------
 
