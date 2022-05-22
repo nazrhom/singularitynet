@@ -4,7 +4,7 @@
 module SingularityNet.Types (
   BondedPoolParams (..),
   BondedStakingAction (..),
-  MintingAction (Stake, Withdraw),
+  MintingAction (..),
   BondedStakingDatum (..),
   Entry (
     Entry,
@@ -39,7 +39,7 @@ import SingularityNet.Natural (
   Natural,
  )
 
-import Plutus.V1.Ledger.Api (CurrencySymbol, POSIXTime, PubKeyHash, TokenName)
+import Plutus.V1.Ledger.Api (CurrencySymbol, POSIXTime, PubKeyHash, TokenName, TxOutRef)
 
 {- | An `AssetClass` is simply a convenient type that wraps a CurrencySymbol
  and TokenName
@@ -127,8 +127,12 @@ unstableMakeIsData ''BondedStakingDatum
      that comprise each entry in the association list.
 -}
 data MintingAction
-  = Stake
-  | Withdraw
+  = StakeHead TxOutRef
+  | StakeInBetween TxOutRef TxOutRef
+  | StakeEnd TxOutRef
+  | WithdrawHead TxOutRef
+  | WithdrawInBetween TxOutRef TxOutRef
+  | WithdrawOther TxOutRef
   deriving stock (GHC.Generic)
 
 unstableMakeIsData ''MintingAction
