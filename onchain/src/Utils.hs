@@ -1,5 +1,6 @@
 module Utils (
   peq,
+  pneq,
   pxor,
   plt,
   ple,
@@ -7,6 +8,8 @@ module Utils (
   pgt,
   ptrue,
   pfalse,
+  punit,
+  pifC,
   pnestedIf,
   pfind,
   ppartition,
@@ -14,7 +17,9 @@ module Utils (
   psndData,
   ptraceBool,
   oneOf,
+  noneOf,
   allWith,
+  someWith,
   oneWith,
   pletC,
   pletDataC,
@@ -29,6 +34,7 @@ module Utils (
   getDatumHash,
   getContinuingOutputWithNFT,
   pconst,
+  pflip,
   (>:),
 ) where
 
@@ -43,19 +49,22 @@ import Plutarch.Api.V1 (
   PTokenName,
   PTuple,
   PValue,
-  ptuple
+  ptuple,
  )
 import Plutarch.Api.V1.Tx (PTxInInfo, PTxOut, PTxOutRef)
+import Plutarch.Bool (pand, por)
 import Plutarch.Lift (
   PLifted,
   PUnsafeLiftDecl,
  )
 import Plutarch.TryFrom (PTryFrom, ptryFrom)
-import Plutarch.Bool (pand)
 
 -- Term-level boolean functions
 peq :: forall (s :: S) (a :: PType). PEq a => Term s (a :--> a :--> PBool)
 peq = phoistAcyclic $ plam $ \x y -> x #== y
+
+pneq :: forall (s :: S) (a :: PType). PEq a => Term s (a :--> a :--> PBool)
+pneq = phoistAcyclic $ plam $ \x y -> pnot #$ x #== y
 
 pxor :: forall (s :: S). Term s (PBool :--> PBool :--> PBool)
 pxor = phoistAcyclic $ plam $ \x y -> pnot #$ pdata x #== pdata y
@@ -90,7 +99,10 @@ ptrue = pconstant True
 pfalse :: forall (s :: S). Term s PBool
 pfalse = pconstant False
 
--- Functions for checking conditions in nested structures
+punit :: forall (s :: S). Term s PUnit
+punit = pconstant ()
+
+-- Functions for checking conditions
 
 {- | Build nested conditions. It takes an association list of conditions and
  and results. It evaluates the conditions in order: whenever a condition
@@ -105,6 +117,15 @@ pnestedIf ::
   Term s a
 pnestedIf [] def = def
 pnestedIf ((cond, x) : conds) def = pif cond x $ pnestedIf conds def
+
+-- | Lifts `pif` result into the `TermCont` monad
+pifC ::
+  forall (s :: S) (a :: PType).
+  Term s PBool ->
+  Term s a ->
+  Term s a ->
+  TermCont s (Term s a)
+pifC cond trueResult = pure . pif cond trueResult
 
 -- | A pair builder useful for avoiding parentheses
 infixr 1 >:
@@ -143,46 +164,58 @@ pfind ::
   TermCont s (Term s a)
 pfind pred ls = pure $ (pfix #$ go # pred) # ls
   where
-    go :: forall (s :: S) (a :: PType) . PIsData a =>
-      Term s (
-        (a :--> PBool) :-->
-        (PBuiltinList (PAsData a) :--> a) :-->
-        PBuiltinList (PAsData a) :-->
-        a
-      )
-    go = phoistAcyclic $ plam $ \pred self ls -> pmatch ls $ \case
-      PNil -> ptraceError "pfind: could not find element in list"
-      PCons x xs -> plet (pfromData x) $ \x' -> pif (pred # x') x' (self # xs)
-      
--- | Returns the pair of lists of elements that match and don't match the
--- predicate
+    go ::
+      forall (s :: S) (a :: PType).
+      PIsData a =>
+      Term
+        s
+        ( (a :--> PBool)
+            :--> (PBuiltinList (PAsData a) :--> a)
+            :--> PBuiltinList (PAsData a)
+            :--> a
+        )
+    go = phoistAcyclic $
+      plam $ \pred self ls -> pmatch ls $ \case
+        PNil -> ptraceError "pfind: could not find element in list"
+        PCons x xs -> plet (pfromData x) $ \x' -> pif (pred # x') x' (self # xs)
+
+{- | Returns the pair of lists of elements that match and don't match the
+ predicate
+-}
 ppartition ::
-  forall (s :: S) (a :: PType) .
+  forall (s :: S) (a :: PType).
   PIsData a =>
   Term s (a :--> PBool) ->
   Term s (PBuiltinList (PAsData a)) ->
   Term s (PTuple (PBuiltinList (PAsData a)) (PBuiltinList (PAsData a)))
 ppartition pred ls = pfix # go # pred # ls # pnil # pnil
   where
-    go :: forall (s :: S) (a :: PType) . PIsData a =>
-      Term s (
-        ((a :--> PBool) :-->
-        PBuiltinList (PAsData a) :-->
-        PBuiltinList (PAsData a) :-->
-        PBuiltinList (PAsData a) :-->
-        PTuple (PBuiltinList (PAsData a)) (PBuiltinList (PAsData a))) :-->
-      (a :--> PBool) :-->
-      (PBuiltinList (PAsData a)) :-->
-      (PBuiltinList (PAsData a)) :-->
-      (PBuiltinList (PAsData a)) :-->
-      (PTuple (PBuiltinList (PAsData a)) (PBuiltinList (PAsData a))))
-    go = phoistAcyclic $ plam $ \self pred trueElems falseElems ls ->
-      pmatch ls $ \case
-        PNil -> ptuple # pdata trueElems # pdata falseElems
-        PCons x xs ->
-          pif (pred # pfromData x)
-            (go # self # pred # (pcons # x # trueElems) # falseElems # xs)
-            (go # self # pred # trueElems # (pcons # x # falseElems) # xs)
+    go ::
+      forall (s :: S) (a :: PType).
+      PIsData a =>
+      Term
+        s
+        ( ( (a :--> PBool)
+              :--> PBuiltinList (PAsData a)
+              :--> PBuiltinList (PAsData a)
+              :--> PBuiltinList (PAsData a)
+              :--> PTuple (PBuiltinList (PAsData a)) (PBuiltinList (PAsData a))
+          )
+            :--> (a :--> PBool)
+            :--> (PBuiltinList (PAsData a))
+            :--> (PBuiltinList (PAsData a))
+            :--> (PBuiltinList (PAsData a))
+            :--> (PTuple (PBuiltinList (PAsData a)) (PBuiltinList (PAsData a)))
+        )
+    go = phoistAcyclic $
+      plam $ \self pred trueElems falseElems ls ->
+        pmatch ls $ \case
+          PNil -> ptuple # pdata trueElems # pdata falseElems
+          PCons x xs ->
+            pif
+              (pred # pfromData x)
+              (go # self # pred # (pcons # x # trueElems) # falseElems # xs)
+              (go # self # pred # trueElems # (pcons # x # falseElems) # xs)
 
 -- Functions for debugging
 
@@ -220,7 +253,41 @@ oneOf = phoistAcyclic $
       # (peq # tn)
       # (ple # 1)
       #$ val
-      
+
+{- | Returns `PTrue` if the token described by its `PCurrencySymbol` and
+ `PTokenName` is *not* present in the `PValue
+-}
+noneOf ::
+  forall (s :: S).
+  Term
+    s
+    ( PCurrencySymbol :--> PTokenName :--> PValue :--> PBool
+    )
+noneOf = phoistAcyclic $
+  plam $ \cs tn val ->
+    pnot #$ someWith
+      # (peq # cs)
+      # (peq # tn)
+      # (pge # 1)
+      # val
+
+{- | Returns `PTrue` if *some* token (at least one) present in `PValue`
+ satisfies *all* the predicates given as parameters
+-}
+someWith ::
+  forall (s :: S).
+  Term
+    s
+    ( (PCurrencySymbol :--> PBool)
+        :--> (PTokenName :--> PBool)
+        :--> (PInteger :--> PBool)
+        :--> PValue
+        :--> PBool
+    )
+someWith = phoistAcyclic $
+  plam $ \csPred tnPred nPred ->
+    tokenPredicate por csPred tnPred nPred
+
 {- | Returns `PTrue` if *all* tokens present in `PValue` satisfy *all* of
   the predicates given as parameters
 -}
@@ -282,8 +349,9 @@ tokenPredicate boolOp csPred tnPred nPred = plam $ \val -> unTermCont $ do
   tnAmountPair <- tcont $ matchPair boolOp $ pto tnMap
   pure $ evalTnAndAmount tnPred nPred tnAmountPair
 
--- | Same as `tokenPredicate`, but `boolOp` is strict on both arguments. This
--- means that the function cannot short-circuit evaluation.
+{- | Same as `tokenPredicate`, but `boolOp` is strict on both arguments. This
+ means that the function cannot short-circuit evaluation.
+-}
 tokenPredicate' ::
   forall (s :: S).
   Term s (PBool :--> PBool :--> PBool) ->
@@ -364,7 +432,7 @@ evalCs csPred pair cont =
 
 -- Evaluate conditions on TokenName and token amount
 evalTnAndAmount ::
-  forall (s :: S) .
+  forall (s :: S).
   Term s (PTokenName :--> PBool) ->
   Term s (PInteger :--> PBool) ->
   Term s (PBuiltinPair (PAsData PTokenName) (PAsData PInteger)) ->
@@ -572,8 +640,25 @@ getDatum datHash dats = pure $ getDatum' # datHash # dats
     checkHash = phoistAcyclic $
       plam $ \datHash tup ->
         pfield @"_0" # tup #== datHash
-        
+
 -- Other functions
-pconst :: forall (s :: S) (a :: PType) (b :: PType) .
-  Term s b -> Term s (a :--> b)
+
+{- | Returns a new Plutarch function that ignores the first paramter and returns
+ `b`
+-}
+pconst ::
+  forall (s :: S) (a :: PType) (b :: PType).
+  Term s b ->
+  Term s (a :--> b)
 pconst b = plam $ const b
+
+{- | Flips the order of the function's parameters for convenience, no plutarch
+ function is created
+-}
+pflip ::
+  forall (s :: S) (a :: PType) (b :: PType) (c :: PType).
+  Term s (a :--> b :--> c) ->
+  Term s b ->
+  Term s a ->
+  Term s c
+pflip f b a = f # a # b
