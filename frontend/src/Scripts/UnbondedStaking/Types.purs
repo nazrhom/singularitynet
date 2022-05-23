@@ -84,7 +84,7 @@ instance ToData UnbondedPoolParams where
       ]
 
 data UnbondedStakingDatum
-  = StateDatum { maybeEntryName :: Maybe ByteArray, isOpen :: Boolean }
+  = StateDatum { maybeEntryName :: Maybe ByteArray, isOpen :: Natural } -- isOpen :: Boolean }
   | EntryDatum { entry :: Entry }
   | AssetDatum
 

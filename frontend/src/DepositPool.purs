@@ -79,8 +79,9 @@ depositBondedPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
       (unwrap poolTxOutput).dataHash
   logInfo_ "depositBondedPoolContract: Pool's UTXO DatumHash" poolDatumHash
   -- We define the parameters of the pool
-  params <- liftContractM
-    "depositBondedPoolContract: Failed to create parameters" $
+  params <-
+    liftContractM
+      "depositBondedPoolContract: Failed to create parameters" $
       bondedHardCodedParams adminPkh stateNftCs assocListCs
   logInfo_ "depositBondedPoolContract: toData Pool Parameters" $ toData params
   -- Get the bonded pool validator and hash
@@ -146,7 +147,7 @@ depositBondedPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
     assetDatum
   dh' <- liftedM "depositBondedPoolContract: Cannot Hash BondedStateDatum" $
     datumHash
-    bondedStateDatum
+      bondedStateDatum
   logInfo_ "depositBondedPoolContract: DatumHash of AssetDatum" dh
   logInfo_ "depositBondedPoolContract: DatumHash of BondedStateDatum" dh'
   unattachedBalancedTx <-

@@ -12,7 +12,7 @@ import Contract.Monad
   , defaultServerConfig
   , defaultSlotConfig
   , launchAff_
-  -- , liftContractM
+  , liftContractM
   , mkContractConfig
   , runContract_
   )
@@ -24,6 +24,7 @@ import Effect.Aff (delay)
 import Effect.Aff.Class (liftAff)
 
 import Settings (testInitUnbondedParams)
+import UnbondedStaking.CloseUnbondedPool (closeUnbondedPoolContract)
 import UnbondedStaking.CreateUnbondedPool (createUnbondedPoolContract)
 import UnbondedStaking.DepositUnbondedPool (depositUnbondedPoolContract)
 
@@ -41,13 +42,13 @@ main = launchAff_ $ do
     , wallet
     }
   runContract_ cfg $ do
-    -- Bonded test
-    poolInfo <- createBondedPoolContract
-    -- sleep in order to wait for tx
-    liftAff $ delay $ wrap $ toNumber 80_000
-    depositBondedPoolContract poolInfo
-    liftAff $ delay $ wrap $ toNumber 80_000
-    closePoolContract poolInfo
+    -- -- Bonded test
+    -- poolInfo <- createBondedPoolContract
+    -- -- sleep in order to wait for tx
+    -- liftAff $ delay $ wrap $ toNumber 80_000
+    -- depositBondedPoolContract poolInfo
+    -- liftAff $ delay $ wrap $ toNumber 80_000
+    -- closePoolContract poolInfo
 
     -- Unbonded test
     initParams <- liftContractM "main: Cannot initiate unbonded parameters"
@@ -55,4 +56,8 @@ main = launchAff_ $ do
     unbondedParams <- createUnbondedPoolContract initParams
     -- sleep in order to wait for tx
     liftAff $ delay $ wrap $ toNumber 80_000
+    -- depositUnbondedPoolContract poolInfo
     depositUnbondedPoolContract unbondedParams
+
+    -- liftAff $ delay $ wrap $ toNumber 80_000
+    -- closeUnbondedPoolContract unbondedParams

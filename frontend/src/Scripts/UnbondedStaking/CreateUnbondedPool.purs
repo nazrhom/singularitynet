@@ -32,13 +32,15 @@ import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Scripts.StateNFT (mkStateNFTPolicy)
 import Settings (unbondedStakingTokenName)
-import Types (StakingType(Unbonded))
+import Types (StakingType(Unbonded), BondedStakingDatum(StateDatum))
+-- import Types (StakingType(Unbonded))
 import UnbondedStaking.Types
   ( InitialUnbondedParams
   , UnbondedPoolParams
-  , UnbondedStakingDatum(StateDatum)
+  -- , UnbondedStakingDatum(StateDatum)
   )
-import Utils (logInfo_, mkUnbondedPoolParams)
+-- import Utils (logInfo_, mkUnbondedPoolParams)
+import Utils (logInfo_, mkUnbondedPoolParams, nat)
 
 -- Sets up pool configuration, mints the state NFT and deposits
 -- in the pool validator's address
@@ -95,8 +97,12 @@ createUnbondedPoolContract iup = do
   let
     unbondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
-      , isOpen: true
+      , sizeLeft: nat 100_000_000
       }
+    -- unbondedStateDatum = Datum $ toData $ StateDatum
+    --   { maybeEntryName: Nothing
+    --   , isOpen: nat 100_000_000 --true
+    --   }
 
     lookup :: ScriptLookups.ScriptLookups PlutusData
     lookup = mconcat
