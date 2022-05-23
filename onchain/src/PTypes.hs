@@ -206,8 +206,13 @@ instance PUnsafeLiftDecl PBondedStakingDatum where
 -- | `MintingAction` synonym
 data PMintingAction (s :: S)
   = PStakeHead (Term s (PDataRecord '["_0" ':= PTxOutRef]))
-  | PStakeInBetween (Term s (PDataRecord
-    '["prevEntry" ':= PTxOutRef, "currentEntry" ':= PTxOutRef]))
+  | PStakeInBetween
+      ( Term
+          s
+          ( PDataRecord
+              '["previousEntry" ':= PTxOutRef, "currentEntry" ':= PTxOutRef]
+          )
+      )
   | PStakeEnd (Term s (PDataRecord '["_0" ':= PTxOutRef]))
   | PWithdrawHead (Term s (PDataRecord '["_0" ':= PTxOutRef]))
   | PWithdrawOther (Term s (PDataRecord '["_0" ':= PTxOutRef]))
