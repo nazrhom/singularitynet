@@ -9,11 +9,12 @@ import Plutarch.Api.V1 (
   PScriptContext,
   PTokenName (PTokenName),
   PValue,
+  PTxOutRef, PTxInInfo (PTxInInfo)
  )
 import Plutarch.Api.V1.Scripts ()
 import Plutarch.Unsafe (punsafeCoerce)
 
-import PTypes (PMintingAction (PStake, PWithdraw))
+import PTypes (PMintingAction (..))
 import Plutarch.Crypto (pblake2b_256)
 import Utils (
   getCs,
@@ -24,6 +25,7 @@ import Utils (
   peq,
   pletC,
   ptryFromUndata,
+  ptrue
  )
 
 {-
@@ -58,17 +60,43 @@ plistNFTPolicy = plam $ \nftCs mintAct ctx' -> unTermCont $ do
   ctx <- tcont $ pletFields @'["txInfo", "purpose"] ctx'
   -- Own CurrencySymbol
   cs <- getCs ctx.purpose
-  txInfo <- tcont $ pletFields @'["signatories", "mint"] ctx.txInfo
+  txInfo <- tcont $ pletFields @'["signatories", "mint", "inputs"] ctx.txInfo
   -- Get a *single* signatory or fail
   signatory <- getSignatory txInfo.signatories
   -- Calculate TokenName based on PubKeyHash
   let tn :: Term s PTokenName
       tn = pcon . PTokenName $ pblake2b_256 # pto signatory
+  -- Functions for validating the minted value
+  let guardMint :: TermCont s (Term s PUnit)
+      guardMint = guardC "pliftNFTPolicy: failed when checking minted value" $
+          checkMint cs tn txInfo.mint
+      guardBurn :: TermCont s (Term s PUnit)
+      guardBurn = guardC "pliftNFTPolicy: failed when checking minted value" $
+          checkBurn cs tn txInfo.mint
   -- Dispatch to appropiate handler based on redeemer
   pure $
     pmatch mintAct $ \case
-      PStake _ -> stakeActLogic cs tn txInfo.mint
-      PWithdraw _ -> withdrawActLogic cs tn txInfo.mint
+      PStakeHead poolStateOutRef' -> unTermCont $ do
+        let outRef :: Term s PTxOutRef
+            outRef = pfromData $ pfield @"_0" # poolStateOutRef'
+        guardMint
+        -- One input (outRef) should have the state NFT. No list NFTs allowed!
+        guardC "pliftNFTPolicy: failed when checking inputs for PStakeHead" $
+          pall # stakeHeadCheck # txInfo.inputs
+      PStakeInBetween entries -> unTermCont $ do
+        guardMint
+      PStakeEnd lastEntry' -> unTermCont $ do
+        guardMint
+      PWithdrawHead poolState' -> unTermCont $ do
+        guardBurn
+      PWithdrawOther prevEntry' -> unTermCont $ do
+        guardBurn
+  where stakeHeadCheck :: Term s (PAsData PTxInInfo :--> PBool)
+        stakeHeadCheck = plam $ \input -> unTermCont $ do
+          txOut <- pletC $ pfromData $ pfield @"resolved" # input
+          txOutF <- tcont $ pletFields @["address", "value"] txOut
+          -- TODO
+          pure ptrue
 
 plistNFTPolicyUntyped ::
   forall (s :: S). Term s (PData :--> PData :--> PData :--> PUnit)
@@ -77,6 +105,7 @@ plistNFTPolicyUntyped = plam $ \nftCs mintAct ctx ->
     # unTermCont (ptryFromUndata mintAct)
     # punsafeCoerce ctx
 
+-- Get the single signatory of the transaction or fail
 getSignatory ::
   forall (s :: S).
   Term s (PBuiltinList (PAsData PPubKeyHash)) ->
@@ -89,30 +118,32 @@ getSignatory ls = pure . pmatch ls $ \case
       (ptraceError "getSignatory: transaction has more than one signatory")
   PNil -> ptraceError "getSignatory: empty list of signatories"
 
-stakeActLogic ::
+-- Check that the token was minted once
+checkMint ::
   forall (s :: S).
   Term s PCurrencySymbol ->
   Term s PTokenName ->
   Term s PValue ->
-  Term s PUnit
-stakeActLogic cs tn mintVal = unTermCont $ do
-  -- Check that the token was minted once
-  guardC "stakeActLogic: failed when checking minted value" $
-    oneOf # cs # tn # mintVal
-  pconstantC ()
+  Term s PBool
+checkMint cs tn mintVal = checkMint' # cs # tn # mintVal
+  where checkMint' ::
+          Term s (PCurrencySymbol :--> PTokenName :--> PValue :--> PBool)
+        checkMint' = phoistAcyclic $ plam $ \cs tn mintVal ->
+            oneOf # cs # tn # mintVal
 
-withdrawActLogic ::
+-- Check that the token was burnt once
+checkBurn ::
   forall (s :: S).
   Term s PCurrencySymbol ->
   Term s PTokenName ->
   Term s PValue ->
-  Term s PUnit
-withdrawActLogic cs tn mintVal = unTermCont $ do
-  -- Check that the token was burnt once
-  guardC "withdrawActLogic: failed when checking minted value" $
-    oneOfWith
-      # (peq # cs)
-      # (peq # tn)
-      # (plam $ \n -> n #== -1)
-      # mintVal
-  pconstantC ()
+  Term s PBool
+checkBurn cs tn mintVal = checkBurn' # cs # tn # mintVal
+  where checkBurn' ::
+          Term s (PCurrencySymbol :--> PTokenName :--> PValue :--> PBool)
+        checkBurn' = phoistAcyclic $ plam $ \cs tn mintVal ->
+          oneOfWith
+            # (peq # cs)
+            # (peq # tn)
+            # (plam $ \n -> n #== -1)
+            # mintVal
