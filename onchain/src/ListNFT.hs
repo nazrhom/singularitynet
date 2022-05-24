@@ -26,7 +26,6 @@ import PTypes (
  )
 
 import Plutarch.Crypto (pblake2b_256)
-import SingularityNet.Settings (bondedStakingTokenName)
 import Utils (
   getCs,
   guardC,
@@ -69,11 +68,12 @@ plistNFTPolicy ::
   Term
     s
     ( PCurrencySymbol
+        :--> PTokenName
         :--> PMintingAction
         :--> PScriptContext
         :--> PUnit
     )
-plistNFTPolicy = plam $ \stateNftCs mintAct ctx' -> unTermCont $ do
+plistNFTPolicy = plam $ \stateNftCs stateNftTn mintAct ctx' -> unTermCont $ do
   -- This CurrencySymbol is only used for parametrization
   _cs <- pletC stateNftCs
   ctx <- tcont $ pletFields @'["txInfo", "purpose"] ctx'
@@ -84,7 +84,6 @@ plistNFTPolicy = plam $ \stateNftCs mintAct ctx' -> unTermCont $ do
   signatory <- getSignatory txInfo.signatories
   -- Make token name from signatory's public key hash
   let entryTn = mkEntryTn signatory
-      stateNftTn = pconstant bondedStakingTokenName
 
   -- Dispatch to appropiate handler based on redeemer
   pure $
@@ -120,9 +119,10 @@ plistNFTPolicy = plam $ \stateNftCs mintAct ctx' -> unTermCont $ do
 -- TODO
 
 plistNFTPolicyUntyped ::
-  forall (s :: S). Term s (PData :--> PData :--> PData :--> PUnit)
-plistNFTPolicyUntyped = plam $ \nftCs mintAct ctx ->
-  plistNFTPolicy # unTermCont (ptryFromUndata nftCs)
+  forall (s :: S). Term s (PData :--> PData :--> PData :--> PData :--> PUnit)
+plistNFTPolicyUntyped = plam $ \stateNftCs stateNftTn mintAct ctx ->
+  plistNFTPolicy # unTermCont (ptryFromUndata stateNftCs)
+    # unTermCont (ptryFromUndata stateNftTn)
     # unTermCont (ptryFromUndata mintAct)
     # punsafeCoerce ctx
 

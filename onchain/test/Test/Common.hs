@@ -40,7 +40,9 @@ testListPolicy ::
   forall (s :: S).
   TokenName ->
   Term s (PMintingAction :--> PScriptContext :--> PUnit)
-testListPolicy tn = plistNFTPolicy # pconstant (testStateCurrencySymbol tn)
+testListPolicy tn =
+  plistNFTPolicy # pconstant (testStateCurrencySymbol tn)
+    # pconstant tn
 
 -- | The UTXO used to mint the pool's state NFT
 testStatePolicyInput :: TxOutRef
