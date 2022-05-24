@@ -111,8 +111,8 @@ depositUnbondedPoolContract
     constraints =
       mconcat
         [
-        -- Deposit rewards in a separate UTXO
-        mustPayToScript valHash assetDatum depositValue
+          -- Deposit rewards in a separate UTXO
+          mustPayToScript valHash assetDatum depositValue
         , mustBeSignedBy admin
 
         -- TODO: Validate transaction within current/next adminLength
