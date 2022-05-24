@@ -1,7 +1,6 @@
 module UnbondedStaking.Types
   ( Entry(..)
   , InitialUnbondedParams(..)
-  , StakingType
   , UnbondedPoolParams(..)
   , UnbondedStakingAction(..)
   , UnbondedStakingDatum(..)
@@ -10,15 +9,21 @@ module UnbondedStaking.Types
 import Contract.Prelude
 
 import ConstrIndices (class HasConstrIndices, defaultConstrIndices)
-import Contract.Address (PaymentPubKeyHash)
 import Contract.Numeric.Natural (Natural)
 import Contract.Numeric.Rational (Rational)
-import Contract.PlutusData (class ToData, PlutusData(Constr), toData)
-import Contract.Prim.ByteArray (ByteArray)
+import Contract.PlutusData (class ToData, PlutusData(..), toData)
 import Contract.Value (CurrencySymbol)
+
 import Data.BigInt (BigInt)
+import Data.Generic.Rep (class Generic)
+import Data.Maybe (Maybe)
+import Data.Newtype (class Newtype)
+import Data.Show.Generic (genericShow)
+
 import ToData (genericToData)
 import Types (AssetClass)
+import Types.ByteArray (ByteArray)
+import Types.UnbalancedTransaction (PaymentPubKeyHash)
 
 -- TODO: Add missing `ToData` instances for POSIXTime and NatRatio.
 newtype UnbondedPoolParams =
@@ -84,7 +89,7 @@ instance ToData UnbondedPoolParams where
       ]
 
 data UnbondedStakingDatum
-  = StateDatum { maybeEntryName :: Maybe ByteArray, isOpen :: Natural } -- isOpen :: Boolean }
+  = StateDatum { maybeEntryName :: Maybe ByteArray, open :: Boolean }
   | EntryDatum { entry :: Entry }
   | AssetDatum
 
@@ -138,5 +143,3 @@ instance ToData Entry where
 
 instance Show Entry where
   show = genericShow
-
-data StakingType = Bonded | Unbonded

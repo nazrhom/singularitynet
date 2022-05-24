@@ -10,7 +10,6 @@ import Contract.Address
   )
 import Contract.Monad
   ( Contract
-  , liftContractM
   , liftedE
   , liftedE'
   , liftedM
@@ -30,47 +29,25 @@ import Contract.TxConstraints
   ( TxConstraints
   , mustBeSignedBy
   , mustPayToScript
-  , mustSpendScriptOutput
   , mustValidateIn
   )
 import Contract.Utxos (utxosAt)
 import Contract.Value (singleton)
 import Control.Applicative (unless)
 
-import Data.JSDate (getTime, now)
-import Data.BigInt (fromNumber)
-import Effect.Class (liftEffect)
-
-
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
-import Settings (unbondedStakingTokenName)
-import Types.Interval (always, never)
-import Types.Redeemer (Redeemer(Redeemer))
-import Types (BondedStakingDatum(AssetDatum, StateDatum))
+import Types.Interval (always)
 import UnbondedStaking.Types
   ( UnbondedPoolParams(UnbondedPoolParams)
-  , UnbondedStakingAction(AdminAct)
-  -- , UnbondedStakingDatum(AssetDatum, StateDatum)
+  -- , UnbondedStakingAction(AdminAct)
+  , UnbondedStakingDatum(AssetDatum)
   )
-import Utils (big, getUtxoWithNFT, logInfo_, nat)
-
-    -- { start :: BigInt
-    -- , userLength :: BigInt
-    -- , adminLength :: BigInt
-    -- , bondingLength :: BigInt
-    -- , interestLength :: BigInt
-    -- , increments :: Natural
+import Utils (big, logInfo_)
 
 -- Deposits a certain amount in the pool
 depositUnbondedPoolContract :: UnbondedPoolParams -> Contract () Unit
 depositUnbondedPoolContract
-  params@(UnbondedPoolParams {
-    start,
-    userLength,
-    adminLength,
-    bondingLength,
-    admin,
-    nftCs }) = do
+  params@(UnbondedPoolParams { admin }) = do
   -- Fetch information related to the pool
   -- Get network ID and check admin's PKH
   networkId <- getNetworkId
@@ -87,6 +64,7 @@ depositUnbondedPoolContract
   adminUtxos <-
     liftedM "depositUnbondedPoolContract: Cannot get user Utxos" $
       utxosAt adminAddr
+
   -- Get the unbonded pool validator and hash
   validator <- liftedE' "depositUnbondedPoolContract: Cannot create validator"
     $ mkUnbondedPoolValidator params
@@ -95,91 +73,37 @@ depositUnbondedPoolContract
   logInfo_ "depositUnbondedPoolContract: validatorHash" valHash
   let poolAddr = validatorHashEnterpriseAddress networkId valHash
   logInfo_ "depositUnbondedPoolContract: Pool address" poolAddr
-  -- Get the unbonded pool's utxo
-  unbondedPoolUtxos <-
-    liftedM
-      "depositUnbondedPoolContract: Cannot get pool's utxos at pool address" $
-      utxosAt poolAddr
-  logInfo_ "depositUnbondedPoolContract: Pool UTXOs" unbondedPoolUtxos
-  tokenName <- liftContractM
-    "depositUnbondedPoolContract: Cannot create TokenName"
-    unbondedStakingTokenName
-  poolTxInput /\ poolTxOutput <-
-    liftContractM "depositUnbondedPoolContract: Cannot get state utxo" $
-      getUtxoWithNFT unbondedPoolUtxos nftCs tokenName
-  logInfo_ "depositUnbondedPoolContract: Pool's UTXO" poolTxInput
-  poolDatumHash <-
-    liftContractM
-      "depositUnbondedPoolContract: Could not get Pool UTXO's Datum Hash"
-      (unwrap poolTxOutput).dataHash
-  logInfo_ "depositUnbondedPoolContract: Pool's UTXO DatumHash" poolDatumHash
+
   -- Create the datums and their ScriptLookups
   let
-    -- We can hardcode the state for now. We should actually fetch the datum
-    -- from Ogmios, update it properly and then submit it
-    unbondedStateDatum = Datum $ toData $ StateDatum
-      { maybeEntryName: Nothing
-      , sizeLeft: nat 100_000_000
-      }
-    -- unbondedStateDatum = Datum $ toData $ StateDatum
-    --   { maybeEntryName: Nothing
-    --   , isOpen: nat 100_000_000 --true
-    --   }
     -- This is the datum of the UTXO that will hold the rewards
     assetDatum = Datum $ toData $ AssetDatum
 
-  unbondedStateDatumLookup <-
-    liftContractM
-      "depositUnbondedPoolContract: Could not create state datum lookup"
-      =<< ScriptLookups.datum unbondedStateDatum
   let
     assetParams = unwrap (unwrap params).unbondedAssetClass
     assetCs = assetParams.currencySymbol
     assetTn = assetParams.tokenName
-    stateTokenValue = singleton nftCs tokenName one
     depositValue = singleton assetCs assetTn (big 4_000_000)
     scriptAddr = validatorHashEnterpriseAddress networkId valHash
   logInfo_
     "depositUnbondedPoolContract: UnbondedPool Validator's address"
     scriptAddr
 
-  -- temp validation
-
-  -- currDate <- liftEffect now
-  -- logInfo_ "createUnbondedPoolContract: TEST CURRENT DATE" (currDate)
-  -- logInfo_ "createUnbondedPoolContract: TEST CURRENT TIME" (getTime currDate)
-  -- logInfo_ "createUnbondedPoolContract: TEST CURRENT TIME BIG" (fromNumber $ (getTime currDate))
-  -- logInfo_ "createUnbondedPoolContract: TEST CURRENT TIME" (now << getTime)
-
-  -- Calculate valid time interval for the current/next deposit period
-  -- currentTime <- liftEffect now
-  -- let txInterval = if currentTime < start then never else (userLength + adminLength + bondingLength)
-
-    -- { start :: BigInt
-    -- , userLength :: BigInt
-    -- , adminLength :: BigInt
-    -- , bondingLength :: BigInt
-    -- , interestLength :: BigInt
-    -- , increments :: Natural
-    -- }
-
   let
     -- We build the redeemer. The size does not change because there are no
     -- user stakes. It doesn't make much sense to deposit if there wasn't a
     -- change in the total amount of stakes (and accrued rewards). This will
     -- change when user staking is added
-    redeemerData = toData $ AdminAct
-      { totalRewards: nat 10_000_000
-      , totalDeposited: nat 10_000_000
-      }
-    redeemer = Redeemer redeemerData
+    -- redeemerData = toData $ AdminAct
+    --   { totalRewards: nat 10_000_000
+    --   , totalDeposited: nat 10_000_000
+    --   }
+    -- redeemer = Redeemer redeemerData
 
     lookup :: ScriptLookups.ScriptLookups PlutusData
     lookup = mconcat
       [ ScriptLookups.validator validator
       , ScriptLookups.unspentOutputs $ unwrap adminUtxos
-      --, ScriptLookups.unspentOutputs $ unwrap unbondedPoolUtxos
-      -- , unbondedStateDatumLookup
       ]
 
     -- Seems suspect, not sure if typed constraints are working as expected
@@ -187,28 +111,29 @@ depositUnbondedPoolContract
     constraints =
       mconcat
         [
-        -- Update the pool's state
-        --  mustPayToScript valHash unbondedStateDatum stateTokenValue
         -- Deposit rewards in a separate UTXO
         mustPayToScript valHash assetDatum depositValue
         , mustBeSignedBy admin
+
+        -- TODO: Validate transaction within current/next adminLength
         , mustValidateIn always
-        --, mustValidateIn txInterval
-        --, mustSpendScriptOutput poolTxInput redeemer
+
+        -- TODO: Find and spend entry UTXOs with updated values
+        -- TODO: Implement batching algorithm for UTXOs (and fragmenting
+        -- across multiple Tx's if required due to size limits)
+        -- TODO: Split asset datums into separate per-user UTXOs
         ]
   dh <- liftedM "depositUnbondedPoolContract: Cannot Hash AssetDatum" $
     datumHash
       assetDatum
-  dh' <- liftedM "depositUnbondedPoolContract: Cannot Hash UnbondedStateDatum"
-    $ datumHash
-        unbondedStateDatum
   logInfo_ "depositUnbondedPoolContract: DatumHash of AssetDatum" dh
-  logInfo_ "depositUnbondedPoolContract: DatumHash of UnbondedStateDatum" dh'
+
   unattachedBalancedTx <-
     liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
   logInfo_
     "depositUnbondedPoolContract: unAttachedUnbalancedTx"
     unattachedBalancedTx
+
   let unbalancedTx = (unwrap unattachedBalancedTx).unbalancedTx
   balancedTx <- liftedE $ balanceTx unbalancedTx
   logInfo_ "depositUnbondedPoolContract: balancedTx" balancedTx
@@ -217,6 +142,7 @@ depositUnbondedPoolContract
       "depositUnbondedPoolContract: Cannot balance, reindex redeemers, attach/\
       \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
+
   -- Submit transaction using Cbor-hex encoded `ByteArray`
   transactionHash <- submit signedTxCbor
   logInfo_

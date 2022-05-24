@@ -33,22 +33,25 @@ import Contract.TxConstraints
   ( TxConstraints
   , mustBeSignedBy
   , mustIncludeDatum
+  , mustPayToScript
   , mustSpendScriptOutput
+  , mustValidateIn
   )
 import Contract.Utxos (utxosAt)
+import Contract.Value (singleton)
 import Data.Map (toUnfoldable)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Settings (unbondedStakingTokenName)
-import Types.TokenName (getTokenName)
+import Types.Interval (always)
 import UnbondedStaking.Types
   ( UnbondedPoolParams(UnbondedPoolParams)
   , UnbondedStakingAction(CloseAct)
   , UnbondedStakingDatum(StateDatum)
   )
-import Utils (logInfo_, nat)
+import Utils (getUtxoWithNFT, logInfo_)
 
 closeUnbondedPoolContract :: UnbondedPoolParams -> Contract () Unit
-closeUnbondedPoolContract params@(UnbondedPoolParams { admin }) = do
+closeUnbondedPoolContract params@(UnbondedPoolParams { admin, nftCs }) = do
   -- Fetch information related to the pool
   -- Get network ID and check admin's PKH
   networkId <- getNetworkId
@@ -79,28 +82,31 @@ closeUnbondedPoolContract params@(UnbondedPoolParams { admin }) = do
   tokenName <- liftContractM
     "closeUnbondedPoolContract: Cannot create TokenName"
     unbondedStakingTokenName
-  -- poolTxInput /\ poolTxOutput <-
-  --   liftContractM "closeUnbondedPoolContract: Cannot get state utxo" $
-  --     getUtxoWithNFT unbondedPoolUtxos nftCs tokenName
-  -- logInfo_ "closeUnbondedPoolContract: Pool's State UTXO" poolTxInput
-  -- poolDatumHash <-
-  --   liftContractM
-  --     "depositUnbondedPoolContract: Could not get Pool UTXO's Datum Hash"
-  --     (unwrap poolTxOutput).dataHash
-  -- logInfo_ "depositUnbondedPoolContract: Pool's UTXO DatumHash" poolDatumHash
+  poolTxInput /\ poolTxOutput <-
+    liftContractM "closeUnbondedPoolContract: Cannot get state utxo" $
+      getUtxoWithNFT unbondedPoolUtxos nftCs tokenName
+  logInfo_ "closeUnbondedPoolContract: Pool's State UTXO" poolTxInput
+  poolDatumHash <-
+    liftContractM
+      "depositUnbondedPoolContract: Could not get Pool UTXO's Datum Hash"
+      (unwrap poolTxOutput).dataHash
+  logInfo_ "depositUnbondedPoolContract: Pool's UTXO DatumHash" poolDatumHash
 
   let
-    unbondedStateDatum = Datum $ toData $ StateDatum
-      { maybeEntryName: Just $ getTokenName tokenName
-      , isOpen: nat 100_000_000 --true
+    stateTokenValue = singleton nftCs tokenName one
+    oldUnbondedStateDatum = Datum $ toData $ StateDatum
+      { maybeEntryName: Nothing
+      , open: true
       }
+    newUnbondedStateDatum = Datum $ toData $ StateDatum
+      { maybeEntryName: Nothing
+      , open: false
+      }
+
   unbondedStateDatumLookup <-
     liftContractM
       "closeUnbondedPoolContract: Could not create state datum lookup"
-      =<< ScriptLookups.datum unbondedStateDatum
-
-  logInfo_ "closeUnbondedPoolContract: DATUM " unbondedStateDatum
-  logInfo_ "closeUnbondedPoolContract: DATUM LOOKUP" unbondedStateDatumLookup
+      =<< ScriptLookups.datum oldUnbondedStateDatum
 
   -- We build the transaction
   let
@@ -113,15 +119,23 @@ closeUnbondedPoolContract params@(UnbondedPoolParams { admin }) = do
       , unbondedStateDatumLookup
       ]
 
-    -- TODO: Verify if only state UTXOs are spent or also entries as well...
     constraints :: TxConstraints Unit Unit
     constraints =
-      -- Spend all UTXOs to return to Admin:
+      -- TODO: Only allow admin to withdraw state and remaining asset UTXOs
+      -- TODO: Update entry UTXOs in assoc list with updated rewards
+
+      -- Spend all UTXOs to return to Admin the state and remaining asset UTXO
       foldMap
         (flip mustSpendScriptOutput redeemer <<< fst)
         (toUnfoldable $ unwrap unbondedPoolUtxos :: Array _)
         <> mustBeSignedBy admin
-        <> mustIncludeDatum unbondedStateDatum
+        <> mustIncludeDatum oldUnbondedStateDatum
+
+        -- Update the pool's state to closed
+        <> mustPayToScript valHash newUnbondedStateDatum stateTokenValue
+
+        -- TODO: Validate transaction within current/next adminLength
+        <> mustValidateIn always
 
   unattachedBalancedTx <-
     liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
@@ -137,5 +151,3 @@ closeUnbondedPoolContract params@(UnbondedPoolParams { admin }) = do
     "closeUnbondedPoolContract: Transaction successfully submitted with hash"
     $ byteArrayToHex
     $ unwrap transactionHash
-
-  logInfo_ "closeUnbondedPoolContract: ENDING Pool's UTXOs" unbondedPoolUtxos

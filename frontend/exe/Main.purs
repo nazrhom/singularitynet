@@ -42,7 +42,7 @@ main = launchAff_ $ do
     , wallet
     }
   runContract_ cfg $ do
-    -- -- Bonded test
+    -- Bonded test
     -- poolInfo <- createBondedPoolContract
     -- -- sleep in order to wait for tx
     -- liftAff $ delay $ wrap $ toNumber 80_000
@@ -56,8 +56,6 @@ main = launchAff_ $ do
     unbondedParams <- createUnbondedPoolContract initParams
     -- sleep in order to wait for tx
     liftAff $ delay $ wrap $ toNumber 80_000
-    -- depositUnbondedPoolContract poolInfo
     depositUnbondedPoolContract unbondedParams
-
-    -- liftAff $ delay $ wrap $ toNumber 80_000
-    -- closeUnbondedPoolContract unbondedParams
+    liftAff $ delay $ wrap $ toNumber 80_000
+    closeUnbondedPoolContract unbondedParams

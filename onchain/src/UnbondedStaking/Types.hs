@@ -2,10 +2,10 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module UnbondedStaking.Types (
+  Entry (..),
   UnbondedPoolParams (..),
   UnbondedStakingAction (..),
   UnbondedStakingDatum (..),
-  Entry (..),
 ) where
 
 {-
@@ -17,9 +17,8 @@ module UnbondedStaking.Types (
 -}
 
 import GHC.Generics qualified as GHC
-import Generics.SOP (Generic)
 
-import Plutus.V1.Ledger.Api (CurrencySymbol, POSIXTime, PubKeyHash, TokenName)
+import Plutus.V1.Ledger.Api (CurrencySymbol, POSIXTime, PubKeyHash)
 import PlutusTx (unstableMakeIsData)
 import PlutusTx.Builtins.Internal (BuiltinByteString)
 
@@ -90,7 +89,7 @@ unstableMakeIsData ''Entry
      3. A dummy datum (in the case of the stake UTXOs)
 -}
 data UnbondedStakingDatum
-  = StateDatum (Maybe BuiltinByteString) Natural --Bool
+  = StateDatum (Maybe BuiltinByteString) Bool
   | EntryDatum Entry
   | AssetDatum
   deriving stock (Show, GHC.Generic)

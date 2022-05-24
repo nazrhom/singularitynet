@@ -27,9 +27,7 @@ common common-lang
     -Wno-partial-type-signatures -Wmissing-export-lists
     -Wincomplete-record-updates -Wmissing-deriving-strategies
     -Wno-name-shadowing -Wunused-foralls -fprint-explicit-foralls
-    -fprint-explicit-kinds -fwarn-missing-import-lists
-
-    -- -Werror
+    -fprint-explicit-kinds -fwarn-missing-import-lists -Werror
 
   mixins:
     base hiding (Prelude),
@@ -117,7 +115,6 @@ library
   build-depends:
     , generics-sop
     , plutarch
-    , plutus-core
     , plutus-ledger-api
     , plutus-tx
     , singularitynet-common

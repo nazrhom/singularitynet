@@ -12,12 +12,12 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module UnbondedStaking.PTypes (
+  PBoolData (..),
+  PEntry,
   PUnbondedPoolParams (..),
   PUnbondedStakingAction (..),
   PUnbondedStakingDatum (..),
-  PEntry,
 ) where
-
 
 {-
  This module contains all the Plutarch-level synonyms of the types defined in
@@ -30,7 +30,7 @@ import Generics.SOP (Generic, I (I))
 
 import PNatural (PNatRatio, PNatural)
 
-import Plutarch.Api.V1 (PMaybeData, PPOSIXTime, PTokenName, PTxId, PTxOutRef)
+import Plutarch.Api.V1 (PMaybeData, PPOSIXTime)
 import Plutarch.Api.V1.Crypto (PPubKeyHash)
 import Plutarch.Api.V1.Value (PCurrencySymbol)
 import Plutarch.DataRepr (
@@ -43,17 +43,14 @@ import Plutarch.Lift (
   PUnsafeLiftDecl,
  )
 import Plutarch.TryFrom (PTryFrom)
-import Plutarch.Unsafe (punsafeBuiltin)
-
-import qualified PlutusCore as PLC
 
 import PTypes (PAssetClass)
 
 import UnbondedStaking.Types (
+  Entry,
   UnbondedPoolParams,
   UnbondedStakingAction,
   UnbondedStakingDatum,
-  Entry,
  )
 
 ----- Plutarch synonyms -----
@@ -106,7 +103,7 @@ data PEntry (s :: S)
                , "rewards" ':= PNatRatio
                , "totalRewards" ':= PNatural
                , "totalDeposited" ':= PNatural
-               , "open" ':= PBool
+               , "open" ':= PBoolData
                , "next" ':= PMaybeData PByteString
                ]
           )
@@ -132,7 +129,7 @@ data PUnbondedStakingDatum (s :: S)
           s
           ( PDataRecord
               '[ "_0" ':= PMaybeData PByteString
-               , "_1" ':= PNatural --PBool
+               , "_1" ':= PBoolData
                ]
           )
       )
@@ -195,18 +192,22 @@ deriving via
 instance PUnsafeLiftDecl PUnbondedStakingAction where
   type PLifted PUnbondedStakingAction = UnbondedStakingAction
 
------- Orphans ------
+------ PBool data instance ------
 
----- PTryFrom instances ----
+data PBoolData (s :: S)
+  = PDFalse (Term s (PDataRecord '[]))
+  | PDTrue (Term s (PDataRecord '[]))
+  deriving stock (GHC.Generic)
+  deriving anyclass (Generic)
+  deriving anyclass (PIsDataRepr)
+  deriving
+    (PlutusType, PIsData)
+    via PIsDataReprInstances PBoolData
 
--- Orphan instance for `PBool`
 deriving via
-  DerivePNewtype (PAsData PBool) (PAsData PByteString)
+  PAsData (PIsDataReprInstances PBoolData)
   instance
-    PTryFrom PData (PAsData PBool)
-
-instance PEq PBool where
-  x #== y = punsafeBuiltin PLC.EqualsByteString # x # y
+    PTryFrom PData (PAsData PBoolData)
 
 ---- PConstant instances ----
 

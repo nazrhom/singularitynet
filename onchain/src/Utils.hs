@@ -26,6 +26,7 @@ module Utils (
   getDatum,
   getDatumHash,
   getContinuingOutputWithNFT,
+  toPBool,
   (>:),
 ) where
 
@@ -48,6 +49,8 @@ import Plutarch.Lift (
  )
 import Plutarch.Monadic qualified as P
 import Plutarch.TryFrom (PTryFrom, ptryFrom)
+
+import UnbondedStaking.PTypes (PBoolData (PDFalse, PDTrue))
 
 -- Term-level boolean functions
 peq :: forall (s :: S) (a :: PType). PEq a => Term s (a :--> a :--> PBool)
@@ -470,3 +473,10 @@ getDatum datHash dats = pure $ getDatum' # datHash # dats
     checkHash = phoistAcyclic $
       plam $ \datHash tup ->
         pfield @"_0" # tup #== datHash
+
+toPBool :: forall (s :: S). Term s (PBoolData :--> PBool)
+toPBool =
+  plam $ \pbd ->
+    pmatch pbd $ \case
+      PDFalse _ -> pconstant False
+      PDTrue _ -> pconstant True
