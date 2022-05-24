@@ -68,8 +68,8 @@ pbondedPoolValidator =
           PAdminAct n' ->
             let n = pfield @"_0" # n'
              in adminActLogic ctxF.txInfo ctxF.purpose params dat n
-          PStakeAct _pair' -> stakeActLogic
-          PWithdrawAct _pkh' -> withdrawActLogic
+          PStakeAct _rec' -> stakeActLogic
+          PWithdrawAct _rec' -> withdrawActLogic
           PCloseAct _ -> closeActLogic ctxF.txInfo params
 
 -- Untyped version to be serialised. This version is responsible for verifying
@@ -139,7 +139,6 @@ adminActLogic txInfo purpose params inputStakingDatum sizeLeft = unTermCont $ do
         -- We retrieve the continuing output's datum
         coOutput <- getContinuingOutputWithNFT inputAddress ac txInfoF.outputs
         coOutputDatumHash <- getDatumHash coOutput
-        -- coOutputDatum <- getDatum coOutputDatumHash (pfield @"data" # txInfo)
         coOutputDatum <- getDatum coOutputDatumHash $ getField @"data" txInfoF
         coOutputStakingDatum <- parseStakingDatum coOutputDatum
         -- Get new state

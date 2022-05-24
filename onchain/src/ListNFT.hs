@@ -16,13 +16,9 @@ import Plutarch.Api.V1.Scripts ()
 import Plutarch.Unsafe (punsafeCoerce)
 
 import PTypes (
-  PMintingAction (
-    PStakeEnd,
-    PStakeHead,
-    PStakeInBetween,
-    PWithdrawHead,
-    PWithdrawOther
-  ),
+  PListAction (PListInsert, PListRemove),
+  PMintingAction (PMintHead, PMintInBetween, PMintEnd),
+  PBurningAction (PBurnHead, PBurnOther),
  )
 
 import Plutarch.Crypto (pblake2b_256)
@@ -61,19 +57,17 @@ import Utils (
     validator and not treated here.
 -}
 
--- TODO: Inductive conditions related to withdrawing not implemented
--- TODO: This needs to be parameterized by `PTokenName` as well
 plistNFTPolicy ::
   forall (s :: S).
   Term
     s
     ( PCurrencySymbol
         :--> PTokenName
-        :--> PMintingAction
+        :--> PListAction
         :--> PScriptContext
         :--> PUnit
     )
-plistNFTPolicy = plam $ \stateNftCs stateNftTn mintAct ctx' -> unTermCont $ do
+plistNFTPolicy = plam $ \stateNftCs stateNftTn listAct ctx' -> unTermCont $ do
   -- This CurrencySymbol is only used for parametrization
   _cs <- pletC stateNftCs
   ctx <- tcont $ pletFields @'["txInfo", "purpose"] ctx'
@@ -84,39 +78,64 @@ plistNFTPolicy = plam $ \stateNftCs stateNftTn mintAct ctx' -> unTermCont $ do
   signatory <- getSignatory txInfo.signatories
   -- Make token name from signatory's public key hash
   let entryTn = mkEntryTn signatory
-
+      -- Save state and list tokens for later
+      stateTok = (stateNftCs, stateNftTn)
+      listTok = (listNftCs, entryTn)
   -- Dispatch to appropiate handler based on redeemer
   pure $
-    pmatch mintAct $ \case
-      PStakeHead stateOutRef' -> unTermCont $ do
-        let stateOutRef :: Term s PTxOutRef
-            stateOutRef = pfromData $ pfield @"_0" # stateOutRef'
-        guardMint listNftCs entryTn txInfo.mint
-        stakeHeadCheck stateNftCs listNftCs stateNftTn stateOutRef txInfo.inputs
-      PStakeInBetween entries -> unTermCont $ do
-        guardMint listNftCs entryTn txInfo.mint
-        entriesF <- tcont $ pletFields @["previousEntry", "currentEntry"] entries
-        let prevEntry = entriesF.previousEntry
-            currEntry = entriesF.currentEntry
-        stakeInBetweenCheck
-          stateNftCs
-          listNftCs
-          stateNftTn
-          prevEntry
-          currEntry
-          txInfo.inputs
-      PStakeEnd lastEntry' -> unTermCont $ do
-        let lastEntry :: Term s PTxOutRef
-            lastEntry = pfromData $ pfield @"_0" # lastEntry'
-        guardMint listNftCs entryTn txInfo.mint
-        stakeEndCheck stateNftCs listNftCs stateNftTn lastEntry txInfo.inputs
-      PWithdrawHead _poolState -> unTermCont $ do
-        guardBurn listNftCs entryTn txInfo.mint
-      -- TODO
-      PWithdrawOther _prevEntry -> unTermCont $ do
-        guardBurn listNftCs entryTn txInfo.mint
+    pmatch listAct $ \case
+      PListInsert mintAct' ->
+        let mintAct = pfield @"_0" # mintAct'
+        in listInsertCheck txInfo.inputs txInfo.mint stateTok listTok mintAct
+      PListRemove burnAct' ->
+        let burnAct = pfield @"_0" # burnAct'
+        in listRemoveCheck txInfo.mint listTok burnAct
 
--- TODO
+listInsertCheck :: forall (s :: S) .
+  Term s (PBuiltinList (PAsData PTxInInfo)) ->
+  Term s PValue ->
+  (Term s PCurrencySymbol, Term s PTokenName) ->
+  (Term s PCurrencySymbol, Term s PTokenName) ->
+  Term s PMintingAction ->
+  Term s PUnit
+listInsertCheck inputs mintVal (stateNftCs, stateNftTn) (listNftCs, entryTn) =
+  flip pmatch $ \case
+    PMintHead stateOutRef' -> unTermCont $ do
+            let stateOutRef :: Term s PTxOutRef
+                stateOutRef = pfromData $ pfield @"_0" # stateOutRef'
+            guardMint listNftCs entryTn mintVal
+            stakeHeadCheck stateNftCs listNftCs stateNftTn stateOutRef inputs
+    PMintInBetween entries -> unTermCont $ do
+      guardMint listNftCs entryTn mintVal
+      entriesF <- tcont $ pletFields @["previousEntry", "currentEntry"] entries
+      let prevEntry = entriesF.previousEntry
+          currEntry = entriesF.currentEntry
+      stakeInBetweenCheck
+        stateNftCs
+        listNftCs
+        stateNftTn
+        prevEntry
+        currEntry
+        inputs
+    PMintEnd lastEntry' -> unTermCont $ do
+      let lastEntry :: Term s PTxOutRef
+          lastEntry = pfromData $ pfield @"_0" # lastEntry'
+      guardMint listNftCs entryTn mintVal
+      stakeEndCheck stateNftCs listNftCs stateNftTn lastEntry inputs
+
+-- TODO: Inductive conditions related to withdrawing not implemented
+listRemoveCheck :: forall (s :: S) .
+  Term s PValue ->
+  (Term s PCurrencySymbol, Term s PTokenName) ->
+  Term s PBurningAction ->
+  Term s PUnit
+listRemoveCheck mintVal (listNftCs, entryTn) = flip pmatch $ \case
+  PBurnHead _poolState -> unTermCont $ do
+    guardBurn listNftCs entryTn mintVal
+    -- TODO
+  PBurnOther _prevEntry -> unTermCont $ do
+    guardBurn listNftCs entryTn mintVal
+    -- TODO
 
 plistNFTPolicyUntyped ::
   forall (s :: S). Term s (PData :--> PData :--> PData :--> PData :--> PUnit)
