@@ -2,7 +2,7 @@ module Main (main) where
 
 import Contract.Prelude
 
-import ClosePool (closePoolContract)
+import ClosePool (closeBondedPoolContract)
 import Contract.Address (NetworkId(TestnetId))
 import Contract.Monad
   ( ConfigParams(ConfigParams)
@@ -48,7 +48,7 @@ main = launchAff_ $ do
     liftAff $ delay $ wrap $ toNumber 80_000
     depositBondedPoolContract poolInfo
     liftAff $ delay $ wrap $ toNumber 80_000
-    closePoolContract poolInfo
+    closeBondedPoolContract poolInfo
 
 -- -- Unbonded test
 -- initParams <- liftContractM "main: Cannot initiate unbonded parameters"
