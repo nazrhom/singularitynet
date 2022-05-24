@@ -43,19 +43,19 @@ main = launchAff_ $ do
     }
   runContract_ cfg $ do
     -- Bonded test
-    -- poolInfo <- createBondedPoolContract
-    -- -- sleep in order to wait for tx
-    -- liftAff $ delay $ wrap $ toNumber 80_000
-    -- depositBondedPoolContract poolInfo
-    -- liftAff $ delay $ wrap $ toNumber 80_000
-    -- closePoolContract poolInfo
-
-    -- Unbonded test
-    initParams <- liftContractM "main: Cannot initiate unbonded parameters"
-      testInitUnbondedParams
-    unbondedParams <- createUnbondedPoolContract initParams
+    poolInfo <- createBondedPoolContract
     -- sleep in order to wait for tx
     liftAff $ delay $ wrap $ toNumber 80_000
-    depositUnbondedPoolContract unbondedParams
+    depositBondedPoolContract poolInfo
     liftAff $ delay $ wrap $ toNumber 80_000
-    closeUnbondedPoolContract unbondedParams
+    closePoolContract poolInfo
+
+-- -- Unbonded test
+-- initParams <- liftContractM "main: Cannot initiate unbonded parameters"
+--   testInitUnbondedParams
+-- unbondedParams <- createUnbondedPoolContract initParams
+-- -- sleep in order to wait for tx
+-- liftAff $ delay $ wrap $ toNumber 80_000
+-- depositUnbondedPoolContract unbondedParams
+-- liftAff $ delay $ wrap $ toNumber 80_000
+-- closeUnbondedPoolContract unbondedParams
