@@ -37,7 +37,7 @@ import Contract.TxConstraints
   )
 import Contract.Utxos (utxosAt)
 import Data.Map (toUnfoldable)
-import Scripts.BondedPoolValidator (mkBondedPoolValidator)
+import Scripts.PoolValidator (mkBondedPoolValidator)
 import Types
   ( BondedPoolParams(BondedPoolParams)
   , BondedStakingAction(CloseAct)

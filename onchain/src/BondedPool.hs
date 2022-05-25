@@ -6,9 +6,6 @@ module BondedPool (
   pbondedPoolValidatorUntyped,
 ) where
 
-import GHC.Generics qualified as GHC
-import Generics.SOP (Generic)
-
 import Plutarch.Api.V1 (
   PAddress,
   PPubKeyHash,
@@ -16,31 +13,13 @@ import Plutarch.Api.V1 (
   PScriptPurpose,
   PTxInfo,
  )
-import Plutarch.Api.V1.Time (
-  PPOSIXTimeRange,
- )
 import Plutarch.Builtin (pforgetData)
 import Plutarch.Unsafe (punsafeCoerce)
 
-import Data.Interval (
-  PPeriodicInterval (
-    PPeriodicInterval,
-    piBaseOffset,
-    piEndOffset,
-    piMaxCycles,
-    piPeriod,
-    piStartOffset
-  ),
-  pcontains,
-  pinterval,
-  pintervalFrom,
-  pintervalTo,
-  pperiodicContains,
- )
-import Data.Natural (
+import PNatural (
   PNatural,
  )
-import Types (
+import PTypes (
   PBondedPoolParams,
   PBondedStakingAction (
     PAdminAct,
@@ -49,6 +28,7 @@ import Types (
     PWithdrawAct
   ),
   PBondedStakingDatum (PAssetDatum, PEntryDatum, PStateDatum),
+  PPeriod (BondingPeriod, ClosingPeriod),
   passetClass,
  )
 import Utils (
@@ -59,16 +39,13 @@ import Utils (
   guardC,
   pconstantC,
   pletC,
-  pletDataC,
   pmatchC,
-  pnestedIf,
   ptryFromUndata,
-  (>:),
  )
 
 import GHC.Records (getField)
 import Plutarch.Api.V1.Scripts (PDatum)
-import Settings (bondedStakingTokenName)
+import SingularityNet.Settings (bondedStakingTokenName)
 
 pbondedPoolValidator ::
   forall (s :: S).
@@ -258,96 +235,3 @@ parseStakingDatum ::
   TermCont s (Term s PBondedStakingDatum)
 parseStakingDatum datum =
   ptryFromUndata @PBondedStakingDatum . pforgetData . pdata $ datum
-
-{- A newtype used internally for encoding different periods.
-
-   Depending on the pool's parameters, a certain period can either be:
-
-   0. UnavailablePeriod: The pool has not started yet and no actions are
-      permitted.
-   1. DepositWithdrawPeriod: A user can both stake and deposit
-   2. BondingPeriod: Only admin actions are allowed
-   3. OnlyWithdrawPeriod: Users can only withdraw, this happens once in the
-      lifetime of a pool, before closing.
-   4. ClosingPeriod: The admin can withdraw the remaining funds and close the
-      pool
--}
-data PPeriod (s :: S)
-  = UnavailablePeriod
-  | DepositWithdrawPeriod
-  | BondingPeriod
-  | OnlyWithdrawPeriod
-  | ClosingPeriod
-  deriving stock (GHC.Generic, Eq)
-  deriving anyclass (Generic, PlutusType)
-
-__getPeriod ::
-  Term
-    s
-    ( PPOSIXTimeRange
-        :--> PBondedPoolParams
-        :--> PPeriod
-    )
-__getPeriod = phoistAcyclic $
-  plam $
-    \txTimeRange params ->
-      getPeriod' txTimeRange params
-  where
-    getPeriod' ::
-      forall (s :: S).
-      Term s PPOSIXTimeRange ->
-      Term s PBondedPoolParams ->
-      Term s PPeriod
-    getPeriod' txTimeRange params = unTermCont $ do
-      -- Retrieve fields
-      paramsF <-
-        tcont $
-          pletFields
-            @'["iterations", "start", "end", "userLength", "bondingLength"]
-            params
-      -- Convert from data
-      iterations' <- pletDataC paramsF.iterations
-      let iterations :: Term s PInteger
-          iterations = pto iterations'
-      start <- pletDataC paramsF.start
-      end <- pletDataC paramsF.end
-      userLength <- pletDataC paramsF.userLength
-      bondingLength <- pletDataC paramsF.bondingLength
-      -- We define the periodic intervals in which the Deposit/Withdrawal
-      -- and Bonding will happen
-      period <- pletC $ punsafeCoerce $ pto userLength + pto bondingLength
-      let depositWithdrawal =
-            PPeriodicInterval
-              { piBaseOffset = start
-              , piPeriod = period
-              , piStartOffset = pconstant 0
-              , piEndOffset = userLength
-              , piMaxCycles = iterations'
-              }
-          bonding =
-            depositWithdrawal
-              { piStartOffset = userLength
-              , piEndOffset = bondingLength
-              }
-      piDepositWithdrawal <- pletC $ pcon depositWithdrawal
-      piBonding <- pletC $ pcon bonding
-      pure $
-        pnestedIf
-          [ pintervalTo start `pcontains` txTimeRange
-              >: pcon UnavailablePeriod
-          , pperiodicContains # piDepositWithdrawal # txTimeRange
-              >: pcon DepositWithdrawPeriod
-          , pperiodicContains # piBonding # txTimeRange
-              >: pcon BondingPeriod
-          , pcontains
-              ( pinterval
-                  (punsafeCoerce $ iterations * pto period + pto start)
-                  end
-              )
-              txTimeRange
-              >: pcon OnlyWithdrawPeriod
-          , pintervalFrom end `pcontains` txTimeRange
-              >: pcon ClosingPeriod
-          ]
-          $ ptraceError
-            "the transaction's range does not belong to any valid period"

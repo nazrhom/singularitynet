@@ -2,8 +2,8 @@ module Main (main) where
 
 {- TODO: Update documentation
   This executable can generate CBOR encodings of the NFT minting policy and
-  the BondedPool validator. It takes the necessary arguments from the CLI
-  to generate them. The resulting scripts are *fully* applied.
+  the pool validators. It takes the necessary arguments from the CLI to
+  generate them. The resulting scripts are *fully* applied.
 
   Some examples:
 
@@ -46,27 +46,41 @@ import Plutarch.Api.V1 (scriptHash)
 import Plutus.V1.Ledger.Scripts (Script)
 
 import BondedPool (pbondedPoolValidatorUntyped)
-import ListNFT (pbondedListNFTPolicyUntyped)
+import ListNFT (plistNFTPolicyUntyped)
 import Plutarch (ClosedTerm, compile)
-import StateNFT (pbondedStateNFTPolicyUntyped)
+import SingularityNet.Settings (bondedStakingTokenName, unbondedStakingTokenName)
+import StateNFT (pstateNFTPolicyUntyped)
+import UnbondedStaking.UnbondedPool (punbondedPoolValidatorUntyped)
 
 serialisePlutusScript :: Script -> Text
 serialisePlutusScript script = encodeToLazyText script
 
-writeScriptToFile :: Text -> FilePath -> Script -> IO ()
-writeScriptToFile name filepath script =
-  TIO.writeFile filepath $
+writeScriptToFile ::
+  (FilePath -> Text -> IO ()) ->
+  Text ->
+  FilePath ->
+  Script ->
+  IO ()
+writeScriptToFile writerFunc name filepath script =
+  writerFunc filepath $
     "exports._" <> name <> " = {\n"
       <> "\tscript: "
       <> serialisePlutusScript script
-      <> ",\n};"
+      <> ",\n};\n"
 
 serialiseClosedTerm ::
-  forall (s :: PType). ClosedTerm s -> CLI -> String -> String -> IO ()
-serialiseClosedTerm closedTerm args name json = do
+  forall (s :: PType).
+  ClosedTerm s ->
+  (FilePath -> Text -> IO ()) ->
+  CLI ->
+  String ->
+  String ->
+  IO ()
+serialiseClosedTerm closedTerm writerFunc args name json = do
   let script = compile closedTerm
       hash = scriptHash script
   writeScriptToFile
+    writerFunc
     (T.pack name)
     (maybe json id $ outPath args)
     script
@@ -77,24 +91,45 @@ main :: IO ()
 main = do
   args <- execParser opts
   case cliCommand args of
-    SerialiseStateNFT ->
+    SerialiseStateNFT -> do
       serialiseClosedTerm
-        pbondedStateNFTPolicyUntyped
+        (pstateNFTPolicyUntyped bondedStakingTokenName)
+        TIO.writeFile
         args
         "bondedStateNFT"
-        "BondedStateNFT.json"
-    SerialiseListNFT ->
+        "StateNFT.json"
       serialiseClosedTerm
-        pbondedListNFTPolicyUntyped
+        (pstateNFTPolicyUntyped unbondedStakingTokenName)
+        TIO.appendFile
+        args
+        "unbondedStateNFT"
+        "StateNFT.json"
+    SerialiseListNFT -> do
+      serialiseClosedTerm
+        plistNFTPolicyUntyped
+        TIO.writeFile
         args
         "bondedListNFT"
-        "BondedListNFT.json"
-    SerialiseBondedValidator ->
+        "ListNFT.json"
+      serialiseClosedTerm
+        plistNFTPolicyUntyped
+        TIO.appendFile
+        args
+        "unbondedListNFT"
+        "ListNFT.json"
+    SerialiseValidator -> do
       serialiseClosedTerm
         pbondedPoolValidatorUntyped
+        TIO.writeFile
         args
         "bondedPoolValidator"
-        "BondedPoolValidator.json"
+        "PoolValidator.json"
+      serialiseClosedTerm
+        punbondedPoolValidatorUntyped
+        TIO.appendFile
+        args
+        "unbondedPoolValidator"
+        "PoolValidator.json"
 
 -- Parsers --
 data CLI = CLI
@@ -106,14 +141,14 @@ data CLI = CLI
 data CLICommand
   = SerialiseStateNFT
   | SerialiseListNFT
-  | SerialiseBondedValidator
+  | SerialiseValidator
 
 opts :: ParserInfo CLI
 opts =
   info
     parser
     ( fullDesc
-        <> progDesc "Serialise a NFT policy or the bonded pool's validator"
+        <> progDesc "Serialise a NFT policy or the pool validators"
     )
 
 parser :: Parser CLI
@@ -137,7 +172,7 @@ serialiseStateNFTCommand =
       (pure SerialiseStateNFT)
       ( fullDesc
           <> progDesc
-            "Serialise the NFT minting policy of the bonded pool"
+            "Serialise the NFT minting policy of the pools"
       )
 
 serialiseListNFTCommand :: Mod CommandFields CLICommand
@@ -154,10 +189,10 @@ serialiseValidatorCommand :: Mod CommandFields CLICommand
 serialiseValidatorCommand =
   command "validator" $
     info
-      (pure SerialiseBondedValidator)
+      (pure SerialiseValidator)
       ( fullDesc
           <> progDesc
-            "Serialise the bonded pool validator"
+            "Serialise the pool validators"
       )
 
 outOption :: Parser (Maybe FilePath)

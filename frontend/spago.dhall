@@ -12,6 +12,7 @@ You can edit this file as you like.
   , "bigints"
   , "exceptions"
   , "integers"
+  , "maybe"
   , "ordered-collections"
   , "prelude"
   , "identity"

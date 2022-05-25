@@ -4,6 +4,7 @@ module Utils
   , jsonReader
   , logInfo_
   , mkBondedPoolParams
+  , mkUnbondedPoolParams
   , nat
   ) where
 
@@ -31,6 +32,10 @@ import Plutus.Types.Value (valueOf)
 import Types
   ( BondedPoolParams(BondedPoolParams)
   , InitialBondedParams(InitialBondedParams)
+  )
+import UnbondedStaking.Types
+  ( UnbondedPoolParams(UnbondedPoolParams)
+  , InitialUnbondedParams(InitialUnbondedParams)
   )
 
 -- | Helper to decode the local inputs such as unapplied minting policy and
@@ -104,6 +109,31 @@ mkBondedPoolParams admin nftCs assocListCs (InitialBondedParams ibp) = do
     , maxStake: ibp.maxStake
     , admin
     , bondedAssetClass: ibp.bondedAssetClass
+    , nftCs
+    , assocListCs
+    }
+
+-- Creates the `UnbondedPoolParams` from the `InitialUnbondedParams` and
+-- runtime parameters from the user.
+mkUnbondedPoolParams
+  :: PaymentPubKeyHash
+  -> CurrencySymbol
+  -> CurrencySymbol
+  -> InitialUnbondedParams
+  -> UnbondedPoolParams
+mkUnbondedPoolParams admin nftCs assocListCs (InitialUnbondedParams iup) = do
+  UnbondedPoolParams
+    { start: iup.start
+    , userLength: iup.userLength
+    , adminLength: iup.adminLength
+    , bondingLength: iup.bondingLength
+    , interestLength: iup.interestLength
+    , increments: iup.increments
+    , interest: iup.interest
+    , minStake: iup.minStake
+    , maxStake: iup.maxStake
+    , admin
+    , unbondedAssetClass: iup.unbondedAssetClass
     , nftCs
     , assocListCs
     }

@@ -35,7 +35,7 @@ import Contract.Wallet (mkNamiWalletAff)
 import Control.Promise (Promise)
 import Control.Promise as Promise
 import ClosePool (closePoolContract)
-import CreatePool (createPoolContract)
+import CreatePool (createBondedPoolContract)
 import Serialization.Address (intToNetworkId)
 import Data.BigInt (BigInt)
 import Data.UInt as UInt
@@ -138,7 +138,7 @@ callCreatePool
 callCreatePool cfg iba = Promise.fromAff do
   contractConfig <- buildContractConfig cfg
   ibp <- liftEither $ fromInitialBondedArgs iba
-  bpp <- runContract contractConfig (createPoolContract ibp)
+  bpp <- runContract contractConfig (createBondedPoolContract ibp)
   pure $ toBondedPoolArgs bpp
 
 callDepositPool

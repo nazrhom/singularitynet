@@ -11,6 +11,7 @@ module Utils (
   pfind,
   pfstData,
   psndData,
+  ptraceBool,
   oneOf,
   oneOfWith,
   pletC,
@@ -28,6 +29,7 @@ module Utils (
   (>:),
 ) where
 
+import PTypes (PAssetClass)
 import Plutarch.Api.V1 (
   PAddress,
   PCurrencySymbol,
@@ -46,7 +48,6 @@ import Plutarch.Lift (
  )
 import Plutarch.Monadic qualified as P
 import Plutarch.TryFrom (PTryFrom, ptryFrom)
-import Types (PAssetClass)
 
 -- Term-level boolean functions
 peq :: forall (s :: S) (a :: PType). PEq a => Term s (a :--> a :--> PBool)
@@ -145,6 +146,24 @@ pfind pred ls = pure $ (pfix # plam go) # ls
     go self ls = pmatch ls $ \case
       PNil -> ptraceError "pfind: could not find element in list"
       PCons x xs -> plet (pfromData x) $ \x' -> pif (pred # x') x' (self # xs)
+
+-- Functions for debugging
+
+-- | Print one message or the other depending on the boolean condition.
+ptraceBool ::
+  forall (s :: S).
+  Term s PString ->
+  -- |^ The common message
+  Term s PString ->
+  -- |^ The `ptrue` part
+  Term s PString ->
+  -- |^ The `pfalse` part
+  Term s PBool ->
+  Term s PBool
+ptraceBool common trueMsg falseMsg cond = ptrace msg cond
+  where
+    msg :: Term s PString
+    msg = pif cond (common <> " " <> trueMsg) (common <> " " <> falseMsg)
 
 -- Functions for evaluating predicates on `PValue`s
 

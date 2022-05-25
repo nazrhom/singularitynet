@@ -1,4 +1,4 @@
-module CreatePool (createBondedPoolContract) where
+module UnbondedStaking.CreatePool (createUnbondedPoolContract) where
 
 import Contract.Prelude
 
@@ -29,69 +29,73 @@ import Contract.Value (scriptCurrencySymbol, singleton)
 import Data.Array (head)
 import Data.Map (toUnfoldable)
 import Scripts.ListNFT (mkListNFTPolicy)
-import Scripts.PoolValidator (mkBondedPoolValidator)
+import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Scripts.StateNFT (mkStateNFTPolicy)
-import Settings (bondedStakingTokenName)
-import Types
-  ( BondedPoolParams
-  , BondedStakingDatum(StateDatum)
-  , InitialBondedParams
-  , StakingType(Bonded)
+import Settings (unbondedStakingTokenName)
+import Types (StakingType(Unbonded))
+import UnbondedStaking.Types
+  ( InitialUnbondedParams
+  , UnbondedPoolParams
+  , UnbondedStakingDatum(StateDatum)
   )
-import Utils (logInfo_, mkBondedPoolParams, nat)
+import Utils (logInfo_, mkUnbondedPoolParams)
 
 -- Sets up pool configuration, mints the state NFT and deposits
 -- in the pool validator's address
-createBondedPoolContract :: InitialBondedParams -> Contract () BondedPoolParams
-createBondedPoolContract ibp = do
+createUnbondedPoolContract
+  :: InitialUnbondedParams -> Contract () UnbondedPoolParams
+createUnbondedPoolContract iup = do
   networkId <- getNetworkId
-  adminPkh <- liftedM "createBondedPoolContract: Cannot get admin's pkh"
+  adminPkh <- liftedM "createUnbondedPoolContract: Cannot get admin's pkh"
     ownPaymentPubKeyHash
-  logInfo_ "createBondedPoolContract: Admin PaymentPubKeyHash" adminPkh
+  logInfo_ "createUnbondedPoolContract: Admin PaymentPubKeyHash" adminPkh
   -- Get the (Nami) wallet address
-  adminAddr <- liftedM "createBondedPoolContract: Cannot get wallet Address"
+  adminAddr <- liftedM "createUnbondedPoolContract: Cannot get wallet Address"
     getWalletAddress
   -- Get utxos at the wallet address
   adminUtxos <-
-    liftedM "createBondedPoolContract: Cannot get user Utxos"
+    liftedM "createUnbondedPoolContract: Cannot get user Utxos"
       $ utxosAt adminAddr
-  txOutRef <- liftContractM "createBondedPoolContract: Could not get head UTXO"
-    $ fst
-    <$> (head $ toUnfoldable $ unwrap adminUtxos)
-  logInfo_ "createBondedPoolContract: Admin Utxos" adminUtxos
+  txOutRef <-
+    liftContractM "createUnbondedPoolContract: Could not get head UTXO"
+      $ fst
+      <$> (head $ toUnfoldable $ unwrap adminUtxos)
+  logInfo_ "createUnbondedPoolContract: Admin Utxos" adminUtxos
   -- Get the minting policy and currency symbol from the state NFT:
-  statePolicy <- liftedE $ mkStateNFTPolicy Bonded txOutRef
+  statePolicy <- liftedE $ mkStateNFTPolicy Unbonded txOutRef
   stateNftCs <-
     liftedM
-      "createBondedPoolContract: Cannot get CurrencySymbol from state NFT"
+      "createUnbondedPoolContract: Cannot get CurrencySymbol from /\
+      \state NFT"
       $ scriptCurrencySymbol statePolicy
   -- Get the minting policy and currency symbol from the list NFT:
-  listPolicy <- liftedE $ mkListNFTPolicy Bonded stateNftCs
+  listPolicy <- liftedE $ mkListNFTPolicy Unbonded stateNftCs
   assocListCs <-
     liftedM
-      "createBondedPoolContract: Cannot get CurrencySymbol from state NFT"
+      "createUnbondedPoolContract: Cannot get CurrencySymbol from /\
+      \state NFT"
       $ scriptCurrencySymbol listPolicy
   -- May want to hardcode this somewhere:
   tokenName <-
-    liftContractM "createBondedPoolContract: Cannot create TokenName"
-      bondedStakingTokenName
+    liftContractM "createUnbondedPoolContract: Cannot create TokenName"
+      unbondedStakingTokenName
   -- We define the parameters of the pool
-  let params = mkBondedPoolParams adminPkh stateNftCs assocListCs ibp
+  let params = mkUnbondedPoolParams adminPkh stateNftCs assocListCs iup
   -- Get the bonding validator and hash
-  validator <-
-    liftedE' "createBondedPoolContract: Cannot create validator"
-      $ mkBondedPoolValidator params
-  valHash <- liftedM "createBondedPoolContract: Cannot hash validator"
+  validator <- liftedE' "createUnbondedPoolContract: Cannot create validator"
+    $ mkUnbondedPoolValidator params
+  valHash <- liftedM "createUnbondedPoolContract: Cannot hash validator"
     (validatorHash validator)
   let
     mintValue = singleton stateNftCs tokenName one
     poolAddr = validatorHashEnterpriseAddress networkId valHash
-  logInfo_ "createPoolContract: BondedPool Validator's address" poolAddr
+  logInfo_
+    "createUnbondedPoolContract: UnbondedPool Validator's address"
+    poolAddr
   let
-    -- We initalize the pool with no head entry and a pool size of 100_000_000
-    bondedStateDatum = Datum $ toData $ StateDatum
+    unbondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
-      , sizeLeft: nat 100_000_000
+      , isOpen: true
       }
 
     lookup :: ScriptLookups.ScriptLookups PlutusData
@@ -105,7 +109,7 @@ createBondedPoolContract ibp = do
     constraints :: TxConstraints Unit Unit
     constraints =
       mconcat
-        [ mustPayToScript valHash bondedStateDatum mintValue
+        [ mustPayToScript valHash unbondedStateDatum mintValue
         , mustMintValue mintValue
         , mustSpendPubKeyOutput txOutRef
         ]
@@ -119,13 +123,13 @@ createBondedPoolContract ibp = do
   -- 3) Sign tx, returning the Cbor-hex encoded `ByteArray`.
   BalancedSignedTransaction { signedTxCbor } <-
     liftedM
-      "createBondedPoolContract: Cannot balance, reindex redeemers, attach /\
+      "createUnbondedPoolContract: Cannot balance, reindex redeemers, attach /\
       \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
   transactionHash <- submit signedTxCbor
   logInfo_
-    "createBondedPoolContract: Transaction successfully submitted /\
+    "createUnbondedPoolContract: Transaction successfully submitted /\
     \with hash"
     $ byteArrayToHex
     $ unwrap transactionHash

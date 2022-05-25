@@ -35,7 +35,7 @@ import Contract.TxConstraints
 import Contract.Utxos (utxosAt)
 import Contract.Value (singleton)
 import Control.Applicative (unless)
-import Scripts.BondedPoolValidator (mkBondedPoolValidator)
+import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
 import Types
   ( BondedStakingAction(AdminAct)

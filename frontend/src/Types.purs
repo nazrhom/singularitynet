@@ -6,6 +6,7 @@ module Types
   , Entry(..)
   , InitialBondedParams(..)
   , PoolInfo(..)
+  , StakingType(..)
   ) where
 
 import Contract.Prelude
@@ -165,3 +166,5 @@ instance ToData Entry where
 
 instance Show Entry where
   show = genericShow
+
+data StakingType = Bonded | Unbonded

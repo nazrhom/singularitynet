@@ -7,35 +7,40 @@ module Test.Common (
   testAdminPkh,
 ) where
 
-import ListNFT (pbondedListNFTPolicy)
+import ListNFT (plistNFTPolicy)
+import PTypes (PMintingAction)
 import Plutarch.Api.V1 (PScriptContext, mintingPolicySymbol, mkMintingPolicy)
 import Plutarch.Unsafe (punsafeCoerce)
 import Plutus.V1.Ledger.Api (
   CurrencySymbol,
   PubKeyHash (PubKeyHash),
+  TokenName,
   TxId (TxId),
   TxOutRef (TxOutRef, txOutRefId, txOutRefIdx),
  )
-import StateNFT (pbondedStateNFTPolicy)
-import Types (PMintingAction)
+import StateNFT (pstateNFTPolicy)
 
 -- The CurrencySymbol associated with the state NFT
-testStateCurrencySymbol :: CurrencySymbol
-testStateCurrencySymbol =
-  mintingPolicySymbol $ mkMintingPolicy $ punsafeCoerce $ testStatePolicy
+testStateCurrencySymbol :: TokenName -> CurrencySymbol
+testStateCurrencySymbol tn =
+  mintingPolicySymbol $ mkMintingPolicy $ punsafeCoerce $ testStatePolicy tn
 
--- The CurrencySymbol associated with the associacion list NFT
-testListCurrencySymbol :: CurrencySymbol
-testListCurrencySymbol =
-  mintingPolicySymbol $ mkMintingPolicy $ punsafeCoerce $ testListPolicy
+-- The CurrencySymbol associated with the association list NFT
+testListCurrencySymbol :: TokenName -> CurrencySymbol
+testListCurrencySymbol tn =
+  mintingPolicySymbol $ mkMintingPolicy $ punsafeCoerce $ testListPolicy tn
 
 -- | The pool's state minting policy
-testStatePolicy :: forall (s :: S). Term s (PUnit :--> PScriptContext :--> PUnit)
-testStatePolicy = pbondedStateNFTPolicy # pconstant testStatePolicyInput
+testStatePolicy ::
+  forall (s :: S). TokenName -> Term s (PUnit :--> PScriptContext :--> PUnit)
+testStatePolicy tn = pstateNFTPolicy tn # pconstant testStatePolicyInput
 
 -- | The association list's minting policy
-testListPolicy :: forall (s :: S). Term s (PMintingAction :--> PScriptContext :--> PUnit)
-testListPolicy = pbondedListNFTPolicy # pconstant testStateCurrencySymbol
+testListPolicy ::
+  forall (s :: S).
+  TokenName ->
+  Term s (PMintingAction :--> PScriptContext :--> PUnit)
+testListPolicy tn = plistNFTPolicy # pconstant (testStateCurrencySymbol tn)
 
 -- | The UTXO used to mint the pool's state NFT
 testStatePolicyInput :: TxOutRef
