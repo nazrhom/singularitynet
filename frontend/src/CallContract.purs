@@ -3,8 +3,8 @@ module CallContract
   , callClosePool
   , callCreatePool
   , callDepositPool
-  , mkContractConfiguration
-  ) where
+  )
+  where
 
 import Contract.Prelude
 
@@ -46,20 +46,6 @@ import Effect.Exception (Error)
 import Types (BondedPoolParams(BondedPoolParams), InitialBondedParams)
 import Types.Rational (denominator, numerator) -- fix this with updated CTL
 
-foreign import mkContractConfiguration
-  :: String -- serverHost
-  -> Int -- serverPort
-  -> Boolean -- serverSecure
-  -> String -- ogmiosHost
-  -> Int -- ogmiosPort
-  -> Boolean -- ogmiosSecure
-  -> String -- datumCacheHost
-  -> Int -- datumCachePort
-  -> Boolean -- datumCacheSecure
-  -> Int -- networkId
-  -> LogLevel -- logLevel
-  -> ContractConfiguration
-
 -- | Configuation needed to call contracts from JS.
 type ContractConfiguration =
   { serverHost :: String
@@ -75,7 +61,7 @@ type ContractConfiguration =
   , logLevel :: LogLevel
   }
 
-type BondedArgs (r :: Row Type) =
+type InitialBondedArgs =
   { iterations :: BigInt -- Natural
   , start :: BigInt -- like POSIXTime
   , end :: BigInt -- like POSIXTime
@@ -86,14 +72,23 @@ type BondedArgs (r :: Row Type) =
   , maxStake :: BigInt -- Natural
   , bondedAssetClass ::
       Tuple String String -- AssetClass ~ Tuple CBORCurrencySymbol ASCIITokenName
-  | r
   }
 
-type InitialBondedArgs = BondedArgs ()
-
--- PaymentPubKeyHash, CurrencySymbol and CurrencySymbol
-type BondedPoolArgs = BondedArgs
-  (admin :: String, nftCs :: String, assocListCs :: String)
+type BondedPoolArgs =
+  { iterations :: BigInt -- Natural
+  , start :: BigInt -- like POSIXTime
+  , end :: BigInt -- like POSIXTime
+  , userLength :: BigInt -- like POSIXTime
+  , bondingLength :: BigInt -- like POSIXTime
+  , interest :: Tuple BigInt BigInt -- Rational
+  , minStake :: BigInt -- Natural
+  , maxStake :: BigInt -- Natural
+  , bondedAssetClass ::
+      Tuple String String -- AssetClass ~ Tuple CBORCurrencySymbol ASCIITokenName
+  , admin :: String -- PaymentPubKeyHash
+  , nftCs :: String -- CurrencySymbol
+  , assocListCs :: String -- CurrencySymbol
+  }
 
 buildContractConfig :: ContractConfiguration -> Aff (ContractConfig ())
 buildContractConfig cfg = do
