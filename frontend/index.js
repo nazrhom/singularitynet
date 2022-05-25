@@ -1,10 +1,18 @@
 "use strict";
 
-// This needs to be asynchronous to load the WASM from CSL
-//
-// You also need to call `spago bundle-module` to generate the module that is
-// imported here. From the repository root, run:
-//   spago bundle-module -m <MAIN> --to output.js
-import("./output.js").then((m) => m.main());
+const frontend = import("./output.js");
 
-console.log("app starting");
+exports.callCreatePool = async (config, args) => {
+  const contracts = await frontend;
+  return contracts.callCreatePool(config)(args)();
+};
+
+exports.callDepositPool = async (config, args) => {
+  const contracts = await frontend;
+  return contracts.callDepositPool(config)(args)();
+};
+
+exports.callClosePool = async (config, args) => {
+  const contracts = await frontend;
+  return contracts.callClosePool(config)(args)();
+};
