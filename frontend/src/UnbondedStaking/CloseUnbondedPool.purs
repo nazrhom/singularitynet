@@ -93,11 +93,11 @@ closeUnbondedPoolContract params@(UnbondedPoolParams { admin, nftCs }) = do
 
   let
     stateTokenValue = singleton nftCs tokenName one
-    oldUnbondedStateDatum = Datum $ toData StateDatum
+    oldUnbondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
       , open: true
       }
-    newUnbondedStateDatum = Datum $ toData StateDatum
+    newUnbondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
       , open: false
       }

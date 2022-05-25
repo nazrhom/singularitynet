@@ -11,7 +11,7 @@ module Types
 import Contract.Prelude
 
 import ConstrIndices (class HasConstrIndices, defaultConstrIndices)
-import Contract.Address (PaymentPubKeyHash)
+import Contract.Address (Address, PaymentPubKeyHash)
 import Contract.Numeric.Natural (Natural)
 import Contract.Numeric.Rational (Rational)
 import Contract.PlutusData (class ToData, PlutusData(Constr), toData)

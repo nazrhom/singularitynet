@@ -37,7 +37,6 @@ import Contract.Value (singleton)
 import Control.Applicative (unless)
 
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
-import Types.Interval (always)
 import UnbondedStaking.Types
   ( UnbondedPoolParams(UnbondedPoolParams)
   -- , UnbondedStakingAction(AdminAct)

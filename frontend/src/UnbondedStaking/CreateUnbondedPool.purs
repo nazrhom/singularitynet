@@ -97,7 +97,7 @@ createUnbondedPoolContract iup = do
     poolAddr
 
   let
-    unbondedStateDatum = Datum $ toData StateDatum
+    unbondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
       , open: true
       }

@@ -94,7 +94,7 @@ depositBondedPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
   let
     -- We can hardcode the state for now. We should actually fetch the datum
     -- from Ogmios, update it properly and then submit it
-    bondedStateDatum = Datum $ toData StateDatum
+    bondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
       , sizeLeft: nat 100_000_000
       }

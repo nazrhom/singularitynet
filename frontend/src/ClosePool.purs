@@ -57,7 +57,7 @@ closeBondedPoolContract (PoolInfo poolInfo) = do
   validator <- liftedE' "closeBondedPoolContract: Cannot create validator" $
     mkBondedPoolValidator params
   let
-    bondedStateDatum = Datum $ toData StateDatum
+    bondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
       , sizeLeft: nat 100_000_000
       }

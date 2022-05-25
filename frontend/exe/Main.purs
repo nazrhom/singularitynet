@@ -12,7 +12,7 @@ import Contract.Monad
   , defaultServerConfig
   , defaultSlotConfig
   , launchAff_
-  , liftContractM
+  -- , liftContractM
   , mkContractConfig
   , runContract_
   )
@@ -23,10 +23,10 @@ import DepositPool (depositBondedPoolContract)
 import Effect.Aff (delay)
 import Effect.Aff.Class (liftAff)
 
-import Settings (testInitUnbondedParams)
-import UnbondedStaking.CloseUnbondedPool (closeUnbondedPoolContract)
-import UnbondedStaking.CreateUnbondedPool (createUnbondedPoolContract)
-import UnbondedStaking.DepositUnbondedPool (depositUnbondedPoolContract)
+-- import Settings (testInitUnbondedParams)
+-- import UnbondedStaking.CloseUnbondedPool (closeUnbondedPoolContract)
+-- import UnbondedStaking.CreateUnbondedPool (createUnbondedPoolContract)
+-- import UnbondedStaking.DepositUnbondedPool (depositUnbondedPoolContract)
 
 main :: Effect Unit
 main = launchAff_ $ do
