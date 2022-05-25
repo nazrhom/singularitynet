@@ -19,6 +19,7 @@ import Contract.PlutusData (PlutusData, Datum(Datum), toData, datumHash)
 import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
+import Contract.Time (always)
 import Contract.Transaction
   ( BalancedSignedTransaction(BalancedSignedTransaction)
   , balanceAndSignTx
@@ -54,8 +55,7 @@ depositUnbondedPoolContract
   userPkh <- liftedM "depositUnbondedPoolContract: Cannot get user's pkh"
     ownPaymentPubKeyHash
   unless (userPkh == admin) $ throwContractError
-    "depositUnbondedPoolContract: Admin \
-    \is not current user"
+    "depositUnbondedPoolContract: Admin is not current user"
   logInfo_ "depositUnbondedPoolContract: Admin PaymentPubKeyHash" userPkh
   -- Get the (Nami) wallet address
   adminAddr <- liftedM "depositUnbondedPoolContract: Cannot get wallet Address"
@@ -77,9 +77,7 @@ depositUnbondedPoolContract
   -- Create the datums and their ScriptLookups
   let
     -- This is the datum of the UTXO that will hold the rewards
-    assetDatum = Datum $ toData $ AssetDatum
-
-  let
+    assetDatum = Datum $ toData AssetDatum
     assetParams = unwrap (unwrap params).unbondedAssetClass
     assetCs = assetParams.currencySymbol
     assetTn = assetParams.tokenName

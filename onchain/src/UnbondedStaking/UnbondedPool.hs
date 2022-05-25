@@ -1,5 +1,4 @@
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module UnbondedStaking.UnbondedPool (
   punbondedPoolValidator,
@@ -10,13 +9,10 @@ import GHC.Records (getField)
 
 import Plutarch.Api.V1 (
   PAddress,
-  PPubKeyHash,
   PScriptContext,
   PScriptPurpose,
   PTxInfo,
  )
-import Plutarch.Api.V1.Scripts (PDatum)
-import Plutarch.Builtin (pforgetData)
 import Plutarch.Unsafe (punsafeCoerce)
 
 import PNatural (
@@ -49,9 +45,11 @@ import Utils (
   getDatumHash,
   getInput,
   guardC,
+  parseStakingDatum,
   pletC,
   pmatchC,
   ptryFromUndata,
+  signedByAdmin,
   toPBool,
  )
 
@@ -77,16 +75,18 @@ punbondedPoolValidator =
       -- Match on redeemer and execute the corresponding logic
       pure $
         pmatch act $ \case
-          PAdminAct dataRecord ->
-            let totalRewards = pfield @"_0" # dataRecord
-                totalDeposited = pfield @"_1" # dataRecord
-             in adminActLogic
-                  ctxF.txInfo
-                  ctxF.purpose
-                  params
-                  dat
-                  totalRewards
-                  totalDeposited
+          PAdminAct dataRecord -> unTermCont $ do
+            dataRecordF <- tcont $ pletFields @["_0", "_1"] dataRecord
+            let totalRewards = dataRecordF._0
+                totalDeposited = dataRecordF._1
+            pure $
+              adminActLogic
+                ctxF.txInfo
+                ctxF.purpose
+                params
+                dat
+                totalRewards
+                totalDeposited
           PStakeAct _pair -> stakeActLogic
           PWithdrawAct _pkh -> withdrawActLogic
           PCloseAct _ ->
@@ -192,7 +192,7 @@ adminActLogic
           coOutput <- getContinuingOutputWithNFT inputAddress ac txInfoF.outputs
           coOutputDatumHash <- getDatumHash coOutput
           coOutputDatum <- getDatum coOutputDatumHash $ getField @"data" txInfoF
-          coOutputStakingDatum <- parseStakingDatum coOutputDatum
+          coOutputStakingDatum <- parseStakingDatum @PUnbondedStakingDatum coOutputDatum
 
           -- Retrieve fields from new Entry
           PEntryDatum newEntryRecord <- pmatchC coOutputStakingDatum
@@ -220,7 +220,7 @@ adminActLogic
             "adminActLogic: update failed because entry field 'newDeposit' \
             \is not zero"
             $ newEntryF.newDeposit
-              #== pconstant @PNatural (Natural $ fromInteger 0)
+              #== pconstant @PNatural (Natural 0)
           guardC
             "adminActLogic: update failed because entry field 'rewards' \
             \is not updatedRewards"
@@ -308,7 +308,7 @@ closeActLogic txInfo purpose params inputStakingDatum = unTermCont $ do
         coOutput <- getContinuingOutputWithNFT inputAddress ac txInfoF.outputs
         coOutputDatumHash <- getDatumHash coOutput
         coOutputDatum <- getDatum coOutputDatumHash $ getField @"data" txInfoF
-        coOutputStakingDatum <- parseStakingDatum coOutputDatum
+        coOutputStakingDatum <- parseStakingDatum @PUnbondedStakingDatum coOutputDatum
 
         -- Get new state
         PStateDatum state <- pmatchC coOutputStakingDatum
@@ -351,7 +351,7 @@ closeActLogic txInfo purpose params inputStakingDatum = unTermCont $ do
         coOutput <- getContinuingOutputWithNFT inputAddress ac txInfoF.outputs
         coOutputDatumHash <- getDatumHash coOutput
         coOutputDatum <- getDatum coOutputDatumHash $ getField @"data" txInfoF
-        coOutputStakingDatum <- parseStakingDatum coOutputDatum
+        coOutputStakingDatum <- parseStakingDatum @PUnbondedStakingDatum coOutputDatum
 
         -- Retrieve fields from new Entry
         PEntryDatum newEntryRecord <- pmatchC coOutputStakingDatum
@@ -401,30 +401,15 @@ calculateRewards ::
   Term s PNatural ->
   Term s PNatRatio
 calculateRewards _ _ _ _ _ =
-  pconstant @PNatRatio (NatRatio (fromInteger 1 % fromInteger 1))
+  pconstant @PNatRatio (NatRatio (1 % 1))
 
 entryChangedGuard ::
   forall (s :: S).
   Term s PString ->
   Term s PBool ->
   TermCont s (Term s PUnit)
-entryChangedGuard field condition =
+entryChangedGuard field =
   guardC
     ( "adminLogic: update failed because entry field '" <> field
         <> "' is changed"
     )
-    condition
-
-signedByAdmin ::
-  forall (s :: S).
-  Term s (PBuiltinList (PAsData PPubKeyHash)) ->
-  Term s PPubKeyHash ->
-  Term s PBool
-signedByAdmin ls pkh = pelem # pdata pkh # ls
-
-parseStakingDatum ::
-  forall (s :: S).
-  Term s PDatum ->
-  TermCont s (Term s PUnbondedStakingDatum)
-parseStakingDatum datum =
-  ptryFromUndata @PUnbondedStakingDatum . pforgetData . pdata $ datum

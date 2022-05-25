@@ -24,6 +24,7 @@ import Contract.PlutusData
 import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
+import Contract.Time (always)
 import Contract.Transaction
   ( BalancedSignedTransaction(BalancedSignedTransaction)
   , balanceAndSignTx
@@ -42,7 +43,6 @@ import Contract.Value (singleton)
 import Data.Map (toUnfoldable)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Settings (unbondedStakingTokenName)
-import Types.Interval (always)
 import UnbondedStaking.Types
   ( UnbondedPoolParams(UnbondedPoolParams)
   , UnbondedStakingAction(CloseAct)
@@ -58,8 +58,7 @@ closeUnbondedPoolContract params@(UnbondedPoolParams { admin, nftCs }) = do
   userPkh <- liftedM "closeUnbondedPoolContract: Cannot get user's pkh"
     ownPaymentPubKeyHash
   unless (userPkh == admin) $ throwContractError
-    "closeUnbondedPoolContract: Admin \
-    \is not current user"
+    "closeUnbondedPoolContract: Admin is not current user"
   logInfo_ "closeUnbondedPoolContract: Admin PaymentPubKeyHash" admin
 
   -- Get the bonded pool validator and hash
@@ -88,17 +87,17 @@ closeUnbondedPoolContract params@(UnbondedPoolParams { admin, nftCs }) = do
   logInfo_ "closeUnbondedPoolContract: Pool's State UTXO" poolTxInput
   poolDatumHash <-
     liftContractM
-      "depositUnbondedPoolContract: Could not get Pool UTXO's Datum Hash"
+      "closeUnbondedPoolContract: Could not get Pool UTXO's Datum Hash"
       (unwrap poolTxOutput).dataHash
-  logInfo_ "depositUnbondedPoolContract: Pool's UTXO DatumHash" poolDatumHash
+  logInfo_ "closeUnbondedPoolContract: Pool's UTXO DatumHash" poolDatumHash
 
   let
     stateTokenValue = singleton nftCs tokenName one
-    oldUnbondedStateDatum = Datum $ toData $ StateDatum
+    oldUnbondedStateDatum = Datum $ toData StateDatum
       { maybeEntryName: Nothing
       , open: true
       }
-    newUnbondedStateDatum = Datum $ toData $ StateDatum
+    newUnbondedStateDatum = Datum $ toData StateDatum
       { maybeEntryName: Nothing
       , open: false
       }
@@ -110,7 +109,7 @@ closeUnbondedPoolContract params@(UnbondedPoolParams { admin, nftCs }) = do
 
   -- We build the transaction
   let
-    redeemer = Redeemer $ toData $ CloseAct
+    redeemer = Redeemer $ toData CloseAct
 
     lookup :: ScriptLookups.ScriptLookups PlutusData
     lookup = mconcat
