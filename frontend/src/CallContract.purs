@@ -1,8 +1,8 @@
 module CallContract
   ( ContractConfiguration
   , callClosePool
-  , callCreatePool
-  , callDepositPool
+  , callCreateBondedPool
+  , callDepositBondedPool
   ) where
 
 import Contract.Prelude
@@ -144,19 +144,19 @@ buildContractConfig cfg = do
     liftM (error $ "buildContractConfig: Invalid " <> name <> " port number")
       $ UInt.fromNumber' port
 
-callCreatePool
+callCreateBondedPool
   :: ContractConfiguration
   -> InitialBondedArgs
   -> Effect (Promise BondedPoolArgs)
-callCreatePool cfg iba = Promise.fromAff do
+callCreateBondedPool cfg iba = Promise.fromAff do
   contractConfig <- buildContractConfig cfg
   ibp <- liftEither $ fromInitialBondedArgs iba
   bpp <- runContract contractConfig (createBondedPoolContract ibp)
   pure $ toBondedPoolArgs bpp
 
-callDepositPool
+callDepositBondedPool
   :: ContractConfiguration -> BondedPoolArgs -> Effect (Promise Unit)
-callDepositPool = callWithBondedPoolArgs depositPoolContract
+callDepositBondedPool = callWithBondedPoolArgs depositPoolContract
 
 callClosePool
   :: ContractConfiguration -> BondedPoolArgs -> Effect (Promise Unit)

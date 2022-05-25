@@ -2,17 +2,17 @@
 
 const frontend = import("./output.js");
 
-exports.callCreatePool = async (config, args) => {
+exports.callCreateBondedPool = async (config, args) => {
   const contracts = await frontend;
-  return contracts.callCreatePool(config)(args)();
+  return contracts.callCreateBondedPool(config)(args)();
 };
 
-exports.callDepositPool = async (config, args) => {
+exports.callDepositBondedPool = async (config, args) => {
   const contracts = await frontend;
-  return contracts.callDepositPool(config)(args)();
+  return contracts.callDepositBondedPool(config)(args)();
 };
 
-exports.callClosePool = async (config, args) => {
+exports.callCloseBondedPool = async (config, args) => {
   const contracts = await frontend;
-  return contracts.callClosePool(config)(args)();
+  return contracts.callCloseBondedPool(config)(args)();
 };
