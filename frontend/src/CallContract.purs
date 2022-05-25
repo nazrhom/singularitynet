@@ -3,8 +3,7 @@ module CallContract
   , callClosePool
   , callCreatePool
   , callDepositPool
-  )
-  where
+  ) where
 
 import Contract.Prelude
 
@@ -12,6 +11,12 @@ import Contract.Monad
   ( Contract
   , ContractConfig
   , LogLevel
+      ( Trace
+      , Debug
+      , Info
+      , Warn
+      , Error
+      )
   , runContract
   , defaultSlotConfig
   , mkContractConfig
@@ -38,6 +43,7 @@ import ClosePool (closePoolContract)
 import CreatePool (createBondedPoolContract)
 import Serialization.Address (intToNetworkId)
 import Data.BigInt (BigInt)
+import Data.Int as Int
 import Data.UInt as UInt
 import Data.UInt (UInt)
 import DepositPool (depositPoolContract)
@@ -49,16 +55,16 @@ import Types.Rational (denominator, numerator) -- fix this with updated CTL
 -- | Configuation needed to call contracts from JS.
 type ContractConfiguration =
   { serverHost :: String
-  , serverPort :: Int
+  , serverPort :: Number -- converts to UInt
   , serverSecure :: Boolean
   , ogmiosHost :: String
-  , ogmiosPort :: Int
+  , ogmiosPort :: Number -- converts to UInt
   , ogmiosSecure :: Boolean
   , datumCacheHost :: String
-  , datumCachePort :: Int
+  , datumCachePort :: Number -- converts to UInt
   , datumCacheSecure :: Boolean
-  , networkId :: Int
-  , logLevel :: LogLevel
+  , networkId :: Number -- converts to Int
+  , logLevel :: String -- "Trace", "Debug", "Info", "Warn", "Error"
   }
 
 type InitialBondedArgs =
@@ -90,14 +96,26 @@ type BondedPoolArgs =
   , assocListCs :: String -- CurrencySymbol
   }
 
+fromLogLevelStr :: String -> Maybe LogLevel
+fromLogLevelStr "Trace" = pure Trace
+fromLogLevelStr "Debug" = pure Debug
+fromLogLevelStr "Info" = pure Info -- default
+fromLogLevelStr "Warn" = pure Warn
+fromLogLevelStr "Error" = pure Error
+fromLogLevelStr _ = Nothing
+
 buildContractConfig :: ContractConfiguration -> Aff (ContractConfig ())
 buildContractConfig cfg = do
   serverPort <- convertPort "server" cfg.serverPort
   ogmiosPort <- convertPort "ogmios" cfg.ogmiosPort
   datumCachePort <- convertPort "datum cache" cfg.datumCachePort
+  networkIdInt <- liftM (error "buildContractConfig: Invalid network id Int")
+    $ Int.fromNumber cfg.networkId
   networkId <- liftM (error "buildContractConfig: Invalid network id")
-    $ intToNetworkId cfg.networkId
+    $ intToNetworkId networkIdInt
   wallet <- Just <$> mkNamiWalletAff
+  logLevel <- liftM (error "buildContractConfig: Invalid LogLevel")
+    $ fromLogLevelStr cfg.logLevel
   mkContractConfig $ wrap
     { ogmiosConfig:
         { port: ogmiosPort
@@ -116,15 +134,15 @@ buildContractConfig cfg = do
         }
     , networkId
     , slotConfig: defaultSlotConfig
-    , logLevel: cfg.logLevel
+    , logLevel: logLevel
     , extraConfig: {}
     , wallet
     }
   where
-  convertPort :: String -> Int -> Aff UInt
+  convertPort :: String -> Number -> Aff UInt
   convertPort name port =
     liftM (error $ "buildContractConfig: Invalid " <> name <> " port number")
-      $ UInt.fromInt' port
+      $ UInt.fromNumber' port
 
 callCreatePool
   :: ContractConfiguration
