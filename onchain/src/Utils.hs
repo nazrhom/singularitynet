@@ -11,6 +11,8 @@ module Utils (
   punit,
   pifC,
   pnestedIf,
+  pandList,
+  porList,
   pfind,
   ppartition,
   pfstData,
@@ -111,7 +113,7 @@ punit = pconstant ()
  and results. It evaluates the conditions in order: whenever a condition
  is satisfied, its associated result is returned.
 
- Analogous to a nested `pif` structure.
+ Expands to a nested `pif` structure.
 -}
 pnestedIf ::
   forall (s :: S) (a :: PType).
@@ -120,6 +122,14 @@ pnestedIf ::
   Term s a
 pnestedIf [] def = def
 pnestedIf ((cond, x) : conds) def = pif cond x $ pnestedIf conds def
+
+-- `and` function for `[Term s PBool]`. Expands to a sequence of `(#&&)`
+pandList :: forall (s :: S) . [Term s PBool] -> Term s PBool
+pandList = foldr (#&&) ptrue
+
+-- `or` function for `[Term s PBool]`. Expands to a sequence of `(#||)`
+porList :: forall (s :: S) . [Term s PBool] -> Term s PBool
+porList = foldr (#||) pfalse
 
 -- | Lifts `pif` result into the `TermCont` monad
 pifC ::
@@ -162,9 +172,9 @@ psndData x = pfromData $ psndBuiltin # x
 pfind ::
   forall (s :: S) (a :: PType).
   PIsData a =>
-  Term s (a :--> PBool) ->
+  Term s (PAsData a :--> PBool) ->
   Term s (PBuiltinList (PAsData a)) ->
-  TermCont s (Term s a)
+  TermCont s (Term s (PAsData a))
 pfind pred ls = pure $ (pfix #$ go # pred) # ls
   where
     go ::
@@ -172,15 +182,15 @@ pfind pred ls = pure $ (pfix #$ go # pred) # ls
       PIsData a =>
       Term
         s
-        ( (a :--> PBool)
-            :--> (PBuiltinList (PAsData a) :--> a)
+        ( (PAsData a :--> PBool)
+            :--> (PBuiltinList (PAsData a) :--> PAsData a)
             :--> PBuiltinList (PAsData a)
-            :--> a
+            :--> PAsData a
         )
     go = phoistAcyclic $
       plam $ \pred self ls -> pmatch ls $ \case
         PNil -> ptraceError "pfind: could not find element in list"
-        PCons x xs -> plet (pfromData x) $ \x' -> pif (pred # x') x' (self # xs)
+        PCons x xs -> pif (pred # x) x (self # xs)
 
 {- | Returns the pair of lists of elements that match and don't match the
  predicate
@@ -538,13 +548,13 @@ getInput purpose txInInfos = pure $ getInput' # purpose # txInInfos
     getInput' = phoistAcyclic $
       plam $ \purpose txInInfos -> unTermCont $ do
         let inputOutRef = getSpendingRef purpose
-        pfind (predicate # inputOutRef) txInInfos
+        pfromData <$> pfind (predicate # inputOutRef) txInInfos
     predicate ::
       forall (s :: S).
-      Term s (PTxOutRef :--> PTxInInfo :--> PBool)
+      Term s (PTxOutRef :--> PAsData PTxInInfo :--> PBool)
     predicate = phoistAcyclic $
       plam $ \inputOutRef txInInfo ->
-        pdata inputOutRef #== pdata (pfield @"outRef" # txInInfo)
+        pdata inputOutRef #== pdata (pfield @"outRef" # pfromData txInInfo)
     getSpendingRef ::
       forall (s :: S).
       Term s PScriptPurpose ->
@@ -580,14 +590,14 @@ getContinuingOutputWithNFT addr ac outputs =
     getContinuingOutputWithNFT' = phoistAcyclic $
       plam $ \addr ac outputs ->
         unTermCont $
-          pfind
+          pfromData <$> pfind
             (sameAddrAndNFT addr ac)
             outputs
     sameAddrAndNFT ::
       forall (s :: S).
       Term s PAddress ->
       Term s PAssetClass ->
-      Term s (PTxOut :--> PBool)
+      Term s (PAsData PTxOut :--> PBool)
     sameAddrAndNFT addr ac = plam $ \output -> unTermCont $ do
       outputF <- tcont $ pletFields @'["address", "value"] output
       acF <- tcont $ pletFields @'["currencySymbol", "tokenName"] ac
@@ -639,7 +649,7 @@ getDatum datHash dats = pure $ getDatum' # datHash # dats
         pure $ pfield @"_1" # datHashAndDat
     checkHash ::
       forall (s :: S).
-      Term s (PDatumHash :--> PTuple PDatumHash PDatum :--> PBool)
+      Term s (PDatumHash :--> PAsData (PTuple PDatumHash PDatum) :--> PBool)
     checkHash = phoistAcyclic $
       plam $ \datHash tup ->
         pfield @"_0" # tup #== datHash
