@@ -25,21 +25,21 @@ import Plutarch.Crypto (pblake2b_256)
 import Utils (
   getCs,
   guardC,
-  noneOf,
   oneOf,
   oneWith,
-  pconst,
   peq,
-  pfalse,
-  pfind,
   pflip,
-  pifC,
   pletC,
-  ppartition,
-  ptrue,
   ptryFromUndata,
-  punit,
+  porList
  )
+import InductiveLogic (
+  consumesStateUtxoGuard,
+  consumesEntriesGuard,
+  consumesEntryGuard,
+  hasNoNft,
+  inputPredicate
+  )
 
 {-
     This module implements the minting policy for the NFTs used as entries for
@@ -91,6 +91,14 @@ plistNFTPolicy = plam $ \stateNftCs stateNftTn listAct ctx' -> unTermCont $ do
         let burnAct = pfield @"_0" # burnAct'
         in listRemoveCheck txInfo.mint listTok burnAct
 
+plistNFTPolicyUntyped ::
+  forall (s :: S). Term s (PData :--> PData :--> PData :--> PData :--> PUnit)
+plistNFTPolicyUntyped = plam $ \stateNftCs stateNftTn mintAct ctx ->
+  plistNFTPolicy # unTermCont (ptryFromUndata stateNftCs)
+    # unTermCont (ptryFromUndata stateNftTn)
+    # unTermCont (ptryFromUndata mintAct)
+    # punsafeCoerce ctx
+
 listInsertCheck :: forall (s :: S) .
   Term s (PBuiltinList (PAsData PTxInInfo)) ->
   Term s PValue ->
@@ -101,27 +109,21 @@ listInsertCheck :: forall (s :: S) .
 listInsertCheck inputs mintVal (stateNftCs, stateNftTn) (listNftCs, entryTn) =
   flip pmatch $ \case
     PMintHead stateOutRef' -> unTermCont $ do
-            let stateOutRef :: Term s PTxOutRef
-                stateOutRef = pfromData $ pfield @"_0" # stateOutRef'
-            guardMint listNftCs entryTn mintVal
-            stakeHeadCheck stateNftCs listNftCs stateNftTn stateOutRef inputs
+      let stateOutRef :: Term s PTxOutRef
+          stateOutRef = pfromData $ pfield @"_0" # stateOutRef'
+      mintGuard listNftCs entryTn mintVal
+      mintHeadGuard stateNftCs listNftCs stateNftTn stateOutRef inputs
     PMintInBetween entries -> unTermCont $ do
-      guardMint listNftCs entryTn mintVal
+      mintGuard listNftCs entryTn mintVal
       entriesF <- tcont $ pletFields @["previousEntry", "currentEntry"] entries
       let prevEntry = entriesF.previousEntry
           currEntry = entriesF.currentEntry
-      stakeInBetweenCheck
-        stateNftCs
-        listNftCs
-        stateNftTn
-        prevEntry
-        currEntry
-        inputs
+      mintInBetweenGuard stateNftCs listNftCs prevEntry currEntry inputs
     PMintEnd lastEntry' -> unTermCont $ do
       let lastEntry :: Term s PTxOutRef
           lastEntry = pfromData $ pfield @"_0" # lastEntry'
-      guardMint listNftCs entryTn mintVal
-      stakeEndCheck stateNftCs listNftCs stateNftTn lastEntry inputs
+      mintGuard listNftCs entryTn mintVal
+      mintEndGuard stateNftCs listNftCs lastEntry inputs
 
 -- TODO: Inductive conditions related to withdrawing not implemented
 listRemoveCheck :: forall (s :: S) .
@@ -131,19 +133,12 @@ listRemoveCheck :: forall (s :: S) .
   Term s PUnit
 listRemoveCheck mintVal (listNftCs, entryTn) = flip pmatch $ \case
   PBurnHead _poolState -> unTermCont $ do
-    guardBurn listNftCs entryTn mintVal
+    burnGuard listNftCs entryTn mintVal
     -- TODO
   PBurnOther _prevEntry -> unTermCont $ do
-    guardBurn listNftCs entryTn mintVal
+    burnGuard listNftCs entryTn mintVal
     -- TODO
 
-plistNFTPolicyUntyped ::
-  forall (s :: S). Term s (PData :--> PData :--> PData :--> PData :--> PUnit)
-plistNFTPolicyUntyped = plam $ \stateNftCs stateNftTn mintAct ctx ->
-  plistNFTPolicy # unTermCont (ptryFromUndata stateNftCs)
-    # unTermCont (ptryFromUndata stateNftTn)
-    # unTermCont (ptryFromUndata mintAct)
-    # punsafeCoerce ctx
 
 -- Get the single signatory of the transaction or fail
 getSignatory ::
@@ -162,29 +157,28 @@ getSignatory ls = pure . pmatch ls $ \case
 mkEntryTn :: Term s PPubKeyHash -> Term s PTokenName
 mkEntryTn pkh = pcon . PTokenName $ pblake2b_256 # pto pkh
 
--- Functions for validating the minted value
-guardMint ::
+mintGuard ::
   forall (s :: S).
   Term s PCurrencySymbol ->
   Term s PTokenName ->
   Term s PValue ->
   TermCont s (Term s PUnit)
-guardMint listNftCs entryTn mint =
-  guardC "plistNFTPolicy: failed when checking minted value" $
+mintGuard listNftCs entryTn mint =
+  guardC "mintGuard: failed when checking minted value" $
     oneOf # listNftCs # entryTn # mint
 
-guardBurn ::
+burnGuard ::
   forall (s :: S).
   Term s PCurrencySymbol ->
   Term s PTokenName ->
   Term s PValue ->
   TermCont s (Term s PUnit)
-guardBurn listNftCs entryTn mint =
-  guardC "plistNFTPolicy: failed when checking minted value" $
-    checkBurn listNftCs entryTn mint
+burnGuard listNftCs entryTn mint =
+  guardC "mintGuard: failed when checking minted value" $
+    burnCheck listNftCs entryTn mint
 
 -- Functions for validating the inputs
-stakeHeadCheck ::
+mintHeadGuard ::
   forall (s :: S).
   Term s PCurrencySymbol ->
   Term s PCurrencySymbol ->
@@ -192,163 +186,69 @@ stakeHeadCheck ::
   Term s PTxOutRef ->
   Term s (PBuiltinList (PAsData PTxInInfo)) ->
   TermCont s (Term s PUnit)
-stakeHeadCheck stateNftCs listNftCs stateNftTn stateOutRef inputs = do
-  -- Find state UTXO in inputs and fail if it does not have the state NFT
-  _ <- flip pfind inputs . plam $ \input -> unTermCont $ do
-    inputF <- tcont $ pletFields @["outRef", "resolved"] input
-    let outRef = inputF.outRef
-        val = pfield @"value" # inputF.resolved
-    pifC
-      (pdata outRef #== pdata stateOutRef)
-      ( pif
-          (oneOf # stateNftCs # stateNftTn # val)
-          ptrue
-          $ ptraceError
-            "stakeHeadCheck: txOutRef does not have pool NFT"
-      )
-      pfalse
-  -- Check that all inputs are either
-  --  1. The state UTXO
-  --  2. A UTXO with no entry NFT nor state NFT
-  guardC "stakeHeadCheck: failed when checking inputs for PStakeHead" $
-    pflip pall inputs . plam $ \input -> unTermCont $ do
-      inputF <- tcont $ pletFields @["outRef", "resolved"] input
-      let outRef = inputF.outRef
-          val = pfield @"value" # inputF.resolved
-      pure $
-        pdata outRef #== pdata stateOutRef
-          #|| ( pnot # hasListNft listNftCs val
-                  #&& pnot # hasStateNft stateNftCs stateNftTn val
-              )
+mintHeadGuard stateNftCs listNftCs stateNftTn stateOutRef inputs = do
+  -- We check that the state UTXO is consumed
+  consumesStateUtxoGuard stateOutRef inputs stateNftCs stateNftTn
+  -- We check that the other inputs are not state nor list UTXOs
+  noNftGuard stateNftCs listNftCs [stateOutRef] inputs
 
-  pure punit
-stakeInBetweenCheck ::
+mintInBetweenGuard ::
   forall (s :: S).
   Term s PCurrencySymbol ->
   Term s PCurrencySymbol ->
-  Term s PTokenName ->
   Term s PTxOutRef ->
   Term s PTxOutRef ->
   Term s (PBuiltinList (PAsData PTxInInfo)) ->
   TermCont s (Term s PUnit)
-stakeInBetweenCheck stateNftCs listNftCs stateNftTn prevEntry currEntry inputs =
-  do
-    -- Separate list entries from other inputs, fail if they don't have the
-    -- list NFT
-    splitInputs <- pletC . flip ppartition inputs . plam $
-      \txInfo -> unTermCont $ do
-        txInfoF <- tcont $ pletFields @'["outRef", "resolved"] txInfo
-        let outRef = pdata txInfoF.outRef
-            val = pfromData $ pfield @"value" # txInfoF.resolved
-        pifC
-          (outRef #== pdata prevEntry #|| outRef #== pdata currEntry)
-          ( pif
-              (hasListNft listNftCs val)
-              ptrue
-              ( ptraceError
-                  "stakeInBetweenCheck: txOutRef does not have list NFT"
-              )
-          )
-          pfalse
+mintInBetweenGuard stateNftCs listNftCs prevEntry currEntry inputs = do
+  -- We check that both list entries are consumed
+  consumesEntriesGuard prevEntry currEntry inputs listNftCs
+  -- We check that the other inputs are not state nor list UTXOs
+  noNftGuard stateNftCs listNftCs [prevEntry, currEntry] inputs
 
-    splitInputsF <- tcont $ pletFields @'["_0", "_1"] splitInputs
-    let entries = pfromData splitInputsF._0
-        otherInputs = pfromData splitInputsF._1
-
-    guardC "stakeInBetweenCheck: expected exactly two list entries" $
-      plength # entries #== 2
-
-    guardC "stakeInBetweenCheck: state utxo not allowed" $
-      pflip pall otherInputs . plam $ \txInfo ->
-        let val :: Term s PValue
-            val = pfield @"value" #$ pfield @"resolved" # txInfo
-         in noneOf # stateNftCs # stateNftTn # val
-
-    pure punit
-
-stakeEndCheck ::
+mintEndGuard ::
   forall (s :: S).
   Term s PCurrencySymbol ->
   Term s PCurrencySymbol ->
-  Term s PTokenName ->
   Term s PTxOutRef ->
   Term s (PBuiltinList (PAsData PTxInInfo)) ->
   TermCont s (Term s PUnit)
-stakeEndCheck stateNftCs listNftCs stateNftTn lastEntry inputs = do
+mintEndGuard stateNftCs listNftCs lastEntry inputs = do
   -- Find entry UTXO in inputs and fail if it does not have the list NFT
-  _ <- flip pfind inputs . plam $ \input -> unTermCont $ do
-    inputF <- tcont $ pletFields @["outRef", "resolved"] input
-    let outRef = inputF.outRef
-        val = pfield @"value" # inputF.resolved
-    pifC
-      (pdata outRef #== pdata lastEntry)
-      ( pif
-          (hasListNft listNftCs val)
-          ptrue
-          $ ptraceError "stakeHeadCheck: txOutRef does not have list NFT"
-      )
-      pfalse
-  -- Check that all inputs are either
-  --  1. The entry UTXO
-  --  2. A UTXO with no state NFT nor entry NFT
-  guardC "stakeHeadCheck: failed when checking inputs for PStakeHead" $
-    pflip pall inputs . plam $ \input -> unTermCont $ do
-      inputF <- tcont $ pletFields @["outRef", "resolved"] input
-      let outRef = inputF.outRef
-          val = pfield @"value" # inputF.resolved
-      pure $
-        pdata outRef #== pdata lastEntry
-          #|| ( pnot # hasListNft listNftCs val
-                  #&& pnot # hasStateNft stateNftCs stateNftTn val
-              )
-  pure punit
+  consumesEntryGuard lastEntry inputs listNftCs
+  -- We check that the other inputs are not state nor list UTXOs
+  noNftGuard stateNftCs listNftCs [lastEntry] inputs
+  
+-- Check that all unprotected inputs contain no state nor list NFTs
+noNftGuard :: forall (s :: S).
+  Term s PCurrencySymbol ->
+  Term s PCurrencySymbol ->
+  [Term s PTxOutRef] ->
+  Term s (PBuiltinList (PAsData PTxInInfo)) ->
+  TermCont s (Term s PUnit)
+noNftGuard stateNftCs listNftCs protectedInputs inputs =
+  guardC "noNftGuard: unallowed input in the transaction contains state or list\
+         \ NFT" $
+    pflip pall inputs . inputPredicate $ \outRef val ->
+      let equalToSome :: [Term s PTxOutRef] -> Term s PBool
+          equalToSome = porList . fmap (\o -> pdata outRef #== pdata o)
+      in equalToSome protectedInputs #|| hasNoNft stateNftCs listNftCs val
 
 -- Check that the token was burnt once
-checkBurn ::
+burnCheck ::
   forall (s :: S).
   Term s PCurrencySymbol ->
   Term s PTokenName ->
   Term s PValue ->
   Term s PBool
-checkBurn cs tn mintVal = checkBurn' # cs # tn # mintVal
+burnCheck cs tn mintVal = burnCheck' # cs # tn # mintVal
   where
-    checkBurn' ::
+    burnCheck' ::
       Term s (PCurrencySymbol :--> PTokenName :--> PValue :--> PBool)
-    checkBurn' = phoistAcyclic $
+    burnCheck' = phoistAcyclic $
       plam $ \cs tn mintVal ->
         oneWith
           # (peq # cs)
           # (peq # tn)
           # (plam $ \n -> n #== -1)
           # mintVal
-
--- Has list NFT predicate
-hasListNft ::
-  forall (s :: S).
-  Term s PCurrencySymbol ->
-  Term s PValue ->
-  Term s PBool
-hasListNft listNftCs val = hasListNft' # listNftCs # val
-  where
-    hasListNft' :: Term s (PCurrencySymbol :--> PValue :--> PBool)
-    hasListNft' = phoistAcyclic $
-      plam $ \cs val ->
-        oneWith
-          # (peq # cs)
-          # (pconst ptrue)
-          # (peq # 1)
-          # val
-
--- Has state NFT predicate
-hasStateNft ::
-  forall (s :: S).
-  Term s PCurrencySymbol ->
-  Term s PTokenName ->
-  Term s PValue ->
-  Term s PBool
-hasStateNft stateNftCs stateNftTn val = hasStateNft' # stateNftCs # stateNftTn # val
-  where
-    hasStateNft' :: Term s (PCurrencySymbol :--> PTokenName :--> PValue :--> PBool)
-    hasStateNft' = phoistAcyclic $
-      plam $ \cs tn val ->
-        oneOf # cs # tn # val
