@@ -2,7 +2,7 @@ module Main (main) where
 
 import Contract.Prelude
 
-import ClosePool (closePoolContract)
+import ClosePool (closeBondedPoolContract)
 import Contract.Address (NetworkId(TestnetId))
 import Contract.Monad
   ( ConfigParams(ConfigParams)
@@ -19,12 +19,14 @@ import Contract.Monad
 import Contract.Wallet (mkNamiWalletAff)
 import CreatePool (createBondedPoolContract)
 import Data.Int (toNumber)
-import DepositPool (depositPoolContract)
+import DepositPool (depositBondedPoolContract)
 import Effect.Aff (delay)
 import Effect.Aff.Class (liftAff)
 
 -- import Settings (testInitUnbondedParams)
--- import UnbondedStaking.CreatePool (createUnbondedPoolContract)
+-- import UnbondedStaking.CloseUnbondedPool (closeUnbondedPoolContract)
+-- import UnbondedStaking.CreateUnbondedPool (createUnbondedPoolContract)
+-- import UnbondedStaking.DepositUnbondedPool (depositUnbondedPoolContract)
 
 main :: Effect Unit
 main = launchAff_ $ do
@@ -44,11 +46,16 @@ main = launchAff_ $ do
     poolInfo <- createBondedPoolContract
     -- sleep in order to wait for tx
     liftAff $ delay $ wrap $ toNumber 80_000
-    depositPoolContract poolInfo
+    depositBondedPoolContract poolInfo
     liftAff $ delay $ wrap $ toNumber 80_000
-    closePoolContract poolInfo
+    closeBondedPoolContract poolInfo
 
--- Unbonded test
+-- -- Unbonded test
 -- initParams <- liftContractM "main: Cannot initiate unbonded parameters"
 --   testInitUnbondedParams
--- void $ createUnbondedPoolContract initParams
+-- unbondedParams <- createUnbondedPoolContract initParams
+-- -- sleep in order to wait for tx
+-- liftAff $ delay $ wrap $ toNumber 80_000
+-- depositUnbondedPoolContract unbondedParams
+-- liftAff $ delay $ wrap $ toNumber 80_000
+-- closeUnbondedPoolContract unbondedParams

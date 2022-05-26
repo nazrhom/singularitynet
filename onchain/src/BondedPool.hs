@@ -1,5 +1,4 @@
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module BondedPool (
   pbondedPoolValidator,
@@ -8,12 +7,10 @@ module BondedPool (
 
 import Plutarch.Api.V1 (
   PAddress,
-  PPubKeyHash,
   PScriptContext,
   PScriptPurpose,
   PTxInfo,
  )
-import Plutarch.Builtin (pforgetData)
 import Plutarch.Unsafe (punsafeCoerce)
 
 import PNatural (
@@ -37,14 +34,15 @@ import Utils (
   getDatumHash,
   getInput,
   guardC,
+  parseStakingDatum,
   pconstantC,
   pletC,
   pmatchC,
   ptryFromUndata,
+  signedByAdmin,
  )
 
 import GHC.Records (getField)
-import Plutarch.Api.V1.Scripts (PDatum)
 import SingularityNet.Settings (bondedStakingTokenName)
 
 pbondedPoolValidator ::
@@ -141,7 +139,7 @@ adminActLogic txInfo purpose params inputStakingDatum sizeLeft = unTermCont $ do
         coOutputDatumHash <- getDatumHash coOutput
         -- coOutputDatum <- getDatum coOutputDatumHash (pfield @"data" # txInfo)
         coOutputDatum <- getDatum coOutputDatumHash $ getField @"data" txInfoF
-        coOutputStakingDatum <- parseStakingDatum coOutputDatum
+        coOutputStakingDatum <- parseStakingDatum @PBondedStakingDatum coOutputDatum
         -- Get new state
         PStateDatum state <- pmatchC coOutputStakingDatum
         stateF <- tcont $ pletFields @'["_0", "_1"] state
@@ -219,19 +217,3 @@ closeActLogic txInfo params = unTermCont $ do
     _isClosingPeriod period = pmatch period $ \case
       ClosingPeriod -> pconstant True
       _ -> pconstant False
-
--- Helper functions for the different logics
-
-signedByAdmin ::
-  forall (s :: S).
-  Term s (PBuiltinList (PAsData PPubKeyHash)) ->
-  Term s PPubKeyHash ->
-  Term s PBool
-signedByAdmin ls pkh = pelem # pdata pkh # ls
-
-parseStakingDatum ::
-  forall (s :: S).
-  Term s PDatum ->
-  TermCont s (Term s PBondedStakingDatum)
-parseStakingDatum datum =
-  ptryFromUndata @PBondedStakingDatum . pforgetData . pdata $ datum

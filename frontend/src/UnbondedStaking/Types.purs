@@ -1,7 +1,6 @@
 module UnbondedStaking.Types
   ( Entry(..)
   , InitialUnbondedParams(..)
-  , StakingType
   , UnbondedPoolParams(..)
   , UnbondedStakingAction(..)
   , UnbondedStakingDatum(..)
@@ -16,7 +15,9 @@ import Contract.Numeric.Rational (Rational)
 import Contract.PlutusData (class ToData, PlutusData(Constr), toData)
 import Contract.Prim.ByteArray (ByteArray)
 import Contract.Value (CurrencySymbol)
+
 import Data.BigInt (BigInt)
+
 import ToData (genericToData)
 import Types (AssetClass)
 
@@ -84,7 +85,7 @@ instance ToData UnbondedPoolParams where
       ]
 
 data UnbondedStakingDatum
-  = StateDatum { maybeEntryName :: Maybe ByteArray, isOpen :: Boolean }
+  = StateDatum { maybeEntryName :: Maybe ByteArray, open :: Boolean }
   | EntryDatum { entry :: Entry }
   | AssetDatum
 
@@ -138,5 +139,3 @@ instance ToData Entry where
 
 instance Show Entry where
   show = genericShow
-
-data StakingType = Bonded | Unbonded

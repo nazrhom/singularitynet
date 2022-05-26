@@ -1,4 +1,4 @@
-module ClosePool (closePoolContract) where
+module ClosePool (closeBondedPoolContract) where
 
 import Contract.Prelude
 
@@ -34,25 +34,27 @@ import Types
   )
 import Utils (logInfo_, nat)
 
-closePoolContract :: PoolInfo -> Contract () Unit
-closePoolContract (PoolInfo poolInfo) = do
+closeBondedPoolContract :: PoolInfo -> Contract () Unit
+closeBondedPoolContract (PoolInfo poolInfo) = do
   -- Get fields from pool info
   let
     poolAddr = poolInfo.poolAddr
     nftCs = poolInfo.stateNftCs
     assocListCs = poolInfo.assocListCs
-  adminPkh <- liftedM "closePoolContract: Cannot get admin's pkh"
+  adminPkh <- liftedM "closeBondedPoolContract: Cannot get admin's pkh"
     ownPaymentPubKeyHash
-  logInfo_ "closePoolContract: Admin PaymentPubKeyHash" adminPkh
+  logInfo_ "closeBondedPoolContract: Admin PaymentPubKeyHash" adminPkh
   -- Get the bonded pool's utxo
   bondedPoolUtxos <-
-    liftedM "closePoolContract: Cannot get pool's utxos at pool address" $
-      utxosAt poolAddr
-  logInfo_ "closePoolContract: Pool's UTXOs" bondedPoolUtxos
+    liftedM "closeBondedPoolContract: Cannot get pool's utxos at pool address"
+      $ utxosAt poolAddr
+  logInfo_ "closeBondedPoolContract: Pool's UTXOs" bondedPoolUtxos
   -- Create parameters of the pool and validator
-  params <- liftContractM "closePoolContract: Failed to create parameters" $
-    bondedHardCodedParams adminPkh nftCs assocListCs
-  validator <- liftedE' "closePoolContract: Cannot create validator" $
+  params <-
+    liftContractM
+      "closeBondedPoolContract: Failed to create parameters"
+      $ bondedHardCodedParams adminPkh nftCs assocListCs
+  validator <- liftedE' "closeBondedPoolContract: Cannot create validator" $
     mkBondedPoolValidator params
   let
     bondedStateDatum = Datum $ toData $ StateDatum
@@ -60,11 +62,12 @@ closePoolContract (PoolInfo poolInfo) = do
       , sizeLeft: nat 100_000_000
       }
   bondedStateDatumLookup <-
-    liftContractM "closePoolContract: Could not create state datum lookup"
+    liftContractM
+      "closeBondedPoolContract: Could not create state datum lookup"
       =<< ScriptLookups.datum bondedStateDatum
   -- We build the transaction
   let
-    redeemer = Redeemer $ toData $ CloseAct
+    redeemer = Redeemer $ toData CloseAct
 
     lookup :: ScriptLookups.ScriptLookups PlutusData
     lookup = mconcat
@@ -86,11 +89,12 @@ closePoolContract (PoolInfo poolInfo) = do
     liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
   BalancedSignedTransaction { signedTxCbor } <-
     liftedM
-      "closePoolContract: Cannot balance, reindex redeemers, attach datums/\
-      \redeemers and sign"
+      "closeBondedPoolContract: Cannot balance, reindex redeemers, attach/\
+      \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
   transactionHash <- submit signedTxCbor
-  logInfo_ "closePoolContract: Transaction successfully submitted with hash"
+  logInfo_
+    "closeBondedPoolContract: Transaction successfully submitted with hash"
     $ byteArrayToHex
     $ unwrap transactionHash

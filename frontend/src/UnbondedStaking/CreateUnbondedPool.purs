@@ -1,4 +1,4 @@
-module UnbondedStaking.CreatePool (createUnbondedPoolContract) where
+module UnbondedStaking.CreateUnbondedPool (createUnbondedPoolContract) where
 
 import Contract.Prelude
 
@@ -61,6 +61,7 @@ createUnbondedPoolContract iup = do
       $ fst
       <$> (head $ toUnfoldable $ unwrap adminUtxos)
   logInfo_ "createUnbondedPoolContract: Admin Utxos" adminUtxos
+
   -- Get the minting policy and currency symbol from the state NFT:
   statePolicy <- liftedE $ mkStateNFTPolicy Unbonded txOutRef
   stateNftCs <-
@@ -75,10 +76,12 @@ createUnbondedPoolContract iup = do
       "createUnbondedPoolContract: Cannot get CurrencySymbol from /\
       \state NFT"
       $ scriptCurrencySymbol listPolicy
+
   -- May want to hardcode this somewhere:
   tokenName <-
     liftContractM "createUnbondedPoolContract: Cannot create TokenName"
       unbondedStakingTokenName
+
   -- We define the parameters of the pool
   let params = mkUnbondedPoolParams adminPkh stateNftCs assocListCs iup
   -- Get the bonding validator and hash
@@ -92,10 +95,11 @@ createUnbondedPoolContract iup = do
   logInfo_
     "createUnbondedPoolContract: UnbondedPool Validator's address"
     poolAddr
+
   let
     unbondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
-      , isOpen: true
+      , open: true
       }
 
     lookup :: ScriptLookups.ScriptLookups PlutusData
@@ -116,6 +120,7 @@ createUnbondedPoolContract iup = do
 
   unattachedBalancedTx <-
     liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
+
   -- `balanceAndSignTx` does the following:
   -- 1) Balance a transaction
   -- 2) Reindex `Spend` redeemers after finalising transaction inputs.
@@ -126,6 +131,7 @@ createUnbondedPoolContract iup = do
       "createUnbondedPoolContract: Cannot balance, reindex redeemers, attach /\
       \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
+
   -- Submit transaction using Cbor-hex encoded `ByteArray`
   transactionHash <- submit signedTxCbor
   logInfo_
@@ -133,5 +139,6 @@ createUnbondedPoolContract iup = do
     \with hash"
     $ byteArrayToHex
     $ unwrap transactionHash
+
   -- Return the pool info for subsequent transactions
   pure params

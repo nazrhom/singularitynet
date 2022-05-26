@@ -1,4 +1,4 @@
-module DepositPool (depositPoolContract) where
+module DepositPool (depositBondedPoolContract) where
 
 import Contract.Prelude
 
@@ -44,46 +44,52 @@ import Types.Redeemer (Redeemer(Redeemer))
 import Utils (big, getUtxoWithNFT, logInfo_, nat)
 
 -- Deposits a certain amount in the pool
-depositPoolContract :: PoolInfo -> Contract () Unit
-depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
+depositBondedPoolContract :: PoolInfo -> Contract () Unit
+depositBondedPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
   -- Fetch information related to the pool
   -- Get network ID and admin's PKH
-  logInfo_ "depositPoolContract: Pool address" poolAddr
+  logInfo_ "depositBondedPoolContract: Pool address" poolAddr
   networkId <- getNetworkId
-  adminPkh <- liftedM "depositPoolContract: Cannot get admin's pkh"
+  adminPkh <- liftedM "depositBondedPoolContract: Cannot get admin's pkh"
     ownPaymentPubKeyHash
-  logInfo_ "depositPoolContract: Admin PaymentPubKeyHash" adminPkh
+  logInfo_ "depositBondedPoolContract: Admin PaymentPubKeyHash" adminPkh
   -- Get the (Nami) wallet address
-  adminAddr <- liftedM "depositPoolContract: Cannot get wallet Address"
+  adminAddr <- liftedM "depositBondedPoolContract: Cannot get wallet Address"
     getWalletAddress
   -- Get utxos at the wallet address
   adminUtxos <-
-    liftedM "depositPoolContract: Cannot get user Utxos" $ utxosAt adminAddr
+    liftedM "depositBondedPoolContract: Cannot get user Utxos" $
+      utxosAt adminAddr
   -- Get the bonded pool's utxo
   bondedPoolUtxos <-
-    liftedM "depositPoolContract: Cannot get pool's utxos at pool address" $
+    liftedM
+      "depositBondedPoolContract: Cannot get pool's utxos at pool address" $
       utxosAt poolAddr
-  logInfo_ "depositPoolContract: Pool UTXOs" bondedPoolUtxos
-  tokenName <- liftContractM "createPoolContract: Cannot create TokenName"
+  logInfo_ "depositBondedPoolContract: Pool UTXOs" bondedPoolUtxos
+  tokenName <- liftContractM
+    "depositBondedPoolContract: Cannot create TokenName"
     bondedStakingTokenName
   poolTxInput /\ poolTxOutput <-
-    liftContractM "depositPoolContract: Cannot get state utxo" $
+    liftContractM "depositBondedPoolContract: Cannot get state utxo" $
       getUtxoWithNFT bondedPoolUtxos stateNftCs tokenName
-  logInfo_ "depositPoolContract: Pool's UTXO" poolTxInput
+  logInfo_ "depositBondedPoolContract: Pool's UTXO" poolTxInput
   poolDatumHash <-
-    liftContractM "depositPoolContract: Could not get Pool UTXO's Datum Hash"
+    liftContractM
+      "depositBondedPoolContract: Could not get Pool UTXO's Datum Hash"
       (unwrap poolTxOutput).dataHash
-  logInfo_ "depositPoolContract: Pool's UTXO DatumHash" poolDatumHash
+  logInfo_ "depositBondedPoolContract: Pool's UTXO DatumHash" poolDatumHash
   -- We define the parameters of the pool
-  params <- liftContractM "depositPoolContract: Failed to create parameters" $
-    bondedHardCodedParams adminPkh stateNftCs assocListCs
-  logInfo_ "depositPoolContract: toData Pool Parameters" $ toData params
+  params <-
+    liftContractM
+      "depositBondedPoolContract: Failed to create parameters" $
+      bondedHardCodedParams adminPkh stateNftCs assocListCs
+  logInfo_ "depositBondedPoolContract: toData Pool Parameters" $ toData params
   -- Get the bonded pool validator and hash
-  validator <- liftedE' "depositPoolContract: Cannot create validator" $
+  validator <- liftedE' "depositBondedPoolContract: Cannot create validator" $
     mkBondedPoolValidator params
-  valHash <- liftedM "depositPoolContract: Cannot hash validator"
+  valHash <- liftedM "depositBondedPoolContract: Cannot hash validator"
     $ validatorHash validator
-  logInfo_ "depositPoolContract: validatorHash" valHash
+  logInfo_ "depositBondedPoolContract: validatorHash" valHash
   -- Create the datums and their ScriptLookups
   let
     -- We can hardcode the state for now. We should actually fetch the datum
@@ -93,10 +99,11 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
       , sizeLeft: nat 100_000_000
       }
     -- This is the datum of the UTXO that will hold the rewards
-    assetDatum = Datum $ toData $ AssetDatum
+    assetDatum = Datum $ toData AssetDatum
 
   bondedStateDatumLookup <-
-    liftContractM "depositPoolContract: Could not create state datum lookup"
+    liftContractM
+      "depositBondedPoolContract: Could not create state datum lookup"
       =<< ScriptLookups.datum bondedStateDatum
   let
     assetParams = unwrap (unwrap params).bondedAssetClass
@@ -105,7 +112,9 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
     stateTokenValue = singleton stateNftCs tokenName one
     depositValue = singleton assetCs assetTn (big 2)
     scriptAddr = validatorHashEnterpriseAddress networkId valHash
-  logInfo_ "depositPoolContract: BondedPool Validator's address" scriptAddr
+  logInfo_
+    "depositBondedPoolContract: BondedPool Validator's address"
+    scriptAddr
   let
     -- We build the redeemer. The size does not change because there are no
     -- user stakes. It doesn't make much sense to deposit if there wasn't a
@@ -134,25 +143,29 @@ depositPoolContract (PoolInfo { stateNftCs, assocListCs, poolAddr }) = do
         , mustBeSignedBy adminPkh
         , mustSpendScriptOutput poolTxInput redeemer
         ]
-  dh <- liftedM "depositPoolContract: Cannot Hash AssetDatum" $ datumHash
+  dh <- liftedM "depositBondedPoolContract: Cannot Hash AssetDatum" $ datumHash
     assetDatum
-  dh' <- liftedM "depositPoolContract: Cannot Hash BondedStateDatum" $ datumHash
-    bondedStateDatum
-  logInfo_ "depositPoolContract: DatumHash of AssetDatum" dh
-  logInfo_ "depositPoolContract: DatumHash of BondedStateDatum" dh'
+  dh' <- liftedM "depositBondedPoolContract: Cannot Hash BondedStateDatum" $
+    datumHash
+      bondedStateDatum
+  logInfo_ "depositBondedPoolContract: DatumHash of AssetDatum" dh
+  logInfo_ "depositBondedPoolContract: DatumHash of BondedStateDatum" dh'
   unattachedBalancedTx <-
     liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
-  logInfo_ "depositPoolContract: unAttachedUnbalancedTx" unattachedBalancedTx
+  logInfo_
+    "depositBondedPoolContract: unAttachedUnbalancedTx"
+    unattachedBalancedTx
   let unbalancedTx = (unwrap unattachedBalancedTx).unbalancedTx
   balancedTx <- liftedE $ balanceTx unbalancedTx
-  logInfo_ "depositPoolContract: balancedTx" balancedTx
+  logInfo_ "depositBondedPoolContract: balancedTx" balancedTx
   BalancedSignedTransaction { signedTxCbor } <-
     liftedM
-      "depositPoolContract: Cannot balance, reindex redeemers, attach datums/\
-      \redeemers and sign"
+      "depositBondedPoolContract: Cannot balance, reindex redeemers, attach/\
+      \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
   transactionHash <- submit signedTxCbor
-  logInfo_ "depositPoolContract: Transaction successfully submitted with hash"
+  logInfo_
+    "depositBondedPoolContract: Transaction successfully submitted with hash"
     $ byteArrayToHex
     $ unwrap transactionHash
