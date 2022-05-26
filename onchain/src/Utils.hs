@@ -33,6 +33,8 @@ module Utils (
   getDatum,
   getDatumHash,
   getContinuingOutputWithNFT,
+  signedBy,
+  signedOnlyBy,
   pconst,
   pflip,
   (>:),
@@ -49,6 +51,7 @@ import Plutarch.Api.V1 (
   PTokenName,
   PTuple,
   PValue,
+  PPubKeyHash,
   ptuple,
  )
 import Plutarch.Api.V1.Tx (PTxInInfo, PTxOut, PTxOutRef)
@@ -640,6 +643,23 @@ getDatum datHash dats = pure $ getDatum' # datHash # dats
     checkHash = phoistAcyclic $
       plam $ \datHash tup ->
         pfield @"_0" # tup #== datHash
+        
+-- Functions for checking signatures
+
+-- | Verifies that a signature is in the signature list
+signedBy ::
+  forall (s :: S).
+  Term s (PBuiltinList (PAsData PPubKeyHash)) ->
+  Term s PPubKeyHash ->
+  Term s PBool
+signedBy ls pkh = pelem # pdata pkh # ls
+
+-- | Verifies that a signature is the *only* one in the list
+signedOnlyBy :: forall (s :: S).
+  Term s (PBuiltinList (PAsData PPubKeyHash)) ->
+  Term s PPubKeyHash ->
+  Term s PBool
+signedOnlyBy ls pkh = pelem # pdata pkh # ls #&& plength # ls #== 1
 
 -- Other functions
 
