@@ -8,7 +8,8 @@ module Test.Common (
 ) where
 
 import ListNFT (plistNFTPolicy)
-import PTypes (PMintingAction)
+import StateNFT (pstateNFTPolicy)
+import PTypes (PListAction)
 import Plutarch.Api.V1 (PScriptContext, mintingPolicySymbol, mkMintingPolicy)
 import Plutarch.Unsafe (punsafeCoerce)
 import Plutus.V1.Ledger.Api (
@@ -18,7 +19,6 @@ import Plutus.V1.Ledger.Api (
   TxId (TxId),
   TxOutRef (TxOutRef, txOutRefId, txOutRefIdx),
  )
-import StateNFT (pstateNFTPolicy)
 
 -- The CurrencySymbol associated with the state NFT
 testStateCurrencySymbol :: TokenName -> CurrencySymbol
@@ -39,8 +39,10 @@ testStatePolicy tn = pstateNFTPolicy tn # pconstant testStatePolicyInput
 testListPolicy ::
   forall (s :: S).
   TokenName ->
-  Term s (PMintingAction :--> PScriptContext :--> PUnit)
-testListPolicy tn = plistNFTPolicy # pconstant (testStateCurrencySymbol tn)
+  Term s (PListAction :--> PScriptContext :--> PUnit)
+testListPolicy tn =
+  plistNFTPolicy # pconstant (testStateCurrencySymbol tn)
+    # pconstant tn
 
 -- | The UTXO used to mint the pool's state NFT
 testStatePolicyInput :: TxOutRef

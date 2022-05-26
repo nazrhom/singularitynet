@@ -1,6 +1,7 @@
 module Utils (
   parseStakingDatum,
   peq,
+  pneq,
   pxor,
   plt,
   ple,
@@ -8,13 +9,19 @@ module Utils (
   pgt,
   ptrue,
   pfalse,
+  punit,
+  pifC,
   pnestedIf,
   pfind,
+  ppartition,
   pfstData,
   psndData,
   ptraceBool,
   oneOf,
-  oneOfWith,
+  noneOf,
+  allWith,
+  someWith,
+  oneWith,
   pletC,
   pletDataC,
   pmatchC,
@@ -29,6 +36,10 @@ module Utils (
   getContinuingOutputWithNFT,
   signedByAdmin,
   toPBool,
+  signedBy,
+  signedOnlyBy,
+  pconst,
+  pflip,
   (>:),
 ) where
 
@@ -44,14 +55,16 @@ import Plutarch.Api.V1 (
   PTokenName,
   PTuple,
   PValue,
+  PPubKeyHash,
+  ptuple,
  )
 import Plutarch.Api.V1.Tx (PTxInInfo, PTxOut, PTxOutRef)
+import Plutarch.Bool (pand, por)
 import Plutarch.Builtin (pforgetData)
 import Plutarch.Lift (
   PLifted,
   PUnsafeLiftDecl,
  )
-import Plutarch.Monadic qualified as P
 import Plutarch.TryFrom (PTryFrom, ptryFrom)
 
 import UnbondedStaking.PTypes (PBoolData (PDFalse, PDTrue))
@@ -59,6 +72,9 @@ import UnbondedStaking.PTypes (PBoolData (PDFalse, PDTrue))
 -- Term-level boolean functions
 peq :: forall (s :: S) (a :: PType). PEq a => Term s (a :--> a :--> PBool)
 peq = phoistAcyclic $ plam $ \x y -> x #== y
+
+pneq :: forall (s :: S) (a :: PType). PEq a => Term s (a :--> a :--> PBool)
+pneq = phoistAcyclic $ plam $ \x y -> pnot #$ x #== y
 
 pxor :: forall (s :: S). Term s (PBool :--> PBool :--> PBool)
 pxor = phoistAcyclic $ plam $ \x y -> pnot #$ pdata x #== pdata y
@@ -93,7 +109,10 @@ ptrue = pconstant True
 pfalse :: forall (s :: S). Term s PBool
 pfalse = pconstant False
 
--- Functions for checking conditions in nested structures
+punit :: forall (s :: S). Term s PUnit
+punit = pconstant ()
+
+-- Functions for checking conditions
 
 {- | Build nested conditions. It takes an association list of conditions and
  and results. It evaluates the conditions in order: whenever a condition
@@ -108,6 +127,15 @@ pnestedIf ::
   Term s a
 pnestedIf [] def = def
 pnestedIf ((cond, x) : conds) def = pif cond x $ pnestedIf conds def
+
+-- | Lifts `pif` result into the `TermCont` monad
+pifC ::
+  forall (s :: S) (a :: PType).
+  Term s PBool ->
+  Term s a ->
+  Term s a ->
+  TermCont s (Term s a)
+pifC cond trueResult = pure . pif cond trueResult
 
 -- | A pair builder useful for avoiding parentheses
 infixr 1 >:
@@ -144,15 +172,60 @@ pfind ::
   Term s (a :--> PBool) ->
   Term s (PBuiltinList (PAsData a)) ->
   TermCont s (Term s a)
-pfind pred ls = pure $ (pfix # plam go) # ls
+pfind pred ls = pure $ (pfix #$ go # pred) # ls
   where
     go ::
-      Term s (PBuiltinList (PAsData a) :--> a) ->
-      Term s (PBuiltinList (PAsData a)) ->
-      Term s a
-    go self ls = pmatch ls $ \case
-      PNil -> ptraceError "pfind: could not find element in list"
-      PCons x xs -> plet (pfromData x) $ \x' -> pif (pred # x') x' (self # xs)
+      forall (s :: S) (a :: PType).
+      PIsData a =>
+      Term
+        s
+        ( (a :--> PBool)
+            :--> (PBuiltinList (PAsData a) :--> a)
+            :--> PBuiltinList (PAsData a)
+            :--> a
+        )
+    go = phoistAcyclic $
+      plam $ \pred self ls -> pmatch ls $ \case
+        PNil -> ptraceError "pfind: could not find element in list"
+        PCons x xs -> plet (pfromData x) $ \x' -> pif (pred # x') x' (self # xs)
+
+{- | Returns the pair of lists of elements that match and don't match the
+ predicate
+-}
+ppartition ::
+  forall (s :: S) (a :: PType).
+  PIsData a =>
+  Term s (a :--> PBool) ->
+  Term s (PBuiltinList (PAsData a)) ->
+  Term s (PTuple (PBuiltinList (PAsData a)) (PBuiltinList (PAsData a)))
+ppartition pred ls = pfix # go # pred # ls # pnil # pnil
+  where
+    go ::
+      forall (s :: S) (a :: PType).
+      PIsData a =>
+      Term
+        s
+        ( ( (a :--> PBool)
+              :--> PBuiltinList (PAsData a)
+              :--> PBuiltinList (PAsData a)
+              :--> PBuiltinList (PAsData a)
+              :--> PTuple (PBuiltinList (PAsData a)) (PBuiltinList (PAsData a))
+          )
+            :--> (a :--> PBool)
+            :--> (PBuiltinList (PAsData a))
+            :--> (PBuiltinList (PAsData a))
+            :--> (PBuiltinList (PAsData a))
+            :--> (PTuple (PBuiltinList (PAsData a)) (PBuiltinList (PAsData a)))
+        )
+    go = phoistAcyclic $
+      plam $ \self pred trueElems falseElems ls ->
+        pmatch ls $ \case
+          PNil -> ptuple # pdata trueElems # pdata falseElems
+          PCons x xs ->
+            pif
+              (pred # pfromData x)
+              (go # self # pred # (pcons # x # trueElems) # falseElems # xs)
+              (go # self # pred # trueElems # (pcons # x # falseElems) # xs)
 
 -- Functions for debugging
 
@@ -185,16 +258,33 @@ oneOf ::
     )
 oneOf = phoistAcyclic $
   plam $ \cs tn val ->
-    oneOfWith
+    oneWith
       # (peq # cs)
       # (peq # tn)
       # (ple # 1)
       #$ val
 
-{- | Returns `PTrue` if only *one* token present in `PValue` satisfies *all* the
- predicates given as parameters
+{- | Returns `PTrue` if the token described by its `PCurrencySymbol` and
+ `PTokenName` is *not* present in the `PValue
 -}
-oneOfWith ::
+noneOf ::
+  forall (s :: S).
+  Term
+    s
+    ( PCurrencySymbol :--> PTokenName :--> PValue :--> PBool
+    )
+noneOf = phoistAcyclic $
+  plam $ \cs tn val ->
+    pnot #$ someWith
+      # (peq # cs)
+      # (peq # tn)
+      # (pge # 1)
+      # val
+
+{- | Returns `PTrue` if *some* token (at least one) present in `PValue`
+ satisfies *all* the predicates given as parameters
+-}
+someWith ::
   forall (s :: S).
   Term
     s
@@ -204,9 +294,43 @@ oneOfWith ::
         :--> PValue
         :--> PBool
     )
-oneOfWith = phoistAcyclic $
+someWith = phoistAcyclic $
   plam $ \csPred tnPred nPred ->
-    tokenPredicate pxor csPred tnPred nPred
+    tokenPredicate por csPred tnPred nPred
+
+{- | Returns `PTrue` if *all* tokens present in `PValue` satisfy *all* of
+  the predicates given as parameters
+-}
+allWith ::
+  forall (s :: S).
+  Term
+    s
+    ( (PCurrencySymbol :--> PBool)
+        :--> (PTokenName :--> PBool)
+        :--> (PInteger :--> PBool)
+        :--> PValue
+        :--> PBool
+    )
+allWith = phoistAcyclic $
+  plam $ \csPred tnPred nPred ->
+    tokenPredicate pand csPred tnPred nPred
+
+{- | Returns `PTrue` if only *one* token present in `PValue` satisfies *all* the
+ predicates given as parameters
+-}
+oneWith ::
+  forall (s :: S).
+  Term
+    s
+    ( (PCurrencySymbol :--> PBool)
+        :--> (PTokenName :--> PBool)
+        :--> (PInteger :--> PBool)
+        :--> PValue
+        :--> PBool
+    )
+oneWith = phoistAcyclic $
+  plam $ \csPred tnPred nPred ->
+    tokenPredicate' pxor csPred tnPred nPred
 
 {- | Assigns a boolean to each token in the value based on the the result of:
 
@@ -214,73 +338,122 @@ oneOfWith = phoistAcyclic $
 
  where each token is a tuple `(cs, tn, n)`.
 
- Then, all the booleans are combined according to the boolean operator `op`.
+ Then, all the booleans are combined according to the boolean operator `boolOp`.
 
  This allows short-circuiting evaluation (e.g: a failure in `csPred`
  avoids evaluating the remaining predicates). `op` can be any binary boolean
  operator, like `pxor` (if only one token needs to satisfy all predicates) or
  `pand` (if all tokens must satisfy the predicates).
-
- However, this generic function does not allow short-circuiting row-wise,
- meaning the `op` is strict in both arguments.
 -}
 tokenPredicate ::
+  forall (s :: S).
+  Term s (PBool :--> PDelayed PBool :--> PDelayed PBool) ->
+  Term s (PCurrencySymbol :--> PBool) ->
+  Term s (PTokenName :--> PBool) ->
+  Term s (PInteger :--> PBool) ->
+  Term s (PValue :--> PBool)
+tokenPredicate boolOp csPred tnPred nPred = plam $ \val -> unTermCont $ do
+  let csMap = pto $ pto val
+  csTnPair <- tcont $ matchPair boolOp csMap
+  tnMap <- tcont $ evalCs csPred csTnPair
+  tnAmountPair <- tcont $ matchPair boolOp $ pto tnMap
+  pure $ evalTnAndAmount tnPred nPred tnAmountPair
+
+{- | Same as `tokenPredicate`, but `boolOp` is strict on both arguments. This
+ means that the function cannot short-circuit evaluation.
+-}
+tokenPredicate' ::
   forall (s :: S).
   Term s (PBool :--> PBool :--> PBool) ->
   Term s (PCurrencySymbol :--> PBool) ->
   Term s (PTokenName :--> PBool) ->
   Term s (PInteger :--> PBool) ->
   Term s (PValue :--> PBool)
-tokenPredicate boolOp csPred tnPred nPred = plam $ \val -> P.do
+tokenPredicate' boolOp csPred tnPred nPred = plam $ \val -> unTermCont $ do
   -- Map of CurrencySymbols
   let csMap = pto $ pto val
-  csTnPair <- matchPair csMap
-  tnMap <- evalCs csTnPair
-  tnAmountPair <- matchPair $ pto tnMap
-  evalTnAndAmount tnAmountPair
+  csTnPair <- tcont $ matchPair' boolOp csMap
+  tnMap <- tcont $ evalCs csPred csTnPair
+  tnAmountPair <- tcont $ matchPair' boolOp $ pto tnMap
+  pure $ evalTnAndAmount tnPred nPred tnAmountPair
+
+-- Auxiliary functions for `tokenPredicate` and `tokenPredicate'`
+
+-- Pattern match on a list of pairs, evaluate the continuation on each pair
+-- and combine the results with `boolOp`.
+matchPair ::
+  forall (s :: S) (a :: PType).
+  PLift a =>
+  Term s (PBool :--> PDelayed PBool :--> PDelayed PBool) ->
+  Term s (PBuiltinList a) ->
+  (Term s a -> Term s PBool) ->
+  Term s PBool
+matchPair boolOp ls cont = (pfix # plam go) # ls # plam cont
   where
-    matchPair ::
+    -- Recurring function for the Y combinator
+    go ::
       forall (a :: PType).
       PLift a =>
+      Term s (PBuiltinList a :--> (a :--> PBool) :--> PBool) ->
       Term s (PBuiltinList a) ->
-      (Term s a -> Term s PBool) ->
+      Term s (a :--> PBool) ->
       Term s PBool
-    matchPair ls cont = (pfix # plam go) # ls # plam cont
-      where
-        -- Recurring function for the Y combinator
-        go ::
-          forall (a :: PType).
-          PLift a =>
-          Term s (PBuiltinList a :--> (a :--> PBool) :--> PBool) ->
-          Term s (PBuiltinList a) ->
-          Term s (a :--> PBool) ->
-          Term s PBool
-        go self ls cont = pmatch ls $ \case
-          PNil -> pconstant False
-          PCons p ps -> boolOp # (cont # p) #$ self # ps # cont
-    evalCs ::
+    go self ls cont = pmatch ls $ \case
+      PNil -> pconstant False
+      PCons p ps -> pforce $ boolOp # (cont # p) # pdelay (self # ps # cont)
+
+-- Strict version of `matchPair`
+matchPair' ::
+  forall (s :: S) (a :: PType).
+  PLift a =>
+  Term s (PBool :--> PBool :--> PBool) ->
+  Term s (PBuiltinList a) ->
+  (Term s a -> Term s PBool) ->
+  Term s PBool
+matchPair' boolOp ls cont = (pfix # plam go) # ls # plam cont
+  where
+    -- Recurring function for the Y combinator
+    go ::
       forall (a :: PType).
-      PIsData a =>
-      Term s (PBuiltinPair (PAsData PCurrencySymbol) (PAsData a)) ->
-      (Term s a -> Term s PBool) ->
-      (Term s PBool)
-    evalCs pair cont =
-      pif
-        (csPred # pfstData pair)
-        (ptrace "evalCs OK" $ cont $ psndData pair)
-        ( ptrace "predicate on CurrencySymbol not satisfied" $
-            pconstant False
-        )
-    evalTnAndAmount ::
-      Term s (PBuiltinPair (PAsData PTokenName) (PAsData PInteger)) ->
+      PLift a =>
+      Term s (PBuiltinList a :--> (a :--> PBool) :--> PBool) ->
+      Term s (PBuiltinList a) ->
+      Term s (a :--> PBool) ->
       Term s PBool
-    evalTnAndAmount pair =
-      pif
-        (tnPred # pfstData pair #&& nPred # psndData pair)
-        (ptrace "evalTnAndAmount OK" $ pconstant True)
-        ( ptrace "predicate on TokenName/amount not satisfied" $
-            pconstant False
-        )
+    go self ls cont = pmatch ls $ \case
+      PNil -> pconstant False
+      PCons p ps -> boolOp # (cont # p) #$ self # ps # cont
+
+-- Evaluate condition on CurrencySymbol
+evalCs ::
+  forall (s :: S) (a :: PType).
+  PIsData a =>
+  Term s (PCurrencySymbol :--> PBool) ->
+  Term s (PBuiltinPair (PAsData PCurrencySymbol) (PAsData a)) ->
+  (Term s a -> Term s PBool) ->
+  (Term s PBool)
+evalCs csPred pair cont =
+  pif
+    (csPred # pfstData pair)
+    (ptrace "evalCs OK" $ cont $ psndData pair)
+    ( ptrace "predicate on CurrencySymbol not satisfied" $
+        pconstant False
+    )
+
+-- Evaluate conditions on TokenName and token amount
+evalTnAndAmount ::
+  forall (s :: S).
+  Term s (PTokenName :--> PBool) ->
+  Term s (PInteger :--> PBool) ->
+  Term s (PBuiltinPair (PAsData PTokenName) (PAsData PInteger)) ->
+  Term s PBool
+evalTnAndAmount tnPred nPred pair =
+  pif
+    (tnPred # pfstData pair #&& nPred # psndData pair)
+    (ptrace "evalTnAndAmount OK" $ pconstant True)
+    ( ptrace "predicate on TokenName/amount not satisfied" $
+        pconstant False
+    )
 
 -- Functions for working with `TermCont`
 
@@ -498,6 +671,23 @@ parseStakingDatum ::
 parseStakingDatum =
   ptryFromUndata @a . pforgetData . pdata
 
+-- Functions for checking signatures
+
+-- | Verifies that a signature is in the signature list
+signedBy ::
+  forall (s :: S).
+  Term s (PBuiltinList (PAsData PPubKeyHash)) ->
+  Term s PPubKeyHash ->
+  Term s PBool
+signedBy ls pkh = pelem # pdata pkh # ls
+
+-- | Verifies that a signature is the *only* one in the list
+signedOnlyBy :: forall (s :: S).
+  Term s (PBuiltinList (PAsData PPubKeyHash)) ->
+  Term s PPubKeyHash ->
+  Term s PBool
+signedOnlyBy ls pkh = pelem # pdata pkh # ls #&& plength # ls #== 1
+
 -- Helper functions for working with Plutarch synonyms types
 
 -- | Returns a Plutarch-level bool from a `PBoolData` type
@@ -507,3 +697,25 @@ toPBool = phoistAcyclic $
     pmatch pbd $ \case
       PDFalse _ -> pfalse
       PDTrue _ -> ptrue
+
+-- Other functions
+
+{- | Returns a new Plutarch function that ignores the first paramter and returns
+ `b`
+-}
+pconst ::
+  forall (s :: S) (a :: PType) (b :: PType).
+  Term s b ->
+  Term s (a :--> b)
+pconst b = plam $ const b
+
+{- | Flips the order of the function's parameters for convenience, no plutarch
+ function is created
+-}
+pflip ::
+  forall (s :: S) (a :: PType) (b :: PType) (c :: PType).
+  Term s (a :--> b :--> c) ->
+  Term s b ->
+  Term s a ->
+  Term s c
+pflip f b a = f # a # b

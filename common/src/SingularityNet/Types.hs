@@ -3,8 +3,10 @@
 
 module SingularityNet.Types (
   BondedPoolParams (..),
+  MintingAction (..),
+  BurningAction (..),
+  ListAction (..),
   BondedStakingAction (..),
-  MintingAction (Stake, Withdraw),
   BondedStakingDatum (..),
   Entry (
     Entry,
@@ -39,7 +41,7 @@ import SingularityNet.Natural (
   Natural,
  )
 
-import Plutus.V1.Ledger.Api (CurrencySymbol, POSIXTime, PubKeyHash, TokenName)
+import Plutus.V1.Ledger.Api (CurrencySymbol, POSIXTime, PubKeyHash, TokenName, TxOutRef)
 
 {- | An `AssetClass` is simply a convenient type that wraps a CurrencySymbol
  and TokenName
@@ -120,31 +122,63 @@ data BondedStakingDatum
 
 unstableMakeIsData ''BondedStakingDatum
 
-{- | Minting redeemers
+{- | Minting / Burning actions
 
-     These are used for staking and withdrawing funds but they are *not* used
-     for consuming the bonded pool's contract, but rather for minting the NFTs
-     that comprise each entry in the association list.
+     These datatypes are used to describe to the minting policy or validator
+     where an entry will be inserted or which entry will be removed. These
+     aid the policy and validator by restricting the actions to be checked to
+     only one.
+     
+     In the minting policy, these are used as redeemers. In the validator, these
+     are wrapped in a `Maybe` and are used only for the first stake of any user
 -}
 data MintingAction
-  = Stake
-  | Withdraw
-  deriving stock (GHC.Generic)
+  = MintHead TxOutRef
+  | MintInBetween TxOutRef TxOutRef
+  | MintEnd TxOutRef
+  deriving stock (GHC.Generic, Show)
 
 unstableMakeIsData ''MintingAction
 
+data BurningAction
+  = BurnHead TxOutRef
+  | BurnOther TxOutRef
+  deriving stock (GHC.Generic, Show)
+  
+unstableMakeIsData ''BurningAction
+
+-- | Minting policy redeemers
+data ListAction
+  = ListInsert MintingAction
+  | ListRemove BurningAction
+  deriving stock (GHC.Generic, Show)
+  
+unstableMakeIsData ''ListAction
+
 {- | Validator redeemers
 
-     These are used by the admin to deposit the rewards and close the pool and
-     withdraw the rewards unclaimed.
+     These are used by the admin to deposit the rewards, close the pool and
+     withdraw the unclaimed rewards.
 
-     These are used by the stakers to deposit their *initial* stake (after that
-     they only update their respective entry) and withdrawing their rewards.
+     These are used by the stakers to deposit their first stake or update their
+     already existing stake.
+     
+     When the stake-holder makes their first deposit, the redeemer will be
+     `StakeAct amt pkh (Just mintAct)`, where `mintAct` specifies the type of
+     insertion that needs to checked by the validator.
+
+     When the stake-holder wants to update their existing stake, the last field
+     is set to `Nothing`, since no entry needs to be inserted or removed from
+     the list.
+     
+     When the stake-holder wants to claim the their rewards, the reeemer will
+     be `WithdrawAct pkh burnAct`, where `burnAct` specifies the type of removal
+     that needs to be checked by the validator.
 -}
 data BondedStakingAction
   = AdminAct Natural
-  | StakeAct Natural PubKeyHash
-  | WithdrawAct PubKeyHash
+  | StakeAct Natural PubKeyHash (Maybe MintingAction)
+  | WithdrawAct PubKeyHash BurningAction
   | CloseAct
   deriving stock (Show)
 
