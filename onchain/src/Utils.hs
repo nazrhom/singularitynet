@@ -41,6 +41,10 @@ module Utils (
   pconst,
   pflip,
   (>:),
+  PTxInfoFields,
+  PTxInfoHRec,
+  PBondedPoolParamsHRec,
+  PBondedPoolParamsFields
 ) where
 
 import PTypes (PAssetClass)
@@ -55,8 +59,9 @@ import Plutarch.Api.V1 (
   PTuple,
   PValue,
   PPubKeyHash,
-  ptuple,
- )
+  PDCert,
+  PStakingCredential,
+  ptuple, PPOSIXTimeRange, PTxId, PPOSIXTime)
 import Plutarch.Api.V1.Tx (PTxInInfo, PTxOut, PTxOutRef)
 import Plutarch.Bool (pand, por)
 import Plutarch.Lift (
@@ -64,6 +69,9 @@ import Plutarch.Lift (
   PUnsafeLiftDecl,
  )
 import Plutarch.TryFrom (PTryFrom, ptryFrom)
+import Plutarch.DataRepr (HRec)
+import Plutarch.DataRepr.Internal.Field (Labeled)
+import PNatural ( PNatRatio, PNatural )
 
 -- Term-level boolean functions
 peq :: forall (s :: S) (a :: PType). PEq a => Term s (a :--> a :--> PBool)
@@ -684,6 +692,68 @@ signedOnlyBy :: forall (s :: S).
   Term s PPubKeyHash ->
   Term s PBool
 signedOnlyBy ls pkh = pelem # pdata pkh # ls #&& plength # ls #== 1
+
+-- Useful type synonyms for matching on fields
+
+-- | HRec with all of `PTxInfo`'s fields
+type PTxInfoHRec (s :: S) = HRec '[
+  Labeled "inputs" (Term s (PAsData (PBuiltinList (PAsData PTxInInfo)))),
+  Labeled "outputs" (Term s (PAsData (PBuiltinList (PAsData PTxOut)))),
+  Labeled "fee" (Term s (PAsData PValue)),
+  Labeled "mint" (Term s (PAsData PValue)),
+  Labeled "dcert" (Term s (PAsData (PBuiltinList (PAsData PDCert)))),
+  Labeled "wdrl" (Term s (PAsData (PBuiltinList (PAsData (PTuple PStakingCredential PInteger))))),
+  Labeled "validRange" (Term s (PAsData PPOSIXTimeRange)),
+  Labeled "signatories" (Term s (PAsData (PBuiltinList (PAsData PPubKeyHash)))),
+  Labeled "data" (Term s (PAsData (PBuiltinList (PAsData (PTuple PDatumHash PDatum))))),
+  Labeled "id" (Term s (PAsData PTxId))
+  ]
+  
+-- | HRec with all of `PBondedPoolParams`'s fields
+type PBondedPoolParamsHRec (s :: S) = HRec '[
+  Labeled "iterations" (Term s (PAsData PNatural)),
+  Labeled "start" (Term s (PAsData PPOSIXTime)),
+  Labeled "end" (Term s (PAsData PPOSIXTime)),
+  Labeled "userLength" (Term s (PAsData PPOSIXTime)),
+  Labeled "bondingLength" (Term s (PAsData PPOSIXTime)),
+  Labeled "interest" (Term s (PAsData PNatRatio)),
+  Labeled "minStake" (Term s (PAsData PNatural)),
+  Labeled "maxStake" (Term s (PAsData PNatural)),
+  Labeled "admin" (Term s (PAsData PPubKeyHash)),
+  Labeled "bondedAssetClass" (Term s (PAsData PAssetClass)),
+  Labeled "nftCs" (Term s (PAsData PCurrencySymbol)),
+  Labeled "assocListCs" (Term s (PAsData PCurrencySymbol))
+  ]
+  
+-- | Type level list with all of `PBondedPoolParams's field names
+type PBondedPoolParamsFields =
+  '[
+    "iterations",
+    "start",
+    "end",
+    "userLength",
+    "bondingLength",
+    "interest",
+    "minStake",
+    "maxStake",
+    "admin",
+    "bondedAssetClass",
+    "nftCs",
+    "assocListCs"
+   ]
+
+-- | Type level list with all of `PTxInfo`'s fields
+type PTxInfoFields =
+  '["inputs",
+    "outputs",
+    "fee",
+    "mint",
+    "dcert",
+    "wdrl",
+    "validRange",
+    "signatories",
+    "data",
+    "id"]
 
 -- Other functions
 
