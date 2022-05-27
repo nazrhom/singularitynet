@@ -44,7 +44,10 @@ module Utils (
   PTxInfoFields,
   PTxInfoHRec,
   PBondedPoolParamsHRec,
-  PBondedPoolParamsFields
+  PBondedPoolParamsFields,
+  PTxInInfoFields,
+  PTxInInfoHRec,
+  HField,
 ) where
 
 import PTypes (PAssetClass)
@@ -72,6 +75,7 @@ import Plutarch.TryFrom (PTryFrom, ptryFrom)
 import Plutarch.DataRepr (HRec)
 import Plutarch.DataRepr.Internal.Field (Labeled)
 import PNatural ( PNatRatio, PNatural )
+import GHC.TypeLits (Symbol)
 
 -- Term-level boolean functions
 peq :: forall (s :: S) (a :: PType). PEq a => Term s (a :--> a :--> PBool)
@@ -693,36 +697,44 @@ signedOnlyBy :: forall (s :: S).
   Term s PBool
 signedOnlyBy ls pkh = pelem # pdata pkh # ls #&& plength # ls #== 1
 
--- Useful type synonyms for matching on fields
-
+-- Useful type family for reducing boilerplate in HRec types
+type family HField (s :: S) (field :: Symbol) (ptype :: PType) where
+  HField s field ptype = Labeled field (Term s (PAsData ptype))
+  
 -- | HRec with all of `PTxInfo`'s fields
 type PTxInfoHRec (s :: S) = HRec '[
-  Labeled "inputs" (Term s (PAsData (PBuiltinList (PAsData PTxInInfo)))),
-  Labeled "outputs" (Term s (PAsData (PBuiltinList (PAsData PTxOut)))),
-  Labeled "fee" (Term s (PAsData PValue)),
-  Labeled "mint" (Term s (PAsData PValue)),
-  Labeled "dcert" (Term s (PAsData (PBuiltinList (PAsData PDCert)))),
-  Labeled "wdrl" (Term s (PAsData (PBuiltinList (PAsData (PTuple PStakingCredential PInteger))))),
-  Labeled "validRange" (Term s (PAsData PPOSIXTimeRange)),
-  Labeled "signatories" (Term s (PAsData (PBuiltinList (PAsData PPubKeyHash)))),
-  Labeled "data" (Term s (PAsData (PBuiltinList (PAsData (PTuple PDatumHash PDatum))))),
-  Labeled "id" (Term s (PAsData PTxId))
+  HField s "inputs" (PBuiltinList (PAsData PTxInInfo)),
+  HField s "outputs" (PBuiltinList (PAsData PTxOut)),
+  HField s "fee" PValue,
+  HField s "mint" PValue,
+  HField s "dcert" (PBuiltinList (PAsData PDCert)),
+  HField s "wdrl" (PBuiltinList (PAsData (PTuple PStakingCredential PInteger))),
+  HField s "validRange" PPOSIXTimeRange,
+  HField s "signatories" (PBuiltinList (PAsData PPubKeyHash)),
+  HField s "data" (PBuiltinList (PAsData (PTuple PDatumHash PDatum))),
+  HField s "id" PTxId
   ]
   
 -- | HRec with all of `PBondedPoolParams`'s fields
 type PBondedPoolParamsHRec (s :: S) = HRec '[
-  Labeled "iterations" (Term s (PAsData PNatural)),
-  Labeled "start" (Term s (PAsData PPOSIXTime)),
-  Labeled "end" (Term s (PAsData PPOSIXTime)),
-  Labeled "userLength" (Term s (PAsData PPOSIXTime)),
-  Labeled "bondingLength" (Term s (PAsData PPOSIXTime)),
-  Labeled "interest" (Term s (PAsData PNatRatio)),
-  Labeled "minStake" (Term s (PAsData PNatural)),
-  Labeled "maxStake" (Term s (PAsData PNatural)),
-  Labeled "admin" (Term s (PAsData PPubKeyHash)),
-  Labeled "bondedAssetClass" (Term s (PAsData PAssetClass)),
-  Labeled "nftCs" (Term s (PAsData PCurrencySymbol)),
-  Labeled "assocListCs" (Term s (PAsData PCurrencySymbol))
+  HField s "iterations" PNatural,
+  HField s "start" PPOSIXTime,
+  HField s "end" PPOSIXTime,
+  HField s "userLength" PPOSIXTime,
+  HField s "bondingLength" PPOSIXTime,
+  HField s "interest" PNatRatio,
+  HField s "minStake" PNatural,
+  HField s "maxStake" PNatural,
+  HField s "admin" PPubKeyHash,
+  HField s "bondedAssetClass" PAssetClass,
+  HField s "nftCs" PCurrencySymbol,
+  HField s "assocListCs" PCurrencySymbol
+  ]
+  
+-- | HRec with all of `PTxInInfo`'s fields
+type PTxInInfoHRec (s :: S) = HRec '[
+  HField s "outRef" PTxOutRef,
+  HField s "resolved" PTxOut
   ]
   
 -- | Type level list with all of `PBondedPoolParams's field names
@@ -755,6 +767,11 @@ type PTxInfoFields =
     "data",
     "id"]
 
+-- | Type level list with all of `PTxInInfo`'s fields
+type PTxInInfoFields =
+  '["outRef",
+    "resolved"
+   ]
 -- Other functions
 
 {- | Returns a new Plutarch function that ignores the first paramter and returns
