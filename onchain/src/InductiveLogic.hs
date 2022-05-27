@@ -79,10 +79,11 @@ consumesEntriesGuard prevEntry currEntry inputs listNftCs = do
     guardC "consumesEntriesGuard: number of entries is not two" $
         plength # entries #== 2
         
+-- | Fails if entry is not present in inputs or it does not have the list token
 consumesEntryGuard :: forall (s :: S).
-    Term s PTxOutRef
-    -> Term s (PBuiltinList (PAsData PTxInInfo))
-    -> Term s PCurrencySymbol
+    Term s PTxOutRef                            -- |^ List entry
+    -> Term s (PBuiltinList (PAsData PTxInInfo))-- |^ Transaction's inputs
+    -> Term s PCurrencySymbol                   -- |^ List's currency symbol
     -> TermCont s (Term s PUnit)
 consumesEntryGuard entry inputs listNftCs = do
     _ <- pure . flip pfind inputs . inputPredicate $ \outRef val ->
@@ -116,7 +117,7 @@ mintHeadCheck :: forall (s :: S).
     -> Term s PBondedStakingDatum -- |^ The datum of the pool UTXO
     -> Term s PBondedStakingDatum -- |^ The datum for the new pool UTXO
     -> Term s (PBuiltinList (PAsData PTxInInfo)) -- |^ The inputs of the TX
-    -> TermCont s (Term s PUnit)     -- |^ The UTXO of the pool, now validated
+    -> TermCont s (Term s PUnit)
 mintHeadCheck nftCs poolOutRef poolDatum newPoolDatum inputs = do
    -- Check if this if this is the first stake of the pool
    pure . pmatch poolDatum $ \case
