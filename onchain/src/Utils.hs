@@ -35,6 +35,7 @@ module Utils (
   getDatum,
   getDatumHash,
   getContinuingOutputWithNFT,
+  getOnlySignatory,
   signedBy,
   signedOnlyBy,
   pconst,
@@ -653,6 +654,19 @@ getDatum datHash dats = pure $ getDatum' # datHash # dats
     checkHash = phoistAcyclic $
       plam $ \datHash tup ->
         pfield @"_0" # tup #== datHash
+
+-- | Gets the only signatory of the TX or fail
+getOnlySignatory ::
+  forall (s :: S).
+  Term s (PBuiltinList (PAsData PPubKeyHash)) ->
+  TermCont s (Term s PPubKeyHash)
+getOnlySignatory ls = pure . pmatch ls $ \case
+  PCons pkh ps ->
+    pif
+      (pnull # ps)
+      (pfromData pkh)
+      (ptraceError "getSignatory: transaction has more than one signatory")
+  PNil -> ptraceError "getSignatory: empty list of signatories"
         
 -- Functions for checking signatures
 
