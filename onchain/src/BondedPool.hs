@@ -39,7 +39,7 @@ import Utils (
   pletC,
   pmatchC,
   ptryFromUndata,
-  signedByAdmin,
+  signedBy,
  )
 
 import GHC.Records (getField)
@@ -112,7 +112,7 @@ adminActLogic txInfo purpose params inputStakingDatum sizeLeft = unTermCont $ do
   paramsF <- tcont $ pletFields @'["admin"] params
   -- We check that the transaction was signed by the pool operator
   guardC "transaction not signed by admin" $
-    signedByAdmin txInfoF.signatories paramsF.admin
+    signedBy txInfoF.signatories paramsF.admin
   -- We check that the transaction occurs during a bonding period
   -- We don't validate this for the demo, otherwise testing becomes
   -- too difficult
@@ -203,7 +203,7 @@ closeActLogic txInfo params = unTermCont $ do
   paramsF <- tcont $ pletFields @'["admin"] params
   -- We check that the transaction was signed by the pool operator
   guardC "transaction not signed by admin" $
-    signedByAdmin txInfoF.signatories paramsF.admin
+    signedBy txInfoF.signatories paramsF.admin
   -- We check that the transaction occurs during the closing period
   -- We don't validate this for the demo, otherwise testing becomes
   -- too difficult

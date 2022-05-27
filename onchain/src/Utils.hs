@@ -36,7 +36,6 @@ module Utils (
   getDatum,
   getDatumHash,
   getContinuingOutputWithNFT,
-  signedByAdmin,
   toPBool,
   signedBy,
   signedOnlyBy,
@@ -660,16 +659,6 @@ getDatum datHash dats = pure $ getDatum' # datHash # dats
     checkHash = phoistAcyclic $
       plam $ \datHash tup ->
         pfield @"_0" # tup #== datHash
-
-{- | Returns whether if the provided `PPubKeyHash` is an element in the given
-list.
--}
-signedByAdmin ::
-  forall (s :: S).
-  Term s (PBuiltinList (PAsData PPubKeyHash)) ->
-  Term s PPubKeyHash ->
-  Term s PBool
-signedByAdmin ls pkh = pelem # pdata pkh # ls
 
 -- | Returns the staking datum record with the provided type
 parseStakingDatum ::
