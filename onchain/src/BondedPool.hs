@@ -7,6 +7,7 @@ module BondedPool (
 
 import Plutarch.Api.V1 (
   PAddress,
+  PPubKeyHash,
   PScriptContext,
   PScriptPurpose,
   PTxInfo,
@@ -204,7 +205,7 @@ adminActLogic txInfo params purpose inputStakingDatum sizeLeft = unTermCont $ do
         coOutput <- getContinuingOutputWithNFT inputAddress ac txInfo.outputs
         coOutputDatumHash <- getDatumHash coOutput
         coOutputDatum <- getDatum coOutputDatumHash $ getField @"data" txInfo
-        coOutputStakingDatum <- parseStakingDatum coOutputDatum
+        coOutputStakingDatum <- parseStakingDatum @PBondedStakingDatum coOutputDatum
         -- Get new state
         PStateDatum state <- pmatchC coOutputStakingDatum
         stateF <- tcont $ pletFields @'["_0", "_1"] state
@@ -329,10 +330,10 @@ newStakeLogic txInfo params spentInput stateDatum stakeAmt holderPkh mintAct = d
       newHeadStateTxOut <-
         getContinuingOutputWithNFT poolAddress listTok txInfo.outputs
       newHeadHash <- getDatumHash nextStateTxOut
-      newHeadDatum <-
-        getEntryData =<<
-        parseEntryDatum =<<
-        getDatum newHeadHash (getField @"data" txInfo)
+      -- newHeadDatum <-
+      --   getEntryData =<<
+      --   parseEntryDatum =<<
+      --   getDatum newHeadHash (getField @"data" txInfo)
       -- Validate list insertion and state update
       pure . pmatch entryTn $ \case
         -- We are shifting the current head forwards
@@ -386,12 +387,6 @@ closeActLogic txInfo params = unTermCont $ do
       _ -> pconstant False
 
 -- Helper functions for the different logics
-parseStakingDatum ::
-  forall (s :: S).
-  Term s PDatum ->
-  TermCont s (Term s PBondedStakingDatum)
-parseStakingDatum = ptryFromUndata @PBondedStakingDatum . pforgetData . pdata
-
 getStateData :: forall (s :: S).
   Term s PBondedStakingDatum ->
   TermCont s (Term s (PMaybeData PByteString), Term s PNatural)
