@@ -31,7 +31,7 @@ import Utils (
   pflip,
   pletC,
   ptryFromUndata,
-  porList
+  porList, getOnlySignatory
  )
 import InductiveLogic (
   consumesStateUtxoGuard,
@@ -45,16 +45,22 @@ import InductiveLogic (
     This module implements the minting policy for the NFTs used as entries for
     the user's stakes in the on-chain association list.
 
-    Some level of validation is performed by this policy (at least the bare
-    minimum related to any NFT), as well as some other validation specific
-    to each user action. Specifically, most invariants related to maintaining
-    the linked list here.
+    The policy checks that:
+
+    1. The required NFTs are being consumed for the specified list action and
+       *only* these, no more, no less
+
+    2. The minted/burnt entries' `TokenName`s correspond to the transaction's
+       signatory
 
     Due to how the system is designed, this minting policy is only run when
     a user stakes *for the first time* (minting a new NFT) or when it withdraws
-    their stake (burning an NFT). Invariants related to the amount staked,
-    global or local limits, and other things are mostly delegated to the pool
-    validator and not treated here.
+    their stake (burning an NFT).
+    
+    Invariants related to the amount staked, global or local limits, and other
+    things, are delegated to the pool validator and not treated here.
+    Importantly, inductive conditions of the association list are delegated to
+    the pool validator.
 -}
 
 plistNFTPolicy ::
@@ -75,7 +81,7 @@ plistNFTPolicy = plam $ \stateNftCs stateNftTn listAct ctx' -> unTermCont $ do
   listNftCs <- getCs ctx.purpose
   txInfo <- tcont $ pletFields @'["signatories", "mint", "inputs"] ctx.txInfo
   -- Get a *single* signatory or fail
-  signatory <- getSignatory txInfo.signatories
+  signatory <- getOnlySignatory txInfo.signatories
   -- Make token name from signatory's public key hash
   let entryTn = mkEntryTn signatory
       -- Save state and list tokens for later
@@ -139,24 +145,11 @@ listRemoveCheck mintVal (listNftCs, entryTn) = flip pmatch $ \case
     burnGuard listNftCs entryTn mintVal
     -- TODO
 
-
--- Get the single signatory of the transaction or fail
-getSignatory ::
-  forall (s :: S).
-  Term s (PBuiltinList (PAsData PPubKeyHash)) ->
-  TermCont s (Term s PPubKeyHash)
-getSignatory ls = pure . pmatch ls $ \case
-  PCons pkh ps ->
-    pif
-      (pnull # ps)
-      (pfromData pkh)
-      (ptraceError "getSignatory: transaction has more than one signatory")
-  PNil -> ptraceError "getSignatory: empty list of signatories"
-
 -- Build the token name from the signatory's `PPubKeyHash`
 mkEntryTn :: Term s PPubKeyHash -> Term s PTokenName
 mkEntryTn pkh = pcon . PTokenName $ pblake2b_256 # pto pkh
 
+-- | Fails if the TX does *not* mint a list token
 mintGuard ::
   forall (s :: S).
   Term s PCurrencySymbol ->
@@ -167,6 +160,7 @@ mintGuard listNftCs entryTn mint =
   guardC "mintGuard: failed when checking minted value" $
     oneOf # listNftCs # entryTn # mint
 
+-- | Fails if the TX does *not* burn a list token. It checks
 burnGuard ::
   forall (s :: S).
   Term s PCurrencySymbol ->
