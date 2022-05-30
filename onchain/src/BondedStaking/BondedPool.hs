@@ -1,9 +1,22 @@
 {-# LANGUAGE UndecidableInstances #-}
 
-module BondedPool (
+module BondedStaking.BondedPool (
   pbondedPoolValidator,
   pbondedPoolValidatorUntyped,
 ) where
+
+import BondedStaking.PTypes (
+  PBondedPoolParams,
+  PBondedPoolParamsFields,
+  PBondedPoolParamsHRec,
+  PBondedStakingAction (
+    PAdminAct,
+    PCloseAct,
+    PStakeAct,
+    PWithdrawAct
+  ),
+  PBondedStakingDatum (PAssetDatum, PEntryDatum, PStateDatum),
+ )
 
 import Plutarch.Api.V1 (
   PAddress,
@@ -21,17 +34,15 @@ import PNatural (
   PNatural,
  )
 import PTypes (
-  PBondedPoolParams,
+  HField,
   PMintingAction(PMintHead, PMintInBetween, PMintEnd),
-  PBondedStakingAction (
-    PAdminAct,
-    PCloseAct,
-    PStakeAct,
-    PWithdrawAct
-  ),
-  PBondedStakingDatum (PAssetDatum, PEntryDatum, PStateDatum),
   PPeriod (BondingPeriod, ClosingPeriod),
   PAssetClass,
+
+  PTxInfoFields,
+  PTxInfoHRec,
+  PTxInInfoHRec,
+  PTxInInfoFields,
   --bondingPeriod,
   --depositWithdrawPeriod,
   --onlyWithdrawPeriod,
@@ -61,13 +72,6 @@ import Utils (
   oneWith,
   peq,
   pconst,
-  PTxInfoFields,
-  PTxInfoHRec,
-  PBondedPoolParamsFields,
-  PBondedPoolParamsHRec,
-  PTxInInfoHRec,
-  PTxInInfoFields,
-  HField
  )
 
 import GHC.Records (getField)

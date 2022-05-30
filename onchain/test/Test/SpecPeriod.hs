@@ -6,6 +6,8 @@ module Test.SpecPeriod (
     module description here
 -}
 
+import BondedStaking.PTypes (PBondedPoolParams)
+
 import PInterval (
   PPeriodicInterval (
     PPeriodicInterval,
@@ -20,7 +22,6 @@ import PInterval (
   pperiodicContains,
  )
 import PTypes (
-  PBondedPoolParams,
   PPeriod,
   bondingPeriod,
   closingPeriod,
@@ -50,6 +51,7 @@ import SingularityNet.Types (
 
 import Plutarch.Api.V1 (PPOSIXTime)
 import Plutarch.Api.V1.Interval (PInterval)
+import Plutarch.Maybe (PMaybe(PJust))
 
 import Data.Ratio ((%))
 import Plutus.V1.Ledger.Api (CurrencySymbol (CurrencySymbol), POSIXTime)
@@ -136,7 +138,7 @@ testPeriodicInterval =
       , piPeriod = pconstant 5000
       , piStartOffset = pconstant 1000
       , piEndOffset = pconstant 2000
-      , piMaxCycles = pconstant (Natural 5)
+      , piMaxCycles = pcon $ PJust $ pconstant (Natural 5)
       }
 
 testPoolParams :: forall (s :: S). Term s PBondedPoolParams

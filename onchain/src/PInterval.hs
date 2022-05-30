@@ -10,6 +10,10 @@ module PInterval (
   getBondedPeriod,
 ) where
 
+import BondedStaking.PTypes (
+  PBondedPoolParams,
+ )
+
 import Plutarch.Api.V1 (
   PExtended (
     PFinite,
@@ -26,7 +30,6 @@ import GHC.Generics qualified as GHC
 import Generics.SOP (Generic, I (I))
 import PNatural (PNatural)
 import PTypes (
-  PBondedPoolParams,
   PPeriod,
   bondingPeriod,
   closingPeriod,
@@ -293,7 +296,7 @@ data PPeriodicInterval (s :: S) = PPeriodicInterval
   , piPeriod :: Term s PPOSIXTime
   , piStartOffset :: Term s PPOSIXTime
   , piEndOffset :: Term s PPOSIXTime
-  , piMaxCycles :: Term s PNatural
+  , piMaxCycles :: Term s (PMaybe PNatural)
   }
   deriving stock (GHC.Generic)
   deriving anyclass (Generic, PlutusType)
@@ -330,7 +333,7 @@ pperiodicContains = plam $ \pi i' -> unTermCont $ do
       piPeriod = pto piPeriod'
       piStartOffset = pto piStartOffset'
       piEndOffset = pto piEndOffset'
-      maxCycles = pto maxCycles'
+      --maxCycles = pto maxCycles'
   -- Calculate cycle number based on transaction's start
   cycleN <- pletC $ pquot # (iStart - piBaseOffset) # piPeriod
   -- Calculate start and end of period
@@ -342,7 +345,7 @@ pperiodicContains = plam $ \pi i' -> unTermCont $ do
       (iEnd - iStart #<= piEndOffset - piStartOffset)
       #&& ptraceIfFalse
         "pperiodicContains: cycle not within bounds"
-        (0 #<= cycleN #&& cycleN #< maxCycles)
+        (cycleInBounds cycleN maxCycles')
       #&& ptraceIfFalse
         "pperiodicContains: transaction range starts too soon"
         (piStart #<= iStart)
@@ -358,6 +361,12 @@ pperiodicContains = plam $ \pi i' -> unTermCont $ do
         _ ->
           ptraceError
             "pperiodicContains: received a non-finite interval"
+    cycleInBounds ::
+      Term s (PInner PPOSIXTime b) -> Term s (PMaybe PNatural) -> Term s PBool
+    cycleInBounds cycleN maxCycles =
+      pmatch maxCycles $ \case
+        PJust mc -> 0 #<= cycleN #&& cycleN #< pto mc
+        PNothing -> 0 #<= cycleN
 
 pext ::
   forall (s :: S) (a :: PType).
@@ -407,7 +416,7 @@ getBondedPeriod = phoistAcyclic $
               , piPeriod = period
               , piStartOffset = pconstant 0
               , piEndOffset = userLength
-              , piMaxCycles = iterations
+              , piMaxCycles = pcon $ PJust iterations
               }
           bonding =
             depositWithdrawal

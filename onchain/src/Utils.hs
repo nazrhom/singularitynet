@@ -43,13 +43,6 @@ module Utils (
   pconst,
   pflip,
   (>:),
-  PTxInfoFields,
-  PTxInfoHRec,
-  PBondedPoolParamsHRec,
-  PBondedPoolParamsFields,
-  PTxInInfoFields,
-  PTxInInfoHRec,
-  HField,
 ) where
 
 import PTypes (PAssetClass)
@@ -63,11 +56,10 @@ import Plutarch.Api.V1 (
   PScriptPurpose (PMinting, PSpending),
   PTokenName,
   PTuple,
-  PValue,
   PPubKeyHash,
-  PDCert,
-  PStakingCredential,
-  ptuple, PPOSIXTimeRange, PTxId, PPOSIXTime)
+  ptuple, PTxId, PPOSIXTime,
+  PValue,
+ )
 import Plutarch.Api.V1.Tx (PTxInInfo, PTxOut, PTxOutRef)
 import Plutarch.Bool (pand, por)
 import Plutarch.Builtin (pforgetData)
@@ -76,10 +68,7 @@ import Plutarch.Lift (
   PUnsafeLiftDecl,
  )
 import Plutarch.TryFrom (PTryFrom, ptryFrom)
-import Plutarch.DataRepr (HRec)
-import Plutarch.DataRepr.Internal.Field (Labeled)
 import PNatural ( PNatRatio, PNatural )
-import GHC.TypeLits (Symbol)
 
 import UnbondedStaking.PTypes (PBoolData (PDFalse, PDTrue))
 
@@ -723,81 +712,6 @@ toPBool = phoistAcyclic $
       PDFalse _ -> pfalse
       PDTrue _ -> ptrue
 
--- Useful type family for reducing boilerplate in HRec types
-type family HField (s :: S) (field :: Symbol) (ptype :: PType) where
-  HField s field ptype = Labeled field (Term s (PAsData ptype))
-
--- | HRec with all of `PTxInfo`'s fields
-type PTxInfoHRec (s :: S) = HRec '[
-  HField s "inputs" (PBuiltinList (PAsData PTxInInfo)),
-  HField s "outputs" (PBuiltinList (PAsData PTxOut)),
-  HField s "fee" PValue,
-  HField s "mint" PValue,
-  HField s "dcert" (PBuiltinList (PAsData PDCert)),
-  HField s "wdrl" (PBuiltinList (PAsData (PTuple PStakingCredential PInteger))),
-  HField s "validRange" PPOSIXTimeRange,
-  HField s "signatories" (PBuiltinList (PAsData PPubKeyHash)),
-  HField s "data" (PBuiltinList (PAsData (PTuple PDatumHash PDatum))),
-  HField s "id" PTxId
-  ]
-
--- | HRec with all of `PBondedPoolParams`'s fields
-type PBondedPoolParamsHRec (s :: S) = HRec '[
-  HField s "iterations" PNatural,
-  HField s "start" PPOSIXTime,
-  HField s "end" PPOSIXTime,
-  HField s "userLength" PPOSIXTime,
-  HField s "bondingLength" PPOSIXTime,
-  HField s "interest" PNatRatio,
-  HField s "minStake" PNatural,
-  HField s "maxStake" PNatural,
-  HField s "admin" PPubKeyHash,
-  HField s "bondedAssetClass" PAssetClass,
-  HField s "nftCs" PCurrencySymbol,
-  HField s "assocListCs" PCurrencySymbol
-  ]
-
--- | HRec with all of `PTxInInfo`'s fields
-type PTxInInfoHRec (s :: S) = HRec '[
-  HField s "outRef" PTxOutRef,
-  HField s "resolved" PTxOut
-  ]
-
--- | Type level list with all of `PBondedPoolParams's field names
-type PBondedPoolParamsFields =
-  '[
-    "iterations",
-    "start",
-    "end",
-    "userLength",
-    "bondingLength",
-    "interest",
-    "minStake",
-    "maxStake",
-    "admin",
-    "bondedAssetClass",
-    "nftCs",
-    "assocListCs"
-   ]
-
--- | Type level list with all of `PTxInfo`'s fields
-type PTxInfoFields =
-  '["inputs",
-    "outputs",
-    "fee",
-    "mint",
-    "dcert",
-    "wdrl",
-    "validRange",
-    "signatories",
-    "data",
-    "id"]
-
--- | Type level list with all of `PTxInInfo`'s fields
-type PTxInInfoFields =
-  '["outRef",
-    "resolved"
-   ]
 -- Other functions
 
 {- | Returns a new Plutarch function that ignores the first paramter and returns
@@ -819,3 +733,8 @@ pflip ::
   Term s a ->
   Term s c
 pflip f b a = f # a # b
+
+-- Plutarch class instances
+
+instance PEq PAddress where
+  a1 #== a2 = pdata a1 #== pdata a2

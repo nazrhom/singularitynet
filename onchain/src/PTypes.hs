@@ -12,18 +12,20 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module PTypes (
-  PBondedPoolParams (..),
+  HField,
+  PAssetClass (PAssetClass),
   PMintingAction (..),
   PBurningAction (..),
   PListAction (..),
-  PBondedStakingAction (..),
-  PBondedStakingDatum (..),
-  PEntry,
-  PAssetClass (PAssetClass),
+  PTxInfoFields,
+  PTxInfoHRec,
+  PTxInInfoFields,
+  PTxInInfoHRec,
   PPeriod (..),
   passetClass,
   unavailablePeriod,
   depositWithdrawPeriod,
+  adminUpdatePeriod,
   bondingPeriod,
   onlyWithdrawPeriod,
   closingPeriod,
@@ -36,6 +38,7 @@ module PTypes (
 -}
 
 import GHC.Generics qualified as GHC
+import GHC.TypeLits (Symbol)
 import Generics.SOP (Generic, I (I))
 
 import PNatural (PNatRatio, PNatural)
@@ -50,14 +53,31 @@ import SingularityNet.Types (
   Entry,
  )
 
-import Plutarch.Api.V1 (PMaybeData, PPOSIXTime, PTokenName, PTxId, PTxOutRef)
+import Plutarch.Api.V1 (
+  PDatum,
+  PDatumHash,
+  PDCert,
+  PMaybeData,
+  PPOSIXTime,
+  PPOSIXTimeRange,
+  PStakingCredential,
+  PTokenName,
+  PTxId,
+  PTxInInfo,
+  PTxOut,
+  PTxOutRef,
+  PTuple,
+  PValue,
+ )
 import Plutarch.Api.V1.Crypto (PPubKeyHash)
 import Plutarch.Api.V1.Value (PCurrencySymbol)
 import Plutarch.DataRepr (
   DerivePConstantViaData (DerivePConstantViaData),
+  HRec,
   PDataFields,
   PIsDataReprInstances (PIsDataReprInstances),
  )
+import Plutarch.DataRepr.Internal.Field (Labeled)
 import Plutarch.Lift (
   PLifted,
   PUnsafeLiftDecl,
@@ -102,111 +122,6 @@ passetClass = phoistAcyclic $
         pdcons # pdata cs
           #$ pdcons # pdata tn # pdnil
 
--- | `BondedPoolParams` synonym
-newtype PBondedPoolParams (s :: S)
-  = PBondedPoolParams
-      ( Term
-          s
-          ( PDataRecord
-              '[ "iterations" ':= PNatural
-               , "start" ':= PPOSIXTime
-               , "end" ':= PPOSIXTime
-               , "userLength" ':= PPOSIXTime
-               , "bondingLength" ':= PPOSIXTime
-               , "interest" ':= PNatRatio
-               , "minStake" ':= PNatural
-               , "maxStake" ':= PNatural
-               , "admin" ':= PPubKeyHash
-               , "bondedAssetClass" ':= PAssetClass
-               , "nftCs" ':= PCurrencySymbol
-               , "assocListCs" ':= PCurrencySymbol
-               ]
-          )
-      )
-  deriving stock (GHC.Generic)
-  deriving anyclass (Generic, PIsDataRepr)
-  deriving
-    (PlutusType, PIsData, PDataFields)
-    via PIsDataReprInstances PBondedPoolParams
-
-deriving via
-  PAsData (PIsDataReprInstances PBondedPoolParams)
-  instance
-    PTryFrom PData (PAsData PBondedPoolParams)
-
-instance PUnsafeLiftDecl PBondedPoolParams where
-  type PLifted PBondedPoolParams = BondedPoolParams
-
--- | `Entry` synonym
-data PEntry (s :: S)
-  = PEntry
-      ( Term
-          s
-          ( PDataRecord
-              '[ "key" ':= PByteString
-               , "sizeLeft" ':= PNatural
-               , "newDeposit" ':= PNatural
-               , "deposited" ':= PNatural
-               , "staked" ':= PNatural
-               , "rewards" ':= PNatRatio
-               , "value" ':= PBuiltinPair (PAsData PNatural) (PAsData PNatRatio)
-               , "next" ':= PMaybeData PByteString
-               ]
-          )
-      )
-  deriving stock (GHC.Generic)
-  deriving anyclass (Generic, PIsDataRepr)
-  deriving
-    (PlutusType, PIsData, PDataFields)
-    via PIsDataReprInstances PEntry
-
-deriving via
-  PAsData (PIsDataReprInstances PEntry)
-  instance
-    PTryFrom PData (PAsData PEntry)
-
-instance PUnsafeLiftDecl PEntry where
-  type PLifted PEntry = Entry
-
--- | `BondedStakingDatum` synonym
-data PBondedStakingDatum (s :: S)
-  = PStateDatum
-      ( Term
-          s
-          ( PDataRecord
-              '[ "_0" ':= PMaybeData PByteString
-               , "_1" ':= PNatural
-               ]
-          )
-      )
-  | PEntryDatum
-      ( Term
-          s
-          ( PDataRecord
-              '[ "_0" ':= PEntry
-               ]
-          )
-      )
-  | PAssetDatum (Term s (PDataRecord '[]))
-  deriving stock (GHC.Generic)
-  deriving anyclass (Generic, PIsDataRepr)
-  deriving
-    (PlutusType, PIsData)
-    via PIsDataReprInstances PBondedStakingDatum
-
-deriving via
-  PAsData (PIsDataReprInstances PBondedStakingDatum)
-  instance
-    (PTryFrom PData (PAsData PBondedStakingDatum))
-
-deriving via
-  (DerivePConstantViaData BondedStakingDatum PBondedStakingDatum)
-  instance
-    (PConstant BondedStakingDatum)
-
-instance PUnsafeLiftDecl PBondedStakingDatum where
-  type PLifted PBondedStakingDatum = BondedStakingDatum
-
 -- | `MintingAction` synonym
 data PMintingAction (s :: S)
   = PMintHead (Term s (PDataRecord '["_0" ':= PTxOutRef]))
@@ -231,7 +146,7 @@ deriving via
 
 instance PUnsafeLiftDecl PMintingAction where
   type PLifted PMintingAction = MintingAction
-    
+
 -- | `BurningAction` synonym
 data PBurningAction (s :: S)
   = PBurnHead (Term s (PDataRecord '["_0" ':= PTxOutRef]))
@@ -249,7 +164,7 @@ deriving via
 
 instance PUnsafeLiftDecl PBurningAction where
   type PLifted PBurningAction = BurningAction
-  
+
 -- | `ListAction` synonym
 data PListAction (s :: S)
   = PListInsert (Term s (PDataRecord '["_0" ':= PMintingAction]))
@@ -268,42 +183,6 @@ deriving via
 instance PUnsafeLiftDecl PListAction where
   type PLifted PListAction = ListAction
 
--- | `BondedStakingAction` synonym
-data PBondedStakingAction (s :: S)
-  = PAdminAct (Term s (PDataRecord '["_0" ':= PNatural]))
-  | PStakeAct
-      ( Term
-          s
-          ( PDataRecord
-              '[ "stakeAmount" ':= PNatural
-               , "pubKeyHash" ':= PPubKeyHash
-               , "maybeMintingAction" ':= PMaybeData PMintingAction
-               ]
-          )
-      )
-  | PWithdrawAct (Term s (PDataRecord
-      '[ "pubKeyHash" ':= PPubKeyHash
-       , "burningAction" ':= PBurningAction]))
-  | PCloseAct (Term s (PDataRecord '[]))
-  deriving stock (GHC.Generic)
-  deriving anyclass (Generic, PIsDataRepr)
-  deriving
-    (PlutusType, PIsData)
-    via PIsDataReprInstances PBondedStakingAction
-    
-deriving via
-  PAsData (PIsDataReprInstances (PMaybeData PMintingAction))
-  instance
-    PTryFrom PData (PAsData (PMaybeData PMintingAction))
-
-deriving via
-  PAsData (PIsDataReprInstances PBondedStakingAction)
-  instance
-    PTryFrom PData (PAsData PBondedStakingAction)
-
-instance PUnsafeLiftDecl PBondedStakingAction where
-  type PLifted PBondedStakingAction = BondedStakingAction
-
 {- | A newtype used internally for encoding different periods.
 
    Depending on the pool's parameters, a certain period can either be:
@@ -311,15 +190,19 @@ instance PUnsafeLiftDecl PBondedStakingAction where
    0. UnavailablePeriod: The pool has not started yet and no actions are
       permitted.
    1. DepositWithdrawPeriod: A user can both stake and deposit
-   2. BondingPeriod: Only admin actions are allowed
-   3. OnlyWithdrawPeriod: Users can only withdraw, this happens once in the
+   2. AdminUpdatePeriod: (Unbonded) - Only admin actions are allowed
+   3. BondingPeriod:
+        * Bonded: Only admin actions are allowed
+        * Unbonded: Users can only withdraw
+   4. OnlyWithdrawPeriod: Users can only withdraw, this happens once in the
       lifetime of a pool, before closing.
-   4. ClosingPeriod: The admin can withdraw the remaining funds and close the
+   5. ClosingPeriod: The admin can withdraw the remaining funds and close the
       pool
 -}
 data PPeriod (s :: S)
   = UnavailablePeriod
   | DepositWithdrawPeriod
+  | AdminUpdatePeriod
   | BondingPeriod
   | OnlyWithdrawPeriod
   | ClosingPeriod
@@ -347,6 +230,9 @@ unavailablePeriod = pcon UnavailablePeriod
 depositWithdrawPeriod :: forall (s :: S). Term s PPeriod
 depositWithdrawPeriod = pcon DepositWithdrawPeriod
 
+adminUpdatePeriod :: forall (s :: S). Term s PPeriod
+adminUpdatePeriod = pcon AdminUpdatePeriod
+
 bondingPeriod :: forall (s :: S). Term s PPeriod
 bondingPeriod = pcon BondingPeriod
 
@@ -355,6 +241,51 @@ onlyWithdrawPeriod = pcon OnlyWithdrawPeriod
 
 closingPeriod :: forall (s :: S). Term s PPeriod
 closingPeriod = pcon ClosingPeriod
+
+----- Type synonyms -----
+
+-- Useful type family for reducing boilerplate in HRec types
+type family HField (s :: S) (field :: Symbol) (ptype :: PType) where
+  HField s field ptype = Labeled field (Term s (PAsData ptype))
+
+-- | HRec with all of `PTxInfo`'s fields
+type PTxInfoHRec (s :: S) = HRec '[
+  HField s "inputs" (PBuiltinList (PAsData PTxInInfo)),
+  HField s "outputs" (PBuiltinList (PAsData PTxOut)),
+  HField s "fee" PValue,
+  HField s "mint" PValue,
+  HField s "dcert" (PBuiltinList (PAsData PDCert)),
+  HField s "wdrl" (PBuiltinList (PAsData (PTuple PStakingCredential PInteger))),
+  HField s "validRange" PPOSIXTimeRange,
+  HField s "signatories" (PBuiltinList (PAsData PPubKeyHash)),
+  HField s "data" (PBuiltinList (PAsData (PTuple PDatumHash PDatum))),
+  HField s "id" PTxId
+  ]
+
+-- | HRec with all of `PTxInInfo`'s fields
+type PTxInInfoHRec (s :: S) = HRec '[
+  HField s "outRef" PTxOutRef,
+  HField s "resolved" PTxOut
+  ]
+
+-- | Type level list with all of `PTxInfo`'s fields
+type PTxInfoFields =
+  '["inputs",
+    "outputs",
+    "fee",
+    "mint",
+    "dcert",
+    "wdrl",
+    "validRange",
+    "signatories",
+    "data",
+    "id"]
+
+-- | Type level list with all of `PTxInInfo`'s fields
+type PTxInInfoFields =
+  '["outRef",
+    "resolved"
+   ]
 
 ------ Orphans ------
 
@@ -412,16 +343,6 @@ deriving via
     PConstant AssetClass
 
 deriving via
-  (DerivePConstantViaData BondedPoolParams PBondedPoolParams)
-  instance
-    (PConstant BondedPoolParams)
-
-deriving via
-  (DerivePConstantViaData Entry PEntry)
-  instance
-    (PConstant Entry)
-
-deriving via
   (DerivePConstantViaData MintingAction PMintingAction)
   instance
     (PConstant MintingAction)
@@ -435,8 +356,3 @@ deriving via
   (DerivePConstantViaData ListAction PListAction)
   instance
     (PConstant ListAction)
-
-deriving via
-  (DerivePConstantViaData BondedStakingAction PBondedStakingAction)
-  instance
-    (PConstant BondedStakingAction)

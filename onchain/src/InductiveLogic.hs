@@ -34,7 +34,7 @@ import Utils (
     pneq,
     allWith)
 
-import PTypes (PBondedStakingDatum (PStateDatum))
+import BondedStaking.PTypes (PBondedStakingDatum (PStateDatum))
 
 -- | Fail if state UTXO is not in inputs or if it does not have the state token
 consumesStateUtxoGuard :: forall (s :: S) .
@@ -55,7 +55,7 @@ consumesStateUtxoGuard stateOutRef inputs stateNftCs stateNftTn = do
       )
       pfalse
   pure punit
-  
+
 -- | Fails if the two entries are not present in inputs or they don't have a
 -- list token
 consumesEntriesGuard :: forall (s :: S).
@@ -78,7 +78,7 @@ consumesEntriesGuard prevEntry currEntry inputs listNftCs = do
             pfalse
     guardC "consumesEntriesGuard: number of entries is not two" $
         plength # entries #== 2
-        
+
 -- | Fails if entry is not present in inputs or it does not have the list token
 consumesEntryGuard :: forall (s :: S).
     Term s PTxOutRef                            -- |^ List entry
@@ -97,7 +97,7 @@ consumesEntryGuard entry inputs listNftCs = do
                               \NFT"))
             pfalse
     pure punit
-        
+
 -- | Auxiliary function for building predicates on PTxInInfo's
 inputPredicate :: forall (s :: S).
     (Term s PTxOutRef -> Term s PValue -> Term s PBool) ->
@@ -163,7 +163,7 @@ hasStateNft stateNftCs stateNftTn val =
     hasStateNft' = phoistAcyclic $
       plam $ \cs tn val ->
         oneOf # cs # tn # val
-        
+
 -- | Returns `ptrue` if value contains neither the pool's state token nor entry
 -- token
 hasNoNft ::
