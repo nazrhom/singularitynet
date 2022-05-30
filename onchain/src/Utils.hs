@@ -46,6 +46,8 @@ module Utils (
   PBondedPoolParamsHRec,
   PBondedPoolParamsFields,
   PTxInInfoFields,
+  PEntryFields,
+  PEntryHRec,
   PTxInInfoHRec,
   HField,
 ) where
@@ -736,6 +738,18 @@ type PTxInInfoHRec (s :: S) = HRec '[
   HField s "outRef" PTxOutRef,
   HField s "resolved" PTxOut
   ]
+
+-- | HRec with all of `PEntry`'s fields
+type PEntryHRec (s :: S) = HRec '[
+  HField s "key" PByteString
+  , HField s "sizeLeft" PNatural
+  , HField s "newDeposit" PNatural
+  , HField s "deposited" PNatural
+  , HField s "staked" PNatural
+  , HField s "rewards" PNatRatio
+  , HField s "value" (PBuiltinPair (PAsData PNatural) (PAsData PNatRatio))
+  , HField s "next" (PMaybeData PByteString)
+  ]
   
 -- | Type level list with all of `PBondedPoolParams's field names
 type PBondedPoolParamsFields =
@@ -772,6 +786,20 @@ type PTxInInfoFields =
   '["outRef",
     "resolved"
    ]
+   
+-- | Type level list with all of `PEntry`'s fields
+type PEntryFields =
+  '["key"
+   , "sizeLeft"
+   , "newDeposit"
+   , "deposited"
+   , "staked"
+   , "rewards"
+   , "value"
+   , "next"
+  ]
+
+--
 -- Other functions
 
 {- | Returns a new Plutarch function that ignores the first paramter and returns
