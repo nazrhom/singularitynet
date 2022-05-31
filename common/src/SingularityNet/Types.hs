@@ -11,7 +11,6 @@ module SingularityNet.Types (
   Entry (
     Entry,
     key,
-    value,
     next,
     sizeLeft,
     newDeposit,
@@ -95,7 +94,6 @@ data Entry = Entry
   , deposited :: Natural
   , staked :: Natural
   , rewards :: NatRatio
-  , value :: (Natural, NatRatio)
   , next :: Maybe BuiltinByteString
   }
   deriving stock (Show)

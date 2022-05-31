@@ -149,7 +149,6 @@ data PEntry (s :: S)
                , "deposited" ':= PNatural
                , "staked" ':= PNatural
                , "rewards" ':= PNatRatio
-               , "value" ':= PBuiltinPair (PAsData PNatural) (PAsData PNatRatio)
                , "next" ':= PMaybeData PByteString
                ]
           )
