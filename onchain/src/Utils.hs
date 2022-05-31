@@ -14,6 +14,7 @@ module Utils (
   pandList,
   porList,
   pfind,
+  pmapMaybe,
   ppartition,
   pfstData,
   psndData,
@@ -206,6 +207,25 @@ pfind pred ls = pure $ (pfix #$ go # pred) # ls
       plam $ \pred self ls -> pmatch ls $ \case
         PNil -> ptraceError "pfind: could not find element in list"
         PCons x xs -> pif (pred # x) x (self # xs)
+        
+-- | Equivalent to `mapMaybe` for plutarch
+pmapMaybe :: forall (s :: S) (a :: PType) (b :: PType) .
+  (PUnsafeLiftDecl a, PUnsafeLiftDecl b) =>
+  Term s (a :--> PMaybe b) ->
+  Term s (PBuiltinList a) ->
+  Term s (PBuiltinList b)
+pmapMaybe f as = pfix # pmapMaybe' # f # as
+  where pmapMaybe' :: Term s (
+          ((a :--> PMaybe b) :--> PBuiltinList a :--> PBuiltinList b) :-->
+           (a :--> PMaybe b) :-->
+           PBuiltinList a :-->
+           PBuiltinList b
+          )
+        pmapMaybe' = phoistAcyclic $ plam $ \self f ls -> pmatch ls $ \case
+          PCons x xs -> pmatch (f # x) $ \case
+            PJust x' -> pcon $ PCons x' $ self # f # xs
+            PNothing -> self # f # xs
+          PNil -> pcon $ PNil
 
 {- | Returns the pair of lists of elements that match and don't match the
  predicate
@@ -619,7 +639,7 @@ getContinuingOutputWithNFT addr ac outputs =
       pure $
         pdata outputF.address #== pdata addr
           #&& oneOf # acF.currencySymbol # acF.tokenName # outputF.value
-
+          
 {- | Gets the `DatumHash` from a `PTxOut`. If not available, it will fail with
  an error.
 -}
