@@ -15,6 +15,7 @@ module UnbondedStaking.PTypes (
   PBoolData (..),
   PEntry,
   PEntryFields,
+  PEntryHRec,
   PUnbondedPoolParams (..),
   PUnbondedPoolParamsHRec,
   PUnbondedPoolParamsFields,
@@ -217,6 +218,31 @@ instance PUnsafeLiftDecl PUnbondedStakingAction where
 
 ----- Type synonyms -----
 
+-- | HRec with all of `PEntry`'s fields
+type PEntryHRec (s :: S) = HRec '[
+    HField s "key" PByteString
+  , HField s "deposited" PNatural
+  , HField s "newDeposit" PNatural
+  , HField s "rewards" PNatRatio
+  , HField s "totalRewards" PNatural
+  , HField s "totalDeposited" PNatural
+  , HField s "open" PBoolData
+  , HField s "next" (PMaybeData PByteString)
+  ]
+
+-- | Type level list with all of `PEntry`'s fields
+type PEntryFields =
+  '[
+    "key",
+    "deposited",
+    "newDeposit",
+    "rewards",
+    "totalRewards",
+    "totalDeposited",
+    "open",
+    "next"
+   ]
+
 -- | HRec with all of `PUnbondedPoolParams`'s fields
 type PUnbondedPoolParamsHRec (s :: S) = HRec '[
   HField s "start" PPOSIXTime,
@@ -250,19 +276,6 @@ type PUnbondedPoolParamsFields =
     "unbondedAssetClass",
     "nftCs",
     "assocListCs"
-   ]
-
--- | Type level list with all of `PEntry's field names
-type PEntryFields =
-  '[
-    "key",
-    "deposited",
-    "newDeposit",
-    "rewards",
-    "totalRewards",
-    "totalDeposited",
-    "open",
-    "next"
    ]
 
 ------ PBool data instance ------

@@ -18,6 +18,8 @@ module BondedStaking.PTypes (
   PBondedStakingAction (..),
   PBondedStakingDatum (..),
   PEntry,
+  PEntryFields,
+  PEntryHRec,
 ) where
 
 {-
@@ -206,6 +208,30 @@ instance PUnsafeLiftDecl PBondedStakingAction where
   type PLifted PBondedStakingAction = BondedStakingAction
 
 ----- Type synonyms -----
+
+-- | HRec with all of `PEntry`'s fields
+type PEntryHRec (s :: S) = HRec '[
+  HField s "key" PByteString
+  , HField s "sizeLeft" PNatural
+  , HField s "newDeposit" PNatural
+  , HField s "deposited" PNatural
+  , HField s "staked" PNatural
+  , HField s "rewards" PNatRatio
+  , HField s "value" (PBuiltinPair (PAsData PNatural) (PAsData PNatRatio))
+  , HField s "next" (PMaybeData PByteString)
+  ]
+
+-- | Type level list with all of `PEntry`'s fields
+type PEntryFields =
+  '["key"
+   , "sizeLeft"
+   , "newDeposit"
+   , "deposited"
+   , "staked"
+   , "rewards"
+   , "value"
+   , "next"
+  ]
 
 -- | HRec with all of `PBondedPoolParams`'s fields
 type PBondedPoolParamsHRec (s :: S) = HRec '[
