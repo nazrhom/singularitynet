@@ -14,7 +14,7 @@ import Plutarch.Api.V1 (
   PTxInfo,
   PMaybeData (PDJust, PDNothing),
   PValue,
-  PCurrencySymbol,PTokenName (PTokenName)
+  PCurrencySymbol,PTokenName (PTokenName), PTxOut, PTuple, PDatumHash, ptuple
  )
 import Plutarch.Builtin (pforgetData)
 import Plutarch.Unsafe (punsafeCoerce)
@@ -34,6 +34,7 @@ import PTypes (
   PBondedStakingDatum (PAssetDatum, PEntryDatum, PStateDatum),
   PPeriod (BondingPeriod, ClosingPeriod),
   PAssetClass,
+  PEntry,
   --bondingPeriod,
   --depositWithdrawPeriod,
   --onlyWithdrawPeriod,
@@ -62,22 +63,27 @@ import Utils (
   oneWith,
   peq,
   pconst,
+  pmapMaybe,
+  pfstData,
+  psndData,
   PTxInfoFields,
   PTxInfoHRec,
   PBondedPoolParamsFields,
   PBondedPoolParamsHRec,
   PTxInInfoHRec,
   PTxInInfoFields,
-  HField
+  HField,
+  PEntryFields,
  )
 
 import GHC.Records (getField)
 import Plutarch.Api.V1.Scripts (PDatum)
 import SingularityNet.Settings (bondedStakingTokenName)
-import InductiveLogic (hasListNft, consumesStateUtxoGuard)
+import InductiveLogic (hasListNft, consumesStateUtxoGuard, doesNotConsumeAssetGuard)
 import Plutarch.DataRepr (HRec)
-import Plutarch.DataRepr.Internal.Field (Labeled)
 import Plutarch.Crypto (pblake2b_256)
+import SingularityNet.Natural (Natural(Natural))
+import Plutarch.Api.V1.Tuple (pbuiltinPairFromTuple)
 
 {- The validator has two responsibilities
 
@@ -126,9 +132,10 @@ pbondedPoolValidator = phoistAcyclic $
           -- \redeemer" $
           --  getBondedPeriod # txInfoF.validRange # params
           --     #== depositWithdrawPeriod 
-          pure $
-            pletFields @'["stakeAmount", "pubKeyHash", "maybeMintingAction"]
-            act $ \actF -> stakeActLogic
+          pure . pletFields
+            @'["stakeAmount", "pubKeyHash", "maybeMintingAction"]
+            act
+            $ \actF -> stakeActLogic
               txInfoF
               paramsF
               ctxF.purpose
@@ -250,7 +257,7 @@ adminActLogic txInfo params purpose inputStakingDatum sizeLeft = unTermCont $ do
     __isBondingPeriod period = pmatch period $ \case
       BondingPeriod -> pconstant True
       _ -> pconstant False
-
+      
 stakeActLogic :: forall (s :: S).
   PTxInfoHRec s ->
   PBondedPoolParamsHRec s ->
@@ -267,27 +274,64 @@ stakeActLogic txInfo params purpose datum act =
   -- Get the input being spent
   spentInput <- tcont . pletFields @PTxInInfoFields =<<
     getInput purpose txInfo.inputs
-  -- Check holder's signature
+  let poolAddr :: Term s PAddress
+      poolAddr = pfield @"address" # spentInput.resolved
+  -- Check that input spent is not an asset UTXO (user cannot withdraw)
+  doesNotConsumeAssetGuard datum
+  -- Validate holder's signature
   guardC "stakeActLogic: tx not exclusively signed by the stake-holder" $
     signedOnlyBy txInfo.signatories act.pubKeyHash
-  pure $ pmatch act.maybeMintingAction $ \case
+  -- Check that amount is positive and within bounds
+  let stakeAmt :: Term s PNatural
+      stakeAmt = pfromData act.stakeAmount
+  guardC "stakeActLogic: stake amount is not positive or within bounds" $
+    zero #<= stakeAmt
+    #&& params.minStake #<= stakeAmt
+    #&& stakeAmt #<= params.maxStake
+  -- Get asset output of the transaction (new locked stake)
+  assetOutput <-
+    (tcont . pletFields @'["value"])
+    =<< fmap fst
+    (getCoWithDatum
+          poolAddr
+          isAssetDatum
+          txInfo.outputs
+          $ getField @"data" txInfo)
+  -- Check that the correct amount of the assetclass is locked
+  bondedAsset <- tcont . pletFields @'["currencySymbol", "tokenName"] $
+    params.bondedAssetClass
+  guardC "stakeActLogic: amount deposited does not match redeemer's amount" $
+    oneWith # (peq # bondedAsset.currencySymbol)
+            # (peq # bondedAsset.tokenName)
+            # (peq #$ pto $ pfromData act.stakeAmount)
+            # assetOutput.value
+  pure . pmatch act.maybeMintingAction $ \case
     -- If some minting action is provided, this is a new stake and inductive
     -- conditions must be checked
     PDJust mintAct -> unTermCont $ do
+      -- Check that minted value is a list entry
       guardC "stakeActLogic: failure when checking minted value in minting tx" $
         hasListNft params.assocListCs txInfo.mint
-      -- Check inductive conditions and business logic
-      newStakeLogic txInfo params spentInput datum act.stakeAmount act.pubKeyHash $
+      -- Check inductive conditions
+      newStakeLogic txInfo params spentInput datum act.pubKeyHash $
         pfield @"_0" # mintAct
     -- If no minting action is provided, this is a stake update
     PDNothing _ -> unTermCont $ do
       -- A list token should *not* be minted
       guardC "stakeActLogic: failure when checking minted value in non-minting \
-        \ tx" $
+             \ tx" $
         pnot #$ hasListNft params.assocListCs txInfo.mint
       -- Check business logic
       updateStakeLogic txInfo params spentInput act.stakeAmount act.pubKeyHash
-
+  where isAssetDatum :: Term s (PDatum :--> PBool)
+        isAssetDatum = plam $ \dat' -> unTermCont $ do
+          dat <- ptryFromUndata @PBondedStakingDatum
+               . pforgetData
+               . pdata
+               $ dat'
+          pure . pmatch dat $ \case
+            PAssetDatum _ -> ptrue
+            _ -> pfalse
     
 -- TODO
 updateStakeLogic :: forall (s :: S) .
@@ -297,19 +341,20 @@ updateStakeLogic :: forall (s :: S) .
   Term s PNatural ->
   Term s PPubKeyHash ->
   TermCont s (Term s PUnit)
-updateStakeLogic txInfo params spentInput stakeAmt holderPkh = do
+updateStakeLogic _txInfo _params _spentInput _stakeAmt _holderPkh = do
   pure punit
 
+-- | This function checks all inductive condition and returns the old and new
+-- entry for further business logic checks
 newStakeLogic :: forall (s :: S) .
   PTxInfoHRec s ->
   PBondedPoolParamsHRec s ->
   PTxInInfoHRec s ->
   Term s PBondedStakingDatum ->
-  Term s PNatural ->
   Term s PPubKeyHash ->
   Term s PMintingAction ->
   TermCont s (Term s PUnit)
-newStakeLogic txInfo params spentInput stateDatum stakeAmt holderPkh mintAct = do
+newStakeLogic txInfo params spentInput stateDatum holderPkh mintAct = do
   pure . pmatch mintAct $ \case
     PMintHead _ -> unTermCont $ do
       -- Validate that spentOutRef is the state UTXO
@@ -322,30 +367,34 @@ newStakeLogic txInfo params spentInput stateDatum stakeAmt holderPkh mintAct = d
       nextStateTxOut <- 
         getContinuingOutputWithNFT poolAddress stateTok txInfo.outputs
       nextStateHash <- getDatumHash nextStateTxOut
-      (nextEntryTn, nextSizeLeft) <-
+      (nextEntryKey, _nextSizeLeft) <-
         getStateData =<<
         parseStakingDatum =<<
         getDatum nextStateHash (getField @"data" txInfo)
       -- Get datum for current state
-      (entryTn, sizeLeft) <- getStateData stateDatum
+      (entryKey, _sizeLeft) <- getStateData stateDatum
       -- Get datum for new list entry
-      newHeadStateTxOut <-
+      newEntryTxOut <-
         getContinuingOutputWithNFT poolAddress listTok txInfo.outputs
-      newHeadHash <- getDatumHash nextStateTxOut 
-      newHeadDatum <-
+      newEntryHash <- getDatumHash newEntryTxOut 
+      newHeadEntry <-
+        tcont . pletFields @PEntryFields =<<
         getEntryData =<<
-        parseEntryDatum =<<
-        getDatum newHeadHash (getField @"data" txInfo)
+        parseStakingDatum =<<
+        getDatum newEntryHash (getField @"data" txInfo)
       -- Validate list insertion and state update
-      pure . pmatch entryTn $ \case
+      pure . pmatch entryKey $ \case
         -- We are shifting the current head forwards
-        PDJust entryTn' -> undefined
+        PDJust _entryKey' -> undefined
         -- This is the first stake of the pool
         PDNothing _ -> unTermCont $ do
+          -- The state now should point to the new entry
+          guardC "newStakeLogic: pool does not point to first entry" $
+            nextEntryKey `pointsTo` newHeadEntry.key
           pure punit
-    PMintInBetween outRefs ->
+    PMintInBetween _outRefs ->
       punit
-    PMintEnd listEndOutRef ->
+    PMintEnd _listEndOutRef ->
       punit
   where poolAddress :: Term s PAddress
         poolAddress = pfield @"address" # spentInput.resolved
@@ -381,7 +430,7 @@ closeActLogic txInfo params = unTermCont $ do
   -- period <- pure $ getPeriod # txInfoF.validRange # params
   -- guardC "admin deposit not done in closing period" $
   --  isClosingPeriod period
-  pconstantC ()
+  pure punit
   where
     _isClosingPeriod :: Term s PPeriod -> Term s PBool
     _isClosingPeriod period = pmatch period $ \case
@@ -395,6 +444,7 @@ parseStakingDatum ::
   TermCont s (Term s PBondedStakingDatum)
 parseStakingDatum = ptryFromUndata @PBondedStakingDatum . pforgetData . pdata
 
+-- Retrieves state fields from staking datum
 getStateData :: forall (s :: S).
   Term s PBondedStakingDatum ->
   TermCont s (Term s (PMaybeData PByteString), Term s PNatural)
@@ -404,11 +454,66 @@ getStateData datum = do
     _ -> ptraceError "getStateData: datum is not PStateDatum"
   pure (pfromData record._0, pfromData record._1)
 
+-- Retrieves entry fields from staking datum
 getEntryData :: forall (s :: S).
   Term s PBondedStakingDatum ->
-  TermCont s (Term s (PMaybeData PByteString), Term s PNatural)
-getEntryData datum = do
-  record <- tcont . pletFields @["_0", "_1"] . pmatch datum $ \case
-    PStateDatum record -> record
-    _ -> ptraceError "getStateData: datum is not PStateDatum"
-  pure (pfromData record._0, pfromData record._1)
+  TermCont s (Term s PEntry)
+getEntryData datum =
+  pure . pmatch datum $ \case
+    PEntryDatum entry -> pfield @"_0" # entry
+    _ -> ptraceError "getEntryDatum: datum is not PEntryDatum"
+    
+-- Returns true if it points to the given PKH
+pointsTo :: forall (s :: S).
+  Term s (PMaybeData PByteString) ->
+  Term s PByteString ->
+  Term s PBool
+pointsTo entryKey tn = pointsTo' # entryKey # tn
+  where pointsTo' :: Term s (PMaybeData PByteString :--> PByteString :--> PBool)
+        pointsTo' = phoistAcyclic $ plam $ \e t ->
+          pmatch e $ \case
+            PDJust t' -> pfield @"_0" # t' #== t
+            PDNothing _ -> pfalse
+            
+-- Gets the CO and datum that satisfy the given datum predicate.
+-- It fails if no CO is found, or no CO satisfies the predicate, or too many COs
+-- are found
+getCoWithDatum :: forall (s :: S).
+  Term s PAddress ->
+  Term s (PDatum :--> PBool) ->
+  Term s (PBuiltinList (PAsData PTxOut)) ->
+  Term s (PBuiltinList (PAsData (PTuple PDatumHash PDatum))) ->
+  TermCont s (Term s PTxOut, Term s PDatum)
+getCoWithDatum poolAddr pred outputs datums = do
+  -- Filter COs with address and datum from outputs
+  cos <- pletC . flip pmapMaybe outputs . plam $
+         \output -> unTermCont $ do
+            outputF <- tcont $ pletFields @'["address", "datumHash"] output 
+            pure $ pif (pnot #$ pdata outputF.address #== pdata poolAddr)
+              -- Address does not match, ignore output
+              (pcon PNothing)
+              $ pmatch outputF.datumHash $ \case
+                -- Output does not have a datum, fail (pool outputs always
+                -- should)
+                PDNothing _ ->
+                  ptraceError "getCoWithDatum: found CO without a datum"
+                PDJust datHash -> unTermCont $ do
+                  datum <- getDatum (pfield @"_0" # datHash) datums
+                  pure $ pif (pred # datum)
+                         (pcon . PJust . pbuiltinPairFromTuple . pdata $
+                            ptuple # output # pdata datum)
+                         -- Datum does not satisfy predicate, ignore output
+                         (pcon PNothing)
+  -- Make sure it's the only output
+  co <- pletC . pmatch cos $ \case
+        PNil -> ptraceError "getCoWithDatum: found more than one CO with given \
+                            \ datum"
+        PCons x xs -> pmatch xs $ \case
+          PCons _ _ -> ptraceError "getCoWithDatum: found more than one CO with\
+                                   \ given datum"
+          PNil -> pfromData x
+
+  pure (pfstData co, psndData co)
+
+zero :: Term s PNatural
+zero = pconstant $ Natural 0
