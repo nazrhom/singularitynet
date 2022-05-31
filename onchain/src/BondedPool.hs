@@ -312,9 +312,15 @@ stakeActLogic txInfo params purpose datum act =
       -- Check that minted value is a list entry
       guardC "stakeActLogic: failure when checking minted value in minting tx" $
         hasListNft params.assocListCs txInfo.mint
-      -- Check inductive conditions
-      newStakeLogic txInfo params spentInput datum act.pubKeyHash $
-        pfield @"_0" # mintAct
+      -- Check inductive conditions and business logic
+      newStakeLogic
+        txInfo
+        params
+        spentInput
+        datum
+        act.pubKeyHash
+        act.stakeAmount
+        $ pfield @"_0" # mintAct
     -- If no minting action is provided, this is a stake update
     PDNothing _ -> unTermCont $ do
       -- A list token should *not* be minted
@@ -352,9 +358,11 @@ newStakeLogic :: forall (s :: S) .
   PTxInInfoHRec s ->
   Term s PBondedStakingDatum ->
   Term s PPubKeyHash ->
+  Term s PNatural ->
   Term s PMintingAction ->
   TermCont s (Term s PUnit)
-newStakeLogic txInfo params spentInput stateDatum holderPkh mintAct = do
+newStakeLogic txInfo params spentInput stateDatum holderPkh stakeAmt mintAct =
+  do
   pure . pmatch mintAct $ \case
     PMintHead _ -> unTermCont $ do
       -- Validate that spentOutRef is the state UTXO
@@ -363,6 +371,16 @@ newStakeLogic txInfo params spentInput stateDatum holderPkh mintAct = do
         txInfo.inputs
         params.nftCs
         $ pconstant bondedStakingTokenName
+      -- Construct some useful values for later
+      stakeHolderKey <- pletC $ pblake2b_256 # pto holderPkh
+      let poolAddress :: Term s PAddress
+          poolAddress = pfield @"address" # spentInput.resolved
+          stateTok :: Term s PAssetClass
+          stateTok = passetClass # params.nftCs # pconstant bondedStakingTokenName 
+          listTok :: Term s PAssetClass
+          listTok = passetClass # params.assocListCs #$
+            pcon $ PTokenName $ stakeHolderKey
+      ---- FETCH DATUMS ----
       -- Get datum for next state
       nextStateTxOut <- 
         getContinuingOutputWithNFT poolAddress stateTok txInfo.outputs
@@ -377,11 +395,17 @@ newStakeLogic txInfo params spentInput stateDatum holderPkh mintAct = do
       newEntryTxOut <-
         getContinuingOutputWithNFT poolAddress listTok txInfo.outputs
       newEntryHash <- getDatumHash newEntryTxOut 
-      newHeadEntry <-
+      newEntry <-
         tcont . pletFields @PEntryFields =<<
         getEntryData =<<
         parseStakingDatum =<<
         getDatum newEntryHash (getField @"data" txInfo)
+      -- Check business logic conditions in entry
+      guardC "newStakeLogic: incorrect init. of newDeposit field in first\
+             \ stake" $
+        newEntry.newDeposit #== stakeAmt
+      guardC "newStakeLogic: new entry does not have the stakeholder's key" $
+        newEntry.key #== stakeHolderKey
       -- Validate list insertion and state update
       pure . pmatch entryKey $ \case
         -- We are shifting the current head forwards
@@ -390,20 +414,12 @@ newStakeLogic txInfo params spentInput stateDatum holderPkh mintAct = do
         PDNothing _ -> unTermCont $ do
           -- The state now should point to the new entry
           guardC "newStakeLogic: pool does not point to first entry" $
-            nextEntryKey `pointsTo` newHeadEntry.key
+            nextEntryKey `pointsTo` newEntry.key
           pure punit
     PMintInBetween _outRefs ->
       punit
     PMintEnd _listEndOutRef ->
       punit
-  where poolAddress :: Term s PAddress
-        poolAddress = pfield @"address" # spentInput.resolved
-        stateTok :: Term s PAssetClass
-        stateTok = passetClass # params.nftCs # pconstant bondedStakingTokenName 
-        listTok :: Term s PAssetClass
-        listTok = passetClass # params.assocListCs #$
-          pcon . PTokenName $ pblake2b_256 # pto holderPkh
- 
 
 withdrawActLogic :: forall (s :: S). Term s PUnit
 withdrawActLogic = pconstant ()
