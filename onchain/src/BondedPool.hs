@@ -21,6 +21,7 @@ import Plutarch.Unsafe (punsafeCoerce)
 
 import PNatural (
   PNatural,
+  PNatRatio
  )
 import PTypes (
   PBondedPoolParams,
@@ -82,7 +83,7 @@ import SingularityNet.Settings (bondedStakingTokenName)
 import InductiveLogic (hasListNft, consumesStateUtxoGuard, doesNotConsumeAssetGuard)
 import Plutarch.DataRepr (HRec)
 import Plutarch.Crypto (pblake2b_256)
-import SingularityNet.Natural (Natural(Natural))
+import SingularityNet.Natural (Natural(Natural), NatRatio(NatRatio))
 import Plutarch.Api.V1.Tuple (pbuiltinPairFromTuple)
 
 {- The validator has two responsibilities
@@ -285,7 +286,7 @@ stakeActLogic txInfo params purpose datum act =
   let stakeAmt :: Term s PNatural
       stakeAmt = pfromData act.stakeAmount
   guardC "stakeActLogic: stake amount is not positive or within bounds" $
-    zero #<= stakeAmt
+    natZero #<= stakeAmt
   -- Get asset output of the transaction (new locked stake)
   assetOutput <-
     (tcont . pletFields @'["value"])
@@ -359,7 +360,7 @@ newStakeLogic :: forall (s :: S) .
   Term s PNatural ->
   Term s PMintingAction ->
   TermCont s (Term s PUnit)
-newStakeLogic txInfo params spentInput stateDatum holderPkh stakeAmt mintAct =
+newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
   do
   pure . pmatch mintAct $ \case
     PMintHead _ -> unTermCont $ do
@@ -388,7 +389,7 @@ newStakeLogic txInfo params spentInput stateDatum holderPkh stakeAmt mintAct =
         parseStakingDatum =<<
         getDatum nextStateHash (getField @"data" txInfo)
       -- Get datum for current state
-      (entryKey, _sizeLeft) <- getStateData stateDatum
+      (entryKey, _sizeLeft) <- getStateData datum
       -- Get datum for new list entry
       newEntryTxOut <-
         getContinuingOutputWithNFT poolAddress listTok txInfo.outputs
@@ -405,18 +406,33 @@ newStakeLogic txInfo params spentInput stateDatum holderPkh stakeAmt mintAct =
         #&& newEntry.deposited #== stakeAmt
       guardC "newStakeLogic: new entry does not have the stakeholder's key" $
         newEntry.key #== stakeHolderKey
-      guardC "newStakeLogic: stake not within limits of the pool" $
+      guardC "newStakeLogic: new entry's stake not within stake bounds" $
         pfromData params.minStake #<= newEntry.deposited
         #&& pfromData newEntry.deposited #<= params.maxStake
+      guardC "newStakeLogic: new entry's staked and rewards fields not \
+             \initialized to zero" 
+        $ newEntry.staked #== natZero
+        #&& newEntry.rewards #== ratZero
+      ---- INDUCTIVE CONDITIONS ----
+      guardC "newStakeLogic: next pool state does not point to new entry" $
+        nextEntryKey `pointsTo` newEntry.key
       -- Validate list insertion and state update
       pure . pmatch entryKey $ \case
         -- We are shifting the current head forwards
-        PDJust _entryKey' -> undefined
+        PDJust currentEntryKey -> unTermCont $ do
+          -- Validate order of entries
+          guardC "newStakeLogic: new entry's key should be strictly less than \
+                 \ current entry" $
+            pfromData newEntry.key #< (pfield @"_0" # currentEntryKey)
+          -- The new entry should point to the current entry
+          guardC "newStakeLogic: new entry should point to current entry" $
+            newEntry.next `pointsTo` (pfield @"_0" # currentEntryKey)
+          pure punit 
         -- This is the first stake of the pool
         PDNothing _ -> unTermCont $ do
-          -- The state now should point to the new entry
-          guardC "newStakeLogic: pool does not point to first entry" $
-            nextEntryKey `pointsTo` newEntry.key
+          -- The new entry should *not* point to anything
+          guardC "newStakeLogic: new entry should not point to anything" $
+            pnot #$ newEntry.next `pointsTo` dummyByteString
           pure punit
     PMintInBetween _outRefs ->
       punit
@@ -533,5 +549,11 @@ getCoWithDatum poolAddr pred outputs datums = do
 
   pure (pfstData co, psndData co)
 
-zero :: Term s PNatural
-zero = pconstant $ Natural 0
+natZero :: Term s PNatural
+natZero = pconstant $ Natural 0
+
+ratZero :: Term s PNatRatio
+ratZero = pconstant . NatRatio $ 0
+
+dummyByteString :: Term s PByteString
+dummyByteString = pconstant ""
