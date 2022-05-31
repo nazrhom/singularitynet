@@ -281,13 +281,11 @@ stakeActLogic txInfo params purpose datum act =
   -- Validate holder's signature
   guardC "stakeActLogic: tx not exclusively signed by the stake-holder" $
     signedOnlyBy txInfo.signatories act.pubKeyHash
-  -- Check that amount is positive and within bounds
+  -- Check that amount is positive
   let stakeAmt :: Term s PNatural
       stakeAmt = pfromData act.stakeAmount
   guardC "stakeActLogic: stake amount is not positive or within bounds" $
     zero #<= stakeAmt
-    #&& params.minStake #<= stakeAmt
-    #&& stakeAmt #<= params.maxStake
   -- Get asset output of the transaction (new locked stake)
   assetOutput <-
     (tcont . pletFields @'["value"])
@@ -401,11 +399,15 @@ newStakeLogic txInfo params spentInput stateDatum holderPkh stakeAmt mintAct =
         parseStakingDatum =<<
         getDatum newEntryHash (getField @"data" txInfo)
       -- Check business logic conditions in entry
-      guardC "newStakeLogic: incorrect init. of newDeposit field in first\
-             \ stake" $
+      guardC "newStakeLogic: incorrect init. of newDeposit and deposit fields \
+             \in first stake" $
         newEntry.newDeposit #== stakeAmt
+        #&& newEntry.deposited #== stakeAmt
       guardC "newStakeLogic: new entry does not have the stakeholder's key" $
         newEntry.key #== stakeHolderKey
+      guardC "newStakeLogic: stake not within limits of the pool" $
+        pfromData params.minStake #<= newEntry.deposited
+        #&& pfromData newEntry.deposited #<= params.maxStake
       -- Validate list insertion and state update
       pure . pmatch entryKey $ \case
         -- We are shifting the current head forwards
