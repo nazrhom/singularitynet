@@ -2,6 +2,7 @@ module InductiveLogic(
     consumesStateUtxoGuard
     , consumesEntriesGuard
     , consumesEntryGuard
+    , doesNotConsumeAssetGuard
     , hasStateNft
     , hasListNft
     , hasNoNft
@@ -34,7 +35,7 @@ import Utils (
     pneq,
     allWith)
 
-import BondedStaking.PTypes (PBondedStakingDatum (PStateDatum))
+import BondedStaking.PTypes (PBondedStakingDatum (PStateDatum, PAssetDatum))
 
 -- | Fail if state UTXO is not in inputs or if it does not have the state token
 consumesStateUtxoGuard :: forall (s :: S) .
@@ -98,6 +99,16 @@ consumesEntryGuard entry inputs listNftCs = do
             pfalse
     pure punit
 
+doesNotConsumeAssetGuard :: forall (s :: S).
+  Term s PBondedStakingDatum
+  -> TermCont s (Term s PUnit)
+doesNotConsumeAssetGuard datum = do
+  result <- pure . pmatch datum $ \case
+    PAssetDatum _ -> ptrue
+    _ -> pfalse
+  guardC "doesNotConsumeAssetGuard: tx consumes asset utxo" result
+
+
 -- | Auxiliary function for building predicates on PTxInInfo's
 inputPredicate :: forall (s :: S).
     (Term s PTxOutRef -> Term s PValue -> Term s PBool) ->
@@ -129,8 +140,6 @@ mintHeadCheck nftCs poolOutRef poolDatum newPoolDatum inputs = do
         PDJust firstEntry -> undefined
         PDNothing _ -> undefined
     _ -> ptraceError "mintHeadCheck: datum does not contain pool state"
-
---mintHeadCheckFirst :: forall (s :: S) .
 
 -- | Returns `ptrue` if value contains one token with the list's currency symbol
 hasListNft ::
