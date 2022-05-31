@@ -17,8 +17,10 @@ module Utils (
   pmapMaybe,
   ppartition,
   pfstData,
+  ppairData,
   psndData,
   ptraceBool,
+  getTokenName,
   oneOf,
   noneOf,
   allWith,
@@ -53,7 +55,7 @@ module Utils (
   HField,
 ) where
 
-import PTypes (PAssetClass)
+import PTypes (PAssetClass, passetClass)
 import Plutarch.Api.V1 (
   PAddress,
   PCurrencySymbol,
@@ -67,7 +69,7 @@ import Plutarch.Api.V1 (
   PPubKeyHash,
   PDCert,
   PStakingCredential,
-  ptuple, PPOSIXTimeRange, PTxId, PPOSIXTime)
+  ptuple, PPOSIXTimeRange, PTxId, PPOSIXTime, PMap)
 import Plutarch.Api.V1.Tx (PTxInInfo, PTxOut, PTxOutRef)
 import Plutarch.Bool (pand, por)
 import Plutarch.Lift (
@@ -163,6 +165,14 @@ infixr 1 >:
 (>:) = (,)
 
 -- Convenient functions for accessing a pair's elements
+
+-- | Access both elements of a `PBuiltinPair` and apply `pfromData` to each
+ppairData ::
+  forall (s :: S) (a :: PType) (b :: PType).
+  (PIsData a, PIsData b) =>
+  Term s (PBuiltinPair (PAsData a) (PAsData b)) ->
+  TermCont s (Term s a, Term s b)
+ppairData p = pure (pfromData $ pfstBuiltin # p, pfromData $ psndBuiltin # p)
 
 -- | Access the first element of a `PBuiltinPair` and apply `pfromData`
 pfstData ::
@@ -282,6 +292,41 @@ ptraceBool common trueMsg falseMsg cond = ptrace msg cond
   where
     msg :: Term s PString
     msg = pif cond (common <> " " <> trueMsg) (common <> " " <> falseMsg)
+
+-- Functions for working with `PValue`s
+
+-- | Result of `pto v`, where `v :: Term s PValue`
+type PValueOuter = PBuiltinList
+  (PBuiltinPair
+    (PAsData PCurrencySymbol)
+    (PAsData (PMap PTokenName (PInteger))))
+
+-- | Retrieves the `PTokenName` for a given `PCurrencySymbol`. It fetches the
+-- only the first token and it fails if no token is present
+getTokenName :: forall (s :: S).
+  Term s PCurrencySymbol ->
+  Term s PValue ->
+  Term s PAssetClass
+getTokenName cs val = pfix # getTokenName' # cs # pto (pto val)
+  where getTokenName' :: forall (s :: S) . Term s (
+          (PCurrencySymbol :--> PValueOuter :--> PAssetClass) :-->
+          PCurrencySymbol :-->
+          PValueOuter :-->
+          PAssetClass)
+        getTokenName' = phoistAcyclic $ plam $ \self listCs val ->
+          pmatch val $ \case
+            PCons csMap vals -> unTermCont $ do
+              (cs, tnMap) <- ppairData csMap
+              pure $ pif (pnot #$ cs #== listCs)
+                (self # listCs # vals)
+                $ pmatch (pto tnMap) $ \case
+                  PCons tnAmt _ -> passetClass # listCs # pfstData tnAmt
+                  PNil -> ptraceError "getTokenName: empty tnMap"
+            PNil -> ptraceError "getTokenName: the token with given \
+                    \CurrencySymbol was not found"
+    --go self ls cont = pmatch ls $ \case
+    --  PNil -> pconstant False
+    --  PCons p ps -> boolOp # (cont # p) #$ self # ps # cont
 
 -- Functions for evaluating predicates on `PValue`s
 
