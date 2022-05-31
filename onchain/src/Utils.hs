@@ -812,7 +812,6 @@ type PEntryHRec (s :: S) = HRec '[
   , HField s "deposited" PNatural
   , HField s "staked" PNatural
   , HField s "rewards" PNatRatio
-  , HField s "value" (PBuiltinPair (PAsData PNatural) (PAsData PNatRatio))
   , HField s "next" (PMaybeData PByteString)
   ]
   
@@ -860,7 +859,6 @@ type PEntryFields =
    , "deposited"
    , "staked"
    , "rewards"
-   , "value"
    , "next"
   ]
 
