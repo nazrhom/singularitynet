@@ -5,7 +5,6 @@ module BondedStaking.BondedPool (
   pbondedPoolValidatorUntyped,
 ) where
 
-<<<<<<< HEAD:onchain/src/BondedStaking/BondedPool.hs
 import BondedStaking.PTypes (
   PBondedPoolParams,
   PBondedPoolParamsFields,
@@ -19,10 +18,10 @@ import BondedStaking.PTypes (
   PBondedStakingDatum (PAssetDatum, PEntryDatum, PStateDatum),
   PEntry,
   PEntryFields,
+  PEntryHRec,
  )
-=======
+
 import Control.Monad((<=<))
->>>>>>> rama/19-user-stake:onchain/src/BondedPool.hs
 
 import Plutarch.Api.V1 (
   PAddress,
@@ -87,22 +86,8 @@ import Utils (
   peq,
   pconst,
   pmapMaybe,
-<<<<<<< HEAD:onchain/src/BondedStaking/BondedPool.hs
-  pfstData,
-  psndData,
-=======
   ppairData,
   getTokenName,
-  PTxInfoFields,
-  PTxInfoHRec,
-  PBondedPoolParamsFields,
-  PBondedPoolParamsHRec,
-  PTxInInfoHRec,
-  PTxInInfoFields,
-  HField,
-  PEntryFields,
-  PEntryHRec
->>>>>>> rama/19-user-stake:onchain/src/BondedPool.hs
  )
 
 import GHC.Records (getField)
@@ -397,7 +382,7 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
   let poolAddr :: Term s PAddress
       poolAddr = spentInputResolved.address
       stateTn :: Term s PTokenName
-      stateTn = pconstant bondedStakingTokenName 
+      stateTn = pconstant bondedStakingTokenName
   stateTok <- pletC $ passetClass # params.nftCs # stateTn
   newEntryTok <- pletC $ passetClass # params.assocListCs # stakeHolderTn
   txInfoData <- pletC $ getField @"data" txInfo
@@ -405,13 +390,8 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
     PMintHead stateOutRef -> unTermCont $ do
       ---- FETCH DATUMS ----
       -- Get datum for next state
-<<<<<<< HEAD:onchain/src/BondedStaking/BondedPool.hs
       nextStateTxOut <-
-        getContinuingOutputWithNFT poolAddress stateTok txInfo.outputs
-=======
-      nextStateTxOut <- 
         getContinuingOutputWithNFT poolAddr stateTok txInfo.outputs
->>>>>>> rama/19-user-stake:onchain/src/BondedPool.hs
       nextStateHash <- getDatumHash nextStateTxOut
       (nextEntryKey, _nextSizeLeft) <-
         getStateData =<<
@@ -420,20 +400,9 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
       -- Get datum for current state
       (entryKey, _sizeLeft) <- getStateData datum
       -- Get datum for new list entry
-<<<<<<< HEAD:onchain/src/BondedStaking/BondedPool.hs
-      newEntryTxOut <-
-        getContinuingOutputWithNFT poolAddress listTok txInfo.outputs
-      newEntryHash <- getDatumHash newEntryTxOut
-      newHeadEntry <-
-        tcont . pletFields @PEntryFields =<<
-        getEntryData =<<
-        parseStakingDatum =<<
-        getDatum newEntryHash (getField @"data" txInfo)
-      -- Validate list insertion and state update
-=======
       newEntry <- getOutputEntry poolAddr newEntryTok txInfoData txInfo.outputs
       ---- BUSINESS LOGIC ----
-      newEntryGuard params newEntry stakeAmt stakeHolderKey 
+      newEntryGuard params newEntry stakeAmt stakeHolderKey
       ---- INDUCTIVE CONDITIONS ----
       -- Validate that spentOutRef is the state UTXO and matches redeemer
       guardC "newStakeLogic (mintHead): spent input is not the state UTXO" $
@@ -449,7 +418,6 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
               \ entry" $
         nextEntryKey `pointsTo` newEntry.key
       -- Validate list order and links
->>>>>>> rama/19-user-stake:onchain/src/BondedPool.hs
       pure . pmatch entryKey $ \case
         -- We are shifting the current head forwards
         PDJust currentEntryKey' -> unTermCont $ do
@@ -464,24 +432,6 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
             newEntry.next `pointsTo` currentEntryKey
         -- This is the first stake of the pool
         PDNothing _ -> unTermCont $ do
-<<<<<<< HEAD:onchain/src/BondedStaking/BondedPool.hs
-          -- The state now should point to the new entry
-          guardC "newStakeLogic: pool does not point to first entry" $
-            nextEntryKey `pointsTo` newHeadEntry.key
-          pure punit
-    PMintInBetween _outRefs ->
-      punit
-    PMintEnd _listEndOutRef ->
-      punit
-  where poolAddress :: Term s PAddress
-        poolAddress = pfield @"address" # spentInput.resolved
-        stateTok :: Term s PAssetClass
-        stateTok = passetClass # params.nftCs # pconstant bondedStakingTokenName
-        listTok :: Term s PAssetClass
-        listTok = passetClass # params.assocListCs #$
-          pcon . PTokenName $ pblake2b_256 # pto holderPkh
-
-=======
           -- The new entry should *not* point to anything
           guardC "newStakeLogic (mintInBetween): new entry should not point to \
                  \anything" $
@@ -508,9 +458,9 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
                                    \ entry does not point to another entry"
       ---- BUSINESS LOGIC ----
       -- Validate initialization of new entry
-      newEntryGuard params newEntry stakeAmt stakeHolderKey 
+      newEntryGuard params newEntry stakeAmt stakeHolderKey
       -- Previous entry should keep the same values when updated
-      equalEntriesGuard prevEntry prevEntryUpdated 
+      equalEntriesGuard prevEntry prevEntryUpdated
       ---- INDUCTIVE CONDITIONS ----
       -- Validate that previousEntry is a list entry and matches redeemer
       guardC "newStakeLogic (mintEnd): spent input is not an entry" $
@@ -547,9 +497,9 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
       newEntry <- getOutputEntry poolAddr newEntryTok txInfoData txInfo.outputs
       ---- BUSINESS LOGIC ----
       -- Validate initialization of new entry
-      newEntryGuard params newEntry stakeAmt stakeHolderKey 
+      newEntryGuard params newEntry stakeAmt stakeHolderKey
       -- End entry should keep the same values when updated
-      equalEntriesGuard endEntry endEntryUpdated 
+      equalEntriesGuard endEntry endEntryUpdated
       ---- INDUCTIVE CONDITIONS ----
       -- Validate that endEntry is a list entry and matches redeemer
       guardC "newStakeLogic (mintEnd): spent input is not an entry" $
@@ -571,7 +521,6 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
       guardC "newStakeLogic (mintEnd): new entry's key should come after end \
              \entry" $
         pfromData endEntryUpdated.key #< pfromData newEntry.key
->>>>>>> rama/19-user-stake:onchain/src/BondedPool.hs
 
 withdrawActLogic :: forall (s :: S). Term s PUnit
 withdrawActLogic = pconstant ()
@@ -636,8 +585,6 @@ pointsTo entryKey tn = pointsTo' # entryKey # tn
             PDJust t' -> pfield @"_0" # t' #== t
             PDNothing _ -> pfalse
 
-<<<<<<< HEAD:onchain/src/BondedStaking/BondedPool.hs
-=======
 -- Returns false if it points nowhere
 pointsNowhere :: forall (s :: S).
   Term s (PMaybeData PByteString) ->
@@ -645,10 +592,9 @@ pointsNowhere :: forall (s :: S).
 pointsNowhere x = pointsNowhere' # x
   where pointsNowhere' :: Term s (PMaybeData PByteString :--> PBool)
         pointsNowhere' = phoistAcyclic $ plam . flip pmatch $ \case
-          PDJust _ -> pfalse 
+          PDJust _ -> pfalse
           PDNothing _ -> ptrue
-            
->>>>>>> rama/19-user-stake:onchain/src/BondedPool.hs
+
 -- Gets the CO and datum that satisfy the given datum predicate.
 -- It fails if no CO is found, or no CO satisfies the predicate, or too many COs
 -- are found
@@ -686,14 +632,14 @@ getCoWithDatum poolAddr pred outputs datums = do
           PCons _ _ -> ptraceError "getCoWithDatum: found more than one CO with\
                                    \ given datum"
           PNil -> pfromData x
-          
+
 getOutputEntry :: forall (s :: S) .
   Term s PAddress ->
   Term s PAssetClass ->
   Term s (PBuiltinList (PAsData (PTuple PDatumHash PDatum))) ->
   Term s (PBuiltinList (PAsData PTxOut)) ->
   TermCont s (PEntryHRec s)
-getOutputEntry poolAddr ac txInfoData = 
+getOutputEntry poolAddr ac txInfoData =
   tcont . pletFields @PEntryFields
   <=< getEntryData
   <=< parseStakingDatum
@@ -719,7 +665,7 @@ newEntryGuard params newEntry stakeAmt stakeHolderKey = do
     pfromData params.minStake #<= newEntry.deposited
     #&& pfromData newEntry.deposited #<= params.maxStake
   guardC "newEntryGuard: new entry's staked and rewards fields not \
-         \initialized to zero" 
+         \initialized to zero"
     $ newEntry.staked #== natZero
     #&& newEntry.rewards #== ratZero
 

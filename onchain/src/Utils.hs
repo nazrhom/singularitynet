@@ -60,7 +60,7 @@ import Plutarch.Api.V1 (
   PTokenName,
   PTuple,
   PPubKeyHash,
-  ptuple, PTxId, PPOSIXTime, PMap
+  ptuple, PTxId, PPOSIXTime, PMap,
   PValue,
  )
 import Plutarch.Api.V1.Tx (PTxInInfo, PTxOut, PTxOutRef)
