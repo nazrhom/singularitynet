@@ -67,8 +67,6 @@ import Utils (
   peq,
   pconst,
   pmapMaybe,
-  pfstData,
-  psndData,
   ppairData,
   getTokenName,
   PTxInfoFields,
@@ -393,7 +391,7 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
       -- Get datum for new list entry
       newEntry <- getOutputEntry poolAddr newEntryTok txInfoData txInfo.outputs
       ---- BUSINESS LOGIC ----
-      newStakeGuard params newEntry stakeAmt stakeHolderKey 
+      newEntryGuard params newEntry stakeAmt stakeHolderKey 
       ---- INDUCTIVE CONDITIONS ----
       -- Validate that spentOutRef is the state UTXO
       consumesStateUtxoGuard
@@ -443,7 +441,10 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
         PDNothing _ -> ptraceError "newStakeLogic: the previous entry does not \
                                     \point to another entry"
       ---- BUSINESS LOGIC ----
-      newStakeGuard params newEntry stakeAmt stakeHolderKey 
+      -- Validate initialization of new entry
+      newEntryGuard params newEntry stakeAmt stakeHolderKey 
+      -- Previous entry should keep the same values when updated
+      equalEntriesGuard prevEntry prevEntryUpdated 
       ---- INDUCTIVE CONDITIONS ----
       -- Validate that TX spends `previousEntry`
       consumesEntryGuard
@@ -587,26 +588,37 @@ getOutputEntry poolAddr ac txInfoData =
   <=< getDatumHash
   <=< getContinuingOutputWithNFT poolAddr ac
 
-newStakeGuard :: forall (s :: S) .
+-- This function validates the fields for a freshly minted entry
+newEntryGuard :: forall (s :: S).
   PBondedPoolParamsHRec s ->
   PEntryHRec s ->
   Term s PNatural ->
   Term s PByteString ->
   TermCont s (Term s PUnit)
-newStakeGuard params newEntry stakeAmt stakeHolderKey = do
-  guardC "newStakeLogic: incorrect init. of newDeposit and deposit fields \
+newEntryGuard params newEntry stakeAmt stakeHolderKey = do
+  guardC "newEntryGuard: incorrect init. of newDeposit and deposit fields \
          \in first stake" $
     newEntry.newDeposit #== stakeAmt
     #&& newEntry.deposited #== stakeAmt
-  guardC "newStakeLogic: new entry does not have the stakeholder's key" $
+  guardC "newEntryGuard: new entry does not have the stakeholder's key" $
     newEntry.key #== stakeHolderKey
-  guardC "newStakeLogic: new entry's stake not within stake bounds" $
+  guardC "newEntryGuard: new entry's stake not within stake bounds" $
     pfromData params.minStake #<= newEntry.deposited
     #&& pfromData newEntry.deposited #<= params.maxStake
-  guardC "newStakeLogic: new entry's staked and rewards fields not \
+  guardC "newEntryGuard: new entry's staked and rewards fields not \
          \initialized to zero" 
     $ newEntry.staked #== natZero
     #&& newEntry.rewards #== ratZero
+
+-- This function validates that two entries' fields are the same (with the
+-- exception of fields related to the associative list)
+equalEntriesGuard :: forall (s :: S).
+  PEntryHRec s ->
+  PEntryHRec s ->
+  TermCont s (Term s PUnit)
+equalEntriesGuard e1 e2 =
+  guardC "equalEntriesGuard: some fields in the given entries are not equal" $
+    e1.key #== e2.key
 
 natZero :: Term s PNatural
 natZero = pconstant $ Natural 0
