@@ -396,15 +396,17 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
       newEntryGuard params newEntry stakeAmt stakeHolderKey 
       ---- INDUCTIVE CONDITIONS ----
       -- Validate that spentOutRef is the state UTXO and matches redeemer
-      guardC "newStakeLogic: spent input is not the state UTXO" $
+      guardC "newStakeLogic (mintHead): spent input is not the state UTXO" $
         hasStateNft
           params.nftCs
           (pconstant bondedStakingTokenName)
           spentInputResolved.value
-      guardC "newStakeLogic: spent input does not match redeemer input" $
+      guardC "newStakeLogic (mintHead): spent input does not match redeemer \
+              \input" $
         spentInput.outRef #== pfield @"_0" # stateOutRef
       -- Validate next state
-      guardC "newStakeLogic: next pool state does not point to new entry" $
+      guardC "newStakeLogic (mintHead): next pool state does not point to new \
+              \ entry" $
         nextEntryKey `pointsTo` newEntry.key
       -- Validate list order and links
       pure . pmatch entryKey $ \case
@@ -412,16 +414,18 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
         PDJust currentEntryKey' -> unTermCont $ do
           currentEntryKey <- pletC $ pfromData $ pfield @"_0" # currentEntryKey'
           -- Validate order of entries
-          guardC "newStakeLogic: new entry's key should be strictly less than \
-                 \ current entry" $
+          guardC "newStakeLogic (mintInBetween): new entry's key should be \
+                  \strictly less than  current entry" $
             pfromData newEntry.key #< currentEntryKey
           -- The new entry should point to the current entry
-          guardC "newStakeLogic: new entry should point to current entry" $
+          guardC "newStakeLogic (mintInBetween): new entry should point to \
+                  \current entry" $
             newEntry.next `pointsTo` currentEntryKey
         -- This is the first stake of the pool
         PDNothing _ -> unTermCont $ do
           -- The new entry should *not* point to anything
-          guardC "newStakeLogic: new entry should not point to anything" $
+          guardC "newStakeLogic (mintInBetween): new entry should not point to \
+                 \anything" $
             pointsNowhere newEntry.next
     PMintInBetween outRefs -> unTermCont $ do
       ---- FETCH DATUMS ----
@@ -441,8 +445,8 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
       -- Get the current entry's key
       currEntryKey <- pure . pmatch prevEntry.next $ \case
         PDJust key -> pfield @"_0" # key
-        PDNothing _ -> ptraceError "newStakeLogic: the previous entry does not \
-                                    \point to another entry"
+        PDNothing _ -> ptraceError "newStakeLogic (mintEnd): the previous \
+                                   \ entry does not point to another entry"
       ---- BUSINESS LOGIC ----
       -- Validate initialization of new entry
       newEntryGuard params newEntry stakeAmt stakeHolderKey 
@@ -450,19 +454,22 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
       equalEntriesGuard prevEntry prevEntryUpdated 
       ---- INDUCTIVE CONDITIONS ----
       -- Validate that previousEntry is a list entry and matches redeemer
-      guardC "newStakeLogic: spent input is not an entry" $
+      guardC "newStakeLogic (mintEnd): spent input is not an entry" $
         hasListNft params.assocListCs spentInputResolved.value
-      guardC "newStakeLogic: spent input is not the same as input in redeemer" $
+      guardC "newStakeLogic (mintEnd): spent input is not the same as input in \
+             \ redeemer" $
         spentInput.outRef #== entriesRefs.previousEntry
       -- Previous entry should now point to the new entry
-      guardC "newStakeLogic: the previous entry should point to the new entry" $
+      guardC "newStakeLogic (mintEnd): the previous entry should point to the \
+             \new entry" $
         prevEntryUpdated.next `pointsTo` newEntry.key
       -- And new entry should point to the current entry
-      guardC "newStakeLogic: the new entry should point to the current entry" $
+      guardC "newStakeLogic (mintEnd): the new entry should point to the \
+             \current entry" $
         newEntry.next `pointsTo` currEntryKey
       -- Validate entries' order
-      guardC "newStakeLogic: failed to validate order in previous, current and \
-             \new entry" $
+      guardC "newStakeLogic (mintEnd): failed to validate order in previous, \
+             \current and new entry" $
         pfromData prevEntry.key #< newEntry.key
         #&& newEntry.key #< currEntryKey
     PMintEnd listEndOutRef' -> unTermCont $ do
@@ -486,21 +493,24 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
       equalEntriesGuard endEntry endEntryUpdated 
       ---- INDUCTIVE CONDITIONS ----
       -- Validate that endEntry is a list entry and matches redeemer
-      guardC "newStakeLogic: spent input is not an entry" $
+      guardC "newStakeLogic (mintEnd): spent input is not an entry" $
         hasListNft params.assocListCs spentInputResolved.value
-      guardC "newStakeLogic: spent input is not the same as input in redeemer" $
+      guardC "newStakeLogic (mintEnd): spent input is not the same as input in \
+             \redeemer" $
         spentInput.outRef #== listEndOutRef
       -- End entry should point nowhere
-      guardC "newStakeLogic: end should point nowhere" $
+      guardC "newStakeLogic (mintEnd): end should point nowhere" $
         pointsNowhere endEntry.next
       -- Updated end entry (no longer end) should point to new entry
-      guardC "newStakeLogic: updated end should point to new end entry" $
+      guardC "newStakeLogic (mintEnd): updated end should point to new end \
+             \entry" $
         endEntryUpdated.next `pointsTo` newEntry.key
       -- New entry (new end) should point nowhere
-      guardC "newStakeLogic: new end entry should not point anywhere" $
-        pointsNowhere newEntry.next
+      guardC "newStakeLogic (mintEnd): new end entry should not point anywhere"
+        $ pointsNowhere newEntry.next
       -- Validate entries' order
-      guardC "newStakeLogic: new entry's key should come after end entry" $
+      guardC "newStakeLogic (mintEnd): new entry's key should come after end \
+             \entry" $
         pfromData endEntryUpdated.key #< pfromData newEntry.key
 
 withdrawActLogic :: forall (s :: S). Term s PUnit
