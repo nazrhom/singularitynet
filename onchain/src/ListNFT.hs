@@ -31,11 +31,10 @@ import Utils (
   pflip,
   pletC,
   ptryFromUndata,
-  porList, getOnlySignatory
+  porList, getOnlySignatory, punit
  )
 import InductiveLogic (
   consumesStateUtxoGuard,
-  consumesEntriesGuard,
   consumesEntryGuard,
   hasNoNft,
   inputPredicate
@@ -112,24 +111,28 @@ listInsertCheck :: forall (s :: S) .
   (Term s PCurrencySymbol, Term s PTokenName) ->
   Term s PMintingAction ->
   Term s PUnit
-listInsertCheck inputs mintVal (stateNftCs, stateNftTn) (listNftCs, entryTn) =
-  flip pmatch $ \case
-    PMintHead stateOutRef' -> unTermCont $ do
-      let stateOutRef :: Term s PTxOutRef
-          stateOutRef = pfromData $ pfield @"_0" # stateOutRef'
-      mintGuard listNftCs entryTn mintVal
-      mintHeadGuard stateNftCs listNftCs stateNftTn stateOutRef inputs
-    PMintInBetween entries -> unTermCont $ do
-      mintGuard listNftCs entryTn mintVal
-      entriesF <- tcont $ pletFields @["previousEntry", "currentEntry"] entries
-      let prevEntry = entriesF.previousEntry
-          currEntry = entriesF.currentEntry
-      mintInBetweenGuard stateNftCs listNftCs prevEntry currEntry inputs
-    PMintEnd lastEntry' -> unTermCont $ do
-      let lastEntry :: Term s PTxOutRef
-          lastEntry = pfromData $ pfield @"_0" # lastEntry'
-      mintGuard listNftCs entryTn mintVal
-      mintEndGuard stateNftCs listNftCs lastEntry inputs
+listInsertCheck
+  inputs
+  mintVal
+  (stateNftCs, stateNftTn)
+  (listNftCs, entryTn)
+  mintAct = unTermCont $ do
+    -- Validate stake-holder's signature and token count
+    mintGuard listNftCs entryTn mintVal
+    pure . pmatch mintAct $ \case
+      PMintHead stateOutRef' -> unTermCont $ do
+        let stateOutRef :: Term s PTxOutRef
+            stateOutRef = pfromData $ pfield @"_0" # stateOutRef'
+        mintHeadGuard stateNftCs listNftCs stateNftTn stateOutRef inputs
+      PMintInBetween entries -> unTermCont $ do
+        entriesF <- tcont $ pletFields @["previousEntry", "currentEntry"] entries
+        let prevEntry = entriesF.previousEntry
+            currEntry = entriesF.currentEntry
+        mintInBetweenGuard stateNftCs listNftCs prevEntry currEntry inputs
+      PMintEnd lastEntry' -> unTermCont $ do
+        let lastEntry :: Term s PTxOutRef
+            lastEntry = pfromData $ pfield @"_0" # lastEntry'
+        mintEndGuard stateNftCs listNftCs lastEntry inputs
 
 -- TODO: Inductive conditions related to withdrawing not implemented
 listRemoveCheck :: forall (s :: S) .
@@ -137,19 +140,19 @@ listRemoveCheck :: forall (s :: S) .
   (Term s PCurrencySymbol, Term s PTokenName) ->
   Term s PBurningAction ->
   Term s PUnit
-listRemoveCheck mintVal (listNftCs, entryTn) = flip pmatch $ \case
-  PBurnHead _poolState -> unTermCont $ do
-    burnGuard listNftCs entryTn mintVal
-    -- TODO
-  PBurnOther _prevEntry -> unTermCont $ do
-    burnGuard listNftCs entryTn mintVal
-    -- TODO
+listRemoveCheck mintVal (listNftCs, entryTn) burnAct = unTermCont $ do
+  -- Validate stake-holder's signature and token count
+  burnGuard listNftCs entryTn mintVal
+  pure . pmatch burnAct $ \case
+    PBurnHead _poolState -> punit
+    PBurnOther _prevEntry -> punit
+      -- TODO
 
 -- Build the token name from the signatory's `PPubKeyHash`
 mkEntryTn :: Term s PPubKeyHash -> Term s PTokenName
 mkEntryTn pkh = pcon . PTokenName $ pblake2b_256 # pto pkh
 
--- | Fails if the TX does *not* mint a list token
+-- | Fails if the TX does *not* mint the appropriate list token
 mintGuard ::
   forall (s :: S).
   Term s PCurrencySymbol ->
@@ -160,7 +163,7 @@ mintGuard listNftCs entryTn mint =
   guardC "mintGuard: failed when checking minted value" $
     oneOf # listNftCs # entryTn # mint
 
--- | Fails if the TX does *not* burn a list token. It checks
+-- | Fails if the TX does *not* burn the appropriate list oken
 burnGuard ::
   forall (s :: S).
   Term s PCurrencySymbol ->
@@ -195,8 +198,8 @@ mintInBetweenGuard ::
   Term s (PBuiltinList (PAsData PTxInInfo)) ->
   TermCont s (Term s PUnit)
 mintInBetweenGuard stateNftCs listNftCs prevEntry currEntry inputs = do
-  -- We check that both list entries are consumed
-  consumesEntriesGuard prevEntry currEntry inputs listNftCs
+  -- We check that `prevEntry` is consumed
+  consumesEntryGuard prevEntry inputs listNftCs
   -- We check that the other inputs are not state nor list UTXOs
   noNftGuard stateNftCs listNftCs [prevEntry, currEntry] inputs
 

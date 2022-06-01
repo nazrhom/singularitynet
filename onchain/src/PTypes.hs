@@ -122,6 +122,113 @@ passetClass = phoistAcyclic $
         pdcons # pdata cs
           #$ pdcons # pdata tn # pdnil
 
+<<<<<<< HEAD
+=======
+-- | `BondedPoolParams` synonym
+newtype PBondedPoolParams (s :: S)
+  = PBondedPoolParams
+      ( Term
+          s
+          ( PDataRecord
+              '[ "iterations" ':= PNatural
+               , "start" ':= PPOSIXTime
+               , "end" ':= PPOSIXTime
+               , "userLength" ':= PPOSIXTime
+               , "bondingLength" ':= PPOSIXTime
+               , "interest" ':= PNatRatio
+               , "minStake" ':= PNatural
+               , "maxStake" ':= PNatural
+               , "admin" ':= PPubKeyHash
+               , "bondedAssetClass" ':= PAssetClass
+               , "nftCs" ':= PCurrencySymbol
+               , "assocListCs" ':= PCurrencySymbol
+               ]
+          )
+      )
+  deriving stock (GHC.Generic)
+  deriving anyclass (Generic, PIsDataRepr)
+  deriving
+    (PlutusType, PIsData, PDataFields)
+    via PIsDataReprInstances PBondedPoolParams
+
+deriving via
+  PAsData (PIsDataReprInstances PBondedPoolParams)
+  instance
+    PTryFrom PData (PAsData PBondedPoolParams)
+
+instance PUnsafeLiftDecl PBondedPoolParams where
+  type PLifted PBondedPoolParams = BondedPoolParams
+
+-- | `Entry` synonym
+data PEntry (s :: S)
+  = PEntry
+      ( Term
+          s
+          ( PDataRecord
+              '[ "key" ':= PByteString
+               , "sizeLeft" ':= PNatural
+               , "newDeposit" ':= PNatural
+               , "deposited" ':= PNatural
+               , "staked" ':= PNatural
+               , "rewards" ':= PNatRatio
+               , "next" ':= PMaybeData PByteString
+               ]
+          )
+      )
+  deriving stock (GHC.Generic)
+  deriving anyclass (Generic, PIsDataRepr)
+  deriving
+    (PlutusType, PIsData, PDataFields)
+    via PIsDataReprInstances PEntry
+
+deriving via
+  PAsData (PIsDataReprInstances PEntry)
+  instance
+    PTryFrom PData (PAsData PEntry)
+
+instance PUnsafeLiftDecl PEntry where
+  type PLifted PEntry = Entry
+
+-- | `BondedStakingDatum` synonym
+data PBondedStakingDatum (s :: S)
+  = PStateDatum
+      ( Term
+          s
+          ( PDataRecord
+              '[ "_0" ':= PMaybeData PByteString
+               , "_1" ':= PNatural
+               ]
+          )
+      )
+  | PEntryDatum
+      ( Term
+          s
+          ( PDataRecord
+              '[ "_0" ':= PEntry
+               ]
+          )
+      )
+  | PAssetDatum (Term s (PDataRecord '[]))
+  deriving stock (GHC.Generic)
+  deriving anyclass (Generic, PIsDataRepr)
+  deriving
+    (PlutusType, PIsData)
+    via PIsDataReprInstances PBondedStakingDatum
+
+deriving via
+  PAsData (PIsDataReprInstances PBondedStakingDatum)
+  instance
+    (PTryFrom PData (PAsData PBondedStakingDatum))
+
+deriving via
+  (DerivePConstantViaData BondedStakingDatum PBondedStakingDatum)
+  instance
+    (PConstant BondedStakingDatum)
+
+instance PUnsafeLiftDecl PBondedStakingDatum where
+  type PLifted PBondedStakingDatum = BondedStakingDatum
+
+>>>>>>> rama/19-user-stake
 -- | `MintingAction` synonym
 data PMintingAction (s :: S)
   = PMintHead (Term s (PDataRecord '["_0" ':= PTxOutRef]))
