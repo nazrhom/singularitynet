@@ -35,7 +35,6 @@ import Utils (
  )
 import InductiveLogic (
   consumesStateUtxoGuard,
-  consumesEntriesGuard,
   consumesEntryGuard,
   hasNoNft,
   inputPredicate
@@ -199,8 +198,8 @@ mintInBetweenGuard ::
   Term s (PBuiltinList (PAsData PTxInInfo)) ->
   TermCont s (Term s PUnit)
 mintInBetweenGuard stateNftCs listNftCs prevEntry currEntry inputs = do
-  -- We check that both list entries are consumed
-  consumesEntriesGuard prevEntry currEntry inputs listNftCs
+  -- We check that `prevEntry` is consumed
+  consumesEntryGuard prevEntry inputs listNftCs
   -- We check that the other inputs are not state nor list UTXOs
   noNftGuard stateNftCs listNftCs [prevEntry, currEntry] inputs
 
