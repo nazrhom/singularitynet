@@ -31,18 +31,23 @@ import Data.Map (toUnfoldable)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Scripts.StateNFT (mkStateNFTPolicy)
-import Settings (bondedStakingTokenName, bondedHardCodedParams)
-import Types (BondedStakingDatum(StateDatum), PoolInfo, StakingType(Bonded))
-import Utils (logInfo_, nat)
+import Settings (bondedStakingTokenName)
+import Types
+  ( BondedPoolParams
+  , BondedStakingDatum(StateDatum)
+  , InitialBondedParams
+  , StakingType(Bonded)
+  )
+import Utils (logInfo_, mkBondedPoolParams, nat)
 
 -- Sets up pool configuration, mints the state NFT and deposits
 -- in the pool validator's address
-createBondedPoolContract :: Contract () PoolInfo
-createBondedPoolContract = do
+createBondedPoolContract :: InitialBondedParams -> Contract () BondedPoolParams
+createBondedPoolContract ibp = do
   networkId <- getNetworkId
   adminPkh <- liftedM "createBondedPoolContract: Cannot get admin's pkh"
     ownPaymentPubKeyHash
-  logInfo_ "createPoolContract: Admin PaymentPubKeyHash" adminPkh
+  logInfo_ "createBondedPoolContract: Admin PaymentPubKeyHash" adminPkh
   -- Get the (Nami) wallet address
   adminAddr <- liftedM "createBondedPoolContract: Cannot get wallet Address"
     getWalletAddress
@@ -53,7 +58,7 @@ createBondedPoolContract = do
   txOutRef <- liftContractM "createBondedPoolContract: Could not get head UTXO"
     $ fst
     <$> (head $ toUnfoldable $ unwrap adminUtxos)
-  logInfo_ "createPoolContract: Admin Utxos" adminUtxos
+  logInfo_ "createBondedPoolContract: Admin Utxos" adminUtxos
   -- Get the minting policy and currency symbol from the state NFT:
   statePolicy <- liftedE $ mkStateNFTPolicy Bonded txOutRef
   stateNftCs <-
@@ -71,9 +76,7 @@ createBondedPoolContract = do
     liftContractM "createBondedPoolContract: Cannot create TokenName"
       bondedStakingTokenName
   -- We define the parameters of the pool
-  params <-
-    liftContractM "createBondedPoolContract: Failed to create parameters"
-      $ bondedHardCodedParams adminPkh stateNftCs assocListCs
+  let params = mkBondedPoolParams adminPkh stateNftCs assocListCs ibp
   -- Get the bonding validator and hash
   validator <-
     liftedE' "createBondedPoolContract: Cannot create validator"
@@ -127,4 +130,4 @@ createBondedPoolContract = do
     $ byteArrayToHex
     $ unwrap transactionHash
   -- Return the pool info for subsequent transactions
-  pure $ wrap { stateNftCs, assocListCs, poolAddr }
+  pure params

@@ -1,10 +1,11 @@
 module Utils
-  ( jsonReader
-  , nat
-  , big
-  , logInfo_
+  ( big
   , getUtxoWithNFT
+  , jsonReader
+  , logInfo_
+  , mkBondedPoolParams
   , mkUnbondedPoolParams
+  , nat
   ) where
 
 import Contract.Prelude
@@ -12,6 +13,7 @@ import Contract.Prelude
 import Contract.Address (PaymentPubKeyHash)
 import Contract.Monad (Contract, logInfo, tag)
 import Contract.Numeric.Natural (Natural, fromBigInt')
+import Contract.Transaction (TransactionInput, TransactionOutput, UtxoM)
 import Contract.Value (TokenName)
 import Data.Argonaut
   ( Json
@@ -27,7 +29,10 @@ import Data.Map (toUnfoldable)
 import Plutus.ToPlutusType (toPlutusType)
 import Plutus.Types.CurrencySymbol (CurrencySymbol)
 import Plutus.Types.Value (valueOf)
-import Types.Transaction (TransactionInput, TransactionOutput, UtxoM)
+import Types
+  ( BondedPoolParams(BondedPoolParams)
+  , InitialBondedParams(InitialBondedParams)
+  )
 import UnbondedStaking.Types
   ( UnbondedPoolParams(UnbondedPoolParams)
   , InitialUnbondedParams(InitialUnbondedParams)
@@ -83,6 +88,30 @@ logInfo_
   -> a
   -> Contract r Unit
 logInfo_ k = flip logInfo mempty <<< tag k <<< show
+
+-- Creates the `BondedPoolParams` from the `InitialBondedParams` and runtime
+-- parameters from the user.
+mkBondedPoolParams
+  :: PaymentPubKeyHash
+  -> CurrencySymbol
+  -> CurrencySymbol
+  -> InitialBondedParams
+  -> BondedPoolParams
+mkBondedPoolParams admin nftCs assocListCs (InitialBondedParams ibp) = do
+  BondedPoolParams
+    { iterations: ibp.iterations
+    , start: ibp.start
+    , end: ibp.end
+    , userLength: ibp.userLength
+    , bondingLength: ibp.bondingLength
+    , interest: ibp.interest
+    , minStake: ibp.minStake
+    , maxStake: ibp.maxStake
+    , admin
+    , bondedAssetClass: ibp.bondedAssetClass
+    , nftCs
+    , assocListCs
+    }
 
 -- Creates the `UnbondedPoolParams` from the `InitialUnbondedParams` and
 -- runtime parameters from the user.

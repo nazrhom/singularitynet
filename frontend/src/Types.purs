@@ -1,10 +1,11 @@
 module Types
-  ( BondedPoolParams(..)
-  , BondedStakingDatum(..)
+  ( AssetClass(..)
+  , BondedPoolParams(..)
   , BondedStakingAction(..)
-  , PoolInfo(..)
-  , AssetClass(..)
+  , BondedStakingDatum(..)
   , Entry(..)
+  , InitialBondedParams(..)
+  , PoolInfo(..)
   , StakingType(..)
   ) where
 
@@ -72,6 +73,25 @@ derive instance Eq BondedPoolParams
 derive instance Newtype BondedPoolParams _
 instance HasConstrIndices BondedPoolParams where
   constrIndices = defaultConstrIndices
+
+newtype InitialBondedParams = InitialBondedParams
+  { iterations :: Natural
+  , start :: BigInt
+  , end :: BigInt
+  , userLength :: BigInt
+  , bondingLength :: BigInt
+  , interest :: Rational
+  , minStake :: Natural
+  , maxStake :: Natural
+  , bondedAssetClass :: AssetClass
+  }
+
+derive instance Generic InitialBondedParams _
+derive instance Newtype InitialBondedParams _
+derive instance Eq InitialBondedParams
+
+instance Show InitialBondedParams where
+  show = genericShow
 
 -- We copy the order of the fields from the Haskell implementation
 instance ToData BondedPoolParams where

@@ -5,17 +5,18 @@ You can edit this file as you like.
 { name = "singularitynet-frontend"
 , dependencies =
   [ "aff"
+  , "aff-promise"
   , "cardano-transaction-lib"
   , "argonaut"
   , "arrays"
   , "bigints"
+  , "exceptions"
   , "integers"
   , "maybe"
-  , "newtype"
   , "ordered-collections"
   , "prelude"
-  , "tuples"
   , "identity"
+  , "uint"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "exe/**/*.purs", "test/**/*.purs" ]
