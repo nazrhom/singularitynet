@@ -23,7 +23,8 @@ import Plutarch.Unsafe (punsafeCoerce)
 
 import PNatural (
   PNatural,
-  PNatRatio
+  PNatRatio,
+  PNonNegative ((#+))
  )
 import PTypes (
   PBondedPoolParams,
@@ -311,7 +312,7 @@ stakeActLogic txInfo params purpose datum act =
     -- If some minting action is provided, this is a new stake and inductive
     -- conditions must be checked
     PDJust mintAct -> unTermCont $ do
-      -- Check that minted value is a list entry
+      -- Check that minted value is a list entry (minting policy is run)
       guardC "stakeActLogic: failure when checking minted value in minting tx" $
         hasListNft params.assocListCs txInfo.mint
       -- Check inductive conditions and business logic
@@ -330,7 +331,13 @@ stakeActLogic txInfo params purpose datum act =
              \ tx" $
         pnot #$ hasListNft params.assocListCs txInfo.mint
       -- Check business logic
-      updateStakeLogic txInfo params spentInput act.stakeAmount act.pubKeyHash
+      updateStakeLogic
+        txInfo
+        params
+        spentInput
+        datum
+        act.stakeAmount
+        act.pubKeyHash
   where isAssetDatum :: Term s (PDatum :--> PBool)
         isAssetDatum = plam $ \dat' -> unTermCont $ do
           dat <- ptryFromUndata @PBondedStakingDatum
@@ -341,16 +348,45 @@ stakeActLogic txInfo params purpose datum act =
             PAssetDatum _ -> ptrue
             _ -> pfalse
     
--- TODO
+-- This function validates the update of a an already existing entry in the list
 updateStakeLogic :: forall (s :: S) .
   PTxInfoHRec s ->
   PBondedPoolParamsHRec s ->
   PTxInInfoHRec s ->
+  Term s PBondedStakingDatum ->
   Term s PNatural ->
   Term s PPubKeyHash ->
   TermCont s (Term s PUnit)
-updateStakeLogic _txInfo _params _spentInput _stakeAmt _holderPkh = do
-  pure punit
+updateStakeLogic txInfo params spentInput datum stakeAmt holderPkh = do
+  -- Construct some useful values for later
+  stakeHolderKey <- pletC $ pblake2b_256 # pto holderPkh
+  stakeHolderTn <- pletC $ pcon $ PTokenName $ stakeHolderKey
+  spentInputResolved <-
+    tcont . pletFields @'["address", "value", "datumHash"] $ spentInput.resolved
+  let poolAddr :: Term s PAddress
+      poolAddr = spentInputResolved.address
+      txInfoData = getField @"data" txInfo
+  newEntryTok <- pletC $ passetClass # params.assocListCs # stakeHolderTn
+  ---- FETCH DATUMS ----
+  entry <- tcont . pletFields @PEntryFields =<< getEntryData datum 
+  newEntry <- getOutputEntry poolAddr newEntryTok txInfoData txInfo.outputs
+  ---- BUSINESS LOGIC ----
+  guardC "updateStakeLogic: spent entry's key does not match user's key" $
+    entry.key #== stakeHolderKey
+  guardC "updateStakeLogic: new entry does not have the stakeholder's key" $
+    newEntry.key #== stakeHolderKey
+  guardC "updateStakeLogic: incorrect update of newDeposit" $
+    newEntry.newDeposit #== entry.newDeposit #+ stakeAmt
+  guardC "updateStakeLogic: incorrect update of deposit" $
+    newEntry.deposited #== entry.deposited #+ stakeAmt
+  guardC "updateStakeLogic: update increases stake beyond allowed bounds" $
+    pfromData params.minStake #<= newEntry.deposited
+    #&& pfromData newEntry.deposited #<= params.maxStake
+  guardC "updateStakeLogic: update should not change staked, rewards or next \
+         \fields" $
+    entry.staked #== newEntry.staked
+    #&& entry.rewards #== newEntry.rewards
+    #&& entry.next #== newEntry.next
 
 -- | This function checks all inductive conditions and makes all necessary
 -- business logic validation on the state/entry updates and new entries
