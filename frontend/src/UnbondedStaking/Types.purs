@@ -8,17 +8,27 @@ module UnbondedStaking.Types
 
 import Contract.Prelude
 
-import ConstrIndices (class HasConstrIndices, defaultConstrIndices)
 import Contract.Address (PaymentPubKeyHash)
 import Contract.Numeric.Natural (Natural)
 import Contract.Numeric.Rational (Rational)
-import Contract.PlutusData (class ToData, PlutusData(Constr), toData)
+import Contract.PlutusData
+  ( class FromData
+  , class HasPlutusSchema
+  , class ToData
+  , type (:+)
+  , type (:=)
+  , type (@@)
+  , I
+  , PlutusData(Constr)
+  , PNil
+  , genericFromData
+  , genericToData
+  , toData
+  )
 import Contract.Prim.ByteArray (ByteArray)
 import Contract.Value (CurrencySymbol)
-
 import Data.BigInt (BigInt)
-
-import ToData (genericToData)
+import TypeLevel.Nat (S, Z)
 import Types (AssetClass)
 
 -- TODO: Add missing `ToData` instances for POSIXTime and NatRatio.
@@ -42,8 +52,6 @@ newtype UnbondedPoolParams =
 derive instance Generic UnbondedPoolParams _
 derive instance Eq UnbondedPoolParams
 derive instance Newtype UnbondedPoolParams _
-instance HasConstrIndices UnbondedPoolParams where
-  constrIndices = defaultConstrIndices
 
 newtype InitialUnbondedParams = InitialUnbondedParams
   { start :: BigInt
@@ -91,8 +99,30 @@ data UnbondedStakingDatum
 
 derive instance Generic UnbondedStakingDatum _
 derive instance Eq UnbondedStakingDatum
-instance HasConstrIndices UnbondedStakingDatum where
-  constrIndices = defaultConstrIndices
+
+instance
+  HasPlutusSchema UnbondedStakingDatum
+    ( "StateDatum"
+        :=
+          ( "maybeEntryName" := I (Maybe ByteArray)
+              :+ "open"
+              := I Boolean
+              :+ PNil
+          )
+        @@ Z
+        :+ "EntryDatum"
+        :=
+          ( "entry" := I Entry :+ PNil
+          )
+        @@ (S Z)
+        :+ "AssetDatum"
+        := PNil
+        @@ (S (S Z))
+        :+ PNil
+    )
+
+instance FromData UnbondedStakingDatum where
+  fromData = genericFromData
 
 instance ToData UnbondedStakingDatum where
   toData = genericToData
@@ -111,8 +141,38 @@ data UnbondedStakingAction
 
 derive instance Generic UnbondedStakingAction _
 derive instance Eq UnbondedStakingAction
-instance HasConstrIndices UnbondedStakingAction where
-  constrIndices = defaultConstrIndices
+
+instance
+  HasPlutusSchema UnbondedStakingAction
+    ( "AdminAct"
+        :=
+          ( "totalRewards" := I Natural
+              :+ "totalDeposited"
+              := I Natural
+              :+ PNil
+          )
+        @@ Z
+        :+ "StakeAct"
+        :=
+          ( "stakeAmount" := I Natural
+              :+ "stakeHolder"
+              := I PaymentPubKeyHash
+              :+ PNil
+          )
+        @@ (S Z)
+        :+ "WithdrawAct"
+        :=
+          ( "stakeHolder" := I PaymentPubKeyHash :+ PNil
+          )
+        @@ (S (S Z))
+        :+ "CloseAct"
+        := PNil
+        @@ (S (S (S Z)))
+        :+ PNil
+    )
+
+instance FromData UnbondedStakingAction where
+  fromData = genericFromData
 
 instance ToData UnbondedStakingAction where
   toData = genericToData
@@ -131,8 +191,34 @@ newtype Entry =
 
 derive instance Generic Entry _
 derive instance Eq Entry
-instance HasConstrIndices Entry where
-  constrIndices = defaultConstrIndices
+
+instance
+  HasPlutusSchema Entry
+    ( "Entry"
+        :=
+          ( "key" := I ByteArray
+              :+ "deposited"
+              := I BigInt
+              :+ "newDeposit"
+              := I BigInt
+              :+ "rewards"
+              := I Rational
+              :+ "totalRewards"
+              := I BigInt
+              :+ "totalDeposited"
+              := I BigInt
+              :+ "open"
+              := I Boolean
+              :+ "next"
+              := I (Maybe ByteArray)
+              :+ PNil
+          )
+        @@ Z
+        :+ PNil
+    )
+
+instance FromData Entry where
+  fromData = genericFromData
 
 instance ToData Entry where
   toData = genericToData

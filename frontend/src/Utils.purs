@@ -10,23 +10,22 @@ module Utils
 
 import Contract.Prelude
 
+import Aeson
+  ( Aeson
+  , class DecodeAeson
+  , JsonDecodeError(TypeMismatch)
+  , caseAesonObject
+  , getField
+  )
 import Contract.Address (PaymentPubKeyHash)
 import Contract.Monad (Contract, logInfo, tag)
 import Contract.Numeric.Natural (Natural, fromBigInt')
-import Contract.Transaction (TransactionInput, TransactionOutput, UtxoM)
+import Contract.Transaction (TransactionInput, TransactionOutput)
+import Contract.Utxos (UtxoM)
 import Contract.Value (TokenName)
-import Data.Argonaut
-  ( Json
-  , class DecodeJson
-  , JsonDecodeError(TypeMismatch)
-  , caseJsonObject
-  , getField
-  )
 import Data.Array (filter, head)
 import Data.BigInt (BigInt, fromInt)
-import Data.Identity (Identity(Identity))
 import Data.Map (toUnfoldable)
-import Plutus.ToPlutusType (toPlutusType)
 import Plutus.Types.CurrencySymbol (CurrencySymbol)
 import Plutus.Types.Value (valueOf)
 import Types
@@ -42,11 +41,11 @@ import UnbondedStaking.Types
 -- typed validator
 jsonReader
   :: forall (a :: Type)
-   . DecodeJson a
+   . DecodeAeson a
   => String
-  -> Json
+  -> Aeson
   -> Either JsonDecodeError a
-jsonReader field = caseJsonObject (Left $ TypeMismatch "Expected Object")
+jsonReader field = caseAesonObject (Left $ TypeMismatch "Expected Object")
   $ flip getField field
 
 -- | Get the UTXO with the NFT defined by its `CurrencySymbol` and `TokenName`.
@@ -69,9 +68,8 @@ getUtxoWithNFT utxoM cs tn =
   hasNFT (Tuple _ txOutput') =
     let
       txOutput = unwrap txOutput'
-      Identity plutusValue = toPlutusType txOutput.amount
     in
-      valueOf plutusValue cs tn == one
+      valueOf txOutput.amount cs tn == one
 
 -- | Convert from `Int` to `Natural`
 nat :: Int -> Natural

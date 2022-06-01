@@ -11,15 +11,27 @@ module Types
 
 import Contract.Prelude
 
-import ConstrIndices (class HasConstrIndices, defaultConstrIndices)
 import Contract.Address (Address, PaymentPubKeyHash)
 import Contract.Numeric.Natural (Natural)
 import Contract.Numeric.Rational (Rational)
-import Contract.PlutusData (class ToData, PlutusData(Constr), toData)
+import Contract.PlutusData
+  ( class FromData
+  , class HasPlutusSchema
+  , class ToData
+  , type (:+)
+  , type (:=)
+  , type (@@)
+  , I
+  , PlutusData(Constr)
+  , PNil
+  , genericFromData
+  , genericToData
+  , toData
+  )
+import TypeLevel.Nat (S, Z)
 import Contract.Prim.ByteArray (ByteArray)
 import Contract.Value (CurrencySymbol, TokenName)
 import Data.BigInt (BigInt)
-import ToData (genericToData)
 
 newtype AssetClass = AssetClass
   { currencySymbol :: CurrencySymbol
@@ -29,8 +41,19 @@ newtype AssetClass = AssetClass
 derive instance Generic AssetClass _
 derive instance Newtype AssetClass _
 derive instance Eq AssetClass
-instance HasConstrIndices AssetClass where
-  constrIndices = defaultConstrIndices
+
+instance
+  HasPlutusSchema AssetClass
+    ( "AssetClass"
+        :=
+          ( "currencySymbol" := I CurrencySymbol
+              :+ "tokenName"
+              := I TokenName
+              :+ PNil
+          )
+        @@ Z
+        :+ PNil
+    )
 
 instance ToData AssetClass where
   toData = genericToData
@@ -71,8 +94,6 @@ newtype BondedPoolParams =
 derive instance Generic BondedPoolParams _
 derive instance Eq BondedPoolParams
 derive instance Newtype BondedPoolParams _
-instance HasConstrIndices BondedPoolParams where
-  constrIndices = defaultConstrIndices
 
 newtype InitialBondedParams = InitialBondedParams
   { iterations :: Natural
@@ -118,8 +139,30 @@ data BondedStakingDatum
 
 derive instance Generic BondedStakingDatum _
 derive instance Eq BondedStakingDatum
-instance HasConstrIndices BondedStakingDatum where
-  constrIndices = defaultConstrIndices
+
+instance
+  HasPlutusSchema BondedStakingDatum
+    ( "StateDatum"
+        :=
+          ( "maybeEntryName" := I (Maybe ByteArray)
+              :+ "sizeLeft"
+              := I Natural
+              :+ PNil
+          )
+        @@ Z
+        :+ "EntryDatum"
+        :=
+          ( "entry" := I Entry :+ PNil
+          )
+        @@ (S Z)
+        :+ "AssetDatum"
+        := PNil
+        @@ (S (S Z))
+        :+ PNil
+    )
+
+instance FromData BondedStakingDatum where
+  fromData = genericFromData
 
 instance ToData BondedStakingDatum where
   toData = genericToData
@@ -136,10 +179,37 @@ data BondedStakingAction
   | WithdrawAct { stakeHolder :: PaymentPubKeyHash }
   | CloseAct
 
+instance
+  HasPlutusSchema BondedStakingAction
+    ( "AdminAct"
+        :=
+          ( "sizeLeft" := I Natural :+ PNil
+          )
+        @@ Z
+        :+ "StakeAct"
+        :=
+          ( "stakeAmount" := I Natural
+              :+ "stakeHolder"
+              := I PaymentPubKeyHash
+              :+ PNil
+          )
+        @@ (S Z)
+        :+ "WithdrawAct"
+        :=
+          ( "stakeHolder" := I PaymentPubKeyHash :+ PNil
+          )
+        @@ (S (S Z))
+        :+ "CloseAct"
+        := PNil
+        @@ (S (S (S Z)))
+        :+ PNil
+    )
+
 derive instance Generic BondedStakingAction _
 derive instance Eq BondedStakingAction
-instance HasConstrIndices BondedStakingAction where
-  constrIndices = defaultConstrIndices
+
+instance FromData BondedStakingAction where
+  fromData = genericFromData
 
 instance ToData BondedStakingAction where
   toData = genericToData
@@ -158,8 +228,34 @@ newtype Entry =
 
 derive instance Generic Entry _
 derive instance Eq Entry
-instance HasConstrIndices Entry where
-  constrIndices = defaultConstrIndices
+
+instance
+  HasPlutusSchema Entry
+    ( "Entry"
+        :=
+          ( "key" := I ByteArray
+              :+ "sizeLeft"
+              := I BigInt
+              :+ "newDeposit"
+              := I BigInt
+              :+ "deposited"
+              := I BigInt
+              :+ "staked"
+              := I BigInt
+              :+ "rewards"
+              := I Rational
+              :+ "value"
+              := I (Tuple BigInt Rational)
+              :+ "next"
+              := I (Maybe ByteArray)
+              :+ PNil
+          )
+        @@ Z
+        :+ PNil
+    )
+
+instance FromData Entry where
+  fromData = genericFromData
 
 instance ToData Entry where
   toData = genericToData

@@ -5,10 +5,10 @@ module Scripts.PoolValidator
 
 import Contract.Prelude
 
+import Aeson (Aeson, JsonDecodeError)
 import Contract.Monad (Contract, liftedE)
 import Contract.Scripts (ClientError, Validator(Validator), applyArgs)
 import Contract.PlutusData (class ToData, toData)
-import Data.Argonaut (Json, JsonDecodeError)
 import Types (BondedPoolParams)
 import Types.Scripts (PlutusScript)
 import UnbondedStaking.Types (UnbondedPoolParams)
@@ -48,5 +48,5 @@ mkValidator ps params = do
   unappliedScript <- liftedE $ pure ps
   applyArgs (Validator unappliedScript) [ toData params ]
 
-foreign import _bondedPoolValidator :: Json
-foreign import _unbondedPoolValidator :: Json
+foreign import _bondedPoolValidator :: Aeson
+foreign import _unbondedPoolValidator :: Aeson

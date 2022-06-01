@@ -4,10 +4,10 @@ You can edit this file as you like.
 -}
 { name = "singularitynet-frontend"
 , dependencies =
-  [ "aff"
+  [ "aeson"
+  , "aff"
   , "aff-promise"
   , "cardano-transaction-lib"
-  , "argonaut"
   , "arrays"
   , "bigints"
   , "exceptions"
@@ -15,7 +15,6 @@ You can edit this file as you like.
   , "maybe"
   , "ordered-collections"
   , "prelude"
-  , "identity"
   , "uint"
   ]
 , packages = ./packages.dhall

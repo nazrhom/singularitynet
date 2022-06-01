@@ -3,10 +3,10 @@ module UnbondedStaking.CreateUnbondedPool (createUnbondedPoolContract) where
 import Contract.Prelude
 
 import Contract.Address
-  ( getNetworkId
+  ( AddressWithNetworkTag(AddressWithNetworkTag)
   , getWalletAddress
   , ownPaymentPubKeyHash
-  , validatorHashEnterpriseAddress
+  , scriptHashAddress
   )
 import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM)
 import Contract.PlutusData (PlutusData, Datum(Datum), toData)
@@ -45,13 +45,13 @@ import Utils (logInfo_, mkUnbondedPoolParams)
 createUnbondedPoolContract
   :: InitialUnbondedParams -> Contract () UnbondedPoolParams
 createUnbondedPoolContract iup = do
-  networkId <- getNetworkId
   adminPkh <- liftedM "createUnbondedPoolContract: Cannot get admin's pkh"
     ownPaymentPubKeyHash
   logInfo_ "createUnbondedPoolContract: Admin PaymentPubKeyHash" adminPkh
   -- Get the (Nami) wallet address
-  adminAddr <- liftedM "createUnbondedPoolContract: Cannot get wallet Address"
-    getWalletAddress
+  AddressWithNetworkTag { address: adminAddr } <-
+    liftedM "createUnbondedPoolContract: Cannot get wallet Address"
+      getWalletAddress
   -- Get utxos at the wallet address
   adminUtxos <-
     liftedM "createUnbondedPoolContract: Cannot get user Utxos"
@@ -65,14 +65,14 @@ createUnbondedPoolContract iup = do
   -- Get the minting policy and currency symbol from the state NFT:
   statePolicy <- liftedE $ mkStateNFTPolicy Unbonded txOutRef
   stateNftCs <-
-    liftedM
+    liftContractM
       "createUnbondedPoolContract: Cannot get CurrencySymbol from /\
       \state NFT"
       $ scriptCurrencySymbol statePolicy
   -- Get the minting policy and currency symbol from the list NFT:
   listPolicy <- liftedE $ mkListNFTPolicy Unbonded stateNftCs
   assocListCs <-
-    liftedM
+    liftContractM
       "createUnbondedPoolContract: Cannot get CurrencySymbol from /\
       \state NFT"
       $ scriptCurrencySymbol listPolicy
@@ -87,11 +87,11 @@ createUnbondedPoolContract iup = do
   -- Get the bonding validator and hash
   validator <- liftedE' "createUnbondedPoolContract: Cannot create validator"
     $ mkUnbondedPoolValidator params
-  valHash <- liftedM "createUnbondedPoolContract: Cannot hash validator"
+  valHash <- liftContractM "createUnbondedPoolContract: Cannot hash validator"
     (validatorHash validator)
   let
     mintValue = singleton stateNftCs tokenName one
-    poolAddr = validatorHashEnterpriseAddress networkId valHash
+    poolAddr = scriptHashAddress valHash
   logInfo_
     "createUnbondedPoolContract: UnbondedPool Validator's address"
     poolAddr

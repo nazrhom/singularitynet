@@ -3,9 +3,8 @@ module ClosePool (closeBondedPoolContract) where
 import Contract.Prelude
 
 import Contract.Address
-  ( getNetworkId
-  , ownPaymentPubKeyHash
-  , validatorHashEnterpriseAddress
+  ( ownPaymentPubKeyHash
+  , scriptHashAddress
   )
 import Contract.Monad
   ( Contract
@@ -48,8 +47,7 @@ import Utils (logInfo_, nat)
 closeBondedPoolContract :: BondedPoolParams -> Contract () Unit
 closeBondedPoolContract params@(BondedPoolParams { admin }) = do
   -- Fetch information related to the pool
-  -- Get network ID and check admin's PKH
-  networkId <- getNetworkId
+  -- Check admin's PKH
   userPkh <- liftedM "closeBondedPoolContract: Cannot get user's pkh"
     ownPaymentPubKeyHash
   unless (userPkh == admin) $ throwContractError
@@ -59,10 +57,10 @@ closeBondedPoolContract params@(BondedPoolParams { admin }) = do
   -- Get the bonded pool validator and hash
   validator <- liftedE' "closeBondedPoolContract: Cannot create validator" $
     mkBondedPoolValidator params
-  valHash <- liftedM "closeBondedPoolContract: Cannot hash validator"
+  valHash <- liftContractM "closeBondedPoolContract: Cannot hash validator"
     $ validatorHash validator
   logInfo_ "closeBondedPoolContract: validatorHash" valHash
-  let poolAddr = validatorHashEnterpriseAddress networkId valHash
+  let poolAddr = scriptHashAddress valHash
   logInfo_ "closeBondedPoolContract: Pool address" poolAddr
   -- Get the bonded pool's utxo
   bondedPoolUtxos <-
@@ -77,7 +75,7 @@ closeBondedPoolContract params@(BondedPoolParams { admin }) = do
   bondedStateDatumLookup <-
     liftContractM
       "closeBondedPoolContract: Could not create state datum lookup"
-      =<< ScriptLookups.datum bondedStateDatum
+      $ ScriptLookups.datum bondedStateDatum
   -- We build the transaction
   let
     redeemer = Redeemer $ toData CloseAct

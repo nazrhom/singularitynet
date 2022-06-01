@@ -3,9 +3,8 @@ module UnbondedStaking.CloseUnbondedPool (closeUnbondedPoolContract) where
 import Contract.Prelude
 
 import Contract.Address
-  ( getNetworkId
-  , ownPaymentPubKeyHash
-  , validatorHashEnterpriseAddress
+  ( ownPaymentPubKeyHash
+  , scriptHashAddress
   )
 import Contract.Monad
   ( Contract
@@ -54,7 +53,6 @@ closeUnbondedPoolContract :: UnbondedPoolParams -> Contract () Unit
 closeUnbondedPoolContract params@(UnbondedPoolParams { admin, nftCs }) = do
   -- Fetch information related to the pool
   -- Get network ID and check admin's PKH
-  networkId <- getNetworkId
   userPkh <- liftedM "closeUnbondedPoolContract: Cannot get user's pkh"
     ownPaymentPubKeyHash
   unless (userPkh == admin) $ throwContractError
@@ -64,10 +62,10 @@ closeUnbondedPoolContract params@(UnbondedPoolParams { admin, nftCs }) = do
   -- Get the bonded pool validator and hash
   validator <- liftedE' "closeUnbondedPoolContract: Cannot create validator" $
     mkUnbondedPoolValidator params
-  valHash <- liftedM "closeUnbondedPoolContract: Cannot hash validator"
+  valHash <- liftContractM "closeUnbondedPoolContract: Cannot hash validator"
     $ validatorHash validator
   logInfo_ "closeUnbondedPoolContract: validatorHash" valHash
-  let poolAddr = validatorHashEnterpriseAddress networkId valHash
+  let poolAddr = scriptHashAddress valHash
   logInfo_ "closeUnbondedPoolContract: Pool address" poolAddr
 
   -- Get the bonded pool's utxo
@@ -105,7 +103,7 @@ closeUnbondedPoolContract params@(UnbondedPoolParams { admin, nftCs }) = do
   unbondedStateDatumLookup <-
     liftContractM
       "closeUnbondedPoolContract: Could not create state datum lookup"
-      =<< ScriptLookups.datum oldUnbondedStateDatum
+      $ ScriptLookups.datum oldUnbondedStateDatum
 
   -- We build the transaction
   let

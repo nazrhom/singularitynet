@@ -3,10 +3,10 @@ module CreatePool (createBondedPoolContract) where
 import Contract.Prelude
 
 import Contract.Address
-  ( getNetworkId
+  ( AddressWithNetworkTag(AddressWithNetworkTag)
   , getWalletAddress
   , ownPaymentPubKeyHash
-  , validatorHashEnterpriseAddress
+  , scriptHashAddress
   )
 import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM)
 import Contract.PlutusData (PlutusData, Datum(Datum), toData)
@@ -44,13 +44,13 @@ import Utils (logInfo_, mkBondedPoolParams, nat)
 -- in the pool validator's address
 createBondedPoolContract :: InitialBondedParams -> Contract () BondedPoolParams
 createBondedPoolContract ibp = do
-  networkId <- getNetworkId
   adminPkh <- liftedM "createBondedPoolContract: Cannot get admin's pkh"
     ownPaymentPubKeyHash
   logInfo_ "createBondedPoolContract: Admin PaymentPubKeyHash" adminPkh
   -- Get the (Nami) wallet address
-  adminAddr <- liftedM "createBondedPoolContract: Cannot get wallet Address"
-    getWalletAddress
+  AddressWithNetworkTag { address: adminAddr } <-
+    liftedM "createBondedPoolContract: Cannot get wallet Address"
+      getWalletAddress
   -- Get utxos at the wallet address
   adminUtxos <-
     liftedM "createBondedPoolContract: Cannot get user Utxos"
@@ -62,13 +62,13 @@ createBondedPoolContract ibp = do
   -- Get the minting policy and currency symbol from the state NFT:
   statePolicy <- liftedE $ mkStateNFTPolicy Bonded txOutRef
   stateNftCs <-
-    liftedM
+    liftContractM
       "createBondedPoolContract: Cannot get CurrencySymbol from state NFT"
       $ scriptCurrencySymbol statePolicy
   -- Get the minting policy and currency symbol from the list NFT:
   listPolicy <- liftedE $ mkListNFTPolicy Bonded stateNftCs
   assocListCs <-
-    liftedM
+    liftContractM
       "createBondedPoolContract: Cannot get CurrencySymbol from state NFT"
       $ scriptCurrencySymbol listPolicy
   -- May want to hardcode this somewhere:
@@ -81,11 +81,11 @@ createBondedPoolContract ibp = do
   validator <-
     liftedE' "createBondedPoolContract: Cannot create validator"
       $ mkBondedPoolValidator params
-  valHash <- liftedM "createBondedPoolContract: Cannot hash validator"
-    (validatorHash validator)
+  valHash <- liftContractM "createBondedPoolContract: Cannot hash validator"
+    $ validatorHash validator
   let
     mintValue = singleton stateNftCs tokenName one
-    poolAddr = validatorHashEnterpriseAddress networkId valHash
+    poolAddr = scriptHashAddress valHash
   logInfo_ "createPoolContract: BondedPool Validator's address" poolAddr
   let
     -- We initalize the pool with no head entry and a pool size of 100_000_000

@@ -4,13 +4,16 @@ module Scripts.ListNFT
 
 import Contract.Prelude
 
+import Aeson (Aeson, JsonDecodeError)
 import Contract.Monad (Contract, liftContractE)
-import Contract.Scripts (MintingPolicy(MintingPolicy), applyArgs)
+import Contract.PlutusData (toData)
+import Contract.Scripts
+  ( ClientError
+  , MintingPolicy(MintingPolicy)
+  , PlutusScript
+  , applyArgs
+  )
 import Contract.Value (CurrencySymbol)
-import Data.Argonaut (Json, JsonDecodeError)
-import QueryM (ClientError)
-import ToData (toData)
-import Types.Scripts (PlutusScript)
 import Types (StakingType(Bonded, Unbonded))
 import Utils (jsonReader)
 
@@ -31,5 +34,5 @@ mkListNFTPolicy st nftCs = do
   unappliedScript <- liftContractE $ listNFTPolicy st
   applyArgs (MintingPolicy unappliedScript) [ toData nftCs ]
 
-foreign import _bondedListNFT :: Json
-foreign import _unbondedListNFT :: Json
+foreign import _bondedListNFT :: Aeson
+foreign import _unbondedListNFT :: Aeson

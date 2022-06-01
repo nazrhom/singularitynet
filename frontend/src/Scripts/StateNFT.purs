@@ -4,35 +4,35 @@ module Scripts.StateNFT
 
 import Contract.Prelude
 
-import Data.Argonaut (Json, JsonDecodeError)
+import Aeson (Aeson, JsonDecodeError)
 import ToData (toData)
 import Contract.Monad (Contract, liftedE)
 import Contract.Scripts
-  ( MintingPolicy(..)
+  ( ClientError
+  , MintingPolicy(MintingPolicy)
+  , PlutusScript
   , applyArgs
   )
-import QueryM (ClientError)
-import Types.UnbalancedTransaction (TxOutRef)
-import Types.Scripts (PlutusScript)
+import Contract.Transaction (TransactionInput)
 import Types (StakingType(Bonded, Unbonded))
 import Utils (jsonReader)
 
 -- | This is the parameterized minting policy. It still needs to receive a
--- `TxOutRef` to become a minting policy
+-- `TransactionInput` to become a minting policy
 nftPolicy :: StakingType -> Either JsonDecodeError PlutusScript
 nftPolicy Bonded = jsonReader "script" _bondedStateNFT
 nftPolicy Unbonded = jsonReader "script" _unbondedStateNFT
 
--- | This function takes a `TxOutRef` and produces the `MintingPolicy` for
+-- | This function takes a `TransactionInput` and produces the `MintingPolicy` for
 -- the state NFT
 mkStateNFTPolicy
   :: forall (r :: Row Type) (a :: Type)
    . StakingType
-  -> TxOutRef
+  -> TransactionInput
   -> Contract r (Either ClientError MintingPolicy)
-mkStateNFTPolicy st txOutRef = do
+mkStateNFTPolicy st txInput = do
   unappliedScript <- liftedE $ pure $ nftPolicy st
-  applyArgs (MintingPolicy unappliedScript) [ toData txOutRef ]
+  applyArgs (MintingPolicy unappliedScript) [ toData txInput ]
 
-foreign import _bondedStateNFT :: Json
-foreign import _unbondedStateNFT :: Json
+foreign import _bondedStateNFT :: Aeson
+foreign import _unbondedStateNFT :: Aeson
