@@ -352,8 +352,8 @@ updateStakeLogic :: forall (s :: S) .
 updateStakeLogic _txInfo _params _spentInput _stakeAmt _holderPkh = do
   pure punit
 
--- | This function checks all inductive condition and returns the old and new
--- entry for further business logic checks
+-- | This function checks all inductive conditions and makes all necessary
+-- business logic validation on the state/entry updates and new entries
 newStakeLogic :: forall (s :: S) .
   PTxInfoHRec s ->
   PBondedPoolParamsHRec s ->
@@ -676,6 +676,9 @@ equalEntriesGuard :: forall (s :: S).
 equalEntriesGuard e1 e2 =
   guardC "equalEntriesGuard: some fields in the given entries are not equal" $
     e1.key #== e2.key
+    #&& e1.newDeposit #== e2.newDeposit
+    #&& e1.staked #== e2.staked
+    #&& e1.rewards #== e2.rewards
 
 natZero :: Term s PNatural
 natZero = pconstant $ Natural 0
