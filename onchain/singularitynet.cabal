@@ -107,6 +107,7 @@ library
     PTypes
     SingularityNet
     StateNFT
+    UnbondedStaking.PTypes
     UnbondedStaking.Types
     UnbondedStaking.UnbondedPool
     Utils

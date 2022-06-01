@@ -1,4 +1,4 @@
-module ClosePool (closePoolContract) where
+module ClosePool (closeBondedPoolContract) where
 
 import Contract.Prelude
 
@@ -45,41 +45,42 @@ import Types
   )
 import Utils (logInfo_, nat)
 
-closePoolContract :: BondedPoolParams -> Contract () Unit
-closePoolContract params@(BondedPoolParams { admin }) = do
+closeBondedPoolContract :: BondedPoolParams -> Contract () Unit
+closeBondedPoolContract params@(BondedPoolParams { admin }) = do
   -- Fetch information related to the pool
   -- Get network ID and check admin's PKH
   networkId <- getNetworkId
-  userPkh <- liftedM "closePoolContract: Cannot get user's pkh"
+  userPkh <- liftedM "closeBondedPoolContract: Cannot get user's pkh"
     ownPaymentPubKeyHash
   unless (userPkh == admin) $ throwContractError
-    "closePoolContract: Admin \
+    "closeBondedPoolContract: Admin \
     \is not current user"
-  logInfo_ "closePoolContract: Admin PaymentPubKeyHash" admin
+  logInfo_ "closeBondedPoolContract: Admin PaymentPubKeyHash" admin
   -- Get the bonded pool validator and hash
-  validator <- liftedE' "closePoolContract: Cannot create validator" $
+  validator <- liftedE' "closeBondedPoolContract: Cannot create validator" $
     mkBondedPoolValidator params
-  valHash <- liftedM "closePoolContract: Cannot hash validator"
+  valHash <- liftedM "closeBondedPoolContract: Cannot hash validator"
     $ validatorHash validator
-  logInfo_ "closePoolContract: validatorHash" valHash
+  logInfo_ "closeBondedPoolContract: validatorHash" valHash
   let poolAddr = validatorHashEnterpriseAddress networkId valHash
-  logInfo_ "closePoolContract: Pool address" poolAddr
+  logInfo_ "closeBondedPoolContract: Pool address" poolAddr
   -- Get the bonded pool's utxo
   bondedPoolUtxos <-
-    liftedM "closePoolContract: Cannot get pool's utxos at pool address" $
+    liftedM "closeBondedPoolContract: Cannot get pool's utxos at pool address" $
       utxosAt poolAddr
-  logInfo_ "closePoolContract: Pool's UTXOs" bondedPoolUtxos
+  logInfo_ "closeBondedPoolContract: Pool's UTXOs" bondedPoolUtxos
   let
     bondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
       , sizeLeft: nat 100_000_000
       }
   bondedStateDatumLookup <-
-    liftContractM "closePoolContract: Could not create state datum lookup"
+    liftContractM
+      "closeBondedPoolContract: Could not create state datum lookup"
       =<< ScriptLookups.datum bondedStateDatum
   -- We build the transaction
   let
-    redeemer = Redeemer $ toData $ CloseAct
+    redeemer = Redeemer $ toData CloseAct
 
     lookup :: ScriptLookups.ScriptLookups PlutusData
     lookup = mconcat
@@ -101,11 +102,12 @@ closePoolContract params@(BondedPoolParams { admin }) = do
     liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
   BalancedSignedTransaction { signedTxCbor } <-
     liftedM
-      "closePoolContract: Cannot balance, reindex redeemers, attach datums/\
-      \redeemers and sign"
+      "closeBondedPoolContract: Cannot balance, reindex redeemers, attach/\
+      \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
   transactionHash <- submit signedTxCbor
-  logInfo_ "closePoolContract: Transaction successfully submitted with hash"
+  logInfo_
+    "closeBondedPoolContract: Transaction successfully submitted with hash"
     $ byteArrayToHex
     $ unwrap transactionHash

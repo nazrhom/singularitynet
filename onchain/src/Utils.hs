@@ -1,4 +1,5 @@
 module Utils (
+  parseStakingDatum,
   peq,
   pxor,
   plt,
@@ -26,6 +27,8 @@ module Utils (
   getDatum,
   getDatumHash,
   getContinuingOutputWithNFT,
+  signedByAdmin,
+  toPBool,
   (>:),
 ) where
 
@@ -36,18 +39,22 @@ import Plutarch.Api.V1 (
   PDatum,
   PDatumHash,
   PMaybeData (PDJust, PDNothing),
+  PPubKeyHash,
   PScriptPurpose (PMinting, PSpending),
   PTokenName,
   PTuple,
   PValue,
  )
 import Plutarch.Api.V1.Tx (PTxInInfo, PTxOut, PTxOutRef)
+import Plutarch.Builtin (pforgetData)
 import Plutarch.Lift (
   PLifted,
   PUnsafeLiftDecl,
  )
 import Plutarch.Monadic qualified as P
 import Plutarch.TryFrom (PTryFrom, ptryFrom)
+
+import UnbondedStaking.PTypes (PBoolData (PDFalse, PDTrue))
 
 -- Term-level boolean functions
 peq :: forall (s :: S) (a :: PType). PEq a => Term s (a :--> a :--> PBool)
@@ -470,3 +477,33 @@ getDatum datHash dats = pure $ getDatum' # datHash # dats
     checkHash = phoistAcyclic $
       plam $ \datHash tup ->
         pfield @"_0" # tup #== datHash
+
+{- | Returns whether if the provided `PPubKeyHash` is an element in the given
+list.
+-}
+signedByAdmin ::
+  forall (s :: S).
+  Term s (PBuiltinList (PAsData PPubKeyHash)) ->
+  Term s PPubKeyHash ->
+  Term s PBool
+signedByAdmin ls pkh = pelem # pdata pkh # ls
+
+-- | Returns the staking datum record with the provided type
+parseStakingDatum ::
+  forall (a :: PType) (s :: S).
+  PIsData a =>
+  PTryFrom PData (PAsData a) =>
+  Term s PDatum ->
+  TermCont s (Term s a)
+parseStakingDatum =
+  ptryFromUndata @a . pforgetData . pdata
+
+-- Helper functions for working with Plutarch synonyms types
+
+-- | Returns a Plutarch-level bool from a `PBoolData` type
+toPBool :: forall (s :: S). Term s (PBoolData :--> PBool)
+toPBool = phoistAcyclic $
+  plam $ \pbd ->
+    pmatch pbd $ \case
+      PDFalse _ -> pfalse
+      PDTrue _ -> ptrue

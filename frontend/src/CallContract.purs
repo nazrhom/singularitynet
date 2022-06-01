@@ -39,14 +39,14 @@ import Contract.Value
 import Contract.Wallet (mkNamiWalletAff)
 import Control.Promise (Promise)
 import Control.Promise as Promise
-import ClosePool (closePoolContract)
+import ClosePool (closeBondedPoolContract)
 import CreatePool (createBondedPoolContract)
 import Serialization.Address (intToNetworkId)
 import Data.BigInt (BigInt)
 import Data.Int as Int
 import Data.UInt as UInt
 import Data.UInt (UInt)
-import DepositPool (depositPoolContract)
+import DepositPool (depositBondedPoolContract)
 import Effect.Aff (error)
 import Effect.Exception (Error)
 import Types (BondedPoolParams(BondedPoolParams), InitialBondedParams)
@@ -156,11 +156,11 @@ callCreateBondedPool cfg iba = Promise.fromAff do
 
 callDepositBondedPool
   :: ContractConfiguration -> BondedPoolArgs -> Effect (Promise Unit)
-callDepositBondedPool = callWithBondedPoolArgs depositPoolContract
+callDepositBondedPool = callWithBondedPoolArgs depositBondedPoolContract
 
 callClosePool
   :: ContractConfiguration -> BondedPoolArgs -> Effect (Promise Unit)
-callClosePool = callWithBondedPoolArgs closePoolContract
+callClosePool = callWithBondedPoolArgs closeBondedPoolContract
 
 callWithBondedPoolArgs
   :: (BondedPoolParams -> Contract () Unit)
