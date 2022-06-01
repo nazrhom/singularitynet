@@ -44,7 +44,8 @@ import Plutarch.Unsafe (punsafeCoerce)
 
 import PNatural (
   PNatural,
-  PNatRatio
+  PNatRatio,
+  PNonNegative ((#+))
  )
 import PTypes (
   HField,
@@ -209,62 +210,58 @@ adminActLogic txInfo params purpose inputStakingDatum sizeLeft = unTermCont $ do
   guardC "transaction not signed by admin" $
     signedBy txInfo.signatories params.admin
   -- We get the input's address
-  input <- getInput purpose txInfo.inputs
-  inputResolved <- pletC $ pfield @"resolved" # input
-  let inputAddress :: Term s PAddress
-      inputAddress = pfield @"address" # inputResolved
+  input <-
+    tcont . pletFields @'["outRef", "resolved"]
+    =<< getInput purpose txInfo.inputs
+  inputResolved <-
+    tcont . pletFields @["address", "value", "datumHash"] $ input.resolved
+  let poolAddr :: Term s PAddress
+      poolAddr = inputResolved.address
+  -- We get the txinfo data field for convenience
+  let txInfoData :: Term s (PBuiltinList (PAsData (PTuple PDatumHash PDatum)))
+      txInfoData = getField @"data" txInfo
+      listCs = params.assocListCs
   -- We make sure that the input's Datum is updated correctly for each Datum
   -- constructor
-  pure $
-    pmatch inputStakingDatum $ \case
-      PStateDatum oldState -> unTermCont $ do
-        oldStateF <- tcont $ pletFields @'["_0", "_1"] oldState
-        -- We obtain the asset class of the NFT
-        let cs = params.nftCs
-            tn = pconstant bondedStakingTokenName
-            ac = passetClass # cs # tn
-        -- We retrieve the continuing output's datum
-        coOutput <- getContinuingOutputWithNFT inputAddress ac txInfo.outputs
-        coOutputDatumHash <- getDatumHash coOutput
-        coOutputDatum <- getDatum coOutputDatumHash $ getField @"data" txInfo
-        coOutputStakingDatum <- parseStakingDatum @PBondedStakingDatum coOutputDatum
-        -- Get new state
-        PStateDatum state <- pmatchC coOutputStakingDatum
-        stateF <- tcont $ pletFields @'["_0", "_1"] state
-        -- Check conditions
-        guardC "adminActLogic: update failed because of list head change" $
-          stateF._0 #== oldStateF._0
-        guardC
-          "adminActLogic: update failed because new size was not updated \
-          \correctly"
-          $ stateF._1 #== sizeLeft
-      PEntryDatum oldEntry' -> unTermCont $ do
-        -- Retrieve fields from oldEntry
-        oldEntry <- pletC $ pfield @"_0" # oldEntry'
-        _oldEntryF <-
-          tcont $
-            pletFields
-              @'[ "key"
-                , "sizeLeft"
-                , "newDeposit"
-                , "deposited"
-                , "staked"
-                , "rewards"
-                , "value"
-                , "next"
-                ]
-              oldEntry
-        -- We obtain the asset class of the NFT
-        let _cs = params.assocListCs
-            _tn = pconstant bondedStakingTokenName
-            _ac = passetClass # _cs # _tn
-        -- TODO: Verify that most fields are kept intact, that size is updated
-        -- and that interests are calculated correctly
-        pconstantC ()
-      PAssetDatum _ ->
-        ptraceError
-          "adminActLogic: update failed because a wrong \
-          \datum constructor was provided"
+  pure . pmatch inputStakingDatum $ \case
+    PStateDatum state' -> unTermCont $ do
+      ---- FETCH DATUMS ----
+      let stateCs = params.nftCs
+          stateTn = pconstant bondedStakingTokenName
+          stateTok = passetClass # stateCs # stateTn
+      -- Get current state
+      (stateHeadKey, _stateSize) <-
+        (\s -> pure (pfromData s._0, pfromData s._1))
+        <=< tcont . pletFields @'["_0", "_1"]
+        $ state'
+      -- We retrieve the continuing output's datum
+      (newStateHeadKey, newStateSize) <-
+        getStateData
+        <=< parseStakingDatum
+        <=< flip getDatum txInfoData
+        <=< getDatumHash
+        <=< getContinuingOutputWithNFT poolAddr stateTok
+        $ txInfo.outputs
+      ---- BUSINESS LOGIC ----
+      guardC "adminActLogic: admin update should not udpate list head" $
+        pdata stateHeadKey #== pdata newStateHeadKey
+      guardC "adminActLogic: update failed because new size was not updated \
+             \correctly" $
+        newStateSize #== sizeLeft
+    PEntryDatum entry' -> unTermCont $ do
+      -- Retrieve fields from entry
+      entry <- tcont . pletFields @PEntryFields $ pfield @"_0" # entry'
+      -- We get the entry' asset class
+      entryTok <- pletC $ getTokenName params.assocListCs inputResolved.value
+      -- Get updated entry
+      newEntry <- getOutputEntry poolAddr entryTok txInfoData txInfo.outputs
+      -- TODO: Verify that most fields are kept intact, that size is updated
+      -- and that interests are calculated correctly
+      pure punit
+    PAssetDatum _ ->
+      ptraceError
+        "adminActLogic: update failed because a wrong \
+        \datum constructor was provided"
   where
     __isBondingPeriod :: Term s PPeriod -> Term s PBool
     __isBondingPeriod period = pmatch period $ \case
@@ -320,7 +317,7 @@ stakeActLogic txInfo params purpose datum act =
     -- If some minting action is provided, this is a new stake and inductive
     -- conditions must be checked
     PDJust mintAct -> unTermCont $ do
-      -- Check that minted value is a list entry
+      -- Check that minted value is a list entry (minting policy is run)
       guardC "stakeActLogic: failure when checking minted value in minting tx" $
         hasListNft params.assocListCs txInfo.mint
       -- Check inductive conditions and business logic
@@ -339,7 +336,13 @@ stakeActLogic txInfo params purpose datum act =
              \ tx" $
         pnot #$ hasListNft params.assocListCs txInfo.mint
       -- Check business logic
-      updateStakeLogic txInfo params spentInput act.stakeAmount act.pubKeyHash
+      updateStakeLogic
+        txInfo
+        params
+        spentInput
+        datum
+        act.stakeAmount
+        act.pubKeyHash
   where isAssetDatum :: Term s (PDatum :--> PBool)
         isAssetDatum = plam $ \dat' -> unTermCont $ do
           dat <- ptryFromUndata @PBondedStakingDatum
@@ -350,19 +353,48 @@ stakeActLogic txInfo params purpose datum act =
             PAssetDatum _ -> ptrue
             _ -> pfalse
 
--- TODO
+-- This function validates the update of a an already existing entry in the list
 updateStakeLogic :: forall (s :: S) .
   PTxInfoHRec s ->
   PBondedPoolParamsHRec s ->
   PTxInInfoHRec s ->
+  Term s PBondedStakingDatum ->
   Term s PNatural ->
   Term s PPubKeyHash ->
   TermCont s (Term s PUnit)
-updateStakeLogic _txInfo _params _spentInput _stakeAmt _holderPkh = do
-  pure punit
+updateStakeLogic txInfo params spentInput datum stakeAmt holderPkh = do
+  -- Construct some useful values for later
+  stakeHolderKey <- pletC $ pblake2b_256 # pto holderPkh
+  stakeHolderTn <- pletC $ pcon $ PTokenName $ stakeHolderKey
+  spentInputResolved <-
+    tcont . pletFields @'["address", "value", "datumHash"] $ spentInput.resolved
+  let poolAddr :: Term s PAddress
+      poolAddr = spentInputResolved.address
+      txInfoData = getField @"data" txInfo
+  newEntryTok <- pletC $ passetClass # params.assocListCs # stakeHolderTn
+  ---- FETCH DATUMS ----
+  entry <- tcont . pletFields @PEntryFields =<< getEntryData datum
+  newEntry <- getOutputEntry poolAddr newEntryTok txInfoData txInfo.outputs
+  ---- BUSINESS LOGIC ----
+  guardC "updateStakeLogic: spent entry's key does not match user's key" $
+    entry.key #== stakeHolderKey
+  guardC "updateStakeLogic: new entry does not have the stakeholder's key" $
+    newEntry.key #== stakeHolderKey
+  guardC "updateStakeLogic: incorrect update of newDeposit" $
+    newEntry.newDeposit #== entry.newDeposit #+ stakeAmt
+  guardC "updateStakeLogic: incorrect update of deposit" $
+    newEntry.deposited #== entry.deposited #+ stakeAmt
+  guardC "updateStakeLogic: update increases stake beyond allowed bounds" $
+    pfromData params.minStake #<= newEntry.deposited
+    #&& pfromData newEntry.deposited #<= params.maxStake
+  guardC "updateStakeLogic: update should not change staked, rewards or next \
+         \fields" $
+    entry.staked #== newEntry.staked
+    #&& entry.rewards #== newEntry.rewards
+    #&& entry.next #== newEntry.next
 
--- | This function checks all inductive condition and returns the old and new
--- entry for further business logic checks
+-- | This function checks all inductive conditions and makes all necessary
+-- business logic validation on the state/entry updates and new entries
 newStakeLogic :: forall (s :: S) .
   PTxInfoHRec s ->
   PBondedPoolParamsHRec s ->
@@ -678,6 +710,9 @@ equalEntriesGuard :: forall (s :: S).
 equalEntriesGuard e1 e2 =
   guardC "equalEntriesGuard: some fields in the given entries are not equal" $
     e1.key #== e2.key
+    #&& e1.newDeposit #== e2.newDeposit
+    #&& e1.staked #== e2.staked
+    #&& e1.rewards #== e2.rewards
 
 natZero :: Term s PNatural
 natZero = pconstant $ Natural 0

@@ -108,7 +108,6 @@ data PEntry (s :: S)
           s
           ( PDataRecord
               '[ "key" ':= PByteString
-               , "sizeLeft" ':= PNatural
                , "newDeposit" ':= PNatural
                , "deposited" ':= PNatural
                , "staked" ':= PNatural
@@ -212,7 +211,6 @@ instance PUnsafeLiftDecl PBondedStakingAction where
 -- | HRec with all of `PEntry`'s fields
 type PEntryHRec (s :: S) = HRec '[
   HField s "key" PByteString
-  , HField s "sizeLeft" PNatural
   , HField s "newDeposit" PNatural
   , HField s "deposited" PNatural
   , HField s "staked" PNatural
@@ -224,7 +222,6 @@ type PEntryHRec (s :: S) = HRec '[
 -- | Type level list with all of `PEntry`'s fields
 type PEntryFields =
   '["key"
-   , "sizeLeft"
    , "newDeposit"
    , "deposited"
    , "staked"

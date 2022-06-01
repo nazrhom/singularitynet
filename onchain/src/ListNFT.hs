@@ -31,7 +31,9 @@ import Utils (
   pflip,
   pletC,
   ptryFromUndata,
-  porList, getOnlySignatory, punit
+  porList,
+  getOnlySignatory,
+  punit
  )
 import InductiveLogic (
   consumesStateUtxoGuard,
