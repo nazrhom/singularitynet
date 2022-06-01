@@ -422,7 +422,7 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
         PDNothing _ -> unTermCont $ do
           -- The new entry should *not* point to anything
           guardC "newStakeLogic: new entry should not point to anything" $
-            pnot #$ newEntry.next `pointsTo` dummyByteString
+            pointsNowhere newEntry.next
     PMintInBetween outRefs -> unTermCont $ do
       ---- FETCH DATUMS ----
       entriesRefs <-
@@ -465,8 +465,44 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
              \new entry" $
         pfromData prevEntry.key #< newEntry.key
         #&& newEntry.key #< currEntryKey
-    PMintEnd _listEndOutRef ->
-      punit
+    PMintEnd listEndOutRef' -> unTermCont $ do
+      ---- FETCH DATUMS ----
+      listEndOutRef <- pletC $ pfield @"_0" # listEndOutRef'
+      -- Get datum for endEntry
+      endEntry <- tcont . pletFields @PEntryFields =<< getEntryData datum
+      -- Get datum for endEntryUpdated
+      let endEntryTok :: Term s PAssetClass
+          endEntryTok = getTokenName
+            params.assocListCs
+            spentInputResolved.value
+      endEntryUpdated <-
+        getOutputEntry poolAddr endEntryTok txInfoData txInfo.outputs
+      -- Get datum for new list entry
+      newEntry <- getOutputEntry poolAddr newEntryTok txInfoData txInfo.outputs
+      ---- BUSINESS LOGIC ----
+      -- Validate initialization of new entry
+      newEntryGuard params newEntry stakeAmt stakeHolderKey 
+      -- End entry should keep the same values when updated
+      equalEntriesGuard endEntry endEntryUpdated 
+      ---- INDUCTIVE CONDITIONS ----
+      -- Validate that endEntry is a list entry and matches redeemer
+      guardC "newStakeLogic: spent input is not an entry" $
+        hasListNft params.assocListCs spentInputResolved.value
+      guardC "newStakeLogic: spent input is not the same as input in redeemer" $
+        spentInput.outRef #== listEndOutRef
+      -- End entry should point nowhere
+      guardC "newStakeLogic: end should point nowhere" $
+        pointsNowhere endEntry.next
+      -- Updated end entry (no longer end) should point to new entry
+      guardC "newStakeLogic: updated end should point to new end entry" $
+        endEntryUpdated.next `pointsTo` newEntry.key
+      -- New entry (new end) should point nowhere
+      guardC "newStakeLogic: new end entry should not point anywhere" $
+        pointsNowhere newEntry.next
+      -- Validate entries' order
+      guardC "newStakeLogic: new entry's key should come after end entry" $
+        pfromData endEntryUpdated.key #< pfromData newEntry.key
+
 withdrawActLogic :: forall (s :: S). Term s PUnit
 withdrawActLogic = pconstant ()
 
@@ -536,6 +572,16 @@ pointsTo entryKey tn = pointsTo' # entryKey # tn
           pmatch e $ \case
             PDJust t' -> pfield @"_0" # t' #== t
             PDNothing _ -> pfalse
+
+-- Returns false if it points nowhere
+pointsNowhere :: forall (s :: S).
+  Term s (PMaybeData PByteString) ->
+  Term s PBool
+pointsNowhere x = pointsNowhere' # x
+  where pointsNowhere' :: Term s (PMaybeData PByteString :--> PBool)
+        pointsNowhere' = phoistAcyclic $ plam . flip pmatch $ \case
+          PDJust _ -> pfalse 
+          PDNothing _ -> ptrue
             
 -- Gets the CO and datum that satisfy the given datum predicate.
 -- It fails if no CO is found, or no CO satisfies the predicate, or too many COs
@@ -626,6 +672,3 @@ natZero = pconstant $ Natural 0
 
 ratZero :: Term s PNatRatio
 ratZero = pconstant . NatRatio $ 0
-
-dummyByteString :: Term s PByteString
-dummyByteString = pconstant ""
