@@ -83,7 +83,7 @@ import Utils (
 import GHC.Records (getField)
 import Plutarch.Api.V1.Scripts (PDatum)
 import SingularityNet.Settings (bondedStakingTokenName)
-import InductiveLogic (hasListNft, consumesStateUtxoGuard, doesNotConsumeAssetGuard, consumesEntryGuard, hasStateNft)
+import InductiveLogic (hasListNft, doesNotConsumeAssetGuard, hasStateNft)
 import Plutarch.DataRepr (HRec)
 import Plutarch.Crypto (pblake2b_256)
 import SingularityNet.Natural (Natural(Natural), NatRatio(NatRatio))
@@ -400,7 +400,7 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
         hasStateNft
           params.nftCs
           (pconstant bondedStakingTokenName)
-          (pfield @"value" # spentInput.resolved)
+          spentInputResolved.value
       guardC "newStakeLogic: spent input does not match redeemer input" $
         spentInput.outRef #== pfield @"_0" # stateOutRef
       -- Validate next state
@@ -409,21 +409,20 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
       -- Validate list order and links
       pure . pmatch entryKey $ \case
         -- We are shifting the current head forwards
-        PDJust currentEntryKey -> unTermCont $ do
+        PDJust currentEntryKey' -> unTermCont $ do
+          currentEntryKey <- pletC $ pfromData $ pfield @"_0" # currentEntryKey'
           -- Validate order of entries
           guardC "newStakeLogic: new entry's key should be strictly less than \
                  \ current entry" $
-            pfromData newEntry.key #< (pfield @"_0" # currentEntryKey)
+            pfromData newEntry.key #< currentEntryKey
           -- The new entry should point to the current entry
           guardC "newStakeLogic: new entry should point to current entry" $
-            newEntry.next `pointsTo` (pfield @"_0" # currentEntryKey)
-          pure punit 
+            newEntry.next `pointsTo` currentEntryKey
         -- This is the first stake of the pool
         PDNothing _ -> unTermCont $ do
           -- The new entry should *not* point to anything
           guardC "newStakeLogic: new entry should not point to anything" $
             pnot #$ newEntry.next `pointsTo` dummyByteString
-          pure punit
     PMintInBetween outRefs -> unTermCont $ do
       ---- FETCH DATUMS ----
       entriesRefs <-
@@ -434,7 +433,7 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
       let prevEntryTok :: Term s PAssetClass
           prevEntryTok = getTokenName
             params.assocListCs
-            $ pfield @"value" # spentInput.resolved
+            spentInputResolved.value
       prevEntryUpdated <-
         getOutputEntry poolAddr prevEntryTok txInfoData txInfo.outputs
       -- Get datum for new list entry
@@ -468,7 +467,6 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
         #&& newEntry.key #< currEntryKey
     PMintEnd _listEndOutRef ->
       punit
-
 withdrawActLogic :: forall (s :: S). Term s PUnit
 withdrawActLogic = pconstant ()
 
