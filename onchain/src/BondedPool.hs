@@ -201,62 +201,58 @@ adminActLogic txInfo params purpose inputStakingDatum sizeLeft = unTermCont $ do
   guardC "transaction not signed by admin" $
     signedBy txInfo.signatories params.admin
   -- We get the input's address
-  input <- getInput purpose txInfo.inputs
-  inputResolved <- pletC $ pfield @"resolved" # input
-  let inputAddress :: Term s PAddress
-      inputAddress = pfield @"address" # inputResolved
+  input <-
+    tcont . pletFields @'["outRef", "resolved"]
+    =<< getInput purpose txInfo.inputs
+  inputResolved <-
+    tcont . pletFields @["address", "value", "datumHash"] $ input.resolved
+  let poolAddr :: Term s PAddress
+      poolAddr = inputResolved.address
+  -- We get the txinfo data field for convenience
+  let txInfoData :: Term s (PBuiltinList (PAsData (PTuple PDatumHash PDatum)))
+      txInfoData = getField @"data" txInfo
+      listCs = params.assocListCs
   -- We make sure that the input's Datum is updated correctly for each Datum
   -- constructor
-  pure $
-    pmatch inputStakingDatum $ \case
-      PStateDatum oldState -> unTermCont $ do
-        oldStateF <- tcont $ pletFields @'["_0", "_1"] oldState
-        -- We obtain the asset class of the NFT
-        let cs = params.nftCs
-            tn = pconstant bondedStakingTokenName
-            ac = passetClass # cs # tn
-        -- We retrieve the continuing output's datum
-        coOutput <- getContinuingOutputWithNFT inputAddress ac txInfo.outputs
-        coOutputDatumHash <- getDatumHash coOutput
-        coOutputDatum <- getDatum coOutputDatumHash $ getField @"data" txInfo
-        coOutputStakingDatum <- parseStakingDatum coOutputDatum
-        -- Get new state
-        PStateDatum state <- pmatchC coOutputStakingDatum
-        stateF <- tcont $ pletFields @'["_0", "_1"] state
-        -- Check conditions
-        guardC "adminActLogic: update failed because of list head change" $
-          stateF._0 #== oldStateF._0
-        guardC
-          "adminActLogic: update failed because new size was not updated \
-          \correctly"
-          $ stateF._1 #== sizeLeft
-      PEntryDatum oldEntry' -> unTermCont $ do
-        -- Retrieve fields from oldEntry
-        oldEntry <- pletC $ pfield @"_0" # oldEntry'
-        _oldEntryF <-
-          tcont $
-            pletFields
-              @'[ "key"
-                , "sizeLeft"
-                , "newDeposit"
-                , "deposited"
-                , "staked"
-                , "rewards"
-                , "value"
-                , "next"
-                ]
-              oldEntry
-        -- We obtain the asset class of the NFT
-        let _cs = params.assocListCs
-            _tn = pconstant bondedStakingTokenName
-            _ac = passetClass # _cs # _tn
-        -- TODO: Verify that most fields are kept intact, that size is updated
-        -- and that interests are calculated correctly
-        pconstantC ()
-      PAssetDatum _ ->
-        ptraceError
-          "adminActLogic: update failed because a wrong \
-          \datum constructor was provided"
+  pure . pmatch inputStakingDatum $ \case
+    PStateDatum state' -> unTermCont $ do
+      ---- FETCH DATUMS ----
+      let stateCs = params.nftCs
+          stateTn = pconstant bondedStakingTokenName
+          stateTok = passetClass # stateCs # stateTn
+      -- Get current state
+      (stateHeadKey, _stateSize) <-
+        (\s -> pure (pfromData s._0, pfromData s._1))
+        <=< tcont . pletFields @'["_0", "_1"]
+        $ state'
+      -- We retrieve the continuing output's datum
+      (newStateHeadKey, newStateSize) <-
+        getStateData
+        <=< parseStakingDatum
+        <=< flip getDatum txInfoData
+        <=< getDatumHash
+        <=< getContinuingOutputWithNFT poolAddr stateTok
+        $ txInfo.outputs
+      ---- BUSINESS LOGIC ----
+      guardC "adminActLogic: admin update should not udpate list head" $
+        pdata stateHeadKey #== pdata newStateHeadKey
+      guardC "adminActLogic: update failed because new size was not updated \
+             \correctly" $
+        newStateSize #== sizeLeft
+    PEntryDatum entry' -> unTermCont $ do
+      -- Retrieve fields from entry
+      entry <- tcont . pletFields @PEntryFields $ pfield @"_0" # entry'
+      -- We get the entry' asset class
+      entryTok <- pletC $ getTokenName params.assocListCs inputResolved.value
+      -- Get updated entry
+      newEntry <- getOutputEntry poolAddr entryTok txInfoData txInfo.outputs
+      -- TODO: Verify that most fields are kept intact, that size is updated
+      -- and that interests are calculated correctly
+      pure punit
+    PAssetDatum _ ->
+      ptraceError
+        "adminActLogic: update failed because a wrong \
+        \datum constructor was provided"
   where
     __isBondingPeriod :: Term s PPeriod -> Term s PBool
     __isBondingPeriod period = pmatch period $ \case
