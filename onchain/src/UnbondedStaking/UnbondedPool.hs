@@ -17,6 +17,8 @@ import Plutarch.Api.V1 (
   PTxInfo,
   validatorHash,
  )
+import Plutarch.Builtin (ppairDataBuiltin)
+import Plutarch.Rational (PRational (PRational))
 import Plutarch.Unsafe (punsafeCoerce)
 import Plutus.V1.Ledger.Api (
   Address (Address),
@@ -34,8 +36,15 @@ import PInterval (
   PPeriodicInterval(..),
  )
 import PNatural (
-  PNatRatio,
-  PNatural,
+  PNatRatio (PNatRatio),
+  PNatural (PNatural),
+  pCeil,
+  toPNatRatio,
+  toPInteger,
+  toPRational,
+  (#+),
+  (#-),
+  (#*),
  )
 import PTypes (
   passetClass,
@@ -261,10 +270,10 @@ adminActLogic
           entryChangedGuard "open" (oldEntryF.open #== newEntryF.open)
           entryChangedGuard "next" (oldEntryF.next #== newEntryF.next)
 
-        -- TODO: Verify output address is unchanged
-        -- guardC
-        --   "adminActLogic: update failed because output address is changed"
-        --   $ inputAddress #== outputAddress
+          -- Verify output address is unchanged
+          guardC
+            "adminActLogic: update failed because output address is changed"
+            $ inputAddress #== punbondedValidatorAddress
 
         PAssetDatum _ ->
           ptraceError
@@ -487,8 +496,6 @@ getUnbondedPeriod = phoistAcyclic $
           $ ptraceError
             "the transaction's range does not belong to any valid period"
 
-
--- TODO: Implement reward calculation logic
 calculateRewards ::
   forall (s :: S).
   Term s PNatRatio ->
@@ -497,8 +504,37 @@ calculateRewards ::
   Term s PNatural ->
   Term s PNatural ->
   Term s PNatRatio
-calculateRewards _ _ _ _ _ =
-  pconstant @PNatRatio (NatRatio (1 % 1))
+calculateRewards
+  rewards
+  totalRewards
+  deposited
+  newDeposit
+  totalDeposited = unTermCont $ do
+    let
+      rewards' = pCeil # rewards
+      fNumeratorSum = (deposited #+ rewards')
+      fNumerator = fNumeratorSum #- newDeposit
+
+    pure $ pmatch fNumerator $ \case
+      PNothing ->
+        ptraceError
+          "adminLogic: invalid deposit amount"
+      PJust fnum  -> unTermCont $ do
+        let
+          fNumeratorResult = fnum #* totalRewards
+          fNumeratorResult' = toPInteger # fNumeratorResult
+          totalDeposited' = toPInteger # totalDeposited
+          f = toPNatRatio # (pcon $ PRational fNumeratorResult' totalDeposited')
+
+        pure $ pmatch f $ \case
+          PNothing -> ptraceError "AdminLogic: invalid rewards amount"
+          PJust n  -> unTermCont $ do
+            let
+              numerator = toPInteger # (pCeil # (rewards #+ n))
+              result = toPNatRatio # (pcon $ PRational numerator 1)
+            pure $ pmatch result $ \case
+              PNothing -> ptraceError "AdminLogic: invalid final rewards amount"
+              PJust n  -> n
 
 entryChangedGuard ::
   forall (s :: S).

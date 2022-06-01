@@ -51,7 +51,6 @@ import SingularityNet.Types (
 
 import Plutarch.Api.V1 (PPOSIXTime)
 import Plutarch.Api.V1.Interval (PInterval)
-import Plutarch.Maybe (PMaybe(PJust))
 
 import Data.Ratio ((%))
 import Plutus.V1.Ledger.Api (CurrencySymbol (CurrencySymbol), POSIXTime)

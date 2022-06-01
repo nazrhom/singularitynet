@@ -28,8 +28,15 @@ import Plutarch.Api.V1 (
   PTxInfo,
   PMaybeData (PDJust, PDNothing),
   PValue,
-  PCurrencySymbol,PTokenName (PTokenName), PTxOut, PTuple, PDatumHash, ptuple
+  PCurrencySymbol,
+  PTokenName (PTokenName),
+  PTxOut,
+  PTuple,
+  PDatum,
+  PDatumHash,
+  ptuple
  )
+import Plutarch.Builtin (pforgetData)
 import Plutarch.Unsafe (punsafeCoerce)
 
 import PNatural (
