@@ -83,7 +83,7 @@ import Utils (
 import GHC.Records (getField)
 import Plutarch.Api.V1.Scripts (PDatum)
 import SingularityNet.Settings (bondedStakingTokenName)
-import InductiveLogic (hasListNft, consumesStateUtxoGuard, doesNotConsumeAssetGuard, consumesEntryGuard)
+import InductiveLogic (hasListNft, consumesStateUtxoGuard, doesNotConsumeAssetGuard, consumesEntryGuard, hasStateNft)
 import Plutarch.DataRepr (HRec)
 import Plutarch.Crypto (pblake2b_256)
 import SingularityNet.Natural (Natural(Natural), NatRatio(NatRatio))
@@ -367,16 +367,18 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
   do
   -- Construct some useful values for later
   stakeHolderKey <- pletC $ pblake2b_256 # pto holderPkh
-  poolAddr <- pletC $ pfield @"address" # spentInput.resolved
-  stateTok <- pletC $ passetClass
-      # params.nftCs
-      # pconstant bondedStakingTokenName 
-  newEntryTok <- pletC $ passetClass
-      # params.assocListCs
-      #$ pcon $ PTokenName $ stakeHolderKey
+  stakeHolderTn <- pletC $ pcon $ PTokenName $ stakeHolderKey
+  spentInputResolved <-
+    tcont . pletFields @'["address", "value", "datumHash"] $ spentInput.resolved
+  let poolAddr :: Term s PAddress
+      poolAddr = spentInputResolved.address
+      stateTn :: Term s PTokenName
+      stateTn = pconstant bondedStakingTokenName 
+  stateTok <- pletC $ passetClass # params.nftCs # stateTn
+  newEntryTok <- pletC $ passetClass # params.assocListCs # stakeHolderTn
   txInfoData <- pletC $ getField @"data" txInfo
   pure . pmatch mintAct $ \case
-    PMintHead _ -> unTermCont $ do
+    PMintHead stateOutRef -> unTermCont $ do
       ---- FETCH DATUMS ----
       -- Get datum for next state
       nextStateTxOut <- 
@@ -393,12 +395,14 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
       ---- BUSINESS LOGIC ----
       newEntryGuard params newEntry stakeAmt stakeHolderKey 
       ---- INDUCTIVE CONDITIONS ----
-      -- Validate that spentOutRef is the state UTXO
-      consumesStateUtxoGuard
-        spentInput.outRef
-        txInfo.inputs
-        params.nftCs
-        $ pconstant bondedStakingTokenName
+      -- Validate that spentOutRef is the state UTXO and matches redeemer
+      guardC "newStakeLogic: spent input is not the state UTXO" $
+        hasStateNft
+          params.nftCs
+          (pconstant bondedStakingTokenName)
+          (pfield @"value" # spentInput.resolved)
+      guardC "newStakeLogic: spent input does not match redeemer input" $
+        spentInput.outRef #== pfield @"_0" # stateOutRef
       -- Validate next state
       guardC "newStakeLogic: next pool state does not point to new entry" $
         nextEntryKey `pointsTo` newEntry.key
@@ -446,12 +450,11 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
       -- Previous entry should keep the same values when updated
       equalEntriesGuard prevEntry prevEntryUpdated 
       ---- INDUCTIVE CONDITIONS ----
-      -- Validate that TX spends `previousEntry`
-      consumesEntryGuard
-        spentInput.outRef
-        txInfo.inputs
-        params.assocListCs
-      pure punit
+      -- Validate that previousEntry is a list entry and matches redeemer
+      guardC "newStakeLogic: spent input is not an entry" $
+        hasListNft params.assocListCs spentInputResolved.value
+      guardC "newStakeLogic: spent input is not the same as input in redeemer" $
+        spentInput.outRef #== entriesRefs.previousEntry
       -- Previous entry should now point to the new entry
       guardC "newStakeLogic: the previous entry should point to the new entry" $
         prevEntryUpdated.next `pointsTo` newEntry.key
