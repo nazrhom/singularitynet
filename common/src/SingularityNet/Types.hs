@@ -12,7 +12,6 @@ module SingularityNet.Types (
     Entry,
     key,
     next,
-    sizeLeft,
     newDeposit,
     deposited,
     staked,
@@ -89,7 +88,6 @@ unstableMakeIsData ''BondedPoolParams
 -}
 data Entry = Entry
   { key :: BuiltinByteString
-  , sizeLeft :: Natural
   , newDeposit :: Natural
   , deposited :: Natural
   , staked :: Natural

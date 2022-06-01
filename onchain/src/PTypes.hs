@@ -144,7 +144,6 @@ data PEntry (s :: S)
           s
           ( PDataRecord
               '[ "key" ':= PByteString
-               , "sizeLeft" ':= PNatural
                , "newDeposit" ':= PNatural
                , "deposited" ':= PNatural
                , "staked" ':= PNatural

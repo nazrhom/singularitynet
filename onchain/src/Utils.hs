@@ -807,7 +807,6 @@ type PTxInInfoHRec (s :: S) = HRec '[
 -- | HRec with all of `PEntry`'s fields
 type PEntryHRec (s :: S) = HRec '[
   HField s "key" PByteString
-  , HField s "sizeLeft" PNatural
   , HField s "newDeposit" PNatural
   , HField s "deposited" PNatural
   , HField s "staked" PNatural
@@ -854,7 +853,6 @@ type PTxInInfoFields =
 -- | Type level list with all of `PEntry`'s fields
 type PEntryFields =
   '["key"
-   , "sizeLeft"
    , "newDeposit"
    , "deposited"
    , "staked"
