@@ -16,31 +16,31 @@ import Plutarch.Api.V1.Scripts ()
 import Plutarch.Unsafe (punsafeCoerce)
 
 import PTypes (
-  PListAction (PListInsert, PListRemove),
-  PMintingAction (PMintHead, PMintInBetween, PMintEnd),
   PBurningAction (PBurnHead, PBurnOther),
+  PListAction (PListInsert, PListRemove),
+  PMintingAction (PMintEnd, PMintHead, PMintInBetween),
  )
 
+import InductiveLogic (
+  consumesEntryGuard,
+  consumesStateUtxoGuard,
+  hasNoNft,
+  inputPredicate,
+ )
 import Plutarch.Crypto (pblake2b_256)
 import Utils (
   getCs,
+  getOnlySignatory,
   guardC,
   oneOf,
   oneWith,
   peq,
   pflip,
   pletC,
-  ptryFromUndata,
   porList,
-  getOnlySignatory,
-  punit
+  ptryFromUndata,
+  punit,
  )
-import InductiveLogic (
-  consumesStateUtxoGuard,
-  consumesEntryGuard,
-  hasNoNft,
-  inputPredicate
-  )
 
 {-
     This module implements the minting policy for the NFTs used as entries for
@@ -57,7 +57,7 @@ import InductiveLogic (
     Due to how the system is designed, this minting policy is only run when
     a user stakes *for the first time* (minting a new NFT) or when it withdraws
     their stake (burning an NFT).
-    
+
     Invariants related to the amount staked, global or local limits, and other
     things, are delegated to the pool validator and not treated here.
     Importantly, inductive conditions of the association list are delegated to
@@ -93,10 +93,10 @@ plistNFTPolicy = plam $ \stateNftCs stateNftTn listAct ctx' -> unTermCont $ do
     pmatch listAct $ \case
       PListInsert mintAct' ->
         let mintAct = pfield @"_0" # mintAct'
-        in listInsertCheck txInfo.inputs txInfo.mint stateTok listTok mintAct
+         in listInsertCheck txInfo.inputs txInfo.mint stateTok listTok mintAct
       PListRemove burnAct' ->
         let burnAct = pfield @"_0" # burnAct'
-        in listRemoveCheck txInfo.mint listTok burnAct
+         in listRemoveCheck txInfo.mint listTok burnAct
 
 plistNFTPolicyUntyped ::
   forall (s :: S). Term s (PData :--> PData :--> PData :--> PData :--> PUnit)
@@ -106,7 +106,8 @@ plistNFTPolicyUntyped = plam $ \stateNftCs stateNftTn mintAct ctx ->
     # unTermCont (ptryFromUndata mintAct)
     # punsafeCoerce ctx
 
-listInsertCheck :: forall (s :: S) .
+listInsertCheck ::
+  forall (s :: S).
   Term s (PBuiltinList (PAsData PTxInInfo)) ->
   Term s PValue ->
   (Term s PCurrencySymbol, Term s PTokenName) ->
@@ -137,7 +138,8 @@ listInsertCheck
         mintEndGuard stateNftCs listNftCs lastEntry inputs
 
 -- TODO: Inductive conditions related to withdrawing not implemented
-listRemoveCheck :: forall (s :: S) .
+listRemoveCheck ::
+  forall (s :: S).
   Term s PValue ->
   (Term s PCurrencySymbol, Term s PTokenName) ->
   Term s PBurningAction ->
@@ -148,7 +150,8 @@ listRemoveCheck mintVal (listNftCs, entryTn) burnAct = unTermCont $ do
   pure . pmatch burnAct $ \case
     PBurnHead _poolState -> punit
     PBurnOther _prevEntry -> punit
-      -- TODO
+
+-- TODO
 
 -- Build the token name from the signatory's `PPubKeyHash`
 mkEntryTn :: Term s PPubKeyHash -> Term s PTokenName
@@ -217,21 +220,23 @@ mintEndGuard stateNftCs listNftCs lastEntry inputs = do
   consumesEntryGuard lastEntry inputs listNftCs
   -- We check that the other inputs are not state nor list UTXOs
   noNftGuard stateNftCs listNftCs [lastEntry] inputs
-  
+
 -- Check that all unprotected inputs contain no state nor list NFTs
-noNftGuard :: forall (s :: S).
+noNftGuard ::
+  forall (s :: S).
   Term s PCurrencySymbol ->
   Term s PCurrencySymbol ->
   [Term s PTxOutRef] ->
   Term s (PBuiltinList (PAsData PTxInInfo)) ->
   TermCont s (Term s PUnit)
 noNftGuard stateNftCs listNftCs protectedInputs inputs =
-  guardC "noNftGuard: unallowed input in the transaction contains state or list\
-         \ NFT" $
-    pflip pall inputs . inputPredicate $ \outRef val ->
+  guardC
+    "noNftGuard: unallowed input in the transaction contains state or list\
+    \ NFT"
+    $ pflip pall inputs . inputPredicate $ \outRef val ->
       let equalToSome :: [Term s PTxOutRef] -> Term s PBool
           equalToSome = porList . fmap (\o -> pdata outRef #== pdata o)
-      in equalToSome protectedInputs #|| hasNoNft stateNftCs listNftCs val
+       in equalToSome protectedInputs #|| hasNoNft stateNftCs listNftCs val
 
 -- Check that the token was burnt once
 burnCheck ::

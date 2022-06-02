@@ -55,32 +55,37 @@ module Utils (
   HField,
 ) where
 
+import GHC.TypeLits (Symbol)
+import PNatural (PNatRatio, PNatural)
 import PTypes (PAssetClass, passetClass)
 import Plutarch.Api.V1 (
   PAddress,
   PCurrencySymbol,
+  PDCert,
   PDatum,
   PDatumHash,
+  PMap,
   PMaybeData (PDJust, PDNothing),
+  PPOSIXTime,
+  PPOSIXTimeRange,
+  PPubKeyHash,
   PScriptPurpose (PMinting, PSpending),
+  PStakingCredential,
   PTokenName,
   PTuple,
+  PTxId,
   PValue,
-  PPubKeyHash,
-  PDCert,
-  PStakingCredential,
-  ptuple, PPOSIXTimeRange, PTxId, PPOSIXTime, PMap)
+  ptuple,
+ )
 import Plutarch.Api.V1.Tx (PTxInInfo, PTxOut, PTxOutRef)
 import Plutarch.Bool (pand, por)
+import Plutarch.DataRepr (HRec)
+import Plutarch.DataRepr.Internal.Field (Labeled)
 import Plutarch.Lift (
   PLifted,
   PUnsafeLiftDecl,
  )
 import Plutarch.TryFrom (PTryFrom, ptryFrom)
-import Plutarch.DataRepr (HRec)
-import Plutarch.DataRepr.Internal.Field (Labeled)
-import PNatural ( PNatRatio, PNatural )
-import GHC.TypeLits (Symbol)
 
 -- Term-level boolean functions
 peq :: forall (s :: S) (a :: PType). PEq a => Term s (a :--> a :--> PBool)
@@ -142,11 +147,11 @@ pnestedIf [] def = def
 pnestedIf ((cond, x) : conds) def = pif cond x $ pnestedIf conds def
 
 -- `and` function for `[Term s PBool]`. Expands to a sequence of `(#&&)`
-pandList :: forall (s :: S) . [Term s PBool] -> Term s PBool
+pandList :: forall (s :: S). [Term s PBool] -> Term s PBool
 pandList = foldr (#&&) ptrue
 
 -- `or` function for `[Term s PBool]`. Expands to a sequence of `(#||)`
-porList :: forall (s :: S) . [Term s PBool] -> Term s PBool
+porList :: forall (s :: S). [Term s PBool] -> Term s PBool
 porList = foldr (#||) pfalse
 
 -- | Lifts `pif` result into the `TermCont` monad
@@ -217,25 +222,30 @@ pfind pred ls = pure $ (pfix #$ go # pred) # ls
       plam $ \pred self ls -> pmatch ls $ \case
         PNil -> ptraceError "pfind: could not find element in list"
         PCons x xs -> pif (pred # x) x (self # xs)
-        
+
 -- | Equivalent to `mapMaybe` for plutarch
-pmapMaybe :: forall (s :: S) (a :: PType) (b :: PType) .
+pmapMaybe ::
+  forall (s :: S) (a :: PType) (b :: PType).
   (PUnsafeLiftDecl a, PUnsafeLiftDecl b) =>
   Term s (a :--> PMaybe b) ->
   Term s (PBuiltinList a) ->
   Term s (PBuiltinList b)
 pmapMaybe f as = pfix # pmapMaybe' # f # as
-  where pmapMaybe' :: Term s (
-          ((a :--> PMaybe b) :--> PBuiltinList a :--> PBuiltinList b) :-->
-           (a :--> PMaybe b) :-->
-           PBuiltinList a :-->
-           PBuiltinList b
-          )
-        pmapMaybe' = phoistAcyclic $ plam $ \self f ls -> pmatch ls $ \case
-          PCons x xs -> pmatch (f # x) $ \case
-            PJust x' -> pcon $ PCons x' $ self # f # xs
-            PNothing -> self # f # xs
-          PNil -> pcon $ PNil
+  where
+    pmapMaybe' ::
+      Term
+        s
+        ( ((a :--> PMaybe b) :--> PBuiltinList a :--> PBuiltinList b)
+            :--> (a :--> PMaybe b)
+            :--> PBuiltinList a
+            :--> PBuiltinList b
+        )
+    pmapMaybe' = phoistAcyclic $
+      plam $ \self f ls -> pmatch ls $ \case
+        PCons x xs -> pmatch (f # x) $ \case
+          PJust x' -> pcon $ PCons x' $ self # f # xs
+          PNothing -> self # f # xs
+        PNil -> pcon $ PNil
 
 {- | Returns the pair of lists of elements that match and don't match the
  predicate
@@ -296,37 +306,52 @@ ptraceBool common trueMsg falseMsg cond = ptrace msg cond
 -- Functions for working with `PValue`s
 
 -- | Result of `pto v`, where `v :: Term s PValue`
-type PValueOuter = PBuiltinList
-  (PBuiltinPair
-    (PAsData PCurrencySymbol)
-    (PAsData (PMap PTokenName (PInteger))))
+type PValueOuter =
+  PBuiltinList
+    ( PBuiltinPair
+        (PAsData PCurrencySymbol)
+        (PAsData (PMap PTokenName (PInteger)))
+    )
 
--- | Retrieves the `PTokenName` for a given `PCurrencySymbol`. It fetches the
--- only the first token and it fails if no token is present
-getTokenName :: forall (s :: S).
+{- | Retrieves the `PTokenName` for a given `PCurrencySymbol`. It fetches the
+ only the first token and it fails if no token is present
+-}
+getTokenName ::
+  forall (s :: S).
   Term s PCurrencySymbol ->
   Term s PValue ->
   Term s PAssetClass
 getTokenName cs val = pfix # getTokenName' # cs # pto (pto val)
-  where getTokenName' :: forall (s :: S) . Term s (
-          (PCurrencySymbol :--> PValueOuter :--> PAssetClass) :-->
-          PCurrencySymbol :-->
-          PValueOuter :-->
-          PAssetClass)
-        getTokenName' = phoistAcyclic $ plam $ \self listCs val ->
-          pmatch val $ \case
-            PCons csMap vals -> unTermCont $ do
-              (cs, tnMap) <- ppairData csMap
-              pure $ pif (pnot #$ cs #== listCs)
+  where
+    getTokenName' ::
+      forall (s :: S).
+      Term
+        s
+        ( (PCurrencySymbol :--> PValueOuter :--> PAssetClass)
+            :--> PCurrencySymbol
+            :--> PValueOuter
+            :--> PAssetClass
+        )
+    getTokenName' = phoistAcyclic $
+      plam $ \self listCs val ->
+        pmatch val $ \case
+          PCons csMap vals -> unTermCont $ do
+            (cs, tnMap) <- ppairData csMap
+            pure $
+              pif
+                (pnot #$ cs #== listCs)
                 (self # listCs # vals)
                 $ pmatch (pto tnMap) $ \case
                   PCons tnAmt _ -> passetClass # listCs # pfstData tnAmt
                   PNil -> ptraceError "getTokenName: empty tnMap"
-            PNil -> ptraceError "getTokenName: the token with given \
-                    \CurrencySymbol was not found"
-    --go self ls cont = pmatch ls $ \case
-    --  PNil -> pconstant False
-    --  PCons p ps -> boolOp # (cont # p) #$ self # ps # cont
+          PNil ->
+            ptraceError
+              "getTokenName: the token with given \
+              \CurrencySymbol was not found"
+
+-- go self ls cont = pmatch ls $ \case
+--  PNil -> pconstant False
+--  PCons p ps -> boolOp # (cont # p) #$ self # ps # cont
 
 -- Functions for evaluating predicates on `PValue`s
 
@@ -670,9 +695,10 @@ getContinuingOutputWithNFT addr ac outputs =
     getContinuingOutputWithNFT' = phoistAcyclic $
       plam $ \addr ac outputs ->
         unTermCont $
-          pfromData <$> pfind
-            (sameAddrAndNFT addr ac)
-            outputs
+          pfromData
+            <$> pfind
+              (sameAddrAndNFT addr ac)
+              outputs
     sameAddrAndNFT ::
       forall (s :: S).
       Term s PAddress ->
@@ -684,7 +710,7 @@ getContinuingOutputWithNFT addr ac outputs =
       pure $
         pdata outputF.address #== pdata addr
           #&& oneOf # acF.currencySymbol # acF.tokenName # outputF.value
-          
+
 {- | Gets the `DatumHash` from a `PTxOut`. If not available, it will fail with
  an error.
 -}
@@ -746,7 +772,7 @@ getOnlySignatory ls = pure . pmatch ls $ \case
       (pfromData pkh)
       (ptraceError "getSignatory: transaction has more than one signatory")
   PNil -> ptraceError "getSignatory: empty list of signatories"
-        
+
 -- Functions for checking signatures
 
 -- | Verifies that a signature is in the signature list
@@ -758,7 +784,8 @@ signedBy ::
 signedBy ls pkh = pelem # pdata pkh # ls
 
 -- | Verifies that a signature is the *only* one in the list
-signedOnlyBy :: forall (s :: S).
+signedOnlyBy ::
+  forall (s :: S).
   Term s (PBuiltinList (PAsData PPubKeyHash)) ->
   Term s PPubKeyHash ->
   Term s PBool
@@ -767,98 +794,102 @@ signedOnlyBy ls pkh = pelem # pdata pkh # ls #&& plength # ls #== 1
 -- Useful type family for reducing boilerplate in HRec types
 type family HField (s :: S) (field :: Symbol) (ptype :: PType) where
   HField s field ptype = Labeled field (Term s (PAsData ptype))
-  
+
 -- | HRec with all of `PTxInfo`'s fields
-type PTxInfoHRec (s :: S) = HRec '[
-  HField s "inputs" (PBuiltinList (PAsData PTxInInfo)),
-  HField s "outputs" (PBuiltinList (PAsData PTxOut)),
-  HField s "fee" PValue,
-  HField s "mint" PValue,
-  HField s "dcert" (PBuiltinList (PAsData PDCert)),
-  HField s "wdrl" (PBuiltinList (PAsData (PTuple PStakingCredential PInteger))),
-  HField s "validRange" PPOSIXTimeRange,
-  HField s "signatories" (PBuiltinList (PAsData PPubKeyHash)),
-  HField s "data" (PBuiltinList (PAsData (PTuple PDatumHash PDatum))),
-  HField s "id" PTxId
-  ]
-  
+type PTxInfoHRec (s :: S) =
+  HRec
+    '[ HField s "inputs" (PBuiltinList (PAsData PTxInInfo))
+     , HField s "outputs" (PBuiltinList (PAsData PTxOut))
+     , HField s "fee" PValue
+     , HField s "mint" PValue
+     , HField s "dcert" (PBuiltinList (PAsData PDCert))
+     , HField s "wdrl" (PBuiltinList (PAsData (PTuple PStakingCredential PInteger)))
+     , HField s "validRange" PPOSIXTimeRange
+     , HField s "signatories" (PBuiltinList (PAsData PPubKeyHash))
+     , HField s "data" (PBuiltinList (PAsData (PTuple PDatumHash PDatum)))
+     , HField s "id" PTxId
+     ]
+
 -- | HRec with all of `PBondedPoolParams`'s fields
-type PBondedPoolParamsHRec (s :: S) = HRec '[
-  HField s "iterations" PNatural,
-  HField s "start" PPOSIXTime,
-  HField s "end" PPOSIXTime,
-  HField s "userLength" PPOSIXTime,
-  HField s "bondingLength" PPOSIXTime,
-  HField s "interest" PNatRatio,
-  HField s "minStake" PNatural,
-  HField s "maxStake" PNatural,
-  HField s "admin" PPubKeyHash,
-  HField s "bondedAssetClass" PAssetClass,
-  HField s "nftCs" PCurrencySymbol,
-  HField s "assocListCs" PCurrencySymbol
-  ]
-  
+type PBondedPoolParamsHRec (s :: S) =
+  HRec
+    '[ HField s "iterations" PNatural
+     , HField s "start" PPOSIXTime
+     , HField s "end" PPOSIXTime
+     , HField s "userLength" PPOSIXTime
+     , HField s "bondingLength" PPOSIXTime
+     , HField s "interest" PNatRatio
+     , HField s "minStake" PNatural
+     , HField s "maxStake" PNatural
+     , HField s "admin" PPubKeyHash
+     , HField s "bondedAssetClass" PAssetClass
+     , HField s "nftCs" PCurrencySymbol
+     , HField s "assocListCs" PCurrencySymbol
+     ]
+
 -- | HRec with all of `PTxInInfo`'s fields
-type PTxInInfoHRec (s :: S) = HRec '[
-  HField s "outRef" PTxOutRef,
-  HField s "resolved" PTxOut
-  ]
+type PTxInInfoHRec (s :: S) =
+  HRec
+    '[ HField s "outRef" PTxOutRef
+     , HField s "resolved" PTxOut
+     ]
 
 -- | HRec with all of `PEntry`'s fields
-type PEntryHRec (s :: S) = HRec '[
-  HField s "key" PByteString
-  , HField s "newDeposit" PNatural
-  , HField s "deposited" PNatural
-  , HField s "staked" PNatural
-  , HField s "rewards" PNatRatio
-  , HField s "next" (PMaybeData PByteString)
-  ]
-  
+type PEntryHRec (s :: S) =
+  HRec
+    '[ HField s "key" PByteString
+     , HField s "newDeposit" PNatural
+     , HField s "deposited" PNatural
+     , HField s "staked" PNatural
+     , HField s "rewards" PNatRatio
+     , HField s "next" (PMaybeData PByteString)
+     ]
+
 -- | Type level list with all of `PBondedPoolParams's field names
 type PBondedPoolParamsFields =
-  '[
-    "iterations",
-    "start",
-    "end",
-    "userLength",
-    "bondingLength",
-    "interest",
-    "minStake",
-    "maxStake",
-    "admin",
-    "bondedAssetClass",
-    "nftCs",
-    "assocListCs"
+  '[ "iterations"
+   , "start"
+   , "end"
+   , "userLength"
+   , "bondingLength"
+   , "interest"
+   , "minStake"
+   , "maxStake"
+   , "admin"
+   , "bondedAssetClass"
+   , "nftCs"
+   , "assocListCs"
    ]
 
 -- | Type level list with all of `PTxInfo`'s fields
 type PTxInfoFields =
-  '["inputs",
-    "outputs",
-    "fee",
-    "mint",
-    "dcert",
-    "wdrl",
-    "validRange",
-    "signatories",
-    "data",
-    "id"]
+  '[ "inputs"
+   , "outputs"
+   , "fee"
+   , "mint"
+   , "dcert"
+   , "wdrl"
+   , "validRange"
+   , "signatories"
+   , "data"
+   , "id"
+   ]
 
 -- | Type level list with all of `PTxInInfo`'s fields
 type PTxInInfoFields =
-  '["outRef",
-    "resolved"
+  '[ "outRef"
+   , "resolved"
    ]
-   
+
 -- | Type level list with all of `PEntry`'s fields
 type PEntryFields =
-  '["key"
+  '[ "key"
    , "newDeposit"
    , "deposited"
    , "staked"
    , "rewards"
    , "next"
-  ]
+   ]
 
 --
 -- Other functions

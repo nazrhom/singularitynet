@@ -42,12 +42,12 @@ import PNatural (PNatRatio, PNatural)
 import SingularityNet.Types (
   AssetClass,
   BondedPoolParams,
-  MintingAction,
-  BurningAction,
-  ListAction,
   BondedStakingAction,
   BondedStakingDatum,
+  BurningAction,
   Entry,
+  ListAction,
+  MintingAction,
  )
 
 import Plutarch.Api.V1 (PMaybeData, PPOSIXTime, PTokenName, PTxId, PTxOutRef)
@@ -229,7 +229,7 @@ deriving via
 
 instance PUnsafeLiftDecl PMintingAction where
   type PLifted PMintingAction = MintingAction
-    
+
 -- | `BurningAction` synonym
 data PBurningAction (s :: S)
   = PBurnHead (Term s (PDataRecord '["_0" ':= PTxOutRef]))
@@ -247,7 +247,7 @@ deriving via
 
 instance PUnsafeLiftDecl PBurningAction where
   type PLifted PBurningAction = BurningAction
-  
+
 -- | `ListAction` synonym
 data PListAction (s :: S)
   = PListInsert (Term s (PDataRecord '["_0" ':= PMintingAction]))
@@ -279,16 +279,22 @@ data PBondedStakingAction (s :: S)
                ]
           )
       )
-  | PWithdrawAct (Term s (PDataRecord
-      '[ "pubKeyHash" ':= PPubKeyHash
-       , "burningAction" ':= PBurningAction]))
+  | PWithdrawAct
+      ( Term
+          s
+          ( PDataRecord
+              '[ "pubKeyHash" ':= PPubKeyHash
+               , "burningAction" ':= PBurningAction
+               ]
+          )
+      )
   | PCloseAct (Term s (PDataRecord '[]))
   deriving stock (GHC.Generic)
   deriving anyclass (Generic, PIsDataRepr)
   deriving
     (PlutusType, PIsData)
     via PIsDataReprInstances PBondedStakingAction
-    
+
 deriving via
   PAsData (PIsDataReprInstances (PMaybeData PMintingAction))
   instance

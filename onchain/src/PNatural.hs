@@ -11,27 +11,28 @@ module PNatural (
   PNatural (..),
   PNatRatio (..),
   PNonNegative (..),
-  toNatRatio
+  toNatRatio,
 ) where
 
 import GHC.Generics qualified as GHC
-import Generics.SOP ( Generic, I(I) )
+import Generics.SOP (Generic, I (I))
 
 import SingularityNet.Natural (
   NatRatio (NatRatio),
   Natural (Natural),
  )
 
+import Plutarch.DataRepr (
+  DerivePConstantViaData (DerivePConstantViaData),
+  PDataFields,
+  PIsDataReprInstances (PIsDataReprInstances),
+ )
 import Plutarch.Lift (
   PConstant (PConstantRepr, PConstanted, pconstantFromRepr, pconstantToRepr),
   PLifted,
   PUnsafeLiftDecl,
  )
 import Plutarch.TryFrom (PTryFrom)
-import Plutarch.DataRepr (
-  DerivePConstantViaData(DerivePConstantViaData),
-  PIsDataReprInstances(PIsDataReprInstances),
-  PDataFields)
 
 {- | `Natural` synonym.
  It wraps a `PInteger`. It derives all of its instances
@@ -60,17 +61,19 @@ instance PConstant Natural where
 
 -- | A natural datatype that wraps a pair of Naturals
 newtype PNatRatio (s :: S)
-  = PNatRatio (
-      Term s (
-        PDataRecord '[
-          "numerator" ':= PNatural,
-          "denominator" ':= PNatural
-        ]
+  = PNatRatio
+      ( Term
+          s
+          ( PDataRecord
+              '[ "numerator" ':= PNatural
+               , "denominator" ':= PNatural
+               ]
+          )
       )
-    )
   deriving stock (GHC.Generic)
   deriving anyclass (Generic, PIsDataRepr)
-  deriving (PlutusType, PIsData, PDataFields)
+  deriving
+    (PlutusType, PIsData, PDataFields)
     via PIsDataReprInstances PNatRatio
 
 deriving via
@@ -129,8 +132,10 @@ instance PNonNegative PNatRatio where
     n' <- pletC $ nx * dy + ny * dx
     d' <- pletC $ dx * dy
     let commonD = pgcd n' d'
-    pure $ mkNatRatioUnsafe (pdiv # n' # commonD)
-                            (pdiv # d' # commonD)
+    pure $
+      mkNatRatioUnsafe
+        (pdiv # n' # commonD)
+        (pdiv # d' # commonD)
   x #* y = unTermCont $ do
     (nx, dx) <- getIntegers x
     (ny, dy) <- getIntegers y
@@ -142,12 +147,15 @@ instance PNonNegative PNatRatio where
     n' <- pletC $ nx * dy - ny * dx
     d' <- pletC $ dx * dy
     let commonD = pgcd n' d'
-    pure $ pif (n' #< 0)
-               (pcon PNothing) 
-               $ pcon . PJust $ mkNatRatioUnsafe
-                (pdiv # n' # commonD)
-                (pdiv # d' # commonD)
-                
+    pure $
+      pif
+        (n' #< 0)
+        (pcon PNothing)
+        $ pcon . PJust $
+          mkNatRatioUnsafe
+            (pdiv # n' # commonD)
+            (pdiv # d' # commonD)
+
 -- Conversion functions
 
 toNatRatio :: Term s PNatural -> Term s PNatRatio
@@ -158,50 +166,68 @@ gt0 :: Integer -> Maybe Natural
 gt0 n
   | n < 0 = Nothing
   | otherwise = Just . Natural $ fromInteger n
-  
-mkNatRatioUnsafe :: forall (s :: S).
-  Term s PInteger -> Term s PInteger -> Term s PNatRatio
+
+mkNatRatioUnsafe ::
+  forall (s :: S).
+  Term s PInteger ->
+  Term s PInteger ->
+  Term s PNatRatio
 mkNatRatioUnsafe x y = mkNatRatioUnsafe' # x # y
-  where mkNatRatioUnsafe' :: Term s (PInteger :--> PInteger :--> PNatRatio)
-        mkNatRatioUnsafe' = phoistAcyclic $ plam $ \x y ->
-          pcon . PNatRatio $
-            pdcons # pdata (mkNatUnsafe x)
-                   #$ pdcons # pdata (mkNatUnsafe y) # pdnil
-          
-mkNatUnsafe :: forall (s :: S).
-  Term s PInteger -> Term s PNatural
+  where
+    mkNatRatioUnsafe' :: Term s (PInteger :--> PInteger :--> PNatRatio)
+    mkNatRatioUnsafe' = phoistAcyclic $
+      plam $ \x y ->
+        pcon . PNatRatio $
+          pdcons # pdata (mkNatUnsafe x)
+            #$ pdcons # pdata (mkNatUnsafe y) # pdnil
+
+mkNatUnsafe ::
+  forall (s :: S).
+  Term s PInteger ->
+  Term s PNatural
 mkNatUnsafe x = pcon . PNatural $ x
 
-pgcd :: forall (s :: S) . Term s PInteger -> Term s PInteger -> Term s PInteger
+pgcd :: forall (s :: S). Term s PInteger -> Term s PInteger -> Term s PInteger
 pgcd x y = pfix # phoistAcyclic (plam gcd') # x # y # 1
-  where 
-        -- Binary GCD algorithm
-        gcd' :: forall (s :: S) .
-          Term s (PInteger :--> PInteger :--> PInteger :--> PInteger) ->
-          Term s PInteger ->
-          Term s PInteger ->
-          Term s PInteger ->
-          Term s PInteger
-        gcd' self a b d = unTermCont $ do
-          aEven <- pletC $ even # a
-          bEven <- pletC $ even # b
-          pure $
-            pif (a #== b)
-              (a * d)
-              (pif aEven
-                (pif bEven
+  where
+    -- Binary GCD algorithm
+    gcd' ::
+      forall (s :: S).
+      Term s (PInteger :--> PInteger :--> PInteger :--> PInteger) ->
+      Term s PInteger ->
+      Term s PInteger ->
+      Term s PInteger ->
+      Term s PInteger
+    gcd' self a b d = unTermCont $ do
+      aEven <- pletC $ even # a
+      bEven <- pletC $ even # b
+      pure $
+        pif
+          (a #== b)
+          (a * d)
+          ( pif
+              aEven
+              ( pif
+                  bEven
                   (self # half a # half b # d * 2)
-                  (self # half a # b # d))
-                (pif bEven
+                  (self # half a # b # d)
+              )
+              ( pif
+                  bEven
                   (self # a # half b # d)
-                  (pif (a #< b)
-                       (self # half (b - a) # a # d)
-                       (self # half (a - b) # b # d))))
-          where even :: Term s (PInteger :--> PBool)
-                even = phoistAcyclic $ plam $ \x -> prem # x # 2 #== 0
-                half :: Term s PInteger -> Term s PInteger
-                half x = pdiv # x # 2
-  
+                  ( pif
+                      (a #< b)
+                      (self # half (b - a) # a # d)
+                      (self # half (a - b) # b # d)
+                  )
+              )
+          )
+      where
+        even :: Term s (PInteger :--> PBool)
+        even = phoistAcyclic $ plam $ \x -> prem # x # 2 #== 0
+        half :: Term s PInteger -> Term s PInteger
+        half x = pdiv # x # 2
+
 getIntegers ::
   forall (s :: S).
   Term s PNatRatio ->
@@ -209,6 +235,6 @@ getIntegers ::
 getIntegers r' = do
   r <- tcont . pletFields @'["numerator", "denominator"] $ r'
   pure (pto $ pfromData r.numerator, pto $ pfromData r.denominator)
-  
+
 pletC :: forall (s :: S) (a :: PType). Term s a -> TermCont s (Term s a)
 pletC = tcont . plet
