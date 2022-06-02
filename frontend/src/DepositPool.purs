@@ -63,11 +63,11 @@ depositBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
       getWalletAddress
   -- Get utxos at the wallet address
   adminUtxos <-
-    liftedM "depositBondedPoolContract: Cannot get user Utxos" $
-      utxosAt adminAddr
+    liftedM "depositBondedPoolContract: Cannot get user Utxos"
+      $ utxosAt adminAddr
   -- Get the bonded pool validator and hash
-  validator <- liftedE' "depositBondedPoolContract: Cannot create validator" $
-    mkBondedPoolValidator params
+  validator <- liftedE' "depositBondedPoolContract: Cannot create validator"
+    $ mkBondedPoolValidator params
   valHash <- liftContractM "depositBondedPoolContract: Cannot hash validator"
     $ validatorHash validator
   logInfo_ "depositBondedPoolContract: validatorHash" valHash
@@ -77,15 +77,15 @@ depositBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
   -- Get the bonded pool's utxo
   bondedPoolUtxos <-
     liftedM
-      "depositBondedPoolContract: Cannot get pool's utxos at pool address" $
-      utxosAt poolAddr
+      "depositBondedPoolContract: Cannot get pool's utxos at pool address"
+      $ utxosAt poolAddr
   logInfo_ "depositBondedPoolContract: Pool UTXOs" bondedPoolUtxos
   tokenName <- liftContractM
     "depositBondedPoolContract: Cannot create TokenName"
     bondedStakingTokenName
   poolTxInput /\ poolTxOutput <-
-    liftContractM "depositBondedPoolContract: Cannot get state utxo" $
-      getUtxoWithNFT bondedPoolUtxos nftCs tokenName
+    liftContractM "depositBondedPoolContract: Cannot get state utxo"
+      $ getUtxoWithNFT bondedPoolUtxos nftCs tokenName
   logInfo_ "depositBondedPoolContract: Pool's UTXO" poolTxInput
   poolDatumHash <-
     liftContractM

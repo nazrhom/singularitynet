@@ -5,9 +5,12 @@ module Types
   , BondedStakingDatum(..)
   , Entry(..)
   , InitialBondedParams(..)
+  , InsertionType(..)
   , PoolInfo(..)
   , StakingType(..)
-  ) where
+  , UserStakeType(..)
+  )
+  where
 
 import Contract.Prelude
 
@@ -307,3 +310,7 @@ instance Show Entry where
   show = genericShow
 
 data StakingType = Bonded | Unbonded
+
+data InsertionType = Head | Tail
+
+data UserStakeType = Initial | Further

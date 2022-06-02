@@ -8,6 +8,7 @@ You can edit this file as you like.
   , "aff"
   , "aff-promise"
   , "cardano-transaction-lib"
+  , "control"
   , "arrays"
   , "bigints"
   , "exceptions"

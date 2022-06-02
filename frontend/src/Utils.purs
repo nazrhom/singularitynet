@@ -1,12 +1,14 @@
 module Utils
   ( big
   , getUtxoWithNFT
+  , hashPkh
   , jsonReader
   , logInfo_
   , mkBondedPoolParams
   , mkUnbondedPoolParams
   , nat
-  ) where
+  )
+  where
 
 import Contract.Prelude
 
@@ -17,17 +19,31 @@ import Aeson
   , caseAesonObject
   , getField
   )
-import Contract.Address (PaymentPubKeyHash)
-import Contract.Monad (Contract, logInfo, tag)
+import Contract.Address (PaymentPubKeyHash(PaymentPubKeyHash))
+import Contract.Hashing (blake2b256Hash)
+import Contract.Monad
+  ( Contract
+  , liftedM
+  , liftContractM
+  , logInfo
+  , tag)
 import Contract.Numeric.Natural (Natural, fromBigInt')
+import Contract.PlutusData (fromData, getDatumByHash)
+import Contract.Prim.ByteArray (ByteArray)
 import Contract.Transaction (TransactionInput, TransactionOutput)
-import Contract.Utxos (UtxoM)
+import Contract.Utxos (UtxoM(UtxoM))
 import Contract.Value (CurrencySymbol, TokenName, valueOf)
 import Data.Array (filter, head)
 import Data.BigInt (BigInt, fromInt)
 import Data.Map (toUnfoldable)
+import Serialization.Hash (ed25519KeyHashToBytes)
 import Types
   ( BondedPoolParams(BondedPoolParams)
+  , BondedStakingDatum
+      ( AssetDatum
+      , EntryDatum
+      , StateDatum
+      )
   , InitialBondedParams(InitialBondedParams)
   )
 import UnbondedStaking.Types
@@ -133,3 +149,7 @@ mkUnbondedPoolParams admin nftCs assocListCs (InitialUnbondedParams iup) = do
     , nftCs
     , assocListCs
     }
+
+hashPkh :: PaymentPubKeyHash -> ByteArray
+hashPkh =
+  blake2b256Hash <<< unwrap <<< ed25519KeyHashToBytes <<< unwrap <<< unwrap
