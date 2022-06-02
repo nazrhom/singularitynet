@@ -24,7 +24,7 @@ import Plutarch.Unsafe (punsafeCoerce)
 import PNatural (
   PNatural,
   PNatRatio,
-  PNonNegative ((#+))
+  PNonNegative ((#+), (#*)), toNatRatio
  )
 import PTypes (
   PBondedPoolParams,
@@ -55,9 +55,7 @@ import Utils (
   getDatumHash,
   getInput,
   guardC,
-  pconstantC,
   pletC,
-  pmatchC,
   ptryFromUndata,
   punit,
   signedBy,
@@ -184,10 +182,8 @@ pbondedPoolValidatorUntyped = plam $ \pparams dat act ctx ->
     # unTermCont (ptryFromUndata act)
     # punsafeCoerce ctx
 
--- The pool operator calculates the new available size left
--- TODO: Besides the logic related to updating the entries, there should also
--- be a check that makes sure the admin is not _reducing_ the stakes or the
--- rewards
+-- The pool operator updates the rewards for a given entry in the association
+-- list
 adminActLogic ::
   forall (s :: S).
   PTxInfoHRec s ->
@@ -211,7 +207,6 @@ adminActLogic txInfo params purpose inputStakingDatum sizeLeft = unTermCont $ do
   -- We get the txinfo data field for convenience
   let txInfoData :: Term s (PBuiltinList (PAsData (PTuple PDatumHash PDatum)))
       txInfoData = getField @"data" txInfo
-      listCs = params.assocListCs
   -- We make sure that the input's Datum is updated correctly for each Datum
   -- constructor
   pure . pmatch inputStakingDatum $ \case
@@ -240,15 +235,17 @@ adminActLogic txInfo params purpose inputStakingDatum sizeLeft = unTermCont $ do
              \correctly" $
         newStateSize #== sizeLeft
     PEntryDatum entry' -> unTermCont $ do
+      ---- FETCH DATUMS ----
       -- Retrieve fields from entry
       entry <- tcont . pletFields @PEntryFields $ pfield @"_0" # entry'
       -- We get the entry' asset class
       entryTok <- pletC $ getTokenName params.assocListCs inputResolved.value
       -- Get updated entry
       newEntry <- getOutputEntry poolAddr entryTok txInfoData txInfo.outputs
-      -- TODO: Verify that most fields are kept intact, that size is updated
-      -- and that interests are calculated correctly
-      pure punit
+      ---- BUSINESS LOGIC ----
+      pure $ pif (nat entry.newDeposit #== natZero)
+        (noNewDepositLogic entry newEntry)
+        (newDepositLogic entry newEntry)
     PAssetDatum _ ->
       ptraceError
         "adminActLogic: update failed because a wrong \
@@ -258,6 +255,49 @@ adminActLogic txInfo params purpose inputStakingDatum sizeLeft = unTermCont $ do
     __isBondingPeriod period = pmatch period $ \case
       BondingPeriod -> pconstant True
       _ -> pconstant False
+    newDepositLogic ::
+      PEntryHRec s -> PEntryHRec s -> Term s PUnit
+    newDepositLogic entry newEntry = unTermCont $ do
+      guardC "adminActLogic: changed invalid fields in cycle with new deposit" $
+        newEntry.key #== entry.key
+        #&& newEntry.deposited #== entry.deposited
+        #&& newEntry.next #== entry.next
+      guardC "adminActLogic: newDeposit was not set to zero in cycle with new\
+             \ deposit" $
+        nat newEntry.newDeposit #== natZero
+      guardC "adminActLogic: pool operator cannot reduce rewards or staked \
+             \amount" $
+        nat entry.staked #<= nat newEntry.staked
+        #&& pfromData entry.rewards #<= pfromData newEntry.rewards
+      guardC "adminActLogic: failure when updating rewards in cycle with new \
+              \deposit" $
+        newEntry.rewards #==
+          updatedRewards entry.rewards params.interest newEntry.staked
+    noNewDepositLogic ::
+      PEntryHRec s -> PEntryHRec s -> Term s PUnit
+    noNewDepositLogic entry newEntry = unTermCont $ do
+      guardC "adminActLogic: changed invalid fields in cycle with no new \
+             \deposit" $
+        newEntry.key #== entry.key
+        #&& newEntry.deposited #== entry.deposited
+        #&& newEntry.staked #== entry.staked
+        #&& newEntry.next #== entry.next
+      guardC "adminActLogic: failure when updating rewards in cycle with no \
+              \new deposit" $
+        newEntry.rewards #==
+          updatedRewards entry.rewards params.interest newEntry.staked
+    -- Convenient conversion function
+    nat :: Term s (PAsData PNatural) -> Term s PNatural
+    nat = pfromData
+    -- Calculate interests and update rewards
+    updatedRewards ::
+      Term s PNatRatio -> Term s PNatRatio -> Term s PNatural -> Term s PNatRatio
+    updatedRewards rewards interest stake =
+      updateRewards' # rewards # interest # stake
+    updateRewards' ::
+      Term s (PNatRatio :--> PNatRatio :--> PNatural :--> PNatRatio)
+    updateRewards' = phoistAcyclic $ plam $ \rewards interest stake ->
+      interest #* (toNatRatio stake #+ rewards)
       
 stakeActLogic :: forall (s :: S).
   PTxInfoHRec s ->
