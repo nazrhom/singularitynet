@@ -183,9 +183,15 @@ data PBondedStakingAction (s :: S)
                ]
           )
       )
-  | PWithdrawAct (Term s (PDataRecord
-      '[ "pubKeyHash" ':= PPubKeyHash
-       , "burningAction" ':= PBurningAction]))
+  | PWithdrawAct
+      ( Term
+          s
+          ( PDataRecord
+              '[ "pubKeyHash" ':= PPubKeyHash
+               , "burningAction" ':= PBurningAction
+               ]
+          )
+      )
   | PCloseAct (Term s (PDataRecord '[]))
   deriving stock (GHC.Generic)
   deriving anyclass (Generic, PIsDataRepr)
@@ -221,46 +227,45 @@ type PEntryHRec (s :: S) = HRec '[
 
 -- | Type level list with all of `PEntry`'s fields
 type PEntryFields =
-  '["key"
+  '[ "key"
    , "newDeposit"
    , "deposited"
    , "staked"
    , "rewards"
-   , "value"
    , "next"
-  ]
+   ]
 
 -- | HRec with all of `PBondedPoolParams`'s fields
-type PBondedPoolParamsHRec (s :: S) = HRec '[
-  HField s "iterations" PNatural,
-  HField s "start" PPOSIXTime,
-  HField s "end" PPOSIXTime,
-  HField s "userLength" PPOSIXTime,
-  HField s "bondingLength" PPOSIXTime,
-  HField s "interest" PNatRatio,
-  HField s "minStake" PNatural,
-  HField s "maxStake" PNatural,
-  HField s "admin" PPubKeyHash,
-  HField s "bondedAssetClass" PAssetClass,
-  HField s "nftCs" PCurrencySymbol,
-  HField s "assocListCs" PCurrencySymbol
-  ]
+type PBondedPoolParamsHRec (s :: S) =
+  HRec
+    '[ HField s "iterations" PNatural
+     , HField s "start" PPOSIXTime
+     , HField s "end" PPOSIXTime
+     , HField s "userLength" PPOSIXTime
+     , HField s "bondingLength" PPOSIXTime
+     , HField s "interest" PNatRatio
+     , HField s "minStake" PNatural
+     , HField s "maxStake" PNatural
+     , HField s "admin" PPubKeyHash
+     , HField s "bondedAssetClass" PAssetClass
+     , HField s "nftCs" PCurrencySymbol
+     , HField s "assocListCs" PCurrencySymbol
+     ]
 
 -- | Type level list with all of `PBondedPoolParams's field names
 type PBondedPoolParamsFields =
-  '[
-    "iterations",
-    "start",
-    "end",
-    "userLength",
-    "bondingLength",
-    "interest",
-    "minStake",
-    "maxStake",
-    "admin",
-    "bondedAssetClass",
-    "nftCs",
-    "assocListCs"
+  '[ "iterations"
+   , "start"
+   , "end"
+   , "userLength"
+   , "bondingLength"
+   , "interest"
+   , "minStake"
+   , "maxStake"
+   , "admin"
+   , "bondedAssetClass"
+   , "nftCs"
+   , "assocListCs"
    ]
 
 ---- PConstant instances ----

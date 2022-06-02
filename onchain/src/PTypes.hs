@@ -45,12 +45,12 @@ import PNatural (PNatRatio, PNatural)
 import SingularityNet.Types (
   AssetClass,
   BondedPoolParams,
-  MintingAction,
-  BurningAction,
-  ListAction,
   BondedStakingAction,
   BondedStakingDatum,
+  BurningAction,
   Entry,
+  ListAction,
+  MintingAction,
  )
 
 import Plutarch.Api.V1 (
@@ -249,42 +249,45 @@ type family HField (s :: S) (field :: Symbol) (ptype :: PType) where
   HField s field ptype = Labeled field (Term s (PAsData ptype))
 
 -- | HRec with all of `PTxInfo`'s fields
-type PTxInfoHRec (s :: S) = HRec '[
-  HField s "inputs" (PBuiltinList (PAsData PTxInInfo)),
-  HField s "outputs" (PBuiltinList (PAsData PTxOut)),
-  HField s "fee" PValue,
-  HField s "mint" PValue,
-  HField s "dcert" (PBuiltinList (PAsData PDCert)),
-  HField s "wdrl" (PBuiltinList (PAsData (PTuple PStakingCredential PInteger))),
-  HField s "validRange" PPOSIXTimeRange,
-  HField s "signatories" (PBuiltinList (PAsData PPubKeyHash)),
-  HField s "data" (PBuiltinList (PAsData (PTuple PDatumHash PDatum))),
-  HField s "id" PTxId
-  ]
+type PTxInfoHRec (s :: S) =
+  HRec
+    '[ HField s "inputs" (PBuiltinList (PAsData PTxInInfo))
+     , HField s "outputs" (PBuiltinList (PAsData PTxOut))
+     , HField s "fee" PValue
+     , HField s "mint" PValue
+     , HField s "dcert" (PBuiltinList (PAsData PDCert))
+     , HField s "wdrl" (PBuiltinList (PAsData (PTuple PStakingCredential PInteger)))
+     , HField s "validRange" PPOSIXTimeRange
+     , HField s "signatories" (PBuiltinList (PAsData PPubKeyHash))
+     , HField s "data" (PBuiltinList (PAsData (PTuple PDatumHash PDatum)))
+     , HField s "id" PTxId
+     ]
 
 -- | HRec with all of `PTxInInfo`'s fields
-type PTxInInfoHRec (s :: S) = HRec '[
-  HField s "outRef" PTxOutRef,
-  HField s "resolved" PTxOut
-  ]
+type PTxInInfoHRec (s :: S) =
+  HRec
+    '[ HField s "outRef" PTxOutRef
+     , HField s "resolved" PTxOut
+     ]
 
 -- | Type level list with all of `PTxInfo`'s fields
 type PTxInfoFields =
-  '["inputs",
-    "outputs",
-    "fee",
-    "mint",
-    "dcert",
-    "wdrl",
-    "validRange",
-    "signatories",
-    "data",
-    "id"]
+  '[ "inputs"
+   , "outputs"
+   , "fee"
+   , "mint"
+   , "dcert"
+   , "wdrl"
+   , "validRange"
+   , "signatories"
+   , "data"
+   , "id"
+   ]
 
 -- | Type level list with all of `PTxInInfo`'s fields
 type PTxInInfoFields =
-  '["outRef",
-    "resolved"
+  '[ "outRef"
+   , "resolved"
    ]
 
 ------ Orphans ------

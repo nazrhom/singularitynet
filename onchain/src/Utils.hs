@@ -39,29 +39,36 @@ module Utils (
   getDatum,
   getDatumHash,
   getContinuingOutputWithNFT,
-  toPBool,
   getOnlySignatory,
   signedBy,
   signedOnlyBy,
   pconst,
   pflip,
+  toPBool,
   (>:),
 ) where
 
+import GHC.TypeLits (Symbol)
+import PNatural (PNatRatio, PNatural)
 import PTypes (PAssetClass, passetClass)
 import Plutarch.Api.V1 (
   PAddress,
   PCurrencySymbol,
+  PDCert,
   PDatum,
   PDatumHash,
+  PMap,
   PMaybeData (PDJust, PDNothing),
+  PPOSIXTime,
+  PPOSIXTimeRange,
   PPubKeyHash,
   PScriptPurpose (PMinting, PSpending),
+  PStakingCredential,
   PTokenName,
   PTuple,
-  PPubKeyHash,
-  ptuple, PTxId, PPOSIXTime, PMap,
+  PTxId,
   PValue,
+  ptuple,
  )
 import Plutarch.Api.V1.Tx (PTxInInfo, PTxOut, PTxOutRef)
 import Plutarch.Bool (pand, por)
@@ -71,7 +78,6 @@ import Plutarch.Lift (
   PUnsafeLiftDecl,
  )
 import Plutarch.TryFrom (PTryFrom, ptryFrom)
-import PNatural ( PNatRatio, PNatural )
 
 import UnbondedStaking.PTypes (PBoolData (PDFalse, PDTrue))
 
@@ -135,11 +141,11 @@ pnestedIf [] def = def
 pnestedIf ((cond, x) : conds) def = pif cond x $ pnestedIf conds def
 
 -- `and` function for `[Term s PBool]`. Expands to a sequence of `(#&&)`
-pandList :: forall (s :: S) . [Term s PBool] -> Term s PBool
+pandList :: forall (s :: S). [Term s PBool] -> Term s PBool
 pandList = foldr (#&&) ptrue
 
 -- `or` function for `[Term s PBool]`. Expands to a sequence of `(#||)`
-porList :: forall (s :: S) . [Term s PBool] -> Term s PBool
+porList :: forall (s :: S). [Term s PBool] -> Term s PBool
 porList = foldr (#||) pfalse
 
 -- | Lifts `pif` result into the `TermCont` monad
@@ -212,23 +218,28 @@ pfind pred ls = pure $ (pfix #$ go # pred) # ls
         PCons x xs -> pif (pred # x) x (self # xs)
 
 -- | Equivalent to `mapMaybe` for plutarch
-pmapMaybe :: forall (s :: S) (a :: PType) (b :: PType) .
+pmapMaybe ::
+  forall (s :: S) (a :: PType) (b :: PType).
   (PUnsafeLiftDecl a, PUnsafeLiftDecl b) =>
   Term s (a :--> PMaybe b) ->
   Term s (PBuiltinList a) ->
   Term s (PBuiltinList b)
 pmapMaybe f as = pfix # pmapMaybe' # f # as
-  where pmapMaybe' :: Term s (
-          ((a :--> PMaybe b) :--> PBuiltinList a :--> PBuiltinList b) :-->
-           (a :--> PMaybe b) :-->
-           PBuiltinList a :-->
-           PBuiltinList b
-          )
-        pmapMaybe' = phoistAcyclic $ plam $ \self f ls -> pmatch ls $ \case
-          PCons x xs -> pmatch (f # x) $ \case
-            PJust x' -> pcon $ PCons x' $ self # f # xs
-            PNothing -> self # f # xs
-          PNil -> pcon $ PNil
+  where
+    pmapMaybe' ::
+      Term
+        s
+        ( ((a :--> PMaybe b) :--> PBuiltinList a :--> PBuiltinList b)
+            :--> (a :--> PMaybe b)
+            :--> PBuiltinList a
+            :--> PBuiltinList b
+        )
+    pmapMaybe' = phoistAcyclic $
+      plam $ \self f ls -> pmatch ls $ \case
+        PCons x xs -> pmatch (f # x) $ \case
+          PJust x' -> pcon $ PCons x' $ self # f # xs
+          PNothing -> self # f # xs
+        PNil -> pcon $ PNil
 
 {- | Returns the pair of lists of elements that match and don't match the
  predicate
@@ -289,37 +300,52 @@ ptraceBool common trueMsg falseMsg cond = ptrace msg cond
 -- Functions for working with `PValue`s
 
 -- | Result of `pto v`, where `v :: Term s PValue`
-type PValueOuter = PBuiltinList
-  (PBuiltinPair
-    (PAsData PCurrencySymbol)
-    (PAsData (PMap PTokenName (PInteger))))
+type PValueOuter =
+  PBuiltinList
+    ( PBuiltinPair
+        (PAsData PCurrencySymbol)
+        (PAsData (PMap PTokenName (PInteger)))
+    )
 
--- | Retrieves the `PTokenName` for a given `PCurrencySymbol`. It fetches the
--- only the first token and it fails if no token is present
-getTokenName :: forall (s :: S).
+{- | Retrieves the `PTokenName` for a given `PCurrencySymbol`. It fetches the
+ only the first token and it fails if no token is present
+-}
+getTokenName ::
+  forall (s :: S).
   Term s PCurrencySymbol ->
   Term s PValue ->
   Term s PAssetClass
 getTokenName cs val = pfix # getTokenName' # cs # pto (pto val)
-  where getTokenName' :: forall (s :: S) . Term s (
-          (PCurrencySymbol :--> PValueOuter :--> PAssetClass) :-->
-          PCurrencySymbol :-->
-          PValueOuter :-->
-          PAssetClass)
-        getTokenName' = phoistAcyclic $ plam $ \self listCs val ->
-          pmatch val $ \case
-            PCons csMap vals -> unTermCont $ do
-              (cs, tnMap) <- ppairData csMap
-              pure $ pif (pnot #$ cs #== listCs)
+  where
+    getTokenName' ::
+      forall (s :: S).
+      Term
+        s
+        ( (PCurrencySymbol :--> PValueOuter :--> PAssetClass)
+            :--> PCurrencySymbol
+            :--> PValueOuter
+            :--> PAssetClass
+        )
+    getTokenName' = phoistAcyclic $
+      plam $ \self listCs val ->
+        pmatch val $ \case
+          PCons csMap vals -> unTermCont $ do
+            (cs, tnMap) <- ppairData csMap
+            pure $
+              pif
+                (pnot #$ cs #== listCs)
                 (self # listCs # vals)
                 $ pmatch (pto tnMap) $ \case
                   PCons tnAmt _ -> passetClass # listCs # pfstData tnAmt
                   PNil -> ptraceError "getTokenName: empty tnMap"
-            PNil -> ptraceError "getTokenName: the token with given \
-                    \CurrencySymbol was not found"
-    --go self ls cont = pmatch ls $ \case
-    --  PNil -> pconstant False
-    --  PCons p ps -> boolOp # (cont # p) #$ self # ps # cont
+          PNil ->
+            ptraceError
+              "getTokenName: the token with given \
+              \CurrencySymbol was not found"
+
+-- go self ls cont = pmatch ls $ \case
+--  PNil -> pconstant False
+--  PCons p ps -> boolOp # (cont # p) #$ self # ps # cont
 
 -- Functions for evaluating predicates on `PValue`s
 
@@ -663,9 +689,10 @@ getContinuingOutputWithNFT addr ac outputs =
     getContinuingOutputWithNFT' = phoistAcyclic $
       plam $ \addr ac outputs ->
         unTermCont $
-          pfromData <$> pfind
-            (sameAddrAndNFT addr ac)
-            outputs
+          pfromData
+            <$> pfind
+              (sameAddrAndNFT addr ac)
+              outputs
     sameAddrAndNFT ::
       forall (s :: S).
       Term s PAddress ->
@@ -727,16 +754,6 @@ getDatum datHash dats = pure $ getDatum' # datHash # dats
       plam $ \datHash tup ->
         pfield @"_0" # tup #== datHash
 
--- | Returns the staking datum record with the provided type
-parseStakingDatum ::
-  forall (a :: PType) (s :: S).
-  PIsData a =>
-  PTryFrom PData (PAsData a) =>
-  Term s PDatum ->
-  TermCont s (Term s a)
-parseStakingDatum =
-  ptryFromUndata @a . pforgetData . pdata
-
 -- | Gets the only signatory of the TX or fail
 getOnlySignatory ::
   forall (s :: S).
@@ -761,7 +778,8 @@ signedBy ::
 signedBy ls pkh = pelem # pdata pkh # ls
 
 -- | Verifies that a signature is the *only* one in the list
-signedOnlyBy :: forall (s :: S).
+signedOnlyBy ::
+  forall (s :: S).
   Term s (PBuiltinList (PAsData PPubKeyHash)) ->
   Term s PPubKeyHash ->
   Term s PBool
@@ -803,3 +821,14 @@ pflip f b a = f # a # b
 
 instance PEq PAddress where
   a1 #== a2 = pdata a1 #== pdata a2
+
+-- | Returns the staking datum record with the provided type
+parseStakingDatum ::
+  forall (a :: PType) (s :: S).
+  PIsData a =>
+  PTryFrom PData (PAsData a) =>
+  Term s PDatum ->
+  TermCont s (Term s a)
+parseStakingDatum =
+  ptryFromUndata @a . pforgetData . pdata
+
