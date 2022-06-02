@@ -10,19 +10,17 @@ module Utils
 
 import Contract.Prelude
 
-import Aeson
-  ( Aeson
-  , class DecodeAeson
-  , JsonDecodeError(TypeMismatch)
-  , caseAesonObject
-  , getField
-  )
 import Contract.Address (PaymentPubKeyHash)
 import Contract.Monad (Contract, logInfo, tag)
 import Contract.Numeric.Natural (Natural, fromBigInt')
+import Contract.Prim.ByteArray (hexToByteArray)
+import Contract.Scripts (PlutusScript)
 import Contract.Transaction (TransactionInput, TransactionOutput)
 import Contract.Utxos (UtxoM)
 import Contract.Value (CurrencySymbol, TokenName, valueOf)
+import Data.Argonaut.Core (Json, caseJsonObject)
+import Data.Argonaut.Decode.Combinators (getField) as Json
+import Data.Argonaut.Decode.Error (JsonDecodeError(TypeMismatch))
 import Data.Array (filter, head)
 import Data.BigInt (BigInt, fromInt)
 import Data.Map (toUnfoldable)
@@ -38,13 +36,15 @@ import UnbondedStaking.Types
 -- | Helper to decode the local inputs such as unapplied minting policy and
 -- typed validator
 jsonReader
-  :: forall (a :: Type)
-   . DecodeAeson a
-  => String
-  -> Aeson
-  -> Either JsonDecodeError a
-jsonReader field = caseAesonObject (Left $ TypeMismatch "Expected Object")
-  $ flip getField field
+  :: String
+  -> Json
+  -> Either JsonDecodeError PlutusScript
+jsonReader field = do
+  caseJsonObject (Left $ TypeMismatch "Expected Object") $ \o -> do
+    hex <- Json.getField o field
+    case hexToByteArray hex of
+      Nothing -> Left $ TypeMismatch "Could not convert to bytes"
+      Just bytes -> pure $ wrap bytes
 
 -- | Get the UTXO with the NFT defined by its `CurrencySymbol` and `TokenName`.
 -- If more than one UTXO contains the NFT, something is seriously wrong.
