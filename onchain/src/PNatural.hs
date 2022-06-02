@@ -121,7 +121,6 @@ instance PNonNegative PNatural where
         (pcon PNothing)
         (pcon . PJust $ pcon . PNatural $ diff)
 
--- TODO: Add `PNonNegative` instances for NatRatio
 instance PNonNegative PNatRatio where
   x #+ y = unTermCont $ do
     (nx, dx) <- getIntegers x
@@ -168,9 +167,34 @@ mkNatUnsafe :: forall (s :: S).
 mkNatUnsafe x = pcon . PNatural $ x
 
 pgcd :: forall (s :: S) . Term s PInteger -> Term s PInteger -> Term s PInteger
-pgcd x y = gcd' # x # y
-  where gcd' :: Term s (PInteger :--> PInteger :--> PInteger)
-        gcd' = phoistAcyclic $ plam $ \x y -> undefined
+pgcd x y = pfix # phoistAcyclic (plam gcd') # x # y # 1
+  where 
+        -- Binary GCD algorithm
+        gcd' :: forall (s :: S) .
+          Term s (PInteger :--> PInteger :--> PInteger :--> PInteger) ->
+          Term s PInteger ->
+          Term s PInteger ->
+          Term s PInteger ->
+          Term s PInteger
+        gcd' self a b d = unTermCont $ do
+          aEven <- pletC $ even # a
+          bEven <- pletC $ even # b
+          pure $
+            pif (a #== b)
+              (a * d)
+              (pif aEven
+                (pif bEven
+                  (self # half a # half b # d * 2)
+                  (self # half a # b # d))
+                (pif bEven
+                  (self # a # half b # d)
+                  (pif (a #< b)
+                       (self # half (b - a) # a # d)
+                       (self # half (a - b) # b # d))))
+          where even :: Term s (PInteger :--> PBool)
+                even = phoistAcyclic $ plam $ \x -> prem # x # 2 #== 0
+                half :: Term s PInteger -> Term s PInteger
+                half x = pdiv # x # 2
   
 getIntegers ::
   forall (s :: S).
