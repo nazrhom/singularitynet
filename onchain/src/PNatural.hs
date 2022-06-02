@@ -11,6 +11,7 @@ module PNatural (
   PNatural (..),
   PNatRatio (..),
   PNonNegative (..),
+  toNatRatio
 ) where
 
 import GHC.Generics qualified as GHC
@@ -146,6 +147,11 @@ instance PNonNegative PNatRatio where
                $ pcon . PJust $ mkNatRatioUnsafe
                 (pdiv # n' # commonD)
                 (pdiv # d' # commonD)
+                
+-- Conversion functions
+
+toNatRatio :: Term s PNatural -> Term s PNatRatio
+toNatRatio n = mkNatRatioUnsafe (pto n) 1
 
 -- Auxiliary functions
 gt0 :: Integer -> Maybe Natural
