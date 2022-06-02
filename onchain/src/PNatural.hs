@@ -14,12 +14,11 @@ module PNatural (
 ) where
 
 import GHC.Generics qualified as GHC
+import Generics.SOP ( Generic, I(I) )
 
 import SingularityNet.Natural (
   NatRatio (NatRatio),
   Natural (Natural),
-  toRatio,
-  toTuple,
  )
 
 import Plutarch.Lift (
@@ -28,6 +27,10 @@ import Plutarch.Lift (
   PUnsafeLiftDecl,
  )
 import Plutarch.TryFrom (PTryFrom)
+import Plutarch.DataRepr (
+  DerivePConstantViaData(DerivePConstantViaData),
+  PIsDataReprInstances(PIsDataReprInstances),
+  PDataFields)
 
 {- | `Natural` synonym.
  It wraps a `PInteger`. It derives all of its instances
@@ -54,35 +57,33 @@ instance PConstant Natural where
   pconstantToRepr (Natural n) = fromIntegral n
   pconstantFromRepr = gt0
 
-{- | A natural datatype that wraps a pair of integers
- `PBuiltinPair PInteger PInteger`.
--}
+-- | A natural datatype that wraps a pair of Naturals
 newtype PNatRatio (s :: S)
-  = PNatRatio
-      (Term s (PBuiltinPair (PAsData PInteger) (PAsData PInteger)))
+  = PNatRatio (
+      Term s (
+        PDataRecord '[
+          "numerator" ':= PNatural,
+          "denominator" ':= PNatural
+        ]
+      )
+    )
   deriving stock (GHC.Generic)
-  deriving
-    (PIsData, PlutusType)
-    via ( DerivePNewtype
-            PNatRatio
-            (PBuiltinPair (PAsData PInteger) (PAsData PInteger))
-        )
+  deriving anyclass (Generic, PIsDataRepr)
+  deriving (PlutusType, PIsData, PDataFields)
+    via PIsDataReprInstances PNatRatio
 
 deriving via
-  DerivePNewtype
-    (PAsData PNatRatio)
-    (PAsData (PBuiltinPair (PAsData PInteger) (PAsData PInteger)))
+  PAsData (PIsDataReprInstances PNatRatio)
   instance
     PTryFrom PData (PAsData PNatRatio)
 
 instance PUnsafeLiftDecl PNatRatio where
   type PLifted PNatRatio = NatRatio
 
-instance PConstant NatRatio where
-  type PConstantRepr NatRatio = (Integer, Integer)
-  type PConstanted NatRatio = PNatRatio
-  pconstantToRepr (NatRatio r) = toTuple r
-  pconstantFromRepr = toRatio
+deriving via
+  (DerivePConstantViaData NatRatio PNatRatio)
+  instance
+    (PConstant NatRatio)
 
 -- We have to define `PEq` and `POrd` instances manually
 instance PEq PNatRatio where
@@ -93,20 +94,12 @@ instance PEq PNatRatio where
 
 instance POrd PNatRatio where
   a #<= b = unTermCont $ do
-    a' <- pletC $ pto a
-    b' <- pletC $ pto b
-    let n1 = pfstData a'
-        d1 = psndData a'
-        n2 = pfstData b'
-        d2 = psndData b'
+    (n1, d1) <- getIntegers a
+    (n2, d2) <- getIntegers b
     pure $ n1 * d2 #<= n2 * d1
   a #< b = unTermCont $ do
-    a' <- pletC $ pto a
-    b' <- pletC $ pto b
-    let n1 = pfstData a'
-        d1 = psndData a'
-        n2 = pfstData b'
-        d2 = psndData b'
+    (n1, d1) <- getIntegers a
+    (n2, d2) <- getIntegers b
     pure $ n1 * d2 #< n2 * d1
 
 -- | The same as `NonNegative` but for plutarch types
@@ -129,26 +122,47 @@ instance PNonNegative PNatural where
         (pcon . PJust $ pcon . PNatural $ diff)
 
 -- TODO: Add `PNonNegative` instances for NatRatio
+instance PNonNegative PNatRatio where
+  x #+ y = unTermCont $ do
+    (nx, dx) <- getIntegers x
+    (ny, dy) <- getIntegers y
+    d <- pletC $ pgcd dx dy
+    pure $ mkNatRatioUnsafe (pdiv # (nx * dy + ny * dx) # d)
+                            (pdiv # (dx * dy) # d)
+  x #* y = undefined
+  x #- y = undefined
 
 -- Auxiliary functions
 gt0 :: Integer -> Maybe Natural
 gt0 n
   | n < 0 = Nothing
   | otherwise = Just . Natural $ fromInteger n
+  
+mkNatRatioUnsafe :: forall (s :: S).
+  Term s PInteger -> Term s PInteger -> Term s PNatRatio
+mkNatRatioUnsafe x y = mkNatRatioUnsafe' # x # y
+  where mkNatRatioUnsafe' :: Term s (PInteger :--> PInteger :--> PNatRatio)
+        mkNatRatioUnsafe' = phoistAcyclic $ plam $ \x y ->
+          pcon . PNatRatio $
+            pdcons # pdata (mkNatUnsafe x)
+                   #$ pdcons # pdata (mkNatUnsafe y) # pdnil
+          
+mkNatUnsafe :: forall (s :: S).
+  Term s PInteger -> Term s PNatural
+mkNatUnsafe x = pcon . PNatural $ x
 
-pfstData ::
-  forall (s :: S) (a :: PType) (b :: PType).
-  PIsData a =>
-  Term s (PBuiltinPair (PAsData a) b) ->
-  Term s a
-pfstData x = pfromData $ pfstBuiltin # x
-
-psndData ::
-  forall (s :: S) (a :: PType) (b :: PType).
-  PIsData b =>
-  Term s (PBuiltinPair a (PAsData b)) ->
-  Term s b
-psndData x = pfromData $ psndBuiltin # x
-
+pgcd :: forall (s :: S) . Term s PInteger -> Term s PInteger -> Term s PInteger
+pgcd x y = gcd' # x # y
+  where gcd' :: Term s (PInteger :--> PInteger :--> PInteger)
+        gcd' = phoistAcyclic $ plam $ \x y -> undefined
+  
+getIntegers ::
+  forall (s :: S).
+  Term s PNatRatio ->
+  TermCont s (Term s PInteger, Term s PInteger)
+getIntegers r' = do
+  r <- tcont . pletFields @'["numerator", "denominator"] $ r'
+  pure (pto $ pfromData r.numerator, pto $ pfromData r.denominator)
+  
 pletC :: forall (s :: S) (a :: PType). Term s a -> TermCont s (Term s a)
 pletC = tcont . plet
