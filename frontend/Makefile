@@ -2,15 +2,20 @@ SHELL := bash
 .ONESHELL:
 .SHELLFLAGS := -eu -o pipefail -c
 
-ps-sources := $(shell find ./* -iregex '.*.purs')
-ps-entrypoint := Main
-ps-bundle = spago bundle-module -m ${ps-entrypoint} --to output.js
+ps-sources := $(shell fd -epurs)
+bundle = spago bundle-module -m $(1) --to output.js
+ps-bundle = $(call bundle,Main)
+js-bundle = $(call bundle,CallContract)
+build = $(1) && BROWSER_RUNTIME=1 webpack --mode=production --entry $(2)
 
-run-dev:
-	@${ps-bundle} && BROWSER_RUNTIME=1 webpack-dev-server --progress
+ps-dev:
+	@${ps-bundle} && BROWSER_RUNTIME=1 webpack-dev-server --progress --entry ./main.js
 
-run-build:
-	@${ps-bundle} && BROWSER_RUNTIME=1 webpack --mode=production
+ps-build:
+	@$(call build,${ps-bundle},./main.js)
+
+js-build:
+	@$(call build,${js-bundle},./index.js)
 
 check-format:
 	@purs-tidy check ${ps-sources}

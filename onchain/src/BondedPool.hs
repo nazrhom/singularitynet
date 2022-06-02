@@ -1,5 +1,4 @@
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module BondedPool (
   pbondedPoolValidator,
@@ -23,7 +22,6 @@ import Plutarch.Api.V1 (
   PValue,
   ptuple,
  )
-import Plutarch.Builtin (pforgetData)
 import Plutarch.Unsafe (punsafeCoerce)
 
 import PNatural (
@@ -72,6 +70,7 @@ import Utils (
   getTokenName,
   guardC,
   oneWith,
+  parseStakingDatum,
   pconst,
   peq,
   pfalse,
@@ -89,6 +88,7 @@ import GHC.Records (getField)
 import InductiveLogic (doesNotConsumeAssetGuard, hasListNft, hasStateNft)
 import Plutarch.Api.V1.Scripts (PDatum)
 import Plutarch.Api.V1.Tuple (pbuiltinPairFromTuple)
+import Plutarch.Builtin (pforgetData)
 import Plutarch.Crypto (pblake2b_256)
 import Plutarch.DataRepr (HRec)
 import SingularityNet.Natural (NatRatio (NatRatio), Natural (Natural))
@@ -669,11 +669,6 @@ closeActLogic txInfo params = unTermCont $ do
       _ -> pconstant False
 
 -- Helper functions for the different logics
-parseStakingDatum ::
-  forall (s :: S).
-  Term s PDatum ->
-  TermCont s (Term s PBondedStakingDatum)
-parseStakingDatum = ptryFromUndata @PBondedStakingDatum . pforgetData . pdata
 
 -- Retrieves state fields from staking datum
 getStateData ::

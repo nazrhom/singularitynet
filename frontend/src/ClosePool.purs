@@ -1,9 +1,20 @@
-module ClosePool (closePoolContract) where
+module ClosePool (closeBondedPoolContract) where
 
 import Contract.Prelude
 
-import Contract.Address (ownPaymentPubKeyHash)
-import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM)
+import Contract.Address
+  ( getNetworkId
+  , ownPaymentPubKeyHash
+  , validatorHashEnterpriseAddress
+  )
+import Contract.Monad
+  ( Contract
+  , liftContractM
+  , liftedE
+  , liftedE'
+  , liftedM
+  , throwContractError
+  )
 import Contract.PlutusData
   ( Datum(Datum)
   , PlutusData
@@ -12,6 +23,7 @@ import Contract.PlutusData
   )
 import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
+import Contract.Scripts (validatorHash)
 import Contract.Transaction
   ( BalancedSignedTransaction(BalancedSignedTransaction)
   , balanceAndSignTx
@@ -26,45 +38,49 @@ import Contract.TxConstraints
 import Contract.Utxos (utxosAt)
 import Data.Map (toUnfoldable)
 import Scripts.PoolValidator (mkBondedPoolValidator)
-import Settings (bondedHardCodedParams)
 import Types
-  ( BondedStakingAction(..)
+  ( BondedPoolParams(BondedPoolParams)
+  , BondedStakingAction(CloseAct)
   , BondedStakingDatum(StateDatum)
-  , PoolInfo(PoolInfo)
   )
 import Utils (logInfo_, nat)
 
-closePoolContract :: PoolInfo -> Contract () Unit
-closePoolContract (PoolInfo poolInfo) = do
-  -- Get fields from pool info
-  let
-    poolAddr = poolInfo.poolAddr
-    nftCs = poolInfo.stateNftCs
-    assocListCs = poolInfo.assocListCs
-  adminPkh <- liftedM "closePoolContract: Cannot get admin's pkh"
+closeBondedPoolContract :: BondedPoolParams -> Contract () Unit
+closeBondedPoolContract params@(BondedPoolParams { admin }) = do
+  -- Fetch information related to the pool
+  -- Get network ID and check admin's PKH
+  networkId <- getNetworkId
+  userPkh <- liftedM "closeBondedPoolContract: Cannot get user's pkh"
     ownPaymentPubKeyHash
-  logInfo_ "closePoolContract: Admin PaymentPubKeyHash" adminPkh
+  unless (userPkh == admin) $ throwContractError
+    "closeBondedPoolContract: Admin \
+    \is not current user"
+  logInfo_ "closeBondedPoolContract: Admin PaymentPubKeyHash" admin
+  -- Get the bonded pool validator and hash
+  validator <- liftedE' "closeBondedPoolContract: Cannot create validator" $
+    mkBondedPoolValidator params
+  valHash <- liftedM "closeBondedPoolContract: Cannot hash validator"
+    $ validatorHash validator
+  logInfo_ "closeBondedPoolContract: validatorHash" valHash
+  let poolAddr = validatorHashEnterpriseAddress networkId valHash
+  logInfo_ "closeBondedPoolContract: Pool address" poolAddr
   -- Get the bonded pool's utxo
   bondedPoolUtxos <-
-    liftedM "closePoolContract: Cannot get pool's utxos at pool address" $
+    liftedM "closeBondedPoolContract: Cannot get pool's utxos at pool address" $
       utxosAt poolAddr
-  logInfo_ "closePoolContract: Pool's UTXOs" bondedPoolUtxos
-  -- Create parameters of the pool and validator
-  params <- liftContractM "closePoolContract: Failed to create parameters" $
-    bondedHardCodedParams adminPkh nftCs assocListCs
-  validator <- liftedE' "closePoolContract: Cannot create validator" $
-    mkBondedPoolValidator params
+  logInfo_ "closeBondedPoolContract: Pool's UTXOs" bondedPoolUtxos
   let
     bondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
       , sizeLeft: nat 100_000_000
       }
   bondedStateDatumLookup <-
-    liftContractM "closePoolContract: Could not create state datum lookup"
+    liftContractM
+      "closeBondedPoolContract: Could not create state datum lookup"
       =<< ScriptLookups.datum bondedStateDatum
   -- We build the transaction
   let
-    redeemer = Redeemer $ toData $ CloseAct
+    redeemer = Redeemer $ toData CloseAct
 
     lookup :: ScriptLookups.ScriptLookups PlutusData
     lookup = mconcat
@@ -80,17 +96,18 @@ closePoolContract (PoolInfo poolInfo) = do
       foldMap
         (flip mustSpendScriptOutput redeemer <<< fst)
         (toUnfoldable $ unwrap bondedPoolUtxos :: Array _)
-        <> mustBeSignedBy adminPkh
+        <> mustBeSignedBy admin
         <> mustIncludeDatum bondedStateDatum
   unattachedBalancedTx <-
     liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
   BalancedSignedTransaction { signedTxCbor } <-
     liftedM
-      "closePoolContract: Cannot balance, reindex redeemers, attach datums/\
-      \redeemers and sign"
+      "closeBondedPoolContract: Cannot balance, reindex redeemers, attach/\
+      \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
   transactionHash <- submit signedTxCbor
-  logInfo_ "closePoolContract: Transaction successfully submitted with hash"
+  logInfo_
+    "closeBondedPoolContract: Transaction successfully submitted with hash"
     $ byteArrayToHex
     $ unwrap transactionHash

@@ -1,4 +1,5 @@
 module Utils (
+  parseStakingDatum,
   peq,
   pneq,
   pxor,
@@ -43,6 +44,7 @@ module Utils (
   signedOnlyBy,
   pconst,
   pflip,
+  toPBool,
   (>:),
   PTxInfoFields,
   PTxInfoHRec,
@@ -79,6 +81,7 @@ import Plutarch.Api.V1 (
  )
 import Plutarch.Api.V1.Tx (PTxInInfo, PTxOut, PTxOutRef)
 import Plutarch.Bool (pand, por)
+import Plutarch.Builtin (pforgetData)
 import Plutarch.DataRepr (HRec)
 import Plutarch.DataRepr.Internal.Field (Labeled)
 import Plutarch.Lift (
@@ -86,6 +89,8 @@ import Plutarch.Lift (
   PUnsafeLiftDecl,
  )
 import Plutarch.TryFrom (PTryFrom, ptryFrom)
+
+import UnbondedStaking.PTypes (PBoolData (PDFalse, PDTrue))
 
 -- Term-level boolean functions
 peq :: forall (s :: S) (a :: PType). PEq a => Term s (a :--> a :--> PBool)
@@ -913,3 +918,23 @@ pflip ::
   Term s a ->
   Term s c
 pflip f b a = f # a # b
+
+-- | Returns the staking datum record with the provided type
+parseStakingDatum ::
+  forall (a :: PType) (s :: S).
+  PIsData a =>
+  PTryFrom PData (PAsData a) =>
+  Term s PDatum ->
+  TermCont s (Term s a)
+parseStakingDatum =
+  ptryFromUndata @a . pforgetData . pdata
+
+-- Helper functions for working with Plutarch synonyms types
+
+-- | Returns a Plutarch-level bool from a `PBoolData` type
+toPBool :: forall (s :: S). Term s (PBoolData :--> PBool)
+toPBool = phoistAcyclic $
+  plam $ \pbd ->
+    pmatch pbd $ \case
+      PDFalse _ -> pfalse
+      PDTrue _ -> ptrue
