@@ -5,8 +5,8 @@ module Scripts.StateNFT
 import Contract.Prelude
 
 import Aeson (Aeson, JsonDecodeError)
-import ToData (toData)
 import Contract.Monad (Contract, liftedE)
+import Contract.PlutusData (toData)
 import Contract.Scripts
   ( ClientError
   , MintingPolicy(MintingPolicy)

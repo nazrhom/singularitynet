@@ -28,10 +28,10 @@ import Contract.PlutusData
   , genericToData
   , toData
   )
-import TypeLevel.Nat (S, Z)
 import Contract.Prim.ByteArray (ByteArray)
 import Contract.Value (CurrencySymbol, TokenName)
 import Data.BigInt (BigInt)
+import TypeLevel.Nat (S, Z)
 
 newtype AssetClass = AssetClass
   { currencySymbol :: CurrencySymbol
@@ -54,6 +54,9 @@ instance
         @@ Z
         :+ PNil
     )
+
+instance FromData AssetClass where
+  fromData = genericFromData
 
 instance ToData AssetClass where
   toData = genericToData
@@ -131,6 +134,46 @@ instance ToData BondedPoolParams where
       , toData params.nftCs
       , toData params.assocListCs
       ]
+
+-- -- Add these back in when generic instances have faster compilation.
+-- instance
+--   HasPlutusSchema BondedPoolParams
+--     ( "BondedPoolParams"
+--         :=
+--           ( "iterations" := I Natural
+--               :+ "start"
+--               := I BigInt
+--               :+ "end"
+--               := I BigInt
+--               :+ "userLength"
+--               := I BigInt
+--               :+ "bondingLength"
+--               := I BigInt
+--               :+ "interest"
+--               := I Rational
+--               :+ "minStake"
+--               := I Natural
+--               :+ "maxStake"
+--               := I Natural
+--               :+ "admin"
+--               := I PaymentPubKeyHash
+--               :+ "bondedAssetClass"
+--               := I AssetClass
+--               :+ "nftCs"
+--               := I CurrencySymbol
+--               :+ "assocListCs"
+--               := I CurrencySymbol
+--               :+ PNil
+--           )
+--         @@ Z
+--         :+ PNil
+--     )
+
+-- instance FromData BondedPoolParams where
+--   fromData = genericFromData
+
+-- instance ToData BondedPoolParams where
+--   toData = genericToData
 
 data BondedStakingDatum
   = StateDatum { maybeEntryName :: Maybe ByteArray, sizeLeft :: Natural }

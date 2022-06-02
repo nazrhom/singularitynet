@@ -52,8 +52,7 @@ depositBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
   userPkh <- liftedM "depositBondedPoolContract: Cannot get user's pkh"
     ownPaymentPubKeyHash
   unless (userPkh == admin) $ throwContractError
-    "depositBondedPoolContract: Admin \
-    \is not current user"
+    "depositBondedPoolContract: Admin is not current user"
   logInfo_ "depositBondedPoolContract: Admin PaymentPubKeyHash" userPkh
   -- Get the (Nami) wallet address
   AddressWithNetworkTag { address: adminAddr } <-
@@ -151,7 +150,7 @@ depositBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
     unattachedBalancedTx
   BalancedSignedTransaction { signedTxCbor } <-
     liftedM
-      "depositBondedPoolContract: Cannot balance, reindex redeemers, attach /\
+      "depositBondedPoolContract: Cannot balance, reindex redeemers, attach \
       \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`

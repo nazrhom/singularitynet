@@ -55,8 +55,8 @@ closeBondedPoolContract params@(BondedPoolParams { admin }) = do
     \is not current user"
   logInfo_ "closeBondedPoolContract: Admin PaymentPubKeyHash" admin
   -- Get the bonded pool validator and hash
-  validator <- liftedE' "closeBondedPoolContract: Cannot create validator" $
-    mkBondedPoolValidator params
+  validator <- liftedE' "closeBondedPoolContract: Cannot create validator"
+    $ mkBondedPoolValidator params
   valHash <- liftContractM "closeBondedPoolContract: Cannot hash validator"
     $ validatorHash validator
   logInfo_ "closeBondedPoolContract: validatorHash" valHash

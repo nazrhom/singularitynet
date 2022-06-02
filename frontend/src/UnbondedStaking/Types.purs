@@ -28,8 +28,8 @@ import Contract.PlutusData
 import Contract.Prim.ByteArray (ByteArray)
 import Contract.Value (CurrencySymbol)
 import Data.BigInt (BigInt)
-import TypeLevel.Nat (S, Z)
 import Types (AssetClass)
+import TypeLevel.Nat (S, Z)
 
 -- TODO: Add missing `ToData` instances for POSIXTime and NatRatio.
 newtype UnbondedPoolParams =
@@ -91,6 +91,48 @@ instance ToData UnbondedPoolParams where
       , toData params.nftCs
       , toData params.assocListCs
       ]
+
+-- Add these back in when generic instances have faster compilation.
+-- instance
+--   HasPlutusSchema UnbondedPoolParams
+--     ( "UnbondedPoolParams"
+--         :=
+--           ( "start" := I BigInt
+--               :+ "userLength"
+--               := I BigInt
+--               :+ "adminLength"
+--               := I BigInt
+--               :+ "bondingLength"
+--               := I BigInt
+--               :+ "interestLength"
+--               := I BigInt
+--               :+ "increments"
+--               := I Natural
+--               :+ "interest"
+--               := I Rational
+--               :+ "minStake"
+--               := I Natural
+--               :+ "maxStake"
+--               := I Natural
+--               :+ "admin"
+--               := I PaymentPubKeyHash
+--               :+ "unbondedAssetClass"
+--               := I AssetClass
+--               :+ "nftCs"
+--               := I CurrencySymbol
+--               :+ "assocListCs"
+--               := I CurrencySymbol
+--               :+ PNil
+--           )
+--         @@ Z
+--         :+ PNil
+--     )
+
+-- instance FromData UnbondedPoolParams where
+--   fromData = genericFromData
+
+-- instance ToData UnbondedPoolParams where
+--   toData = genericToData
 
 data UnbondedStakingDatum
   = StateDatum { maybeEntryName :: Maybe ByteArray, open :: Boolean }

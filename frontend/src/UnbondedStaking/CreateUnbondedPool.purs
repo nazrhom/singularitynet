@@ -9,7 +9,7 @@ import Contract.Address
   , scriptHashAddress
   )
 import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM)
-import Contract.PlutusData (PlutusData, Datum(Datum), toData)
+import Contract.PlutusData (Datum(Datum), PlutusData, toData)
 import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)

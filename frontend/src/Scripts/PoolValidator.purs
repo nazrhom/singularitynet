@@ -7,10 +7,14 @@ import Contract.Prelude
 
 import Aeson (Aeson, JsonDecodeError)
 import Contract.Monad (Contract, liftedE)
-import Contract.Scripts (ClientError, Validator(Validator), applyArgs)
+import Contract.Scripts
+  ( ClientError
+  , PlutusScript
+  , Validator(Validator)
+  , applyArgs
+  )
 import Contract.PlutusData (class ToData, toData)
 import Types (BondedPoolParams)
-import Types.Scripts (PlutusScript)
 import UnbondedStaking.Types (UnbondedPoolParams)
 import Utils (jsonReader)
 

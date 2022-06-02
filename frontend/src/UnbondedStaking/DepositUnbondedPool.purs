@@ -10,10 +10,10 @@ import Contract.Address
   )
 import Contract.Monad
   ( Contract
+  , liftContractM
   , liftedE
   , liftedE'
   , liftedM
-  , liftContractM
   , throwContractError
   )
 import Contract.PlutusData (PlutusData, Datum(Datum), toData, datumHash)

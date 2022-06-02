@@ -22,6 +22,7 @@ import Contract.Monad
   )
 import Contract.Numeric.NatRatio (fromNaturals, toRational)
 import Contract.Numeric.Natural (Natural, fromBigInt, toBigInt)
+import Contract.Numeric.Rational (denominator, numerator)
 import Contract.Prim.ByteArray
   ( byteArrayFromAscii
   , byteArrayToHex
@@ -50,7 +51,6 @@ import Serialization.Address (intToNetworkId)
 import Serialization.Hash (ed25519KeyHashFromBytes, ed25519KeyHashToBytes)
 import Types (BondedPoolParams(BondedPoolParams), InitialBondedParams)
 import Types.CborBytes (cborBytesToHex)
-import Types.Rational (denominator, numerator) -- fix this with updated CTL
 import Types.RawBytes (hexToRawBytes, rawBytesToHex)
 
 -- | Configuation needed to call contracts from JS.
