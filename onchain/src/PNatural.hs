@@ -126,11 +126,27 @@ instance PNonNegative PNatRatio where
   x #+ y = unTermCont $ do
     (nx, dx) <- getIntegers x
     (ny, dy) <- getIntegers y
-    d <- pletC $ pgcd dx dy
-    pure $ mkNatRatioUnsafe (pdiv # (nx * dy + ny * dx) # d)
-                            (pdiv # (dx * dy) # d)
-  x #* y = undefined
-  x #- y = undefined
+    n' <- pletC $ nx * dy + ny * dx
+    d' <- pletC $ dx * dy
+    let commonD = pgcd n' d'
+    pure $ mkNatRatioUnsafe (pdiv # n' # commonD)
+                            (pdiv # d' # commonD)
+  x #* y = unTermCont $ do
+    (nx, dx) <- getIntegers x
+    (ny, dy) <- getIntegers y
+    pure $ mkNatRatioUnsafe (nx * ny) (dx * dy)
+
+  x #- y = unTermCont $ do
+    (nx, dx) <- getIntegers x
+    (ny, dy) <- getIntegers y
+    n' <- pletC $ nx * dy - ny * dx
+    d' <- pletC $ dx * dy
+    let commonD = pgcd n' d'
+    pure $ pif (n' #< 0)
+               (pcon PNothing) 
+               $ pcon . PJust $ mkNatRatioUnsafe
+                (pdiv # n' # commonD)
+                (pdiv # d' # commonD)
 
 -- Auxiliary functions
 gt0 :: Integer -> Maybe Natural
