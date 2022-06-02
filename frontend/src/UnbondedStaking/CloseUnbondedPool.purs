@@ -3,7 +3,8 @@ module UnbondedStaking.CloseUnbondedPool (closeUnbondedPoolContract) where
 import Contract.Prelude
 
 import Contract.Address
-  ( ownPaymentPubKeyHash
+  ( getNetworkId
+  , ownPaymentPubKeyHash
   , scriptHashAddress
   )
 import Contract.Monad
@@ -40,6 +41,7 @@ import Contract.TxConstraints
 import Contract.Utxos (utxosAt)
 import Contract.Value (singleton)
 import Data.Map (toUnfoldable)
+import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Settings (unbondedStakingTokenName)
 import UnbondedStaking.Types
@@ -53,6 +55,7 @@ closeUnbondedPoolContract :: UnbondedPoolParams -> Contract () Unit
 closeUnbondedPoolContract params@(UnbondedPoolParams { admin, nftCs }) = do
   -- Fetch information related to the pool
   -- Get network ID and check admin's PKH
+  networkId <- getNetworkId
   userPkh <- liftedM "closeUnbondedPoolContract: Cannot get user's pkh"
     ownPaymentPubKeyHash
   unless (userPkh == admin) $ throwContractError
@@ -66,7 +69,8 @@ closeUnbondedPoolContract params@(UnbondedPoolParams { admin, nftCs }) = do
     $ validatorHash validator
   logInfo_ "closeUnbondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
-  logInfo_ "closeUnbondedPoolContract: Pool address" poolAddr
+  logInfo_ "closeUnbondedPoolContract: Pool address"
+    $ fromPlutusType (networkId /\ poolAddr)
 
   -- Get the bonded pool's utxo
   unbondedPoolUtxos <-

@@ -4,6 +4,7 @@ import Contract.Prelude
 
 import Contract.Address
   ( AddressWithNetworkTag(AddressWithNetworkTag)
+  , getNetworkId
   , getWalletAddress
   , ownPaymentPubKeyHash
   , scriptHashAddress
@@ -35,7 +36,7 @@ import Contract.TxConstraints
 import Contract.Utxos (utxosAt)
 import Contract.Value (singleton)
 import Control.Applicative (unless)
-
+import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import UnbondedStaking.Types
   ( UnbondedPoolParams(UnbondedPoolParams)
@@ -50,6 +51,7 @@ depositUnbondedPoolContract
   params@(UnbondedPoolParams { admin }) = do
   -- Fetch information related to the pool
   -- Get network ID and check admin's PKH
+  networkId <- getNetworkId
   userPkh <- liftedM "depositUnbondedPoolContract: Cannot get user's pkh"
     ownPaymentPubKeyHash
   unless (userPkh == admin) $ throwContractError
@@ -71,7 +73,8 @@ depositUnbondedPoolContract
     $ validatorHash validator
   logInfo_ "depositUnbondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
-  logInfo_ "depositUnbondedPoolContract: Pool address" poolAddr
+  logInfo_ "depositUnbondedPoolContract: Pool address"
+    $ fromPlutusType (networkId /\ poolAddr)
 
   -- Create the datums and their ScriptLookups
   let

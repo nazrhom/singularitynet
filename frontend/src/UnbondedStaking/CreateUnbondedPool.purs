@@ -4,6 +4,7 @@ import Contract.Prelude
 
 import Contract.Address
   ( AddressWithNetworkTag(AddressWithNetworkTag)
+  , getNetworkId
   , getWalletAddress
   , ownPaymentPubKeyHash
   , scriptHashAddress
@@ -28,6 +29,7 @@ import Contract.Utxos (utxosAt)
 import Contract.Value (scriptCurrencySymbol, singleton)
 import Data.Array (head)
 import Data.Map (toUnfoldable)
+import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Scripts.StateNFT (mkStateNFTPolicy)
@@ -45,6 +47,7 @@ import Utils (logInfo_, mkUnbondedPoolParams)
 createUnbondedPoolContract
   :: InitialUnbondedParams -> Contract () UnbondedPoolParams
 createUnbondedPoolContract iup = do
+  networkId <- getNetworkId
   adminPkh <- liftedM "createUnbondedPoolContract: Cannot get admin's pkh"
     ownPaymentPubKeyHash
   logInfo_ "createUnbondedPoolContract: Admin PaymentPubKeyHash" adminPkh
@@ -52,6 +55,8 @@ createUnbondedPoolContract iup = do
   AddressWithNetworkTag { address: adminAddr } <-
     liftedM "createUnbondedPoolContract: Cannot get wallet Address"
       getWalletAddress
+  logInfo_ "createUnbondedPoolContract: User Address"
+    $ fromPlutusType (networkId /\ adminAddr)
   -- Get utxos at the wallet address
   adminUtxos <-
     liftedM "createUnbondedPoolContract: Cannot get user Utxos"
@@ -92,9 +97,8 @@ createUnbondedPoolContract iup = do
   let
     mintValue = singleton stateNftCs tokenName one
     poolAddr = scriptHashAddress valHash
-  logInfo_
-    "createUnbondedPoolContract: UnbondedPool Validator's address"
-    poolAddr
+  logInfo_ "createUnbondedPoolContract: UnbondedPool Validator's address"
+    $ fromPlutusType (networkId /\ poolAddr)
 
   let
     unbondedStateDatum = Datum $ toData $ StateDatum

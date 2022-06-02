@@ -4,6 +4,7 @@ import Contract.Prelude
 
 import Contract.Address
   ( AddressWithNetworkTag(AddressWithNetworkTag)
+  , getNetworkId
   , getWalletAddress
   , ownPaymentPubKeyHash
   , scriptHashAddress
@@ -34,6 +35,7 @@ import Contract.TxConstraints
 import Contract.Utxos (utxosAt)
 import Contract.Value (singleton)
 import Control.Applicative (unless)
+import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
 import Types
@@ -48,7 +50,8 @@ import Utils (big, getUtxoWithNFT, logInfo_, nat)
 depositBondedPoolContract :: BondedPoolParams -> Contract () Unit
 depositBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
   -- Fetch information related to the pool
-  -- Check admin's PKH
+  -- Get network ID and check admin's PKH
+  networkId <- getNetworkId
   userPkh <- liftedM "depositBondedPoolContract: Cannot get user's pkh"
     ownPaymentPubKeyHash
   unless (userPkh == admin) $ throwContractError
@@ -69,7 +72,8 @@ depositBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
     $ validatorHash validator
   logInfo_ "depositBondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
-  logInfo_ "depositBondedPoolContract: Pool address" poolAddr
+  logInfo_ "depositBondedPoolContract: Pool address"
+    $ fromPlutusType (networkId /\ poolAddr)
   -- Get the bonded pool's utxo
   bondedPoolUtxos <-
     liftedM

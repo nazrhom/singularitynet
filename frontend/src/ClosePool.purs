@@ -3,7 +3,8 @@ module ClosePool (closeBondedPoolContract) where
 import Contract.Prelude
 
 import Contract.Address
-  ( ownPaymentPubKeyHash
+  ( getNetworkId
+  , ownPaymentPubKeyHash
   , scriptHashAddress
   )
 import Contract.Monad
@@ -36,6 +37,7 @@ import Contract.TxConstraints
   )
 import Contract.Utxos (utxosAt)
 import Data.Map (toUnfoldable)
+import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Types
   ( BondedPoolParams(BondedPoolParams)
@@ -47,7 +49,8 @@ import Utils (logInfo_, nat)
 closeBondedPoolContract :: BondedPoolParams -> Contract () Unit
 closeBondedPoolContract params@(BondedPoolParams { admin }) = do
   -- Fetch information related to the pool
-  -- Check admin's PKH
+  -- Get network ID and check admin's PKH
+  networkId <- getNetworkId
   userPkh <- liftedM "closeBondedPoolContract: Cannot get user's pkh"
     ownPaymentPubKeyHash
   unless (userPkh == admin) $ throwContractError
@@ -61,7 +64,8 @@ closeBondedPoolContract params@(BondedPoolParams { admin }) = do
     $ validatorHash validator
   logInfo_ "closeBondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
-  logInfo_ "closeBondedPoolContract: Pool address" poolAddr
+  logInfo_ "closeBondedPoolContract: Pool address"
+    $ fromPlutusType (networkId /\ poolAddr)
   -- Get the bonded pool's utxo
   bondedPoolUtxos <-
     liftedM "closeBondedPoolContract: Cannot get pool's utxos at pool address" $

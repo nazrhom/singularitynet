@@ -4,6 +4,7 @@ import Contract.Prelude
 
 import Contract.Address
   ( AddressWithNetworkTag(AddressWithNetworkTag)
+  , getNetworkId
   , getWalletAddress
   , ownPaymentPubKeyHash
   , scriptHashAddress
@@ -28,6 +29,7 @@ import Contract.Utxos (utxosAt)
 import Contract.Value (scriptCurrencySymbol, singleton)
 import Data.Array (head)
 import Data.Map (toUnfoldable)
+import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Scripts.StateNFT (mkStateNFTPolicy)
@@ -44,6 +46,7 @@ import Utils (logInfo_, mkBondedPoolParams, nat)
 -- in the pool validator's address
 createBondedPoolContract :: InitialBondedParams -> Contract () BondedPoolParams
 createBondedPoolContract ibp = do
+  networkId <- getNetworkId
   adminPkh <- liftedM "createBondedPoolContract: Cannot get admin's pkh"
     ownPaymentPubKeyHash
   logInfo_ "createBondedPoolContract: Admin PaymentPubKeyHash" adminPkh
@@ -51,10 +54,11 @@ createBondedPoolContract ibp = do
   AddressWithNetworkTag { address: adminAddr } <-
     liftedM "createBondedPoolContract: Cannot get wallet Address"
       getWalletAddress
+  logInfo_ "createBondedPoolContract: User Address"
+    $ fromPlutusType (networkId /\ adminAddr)
   -- Get utxos at the wallet address
-  adminUtxos <-
-    liftedM "createBondedPoolContract: Cannot get user Utxos"
-      $ utxosAt adminAddr
+  adminUtxos <- liftedM "createBondedPoolContract: Cannot get user Utxos"
+    $ utxosAt adminAddr
   txOutRef <- liftContractM "createBondedPoolContract: Could not get head UTXO"
     $ fst
     <$> (head $ toUnfoldable $ unwrap adminUtxos)
@@ -86,7 +90,8 @@ createBondedPoolContract ibp = do
   let
     mintValue = singleton stateNftCs tokenName one
     poolAddr = scriptHashAddress valHash
-  logInfo_ "createBondedPoolContract: BondedPool Validator's address" poolAddr
+  logInfo_ "createBondedPoolContract: BondedPool Validator's address"
+    $ fromPlutusType (networkId /\ poolAddr)
   let
     -- We initalize the pool with no head entry and a pool size of 100_000_000
     bondedStateDatum = Datum $ toData $ StateDatum
