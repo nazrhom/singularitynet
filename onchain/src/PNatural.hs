@@ -192,7 +192,7 @@ mkNatUnsafe ::
   forall (s :: S).
   Term s PInteger ->
   Term s PNatural
-mkNatUnsafe x = pcon . PNatural $ x
+mkNatUnsafe = pcon . PNatural
 
 pgcd :: forall (s :: S). Term s PInteger -> Term s PInteger -> Term s PInteger
 pgcd x y = pfix # phoistAcyclic (plam gcd') # x # y # 1

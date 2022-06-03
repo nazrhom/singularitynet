@@ -167,7 +167,7 @@ unstableMakeIsData ''ListAction
      is set to `Nothing`, since no entry needs to be inserted or removed from
      the list.
      
-     When the stake-holder wants to claim the their rewards, the reeemer will
+     When the stake-holder wants to claim the their rewards, the redeemer will
      be `WithdrawAct pkh burnAct`, where `burnAct` specifies the type of removal
      that needs to be checked by the validator.
 -}
