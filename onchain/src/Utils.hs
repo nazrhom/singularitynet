@@ -250,7 +250,7 @@ pmapMaybe f as = pfix # pmapMaybe' # f # as
         PCons x xs -> pmatch (f # x) $ \case
           PJust x' -> pcon $ PCons x' $ self # f # xs
           PNothing -> self # f # xs
-        PNil -> pcon $ PNil
+        PNil -> pcon PNil
 
 {- | Returns the pair of lists of elements that match and don't match the
  predicate
@@ -315,7 +315,7 @@ type PValueOuter =
   PBuiltinList
     ( PBuiltinPair
         (PAsData PCurrencySymbol)
-        (PAsData (PMap PTokenName (PInteger)))
+        (PAsData (PMap PTokenName PInteger))
     )
 
 {- | Retrieves the `PTokenName` for a given `PCurrencySymbol`. It fetches the
@@ -794,7 +794,7 @@ signedOnlyBy ::
   Term s (PBuiltinList (PAsData PPubKeyHash)) ->
   Term s PPubKeyHash ->
   Term s PBool
-signedOnlyBy ls pkh = pelem # pdata pkh # ls #&& plength # ls #== 1
+signedOnlyBy ls pkh = signedBy ls pkh #&& plength # ls #== 1
 
 -- Useful type family for reducing boilerplate in HRec types
 type family HField (s :: S) (field :: Symbol) (ptype :: PType) where

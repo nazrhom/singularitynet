@@ -243,7 +243,7 @@ adminActLogic txInfo params purpose inputStakingDatum sizeLeft = unTermCont $ do
           <=< getContinuingOutputWithNFT poolAddr stateTok
           $ txInfo.outputs
       ---- BUSINESS LOGIC ----
-      guardC "adminActLogic: admin update should not udpate list head" $
+      guardC "adminActLogic: admin update should not update list head" $
         pdata stateHeadKey #== pdata newStateHeadKey
       guardC
         "adminActLogic: update failed because new size was not updated \
