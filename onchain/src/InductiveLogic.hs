@@ -1,9 +1,11 @@
 module InductiveLogic (
   consumesStateUtxoGuard,
+  consumesStateUtxoAndEntryGuard,
   consumesEntriesGuard,
   consumesEntryGuard,
   doesNotConsumeAssetGuard,
-  hasStateNft,
+  hasStateToken,
+  hasEntryToken,
   hasListNft,
   hasNoNft,
   inputPredicate,
@@ -46,23 +48,59 @@ consumesStateUtxoGuard ::
   -- |^ Redeemer's pool UTXO
   Term s (PBuiltinList (PAsData PTxInInfo)) ->
   -- |^ Transaction's inputs
-  Term s PCurrencySymbol ->
-  -- |^ Pool's currency symbol
-  Term s PTokenName ->
-  -- |^ Pool's token name
+  (Term s PCurrencySymbol, Term s PTokenName) ->
+  -- |^ Pool's token
   TermCont s (Term s PUnit)
-consumesStateUtxoGuard stateOutRef inputs stateNftCs stateNftTn = do
+consumesStateUtxoGuard stateOutRef inputs stateTok = do
   _ <- flip pfind inputs . inputPredicate $ \outRef val ->
     pif
       (pdata outRef #== pdata stateOutRef)
       ( pif
-          (hasStateNft stateNftCs stateNftTn val)
+          (val `hasStateToken` stateTok)
           ptrue
           $ ptraceError
             "consumesStateUtxoGuard: txOutRef does not have pool NFT"
       )
       pfalse
   pure punit
+
+consumesStateUtxoAndEntryGuard ::
+  forall (s :: S).
+  Term s PTxOutRef ->
+  -- |^ Redeemer's pool UTXO
+  Term s PTxOutRef ->
+  -- |^ Entry to consume
+  Term s (PBuiltinList (PAsData PTxInInfo)) ->
+  -- |^ Transaction's inputs
+  (Term s PCurrencySymbol, Term s PTokenName) ->
+  -- |^ Pool's token
+  (Term s PCurrencySymbol, Term s PTokenName) ->
+  -- |^ Entry's token
+  TermCont s (Term s PUnit)
+consumesStateUtxoAndEntryGuard
+  stateOutRef
+  entryOutRef
+  inputs
+  stateTok
+  entryTok = do
+  _ <- flip pfind inputs . inputPredicate $ \outRef val ->
+    pif
+      (pdata outRef #== pdata stateOutRef)
+      ( pif
+          (val `hasStateToken` stateTok)
+          ptrue
+          (ptraceError "consumesStateUtxoAndEntryGuard: state UTxO does not \
+            \have pool NFT"))
+      ( pif (pdata outRef #== pdata entryOutRef)
+            ( pif
+                (val `hasEntryToken` entryTok)
+                ptrue
+                (ptraceError "consumesStateUtxoAndEntryGuard: entry UTxO does \
+                  \not have the expecte entry NFT"))
+            pfalse)
+  pure punit
+            --(ptraceError "consumesStateUtxoAndEntryGuard: txOutRef does not \
+            --  \have list NFT"))
 
 {- | Fails if the two entries are not present in inputs or they don't have a
  list token
@@ -161,21 +199,22 @@ hasListNft listNftCs val = hasListNft' # listNftCs # val
           # (pconst ptrue)
           # (peq # 1)
           # val
+          
+hasEntryToken ::
+  forall (s :: S).
+  Term s PValue ->
+  (Term s PCurrencySymbol, Term s PTokenName) ->
+  Term s PBool
+hasEntryToken val (listNftCs, entryTn) = oneOf # listNftCs # entryTn # val
 
 -- | Returns `ptrue` if value contains the pool's state token
-hasStateNft ::
+hasStateToken ::
   forall (s :: S).
-  Term s PCurrencySymbol ->
-  Term s PTokenName ->
   Term s PValue ->
+  (Term s PCurrencySymbol, Term s PTokenName) ->
   Term s PBool
-hasStateNft stateNftCs stateNftTn val =
-  hasStateNft' # stateNftCs # stateNftTn # val
-  where
-    hasStateNft' :: Term s (PCurrencySymbol :--> PTokenName :--> PValue :--> PBool)
-    hasStateNft' = phoistAcyclic $
-      plam $ \cs tn val ->
-        oneOf # cs # tn # val
+hasStateToken val (stateNftCs, stateNftTn) =
+  oneOf # stateNftCs # stateNftTn # val
 
 {- | Returns `ptrue` if value contains neither the pool's state token nor entry
  token

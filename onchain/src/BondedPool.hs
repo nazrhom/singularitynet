@@ -85,7 +85,7 @@ import Utils (
  )
 
 import GHC.Records (getField)
-import InductiveLogic (doesNotConsumeAssetGuard, hasListNft, hasStateNft)
+import InductiveLogic (doesNotConsumeAssetGuard, hasListNft, hasStateToken)
 import Plutarch.Api.V1.Scripts (PDatum)
 import Plutarch.Api.V1.Tuple (pbuiltinPairFromTuple)
 import Plutarch.Builtin (pforgetData)
@@ -504,10 +504,8 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
         ---- INDUCTIVE CONDITIONS ----
         -- Validate that spentOutRef is the state UTXO and matches redeemer
         guardC "newStakeLogic (mintHead): spent input is not the state UTXO" $
-          hasStateNft
-            params.nftCs
-            (pconstant bondedStakingTokenName)
-            spentInputResolved.value
+          spentInputResolved.value `hasStateToken`
+            (params.nftCs, pconstant bondedStakingTokenName)
         guardC
           "newStakeLogic (mintHead): spent input does not match redeemer \
           \input"
