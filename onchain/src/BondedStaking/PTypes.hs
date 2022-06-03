@@ -39,17 +39,13 @@ import PTypes (
   PBurningAction,
  )
 import SingularityNet.Types (
-  AssetClass,
   BondedPoolParams,
-  MintingAction,
-  BurningAction,
-  ListAction,
   BondedStakingAction,
   BondedStakingDatum,
   Entry,
  )
 
-import Plutarch.Api.V1 (PMaybeData, PPOSIXTime, PTokenName, PTxId, PTxOutRef)
+import Plutarch.Api.V1 (PMaybeData, PPOSIXTime)
 import Plutarch.Api.V1.Crypto (PPubKeyHash)
 import Plutarch.Api.V1.Value (PCurrencySymbol)
 import Plutarch.DataRepr (
@@ -215,15 +211,15 @@ instance PUnsafeLiftDecl PBondedStakingAction where
 ----- Type synonyms -----
 
 -- | HRec with all of `PEntry`'s fields
-type PEntryHRec (s :: S) = HRec '[
-  HField s "key" PByteString
-  , HField s "newDeposit" PNatural
-  , HField s "deposited" PNatural
-  , HField s "staked" PNatural
-  , HField s "rewards" PNatRatio
-  , HField s "value" (PBuiltinPair (PAsData PNatural) (PAsData PNatRatio))
-  , HField s "next" (PMaybeData PByteString)
-  ]
+type PEntryHRec (s :: S) =
+  HRec
+    '[ HField s "key" PByteString
+     , HField s "newDeposit" PNatural
+     , HField s "deposited" PNatural
+     , HField s "staked" PNatural
+     , HField s "rewards" PNatRatio
+     , HField s "next" (PMaybeData PByteString)
+     ]
 
 -- | Type level list with all of `PEntry`'s fields
 type PEntryFields =

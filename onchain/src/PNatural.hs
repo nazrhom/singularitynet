@@ -18,7 +18,7 @@ module PNatural (
   toNatRatio,
 ) where
 
-import Data.Ratio ((%))
+-- import Data.Ratio ((%))
 import GHC.Generics qualified as GHC
 import Generics.SOP (Generic, I (I))
 
@@ -27,7 +27,7 @@ import SingularityNet.Natural (
   Natural (Natural),
  )
 
-import Plutarch.Builtin (ppairDataBuiltin)
+-- import Plutarch.Builtin (ppairDataBuiltin)
 import Plutarch.DataRepr (
   DerivePConstantViaData (DerivePConstantViaData),
   PDataFields,
@@ -38,7 +38,7 @@ import Plutarch.Lift (
   PLifted,
   PUnsafeLiftDecl,
  )
-import Plutarch.Rational (PRational (PRational), ptruncate)
+-- import Plutarch.Rational (PRational (PRational), ptruncate)
 import Plutarch.TryFrom (PTryFrom)
 
 {- | `Natural` synonym.
@@ -247,31 +247,33 @@ pletC :: forall (s :: S) (a :: PType). Term s a -> TermCont s (Term s a)
 pletC = tcont . plet
 
 pCeil :: Term s (PNatRatio :--> PNatural)
-pCeil =
-  phoistAcyclic $
-  plam $ \x -> unTermCont $ do
-    let
-      x' = toPRational # x
-      numerator = pnumerator # x'
-      denominator = pdenominator # x'
-      truncated = ptruncate # x'
+pCeil = undefined
+-- pCeil =
+--   phoistAcyclic $
+--   plam $ \x -> unTermCont $ do
+--     let
+--       x' = toPRational # x
+--       numerator = pnumerator # x'
+--       denominator = pdenominator # x'
+--       truncated = ptruncate # x'
 
-    pure $
-      pif (pmod # numerator # denominator #== 0)
-        (pcon $ PNatural truncated)
-        (pcon $ PNatural (truncated + 1))
+--     pure $
+--       pif (pmod # numerator # denominator #== 0)
+--         (pcon $ PNatural truncated)
+--         (pcon $ PNatural (truncated + 1))
 
 -- Conversion functions
 toPNatRatio :: Term s (PRational :--> PMaybe PNatRatio)
-toPNatRatio = phoistAcyclic $
-  plam $ \x -> unTermCont $ do
-    let
-      numerator = pdata $ pnumerator # x
-      denominator = pdata $ pdenominator # x
-    pure $
-      pif (x #< 0)
-        (pcon PNothing)
-        (pcon . PJust $ pcon . PNatRatio $ (ppairDataBuiltin # numerator # denominator))
+toPNatRatio = undefined
+-- toPNatRatio = phoistAcyclic $
+--   plam $ \x -> unTermCont $ do
+--     let
+--       numerator = pdata $ pnumerator # x
+--       denominator = pdata $ pdenominator # x
+--     pure $
+--       pif (x #< 0)
+--         (pcon PNothing)
+--         (pcon . PJust $ pcon . PNatRatio $ (ppairDataBuiltin # numerator # denominator))
 
 toPInteger :: Term s (PNatural :--> PInteger)
 toPInteger = phoistAcyclic $
@@ -279,5 +281,6 @@ toPInteger = phoistAcyclic $
     PNatural n -> n
 
 toPRational :: Term s (PNatRatio :--> PRational)
-toPRational = phoistAcyclic $
-  plam $ \x -> pcon $ PRational (pfstData $ pto x) (psndData $ pto x)
+toPRational = undefined
+-- toPRational = phoistAcyclic $
+--   plam $ \x -> pcon $ PRational (pfstData $ pto x) (psndData $ pto x)

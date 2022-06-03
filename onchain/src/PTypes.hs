@@ -41,14 +41,9 @@ import GHC.Generics qualified as GHC
 import GHC.TypeLits (Symbol)
 import Generics.SOP (Generic, I (I))
 
-import PNatural (PNatRatio, PNatural)
 import SingularityNet.Types (
   AssetClass,
-  BondedPoolParams,
-  BondedStakingAction,
-  BondedStakingDatum,
   BurningAction,
-  Entry,
   ListAction,
   MintingAction,
  )

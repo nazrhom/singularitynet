@@ -25,6 +25,9 @@ import Control.Monad((<=<))
 
 import Plutarch.Api.V1 (
   PAddress,
+  PCurrencySymbol,
+  PDatumHash,
+  PMaybeData (PDJust, PDNothing),
   PPubKeyHash,
   PScriptContext,
   PScriptPurpose,
@@ -33,13 +36,7 @@ import Plutarch.Api.V1 (
   PTxInfo,
   PTxOut,
   PValue,
-  PCurrencySymbol,
-  PTokenName (PTokenName),
-  PTxOut,
-  PTuple,
-  PDatum,
-  PDatumHash,
-  ptuple
+  ptuple,
  )
 import Plutarch.Builtin (pforgetData)
 import Plutarch.Unsafe (punsafeCoerce)

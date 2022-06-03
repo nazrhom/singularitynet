@@ -10,6 +10,7 @@ import GHC.Records (getField)
 import Plutarch (compile)
 import Plutarch.Api.V1 (
   PAddress,
+  PMaybeData (PDJust, PDNothing),
   PPOSIXTimeRange,
   PPubKeyHash,
   PScriptContext,
@@ -18,6 +19,7 @@ import Plutarch.Api.V1 (
   validatorHash,
  )
 import Plutarch.Builtin (ppairDataBuiltin)
+import Plutarch.DataRepr (HRec)
 import Plutarch.Rational (PRational (PRational))
 import Plutarch.Unsafe (punsafeCoerce)
 import Plutus.V1.Ledger.Api (
@@ -47,6 +49,8 @@ import PNatural (
   (#*),
  )
 import PTypes (
+  HField,
+  PMintingAction(PMintHead, PMintInBetween, PMintEnd),
   passetClass,
   PPeriod,
   PTxInfoFields,
@@ -99,6 +103,23 @@ import Data.Ratio (
   (%),
  )
 
+{- The validator has two responsibilities
+
+     1. Make sure that the list's inductive conditions are preserved
+
+     2. Do business logic checks, which means validating the datums of the
+     inputs and outputs (and therefore validate the correct outputs are
+     produced)
+
+   Some basic conditions are checked by the minting policy (see `ListNFT`), so
+   the validator needs to make sure that a value was minted to be able to assume
+   them.
+
+   Specifically, the minting policy makes sure that the correct inputs are
+   consumed/burnt (e.g: in a list insertion, only two list entries are consumed
+   and no other NFT. Also, the minted entry's `TokenName` matches the
+   signatory's PKH).
+-}
 punbondedPoolValidator ::
   forall (s :: S).
   Term
@@ -109,46 +130,56 @@ punbondedPoolValidator ::
         :--> PScriptContext
         :--> PUnit
     )
-punbondedPoolValidator =
-  phoistAcyclic $
-    plam $ \params dat act ctx -> unTermCont $ do
-      -- Retrieve fields from parameters
-      ctxF <- tcont $ pletFields @'["txInfo", "purpose"] ctx
-      txInfoF <- tcont $ pletFields @PTxInfoFields ctxF.txInfo
-      paramsF <- tcont $ pletFields @PUnbondedPoolParamsFields params
-      -- Match on redeemer, check period and minted value, execute the
-      -- corresponding logic
-      pure $
-        pmatch act $ \case
-          PAdminAct dataRecord -> unTermCont $ do
-            guardC "punbondedPoolValidator: wrong period for PAdminAct \
-              \redeemer" $
-              getUnbondedPeriod # txInfoF.validRange # params #== adminUpdatePeriod
-
-            dataRecordF <- tcont $ pletFields @["totalRewards", "totalDeposited"] dataRecord
-            pure $
-              adminActLogic
-                txInfoF
-                paramsF
-                ctxF.purpose
-                dat
-                dataRecordF.totalRewards
-                dataRecordF.totalDeposited
-          PStakeAct dataRecord -> unTermCont $ do
-            -- update with new fields (minting)
-            dataRecordF <- tcont $ pletFields @["stakeAmount", "pubKeyHash"] dataRecord
-            let amount = dataRecordF.stakeAmount
-                pkh    = dataRecordF.pubKeyHash
-            pure $ stakeActLogic txInfoF paramsF ctxF.purpose dat amount pkh
-          PWithdrawAct dataRecord -> --unTermCont $ do
-            -- update with new fields (minting)
-            let pkh = pfield @"pubKeyHash" # dataRecord
-              in withdrawActLogic pkh
-          PCloseAct _ -> unTermCont $ do
-            guardC "punbondedPoolValidator: wrong period for PCloseAct \
-              \redeemer" $
-              getUnbondedPeriod # txInfoF.validRange # params #== adminUpdatePeriod
-            pure $ closeActLogic txInfoF paramsF ctxF.purpose dat
+punbondedPoolValidator = phoistAcyclic $
+  plam $ \params dat act ctx -> unTermCont $ do
+    -- Retrieve fields from parameters
+    ctxF <- tcont $ pletFields @'["txInfo", "purpose"] ctx
+    txInfoF <- tcont $ pletFields @PTxInfoFields ctxF.txInfo
+    paramsF <- tcont $ pletFields @PUnbondedPoolParamsFields params
+    -- Match on redeemer, check period and minted value, execute the
+    -- corresponding logic
+    pure $
+      pmatch act $ \case
+        PAdminAct dataRecord -> unTermCont $ do
+          guardC "punbondedPoolValidator: wrong period for PAdminAct \
+            \redeemer" $
+            getUnbondedPeriod # txInfoF.validRange # params #==
+              adminUpdatePeriod
+          adminActParamsF <-
+            tcont $ pletFields @["totalRewards", "totalDeposited"] dataRecord
+          pure $
+            adminActLogic
+              txInfoF
+              paramsF
+              ctxF.purpose
+              dat
+              adminActParamsF
+        PStakeAct dataRecord -> unTermCont $ do
+          guardC "punbondedPoolValidator: wrong period for PStakeAct \
+            \redeemer" $
+            getUnbondedPeriod # txInfoF.validRange # params #==
+              depositWithdrawPeriod
+          stakeActParamsF <-
+            tcont $ pletFields
+            @["stakeAmount", "pubKeyHash", "maybeMintingAction"]
+            dataRecord
+          pure $
+            stakeActLogic
+              txInfoF
+              paramsF
+              ctxF.purpose
+              dat
+              stakeActParamsF
+        PWithdrawAct dataRecord -> --unTermCont $ do
+          -- update with new fields (minting)
+          let pkh = pfield @"pubKeyHash" # dataRecord
+            in withdrawActLogic pkh
+        PCloseAct _ -> unTermCont $ do
+          guardC "punbondedPoolValidator: wrong period for PCloseAct \
+            \redeemer" $
+            getUnbondedPeriod # txInfoF.validRange # params #==
+              adminUpdatePeriod
+          pure $ closeActLogic txInfoF paramsF ctxF.purpose dat
 
 -- Untyped version to be serialised. This version is responsible for verifying
 -- that the parameters (pool params, datum and redeemer) have the proper types.
@@ -184,16 +215,17 @@ adminActLogic ::
   PUnbondedPoolParamsHRec s ->
   Term s PScriptPurpose ->
   Term s PUnbondedStakingDatum ->
-  Term s PNatural ->
-  Term s PNatural ->
+  HRec
+    '[ HField s "totalRewards" PNatural
+     , HField s "totalDeposited" PNatural
+     ] ->
   Term s PUnit
 adminActLogic
   txInfoF
   paramsF
   purpose
   inputStakingDatum
-  tRewards
-  tDeposited = unTermCont $ do
+  adminActParamsF = unTermCont $ do
     -- We check that the transaction was signed by the pool operator
     guardC "adminActLogic: transaction not signed by admin" $
       signedBy txInfoF.signatories paramsF.admin
@@ -255,25 +287,25 @@ adminActLogic
             $ newEntryF.rewards
               #== calculateRewards
                 oldEntryF.rewards
-                tRewards
+                adminActParamsF.totalRewards
                 oldEntryF.deposited
                 oldEntryF.newDeposit
-                tDeposited
+                adminActParamsF.totalDeposited
           guardC
             "adminActLogic: update failed because entry field 'totalRewards' \
             \is not newTotalRewards"
-            $ newEntryF.totalRewards #== tRewards
+            $ newEntryF.totalRewards #== adminActParamsF.totalRewards
           guardC
             "adminActLogic: update failed because entry field \
             \'totalDeposited' is not newTotalDeposited"
-            $ newEntryF.totalDeposited #== tDeposited
+            $ newEntryF.totalDeposited #== adminActParamsF.totalDeposited
           entryChangedGuard "open" (oldEntryF.open #== newEntryF.open)
           entryChangedGuard "next" (oldEntryF.next #== newEntryF.next)
 
           -- Verify output address is unchanged
           guardC
             "adminActLogic: update failed because output address is changed"
-            $ inputAddress #== punbondedValidatorAddress
+            $ pdata inputAddress #== pdata punbondedValidatorAddress
 
         PAssetDatum _ ->
           ptraceError
@@ -286,18 +318,21 @@ stakeActLogic ::
   PUnbondedPoolParamsHRec s ->
   Term s PScriptPurpose ->
   Term s PUnbondedStakingDatum ->
-  Term s PNatural ->
-  Term s PPubKeyHash ->
+  HRec
+    '[ HField s "stakeAmount" PNatural
+     , HField s "pubKeyHash" PPubKeyHash
+     , HField s "maybeMintingAction" (PMaybeData PMintingAction)
+     ] ->
   Term s PUnit
 stakeActLogic
-  txInfoF paramsF purpose inputStakingDatum amount pkh = unTermCont $ do
+  txInfoF paramsF purpose inputStakingDatum stakeActParamsF = unTermCont $ do
     -- We check that the transaction was signed by the user
     guardC "stakeActLogic: transaction not signed by user" $
-      signedBy txInfoF.signatories pkh
+      signedBy txInfoF.signatories stakeActParamsF.pubKeyHash
 
     -- Validate stake amount
     guardC "stakeActLogic: stake amount not greater than zero" $
-      pgt # pconstant @PNatural (Natural 0) # amount
+      pgt # pconstant @PNatural (Natural 0) # stakeActParamsF.stakeAmount
 
     -- We get the input's address and value
     input <- getInput purpose txInfoF.inputs
@@ -326,7 +361,7 @@ stakeActLogic
                 paramsF.unbondedAssetClass
 
           -- Ensure correct amount and asset is being staked to the validator
-          guardC "" $ txOutF.address #== punbondedValidatorAddress
+          guardC "" $ pdata txOutF.address #== pdata punbondedValidatorAddress
           -- guardC "" $ txOutF.value #== amount -- use fields in value map to cs and tn for amount
 
           -- Prevent withdrawing staked assets

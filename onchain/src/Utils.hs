@@ -48,25 +48,18 @@ module Utils (
   (>:),
 ) where
 
-import GHC.TypeLits (Symbol)
-import PNatural (PNatRatio, PNatural)
 import PTypes (PAssetClass, passetClass)
 import Plutarch.Api.V1 (
   PAddress,
   PCurrencySymbol,
-  PDCert,
   PDatum,
   PDatumHash,
   PMap,
   PMaybeData (PDJust, PDNothing),
-  PPOSIXTime,
-  PPOSIXTimeRange,
   PPubKeyHash,
   PScriptPurpose (PMinting, PSpending),
-  PStakingCredential,
   PTokenName,
   PTuple,
-  PTxId,
   PValue,
   ptuple,
  )
@@ -819,8 +812,8 @@ pflip f b a = f # a # b
 
 -- Plutarch class instances
 
-instance PEq PAddress where
-  a1 #== a2 = pdata a1 #== pdata a2
+-- instance PEq PAddress where
+--   a1 #== a2 = pdata a1 #== pdata a2
 
 -- | Returns the staking datum record with the provided type
 parseStakingDatum ::
