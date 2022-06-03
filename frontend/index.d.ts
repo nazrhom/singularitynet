@@ -1,19 +1,19 @@
 export function callCreatePool(
-  config: ContractConfiguration, args: InitialBondedArgs
+  config: SdkConfig, args: InitialBondedArgs
 ):
   Promise<BondedPoolArgs>
 
 export function callDepositPool(
-  config: ContractConfiguration, args: BondedPoolArgs
+  config: SdkConfig, args: BondedPoolArgs
 ):
   Promise<void>
 
 export function callClosePool(
-  config: ContractConfiguration, args: BondedPoolArgs
+  config: SdkConfig, args: BondedPoolArgs
 ):
   Promise<void>
 
-export type ContractConfiguration = {
+export type SdkConfig = {
   serverHost: string; // e.g. "localhost"
   serverPort: number; // uint
   serverSecure: boolean;

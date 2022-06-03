@@ -1,5 +1,5 @@
 module CallContract
-  ( ContractConfiguration
+  ( SdkConfig
   , callClosePool
   , callCreateBondedPool
   , callDepositBondedPool
@@ -53,7 +53,7 @@ import Types (BondedPoolParams(BondedPoolParams), InitialBondedParams)
 import Types.Rational (denominator, numerator) -- fix this with updated CTL
 
 -- | Configuation needed to call contracts from JS.
-type ContractConfiguration =
+type SdkConfig =
   { serverHost :: String
   , serverPort :: Number -- converts to UInt
   , serverSecure :: Boolean
@@ -104,7 +104,7 @@ fromLogLevelStr "Warn" = pure Warn
 fromLogLevelStr "Error" = pure Error
 fromLogLevelStr _ = Nothing
 
-buildContractConfig :: ContractConfiguration -> Aff (ContractConfig ())
+buildContractConfig :: SdkConfig -> Aff (ContractConfig ())
 buildContractConfig cfg = do
   serverPort <- convertPort "server" cfg.serverPort
   ogmiosPort <- convertPort "ogmios" cfg.ogmiosPort
@@ -145,7 +145,7 @@ buildContractConfig cfg = do
       $ UInt.fromNumber' port
 
 callCreateBondedPool
-  :: ContractConfiguration
+  :: SdkConfig
   -> InitialBondedArgs
   -> Effect (Promise BondedPoolArgs)
 callCreateBondedPool cfg iba = Promise.fromAff do
@@ -155,16 +155,16 @@ callCreateBondedPool cfg iba = Promise.fromAff do
   pure $ toBondedPoolArgs bpp
 
 callDepositBondedPool
-  :: ContractConfiguration -> BondedPoolArgs -> Effect (Promise Unit)
+  :: SdkConfig -> BondedPoolArgs -> Effect (Promise Unit)
 callDepositBondedPool = callWithBondedPoolArgs depositBondedPoolContract
 
 callClosePool
-  :: ContractConfiguration -> BondedPoolArgs -> Effect (Promise Unit)
+  :: SdkConfig -> BondedPoolArgs -> Effect (Promise Unit)
 callClosePool = callWithBondedPoolArgs closeBondedPoolContract
 
 callWithBondedPoolArgs
   :: (BondedPoolParams -> Contract () Unit)
-  -> ContractConfiguration
+  -> SdkConfig
   -> BondedPoolArgs
   -> Effect (Promise Unit)
 callWithBondedPoolArgs contract cfg bpa = Promise.fromAff do
