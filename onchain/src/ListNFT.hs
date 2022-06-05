@@ -25,6 +25,7 @@ import InductiveLogic (
   consumesEntryGuard,
   consumesStateUtxoGuard,
   consumesStateUtxoAndEntryGuard,
+  consumesEntriesGuard,
   hasNoNft,
   inputPredicate,
  )
@@ -40,7 +41,6 @@ import Utils (
   pletC,
   porList,
   ptryFromUndata,
-  punit,
  )
 
 {-
@@ -138,7 +138,6 @@ listInsertCheck
             lastEntry = pfromData $ pfield @"_0" # lastEntry'
         mintEndGuard stateNftCs listNftCs lastEntry inputs
 
--- TODO: Inductive conditions related to withdrawing not implemented
 listRemoveCheck ::
   forall (s :: S).
   Term s (PBuiltinList (PAsData PTxInInfo)) ->
@@ -164,7 +163,14 @@ listRemoveCheck
         (pfromData outRefs.state)
         (pfromData outRefs.headEntry)
         inputs
-    PBurnOther _prevEntry -> punit
+    PBurnOther outRefs' -> unTermCont $ do
+      outRefs <- tcont . pletFields @'["previousEntry", "burnEntry"] $ outRefs'
+      burnOtherGuard
+        stateTok
+        listTok
+        (pfromData outRefs.previousEntry)
+        (pfromData outRefs.burnEntry)
+        inputs
 
 -- TODO
 
@@ -259,6 +265,25 @@ burnHeadGuard
     entryTok
   -- We check that the other inputs are not state nor list UTXOs
   noNftGuard stateNftCs listNftCs [stateOutRef, entryOutRef] inputs
+
+burnOtherGuard ::
+  forall (s :: S).
+  (Term s PCurrencySymbol, Term s PTokenName) ->
+  (Term s PCurrencySymbol, Term s PTokenName) ->
+  Term s PTxOutRef ->
+  Term s PTxOutRef ->
+  Term s (PBuiltinList (PAsData PTxInInfo)) ->
+  TermCont s (Term s PUnit)
+burnOtherGuard
+  (stateNftCs, _)
+  (listNftCs, _)
+  prevEntryOutRef
+  burnEntryOutRef
+  inputs = do
+    -- We check that the two entries are consumed
+    consumesEntriesGuard prevEntryOutRef burnEntryOutRef inputs listNftCs
+    -- We check that the other inputs are not state nor list UTXOs
+    noNftGuard stateNftCs listNftCs [prevEntryOutRef, burnEntryOutRef] inputs
 
 -- Check that all unprotected inputs contain no state nor list NFTs
 noNftGuard ::
