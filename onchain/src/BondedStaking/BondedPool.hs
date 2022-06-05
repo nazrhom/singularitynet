@@ -36,7 +36,6 @@ import Plutarch.Api.V1 (
   PTxInfo,
   PTxOut,
   PValue,
-  ptuple,
  )
 import Plutarch.Builtin (pforgetData)
 import Plutarch.Unsafe (punsafeCoerce)
@@ -83,8 +82,6 @@ import Utils (
   peq,
   pfalse,
   pletC,
-  pmapMaybe,
-  ppairData,
   ptrue,
   ptryFromUndata,
   punit,
@@ -103,7 +100,6 @@ import InductiveLogic (
 import Plutarch.Api.V1.Scripts (PDatum)
 import Plutarch.Crypto (pblake2b_256)
 import Plutarch.DataRepr (HRec)
-import SingularityNet.Natural (NatRatio (NatRatio), Natural (Natural))
 import SingularityNet.Settings (bondedStakingTokenName)
 
 {- The validator has two responsibilities

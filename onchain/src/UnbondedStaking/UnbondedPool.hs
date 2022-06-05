@@ -25,31 +25,33 @@ import Plutarch.Api.V1 (
   PScriptPurpose,
   PTokenName (PTokenName),
   PTuple,
-  PTxInfo,
   PTxOut,
  )
 import Plutarch.Api.V1.Scripts (PDatum)
 import Plutarch.Builtin (pforgetData)
 import Plutarch.Crypto (pblake2b_256)
 import Plutarch.DataRepr (HRec)
-import Plutarch.Rational (PRational (PRational))
 import Plutarch.Unsafe (punsafeCoerce)
 
 import PInterval (
   pcontains,
   pintervalTo,
+  piBaseOffset,
+  piEndOffset,
+  piMaxCycles,
+  piPeriod,
+  piStartOffset,
   pperiodicContains,
-  PPeriodicInterval(..),
+  PPeriodicInterval (PPeriodicInterval),
  )
 import PNatural (
-  PNatRatio (PNatRatio),
-  PNatural (PNatural),
+  PNatRatio,
+  PNatural,
+  mkNatRatioUnsafe,
   natZero,
   ratZero,
+  toNatRatio,
   pCeil,
-  toPNatRatio,
-  toPInteger,
-  toPRational,
   (#+),
   (#-),
   (#*),
@@ -70,10 +72,6 @@ import PTypes (
   bondingPeriod,
  )
 
-import SingularityNet.Natural (
-  NatRatio (NatRatio),
-  Natural (Natural),
- )
 import SingularityNet.Settings (unbondedStakingTokenName)
 
 import UnbondedStaking.PTypes (
@@ -104,10 +102,8 @@ import Utils (
   parseStakingDatum,
   peq,
   pfalse,
-  pgt,
   pletC,
   pletDataC,
-  pmatchC,
   pnestedIf,
   ptryFromUndata,
   ptrue,
@@ -115,10 +111,6 @@ import Utils (
   signedOnlyBy,
   toPBool,
   (>:),
- )
-
-import Data.Ratio (
-  (%),
  )
 
 {- The validator has two responsibilities
@@ -189,7 +181,7 @@ punbondedPoolValidator = phoistAcyclic $
               dat
               stakeActParamsF
         PWithdrawAct dataRecord -> --unTermCont $ do
-          -- update with new fields (minting)
+          -- TODO: update with new fields (minting)
           let pkh = pfield @"pubKeyHash" # dataRecord
             in withdrawActLogic pkh
         PCloseAct _ -> unTermCont $ do
@@ -253,21 +245,22 @@ adminActLogic txInfoF paramsF purpose datum adminActParamsF = unTermCont $ do
         "adminActLogic: update failed because a wrong \
         \datum constructor was provided"
     PEntryDatum oldEntryRecord -> unTermCont $ do
+      ---- FETCH DATUMS ----
       -- Retrieve fields from oldEntry
       oldEntry <- pletC $ pfield @"_0" # oldEntryRecord
       oldEntryF <- tcont $ pletFields @PEntryFields $ oldEntry
-      -- Ensure pool is open
-      guardC
-        "adminActLogic: update failed because pool is not open"
-        $ toPBool # oldEntryF.open
       -- Get updated entry
       entryTok <- pletC $ getTokenName paramsF.assocListCs inputResolvedF.value
       newEntryF <- getOutputEntry poolAddr entryTok txInfoDataF txInfoF.outputs
-      -- Validate new Entry datum
-      entryChangedGuard "key" (oldEntryF.key #== newEntryF.key)
-      entryChangedGuard
-        "deposited"
-        (oldEntryF.deposited #== newEntryF.deposited)
+      ---- BUSINESS LOGIC ----
+      guardC
+        "adminActLogic: update failed because pool is not open"
+        $ toPBool # oldEntryF.open
+      guardC "adminActLogic: some fields in the given entries are not equal" $
+        oldEntryF.key #== newEntryF.key
+        #&& oldEntryF.deposited #== newEntryF.deposited
+        #&& oldEntryF.open #== newEntryF.open
+        #&& oldEntryF.next #== newEntryF.next
       guardC
         "adminActLogic: update failed because entry field 'newDeposit' \
         \is not zero"
@@ -290,8 +283,6 @@ adminActLogic txInfoF paramsF purpose datum adminActParamsF = unTermCont $ do
         "adminActLogic: update failed because entry field \
         \'totalDeposited' is not newTotalDeposited"
         $ newEntryF.totalDeposited #== adminActParamsF.totalDeposited
-      entryChangedGuard "open" (oldEntryF.open #== newEntryF.open)
-      entryChangedGuard "next" (oldEntryF.next #== newEntryF.next)
     PAssetDatum _ ->
       ptraceError
         "adminActLogic: update failed because a wrong \
@@ -449,173 +440,184 @@ newStakeLogic ::
   Term s PNatural ->
   Term s PMintingAction ->
   TermCont s (Term s PUnit)
-newStakeLogic txInfoF paramsF spentInputF datum holderPkh stakeAmt mintAct =
-  do
-    -- Construct some useful values for later
-    stakeHolderKey <- pletC $ pblake2b_256 # pto holderPkh
-    stakeHolderTn <- pletC $ pcon $ PTokenName $ stakeHolderKey
-    spentInputResolved <-
-      tcont . pletFields @'["address", "value", "datumHash"] $
-        spentInputF.resolved
-    let poolAddr :: Term s PAddress
-        poolAddr = spentInputResolved.address
-        stateTn :: Term s PTokenName
-        stateTn = pconstant unbondedStakingTokenName
-    stateTok <- pletC $ passetClass # paramsF.nftCs # stateTn
-    newEntryTok <- pletC $ passetClass # paramsF.assocListCs # stakeHolderTn
-    txInfoData <- pletC $ getField @"data" txInfoF
-    pure . pmatch mintAct $ \case
-      PMintHead stateOutRef -> unTermCont $ do
-        ---- FETCH DATUMS ----
-        -- Get datum for next state
-        nextStateTxOut <-
-          getContinuingOutputWithNFT poolAddr stateTok txInfoF.outputs
-        nextStateHash <- getDatumHash nextStateTxOut
-        (nextEntryKey, _nextSizeLeft) <-
-          getStateData
-            =<< parseStakingDatum
-            =<< getDatum nextStateHash txInfoData
-        -- Get datum for current state
-        (entryKey, _sizeLeft) <- getStateData datum
-        -- Get datum for new list entry
-        newEntry <-
-          getOutputEntry poolAddr newEntryTok txInfoData txInfoF.outputs
-        ---- BUSINESS LOGIC ----
-        newEntryGuard paramsF newEntry stakeAmt stakeHolderKey
-        ---- INDUCTIVE CONDITIONS ----
-        -- Validate that spentOutRef is the state UTXO and matches redeemer
-        guardC "newStakeLogic (mintHead): spent input is not the state UTXO" $
-          hasStateNft
-            paramsF.nftCs
-            (pconstant unbondedStakingTokenName)
-            spentInputResolved.value
-        guardC
-          "newStakeLogic (mintHead): spent input does not match redeemer \
-          \input"
-          $ spentInputF.outRef #== pfield @"_0" # stateOutRef
-        -- Validate next state
-        guardC
-          "newStakeLogic (mintHead): next pool state does not point to new \
-          \ entry"
-          $ nextEntryKey `pointsTo` newEntry.key
-        -- Validate list order and links
-        pure . pmatch entryKey $ \case
-          -- We are shifting the current head forwards
-          PDJust currentEntryKey' -> unTermCont $ do
-            currentEntryKey <- pletC $ pfromData $ pfield @"_0" # currentEntryKey'
-            -- Validate order of entries
-            guardC
-              "newStakeLogic (mintInBetween): new entry's key should be \
-              \strictly less than  current entry"
-              $ pfromData newEntry.key #< currentEntryKey
-            -- The new entry should point to the current entry
-            guardC
-              "newStakeLogic (mintInBetween): new entry should point to \
-              \current entry"
-              $ newEntry.next `pointsTo` currentEntryKey
-          -- This is the first stake of the pool
-          PDNothing _ -> unTermCont $ do
-            -- The new entry should *not* point to anything
-            guardC
-              "newStakeLogic (mintInBetween): new entry should not point to \
-              \anything"
-              $ pointsNowhere newEntry.next
-      PMintInBetween outRefs -> unTermCont $ do
-        ---- FETCH DATUMS ----
-        entriesRefs <-
-          tcont $ pletFields @'["previousEntry", "currentEntry"] outRefs
-        -- Get datum for prevEntry
-        prevEntry <- tcont . pletFields @PEntryFields =<< getEntryData datum
-        -- Get datum for prevEntryUpdated
-        let prevEntryTok :: Term s PAssetClass
-            prevEntryTok =
-              getTokenName
-                params.assocListCs
-                spentInputResolved.value
-        prevEntryUpdated <-
-          getOutputEntry poolAddr prevEntryTok txInfoData txInfo.outputs
-        -- Get datum for new list entry
-        newEntry <- getOutputEntry poolAddr newEntryTok txInfoData txInfo.outputs
-        -- Get the current entry's key
-        currEntryKey <- pure . pmatch prevEntry.next $ \case
-          PDJust key -> pfield @"_0" # key
-          PDNothing _ ->
-            ptraceError
-              "newStakeLogic (mintEnd): the previous \
-              \ entry does not point to another entry"
-        ---- BUSINESS LOGIC ----
-        -- Validate initialization of new entry
-        newEntryGuard params newEntry stakeAmt stakeHolderKey
-        -- Previous entry should keep the same values when updated
-        equalEntriesGuard prevEntry prevEntryUpdated
-        ---- INDUCTIVE CONDITIONS ----
-        -- Validate that previousEntry is a list entry and matches redeemer
-        guardC "newStakeLogic (mintEnd): spent input is not an entry" $
-          hasListNft params.assocListCs spentInputResolved.value
-        guardC
-          "newStakeLogic (mintEnd): spent input is not the same as input in \
-          \ redeemer"
-          $ spentInput.outRef #== entriesRefs.previousEntry
-        -- Previous entry should now point to the new entry
-        guardC
-          "newStakeLogic (mintEnd): the previous entry should point to the \
-          \new entry"
-          $ prevEntryUpdated.next `pointsTo` newEntry.key
-        -- And new entry should point to the current entry
-        guardC
-          "newStakeLogic (mintEnd): the new entry should point to the \
-          \current entry"
-          $ newEntry.next `pointsTo` currEntryKey
-        -- Validate entries' order
-        guardC
-          "newStakeLogic (mintEnd): failed to validate order in previous, \
-          \current and new entry"
-          $ pfromData prevEntry.key #< newEntry.key
-            #&& newEntry.key #< currEntryKey
-      PMintEnd listEndOutRef' -> unTermCont $ do
-        ---- FETCH DATUMS ----
-        listEndOutRef <- pletC $ pfield @"_0" # listEndOutRef'
-        -- Get datum for endEntry
-        endEntry <- tcont . pletFields @PEntryFields =<< getEntryData datum
-        -- Get datum for endEntryUpdated
-        let endEntryTok :: Term s PAssetClass
-            endEntryTok =
-              getTokenName
-                params.assocListCs
-                spentInputResolved.value
-        endEntryUpdated <-
-          getOutputEntry poolAddr endEntryTok txInfoData txInfo.outputs
-        -- Get datum for new list entry
-        newEntry <- getOutputEntry poolAddr newEntryTok txInfoData txInfo.outputs
-        ---- BUSINESS LOGIC ----
-        -- Validate initialization of new entry
-        newEntryGuard params newEntry stakeAmt stakeHolderKey
-        -- End entry should keep the same values when updated
-        equalEntriesGuard endEntry endEntryUpdated
-        ---- INDUCTIVE CONDITIONS ----
-        -- Validate that endEntry is a list entry and matches redeemer
-        guardC "newStakeLogic (mintEnd): spent input is not an entry" $
-          hasListNft params.assocListCs spentInputResolved.value
-        guardC
-          "newStakeLogic (mintEnd): spent input is not the same as input in \
-          \redeemer"
-          $ spentInput.outRef #== listEndOutRef
-        -- End entry should point nowhere
-        guardC "newStakeLogic (mintEnd): end should point nowhere" $
-          pointsNowhere endEntry.next
-        -- Updated end entry (no longer end) should point to new entry
-        guardC
-          "newStakeLogic (mintEnd): updated end should point to new end \
-          \entry"
-          $ endEntryUpdated.next `pointsTo` newEntry.key
-        -- New entry (new end) should point nowhere
-        guardC "newStakeLogic (mintEnd): new end entry should not point anywhere" $
-          pointsNowhere newEntry.next
-        -- Validate entries' order
-        guardC
-          "newStakeLogic (mintEnd): new entry's key should come after end \
-          \entry"
-          $ pfromData endEntryUpdated.key #< pfromData newEntry.key
+newStakeLogic txInfoF paramsF spentInputF datum holderPkh stakeAmt mintAct = do
+  -- Construct some useful values for later
+  stakeHolderKey <- pletC $ pblake2b_256 # pto holderPkh
+  stakeHolderTn <- pletC $ pcon $ PTokenName $ stakeHolderKey
+  spentInputResolvedF <-
+    tcont . pletFields @'["address", "value", "datumHash"] $
+      spentInputF.resolved
+  let poolAddr :: Term s PAddress
+      poolAddr = spentInputResolvedF.address
+      stateTn :: Term s PTokenName
+      stateTn = pconstant unbondedStakingTokenName
+  stateTok <- pletC $ passetClass # paramsF.nftCs # stateTn
+  newEntryTok <- pletC $ passetClass # paramsF.assocListCs # stakeHolderTn
+  txInfoData <- pletC $ getField @"data" txInfoF
+  pure . pmatch mintAct $ \case
+    PMintHead stateOutRef -> unTermCont $ do
+      ---- FETCH DATUMS ----
+      -- Get datum for next state
+      nextStateTxOut <-
+        getContinuingOutputWithNFT poolAddr stateTok txInfoF.outputs
+      nextStateHash <- getDatumHash nextStateTxOut
+      (nextEntryKey, nextOpen) <-
+        getStateData
+          =<< parseStakingDatum
+          =<< getDatum nextStateHash txInfoData
+      -- Get datum for current state
+      (entryKey, open) <- getStateData datum
+      -- Get datum for new list entry
+      newEntryF <-
+        getOutputEntry poolAddr newEntryTok txInfoData txInfoF.outputs
+      ---- BUSINESS LOGIC ----
+      guardC "newStakeLogic: update failed because pool state is not open" $
+        toPBool # open
+        #&& toPBool # nextOpen
+      newEntryGuard paramsF newEntryF stakeAmt stakeHolderKey
+      ---- INDUCTIVE CONDITIONS ----
+      -- Validate that spentOutRef is the state UTXO and matches redeemer
+      guardC "newStakeLogic (mintHead): spent input is not the state UTXO" $
+        hasStateNft
+          paramsF.nftCs
+          (pconstant unbondedStakingTokenName)
+          spentInputResolvedF.value
+      guardC
+        "newStakeLogic (mintHead): spent input does not match redeemer \
+        \input"
+        $ spentInputF.outRef #== pfield @"_0" # stateOutRef
+      -- Validate next state
+      guardC
+        "newStakeLogic (mintHead): next pool state does not point to new \
+        \ entry"
+        $ nextEntryKey `pointsTo` newEntryF.key
+      -- Validate list order and links
+      pure . pmatch entryKey $ \case
+        -- We are shifting the current head forwards
+        PDJust currentEntryKey' -> unTermCont $ do
+          currentEntryKey <-
+            pletC $ pfromData $ pfield @"_0" # currentEntryKey'
+          -- Validate order of entries
+          guardC
+            "newStakeLogic (mintInBetween): new entry's key should be \
+            \strictly less than current entry"
+            $ pfromData newEntryF.key #< currentEntryKey
+          -- The new entry should point to the current entry
+          guardC
+            "newStakeLogic (mintInBetween): new entry should point to \
+            \current entry"
+            $ newEntryF.next `pointsTo` currentEntryKey
+        -- This is the first stake of the pool
+        PDNothing _ -> unTermCont $ do
+          -- The new entry should *not* point to anything
+          guardC
+            "newStakeLogic (mintInBetween): new entry should not point to \
+            \anything"
+            $ pointsNowhere newEntryF.next
+    PMintInBetween outRefs -> unTermCont $ do
+      ---- FETCH DATUMS ----
+      entriesRefsF <-
+        tcont $ pletFields @'["previousEntry", "currentEntry"] outRefs
+      -- Get datum for prevEntry
+      prevEntryF <- tcont . pletFields @PEntryFields =<< getEntryData datum
+      -- Get datum for prevEntryUpdated
+      let prevEntryTok :: Term s PAssetClass
+          prevEntryTok =
+            getTokenName
+              paramsF.assocListCs
+              spentInputResolvedF.value
+      prevEntryUpdatedF <-
+        getOutputEntry poolAddr prevEntryTok txInfoData txInfoF.outputs
+      -- Get datum for new list entry
+      newEntryF <-
+        getOutputEntry poolAddr newEntryTok txInfoData txInfoF.outputs
+      -- Get the current entry's key
+      currEntryKey <- pure . pmatch prevEntryF.next $ \case
+        PDJust key -> pfield @"_0" # key
+        PDNothing _ ->
+          ptraceError
+            "newStakeLogic (mintEnd): the previous \
+            \ entry does not point to another entry"
+      ---- BUSINESS LOGIC ----
+      guardC "newStakeLogic: update failed because pool state is not open" $
+        toPBool # prevEntryF.open
+        #&& toPBool # newEntryF.open
+      -- Validate initialization of new entry
+      newEntryGuard paramsF newEntryF stakeAmt stakeHolderKey
+      -- Previous entry should keep the same values when updated
+      equalEntriesGuard prevEntryF prevEntryUpdatedF
+      ---- INDUCTIVE CONDITIONS ----
+      -- Validate that previousEntry is a list entry and matches redeemer
+      guardC "newStakeLogic (mintEnd): spent input is not an entry" $
+        hasListNft paramsF.assocListCs spentInputResolvedF.value
+      guardC
+        "newStakeLogic (mintEnd): spent input is not the same as input in \
+        \ redeemer"
+        $ spentInputF.outRef #== entriesRefsF.previousEntry
+      -- Previous entry should now point to the new entry
+      guardC
+        "newStakeLogic (mintEnd): the previous entry should point to the \
+        \new entry"
+        $ prevEntryUpdatedF.next `pointsTo` newEntryF.key
+      -- And new entry should point to the current entry
+      guardC
+        "newStakeLogic (mintEnd): the new entry should point to the \
+        \current entry"
+        $ newEntryF.next `pointsTo` currEntryKey
+      -- Validate entries' order
+      guardC
+        "newStakeLogic (mintEnd): failed to validate order in previous, \
+        \current and new entry"
+        $ pfromData prevEntryF.key #< newEntryF.key
+          #&& newEntryF.key #< currEntryKey
+    PMintEnd listEndOutRef' -> unTermCont $ do
+      ---- FETCH DATUMS ----
+      listEndOutRef <- pletC $ pfield @"_0" # listEndOutRef'
+      -- Get datum for endEntry
+      endEntryF <- tcont . pletFields @PEntryFields =<< getEntryData datum
+      -- Get datum for endEntryUpdated
+      let endEntryTok :: Term s PAssetClass
+          endEntryTok =
+            getTokenName
+              paramsF.assocListCs
+              spentInputResolvedF.value
+      endEntryUpdated <-
+        getOutputEntry poolAddr endEntryTok txInfoData txInfoF.outputs
+      -- Get datum for new list entry
+      newEntryF <-
+        getOutputEntry poolAddr newEntryTok txInfoData txInfoF.outputs
+      ---- BUSINESS LOGIC ----
+      guardC "newStakeLogic: update failed because pool state is not open" $
+        toPBool # endEntryF.open
+        #&& toPBool # newEntryF.open
+      -- Validate initialization of new entry
+      newEntryGuard paramsF newEntryF stakeAmt stakeHolderKey
+      -- End entry should keep the same values when updated
+      equalEntriesGuard endEntryF endEntryUpdated
+      ---- INDUCTIVE CONDITIONS ----
+      -- Validate that endEntry is a list entry and matches redeemer
+      guardC "newStakeLogic (mintEnd): spent input is not an entry" $
+        hasListNft paramsF.assocListCs spentInputResolvedF.value
+      guardC
+        "newStakeLogic (mintEnd): spent input is not the same as input in \
+        \redeemer"
+        $ spentInputF.outRef #== listEndOutRef
+      -- End entry should point nowhere
+      guardC "newStakeLogic (mintEnd): end should point nowhere" $
+        pointsNowhere endEntryF.next
+      -- Updated end entry (no longer end) should point to new entry
+      guardC
+        "newStakeLogic (mintEnd): updated end should point to new end \
+        \entry"
+        $ endEntryUpdated.next `pointsTo` newEntryF.key
+      -- New entry (new end) should point nowhere
+      guardC "newStakeLogic (mintEnd): new end entry should not point anywhere" $
+        pointsNowhere newEntryF.next
+      -- Validate entries' order
+      guardC
+        "newStakeLogic (mintEnd): new entry's key should come after end \
+        \entry"
+        $ pfromData endEntryUpdated.key #< pfromData newEntryF.key
 
 withdrawActLogic ::
   forall (s :: S).
@@ -651,47 +653,46 @@ closeActLogic txInfoF paramsF purpose inputStakingDatum = unTermCont $ do
   -- constructor
   pure . pmatch inputStakingDatum $ \case
     PStateDatum oldStateRecord -> unTermCont $ do
-      oldStateF <- tcont $ pletFields @'["_0", "_1"] oldStateRecord
-
-      -- We obtain the asset class of the NFT
-      let cs = paramsF.nftCs
-          tn = pconstant unbondedStakingTokenName
-          ac = passetClass # cs # tn
-
+      ---- FETCH DATUMS ----
+      let stateCs = paramsF.nftCs
+          stateTn = pconstant unbondedStakingTokenName
+          stateTok = passetClass # stateCs # stateTn
+      -- Get current state
+      (stateHeadKey, _stateSize) <-
+        (\s -> pure (pfromData s._0, pfromData s._1))
+          <=< tcont . pletFields @'["_0", "_1"]
+          $ oldStateRecord
       -- We retrieve the continuing output's datum
-      coOutput <- getContinuingOutputWithNFT poolAddr ac txInfoF.outputs
-      coOutputDatumHash <- getDatumHash coOutput
-      coOutputDatum <- getDatum coOutputDatumHash $ getField @"data" txInfoF
-      coOutputStakingDatum <- parseStakingDatum @PUnbondedStakingDatum coOutputDatum
-
-      -- Get new state
-      PStateDatum state <- pmatchC coOutputStakingDatum
-      stateF <- tcont $ pletFields @'["_0", "_1"] state
-
-      -- Check conditions
+      (newStateHeadKey, newOpenState) <-
+        getStateData
+          <=< parseStakingDatum
+          <=< flip getDatum txInfoDataF
+          <=< getDatumHash
+          <=< getContinuingOutputWithNFT poolAddr stateTok
+          $ txInfoF.outputs
+      ---- BUSINESS LOGIC ----
       guardC "closeActLogic: update failed because of list head change" $
-        oldStateF._0 #== stateF._0
+        pdata stateHeadKey #== pdata newStateHeadKey
       guardC
         "closeActLogic: update failed because the pool state is not closed"
-        $ pnot # (toPBool # stateF._1)
+        $ pnot # (toPBool # newOpenState)
     PEntryDatum oldEntryRecord -> unTermCont $ do
+      ---- FETCH DATUMS ----
       -- Retrieve fields from oldEntry
       oldEntry <- pletC $ pfield @"_0" # oldEntryRecord
       oldEntryF <- tcont $ pletFields @PEntryFields oldEntry
-
-      -- Ensure pool is open
-      guardC
-        "closeActLogic: update failed because pool is not open"
-        $ toPBool # oldEntryF.open
-
       -- Get updated entry
       entryTok <-
         pletC $ getTokenName paramsF.assocListCs inputResolvedF.value
       newEntryF <-
         getOutputEntry poolAddr entryTok txInfoDataF txInfoF.outputs
-
-      -- Validate new Entry datum
-      entryChangedGuard "key" (oldEntryF.key #== newEntryF.key)
+      ---- BUSINESS LOGIC ----
+      guardC
+        "closeActLogic: update failed because pool is not open"
+        $ toPBool # oldEntryF.open
+      guardC
+        "closeActLogic: update failed because entry field 'key' is changed" $
+        oldEntryF.key #== newEntryF.key
       guardC
         "closeActLogic: update failed because entry field 'rewards' \
         \is not updatedRewards"
@@ -731,27 +732,6 @@ getEntryData datum =
   pure . pmatch datum $ \case
     PEntryDatum entry -> pfield @"_0" # entry
     _ -> ptraceError "getEntryDatum: datum is not PEntryDatum"
-
--- getOutputState ::
---   forall (s :: S).
---   Term s PAddress ->
---   Term s PAssetClass ->
---   Term s (PBuiltinList (PAsData (PTuple PDatumHash PDatum))) ->
---   Term s (PBuiltinList (PAsData PTxOut)) ->
---   TermCont s (Term s (PMaybeData PByteString), Term s PBoolData)
---   -- TermCont s (
---   --   HRec
---   --   '[ HField s "maybeEntryName" (PMaybeData PByteString)
---   --    , HField s "open" PBoolData
---   --    ]
---   -- )
--- getOutputState poolAddr ac txInfoData =
---   tcont . pletFields @'["maybeEntryName", "open"]
---     <=< getStateData
---     <=< parseStakingDatum
---     <=< flip getDatum txInfoData
---     <=< getDatumHash
---     <=< getContinuingOutputWithNFT poolAddr ac
 
 getOutputEntry ::
   forall (s :: S).
@@ -793,6 +773,23 @@ newEntryGuard paramsF newEntryF stakeAmt stakeHolderKey = do
     $ newEntryF.rewards #== ratZero
       #&& newEntryF.totalRewards #== natZero
       #&& newEntryF.totalDeposited #== natZero
+
+-- This function validates that two entries' fields are the same (with the
+-- exception of fields related to the associative list)
+equalEntriesGuard ::
+  forall (s :: S).
+  PEntryHRec s ->
+  PEntryHRec s ->
+  TermCont s (Term s PUnit)
+equalEntriesGuard e1 e2 =
+  guardC "equalEntriesGuard: some fields in the given entries are not equal" $
+    e1.key #== e2.key
+      #&& e1.deposited #== e2.deposited
+      #&& e1.newDeposit #== e2.newDeposit
+      #&& e1.rewards #== e2.rewards
+      #&& e1.totalRewards #== e2.totalRewards
+      #&& e1.totalDeposited #== e2.totalDeposited
+      #&& e1.open #== e2.open
 
 -- | Get the BondedPool's period a certain POSIXTimeRange belongs to
 getUnbondedPeriod ::
@@ -866,45 +863,21 @@ calculateRewards ::
   Term s PNatural ->
   Term s PNatural ->
   Term s PNatRatio
-calculateRewards
-  rewards
-  totalRewards
-  deposited
-  newDeposit
-  totalDeposited = unTermCont $ do
+calculateRewards rewards totalRewards deposited newDeposit totalDeposited =
+  unTermCont $ do
+    guardC
+      "calculateRewards: totalDeposited is zero" $
+      natZero #< totalDeposited
     let
-      rewards' = pCeil # rewards
-      fNumeratorSum = (deposited #+ rewards')
-      fNumerator = fNumeratorSum #- newDeposit
-
-    pure $ pmatch fNumerator $ \case
+      lhs = mkNatRatioUnsafe (pto totalRewards) (pto totalDeposited)
+      rhs = rewards #+ (toNatRatio deposited)
+      rhs' = rhs #- (toNatRatio newDeposit)
+    pure $ pmatch rhs' $ \case
       PNothing ->
         ptraceError
-          "adminLogic: invalid deposit amount"
-      PJust fnum  -> unTermCont $ do
+          "calculateRewards: invalid deposit amount"
+      PJust rhs''  -> unTermCont $ do
         let
-          fNumeratorResult = fnum #* totalRewards
-          fNumeratorResult' = toPInteger # fNumeratorResult
-          totalDeposited' = toPInteger # totalDeposited
-          f = toPNatRatio # (pcon $ PRational fNumeratorResult' totalDeposited')
-
-        pure $ pmatch f $ \case
-          PNothing -> ptraceError "AdminLogic: invalid rewards amount"
-          PJust n  -> unTermCont $ do
-            let
-              numerator = toPInteger # (pCeil # (rewards #+ n))
-              result = toPNatRatio # (pcon $ PRational numerator 1)
-            pure $ pmatch result $ \case
-              PNothing -> ptraceError "AdminLogic: invalid final rewards amount"
-              PJust n  -> n
-
-entryChangedGuard ::
-  forall (s :: S).
-  Term s PString ->
-  Term s PBool ->
-  TermCont s (Term s PUnit)
-entryChangedGuard field =
-  guardC
-    ( "adminLogic: update failed because entry field '" <> field
-        <> "' is changed"
-    )
+          f = rhs'' #* lhs
+          result = pCeil # (rewards #+ f)
+        pure $ toNatRatio result
