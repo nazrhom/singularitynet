@@ -3,13 +3,15 @@ module UnbondedStaking.DepositUnbondedPool (depositUnbondedPoolContract) where
 import Contract.Prelude
 
 import Contract.Address
-  ( getNetworkId
+  ( AddressWithNetworkTag(AddressWithNetworkTag)
+  , getNetworkId
   , getWalletAddress
   , ownPaymentPubKeyHash
-  , validatorHashEnterpriseAddress
+  , scriptHashAddress
   )
 import Contract.Monad
   ( Contract
+  , liftContractM
   , liftedE
   , liftedE'
   , liftedM
@@ -23,7 +25,6 @@ import Contract.Time (always)
 import Contract.Transaction
   ( BalancedSignedTransaction(BalancedSignedTransaction)
   , balanceAndSignTx
-  , balanceTx
   , submit
   )
 import Contract.TxConstraints
@@ -35,7 +36,7 @@ import Contract.TxConstraints
 import Contract.Utxos (utxosAt)
 import Contract.Value (singleton)
 import Control.Applicative (unless)
-
+import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import UnbondedStaking.Types
   ( UnbondedPoolParams(UnbondedPoolParams)
@@ -57,8 +58,9 @@ depositUnbondedPoolContract
     "depositUnbondedPoolContract: Admin is not current user"
   logInfo_ "depositUnbondedPoolContract: Admin PaymentPubKeyHash" userPkh
   -- Get the (Nami) wallet address
-  adminAddr <- liftedM "depositUnbondedPoolContract: Cannot get wallet Address"
-    getWalletAddress
+  AddressWithNetworkTag { address: adminAddr } <-
+    liftedM "depositUnbondedPoolContract: Cannot get wallet Address"
+      getWalletAddress
   -- Get utxos at the wallet address
   adminUtxos <-
     liftedM "depositUnbondedPoolContract: Cannot get user Utxos" $
@@ -67,11 +69,12 @@ depositUnbondedPoolContract
   -- Get the unbonded pool validator and hash
   validator <- liftedE' "depositUnbondedPoolContract: Cannot create validator"
     $ mkUnbondedPoolValidator params
-  valHash <- liftedM "depositUnbondedPoolContract: Cannot hash validator"
+  valHash <- liftContractM "depositUnbondedPoolContract: Cannot hash validator"
     $ validatorHash validator
   logInfo_ "depositUnbondedPoolContract: validatorHash" valHash
-  let poolAddr = validatorHashEnterpriseAddress networkId valHash
-  logInfo_ "depositUnbondedPoolContract: Pool address" poolAddr
+  let poolAddr = scriptHashAddress valHash
+  logInfo_ "depositUnbondedPoolContract: Pool address"
+    $ fromPlutusType (networkId /\ poolAddr)
 
   -- Create the datums and their ScriptLookups
   let
@@ -81,12 +84,7 @@ depositUnbondedPoolContract
     assetCs = assetParams.currencySymbol
     assetTn = assetParams.tokenName
     depositValue = singleton assetCs assetTn (big 4_000_000)
-    scriptAddr = validatorHashEnterpriseAddress networkId valHash
-  logInfo_
-    "depositUnbondedPoolContract: UnbondedPool Validator's address"
-    scriptAddr
 
-  let
     -- We build the redeemer. The size does not change because there are no
     -- user stakes. It doesn't make much sense to deposit if there wasn't a
     -- change in the total amount of stakes (and accrued rewards). This will
@@ -120,9 +118,8 @@ depositUnbondedPoolContract
         -- across multiple Tx's if required due to size limits)
         -- TODO: Split asset datums into separate per-user UTXOs
         ]
-  dh <- liftedM "depositUnbondedPoolContract: Cannot Hash AssetDatum" $
-    datumHash
-      assetDatum
+  dh <- liftContractM "depositUnbondedPoolContract: Cannot Hash AssetDatum"
+    $ datumHash assetDatum
   logInfo_ "depositUnbondedPoolContract: DatumHash of AssetDatum" dh
 
   unattachedBalancedTx <-
@@ -130,16 +127,11 @@ depositUnbondedPoolContract
   logInfo_
     "depositUnbondedPoolContract: unAttachedUnbalancedTx"
     unattachedBalancedTx
-
-  let unbalancedTx = (unwrap unattachedBalancedTx).unbalancedTx
-  balancedTx <- liftedE $ balanceTx unbalancedTx
-  logInfo_ "depositUnbondedPoolContract: balancedTx" balancedTx
   BalancedSignedTransaction { signedTxCbor } <-
     liftedM
-      "depositUnbondedPoolContract: Cannot balance, reindex redeemers, attach/\
+      "depositUnbondedPoolContract: Cannot balance, reindex redeemers, attach /\
       \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
-
   -- Submit transaction using Cbor-hex encoded `ByteArray`
   transactionHash <- submit signedTxCbor
   logInfo_

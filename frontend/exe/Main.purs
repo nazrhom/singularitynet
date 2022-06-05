@@ -10,7 +10,6 @@ import Contract.Monad
   , defaultDatumCacheWsConfig
   , defaultOgmiosWsConfig
   , defaultServerConfig
-  , defaultSlotConfig
   , launchAff_
   , liftContractM
   , mkContractConfig
@@ -36,7 +35,6 @@ main = launchAff_ $ do
     , datumCacheConfig: defaultDatumCacheWsConfig
     , ctlServerConfig: defaultServerConfig
     , networkId: TestnetId
-    , slotConfig: defaultSlotConfig
     , logLevel: Info
     , extraConfig: {}
     , wallet

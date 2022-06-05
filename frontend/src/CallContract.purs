@@ -18,17 +18,16 @@ import Contract.Monad
       , Error
       )
   , runContract
-  , defaultSlotConfig
   , mkContractConfig
   )
 import Contract.Numeric.NatRatio (fromNaturals, toRational)
 import Contract.Numeric.Natural (Natural, fromBigInt, toBigInt)
+import Contract.Numeric.Rational (denominator, numerator)
 import Contract.Prim.ByteArray
   ( byteArrayFromAscii
   , byteArrayToHex
   , hexToByteArray
   )
-import Contract.Scripts (ed25519KeyHashFromBytes, ed25519KeyHashToBytes)
 import Contract.Value
   ( CurrencySymbol
   , getCurrencySymbol
@@ -41,7 +40,6 @@ import Control.Promise (Promise)
 import Control.Promise as Promise
 import ClosePool (closeBondedPoolContract)
 import CreatePool (createBondedPoolContract)
-import Serialization.Address (intToNetworkId)
 import Data.BigInt (BigInt)
 import Data.Int as Int
 import Data.UInt as UInt
@@ -49,8 +47,11 @@ import Data.UInt (UInt)
 import DepositPool (depositBondedPoolContract)
 import Effect.Aff (error)
 import Effect.Exception (Error)
+import Serialization.Address (intToNetworkId)
+import Serialization.Hash (ed25519KeyHashFromBytes, ed25519KeyHashToBytes)
 import Types (BondedPoolParams(BondedPoolParams), InitialBondedParams)
-import Types.Rational (denominator, numerator) -- fix this with updated CTL
+import Types.CborBytes (cborBytesToHex)
+import Types.RawBytes (hexToRawBytes, rawBytesToHex)
 
 -- | Configuation needed to call contracts from JS.
 type ContractConfiguration =
@@ -133,7 +134,6 @@ buildContractConfig cfg = do
         , secure: cfg.serverSecure
         }
     , networkId
-    , slotConfig: defaultSlotConfig
     , logLevel: logLevel
     , extraConfig: {}
     , wallet
@@ -225,8 +225,8 @@ toBondedPoolArgs (BondedPoolParams bpp@{ interest: i, bondedAssetClass: bas' }) 
     , maxStake: toBigInt bpp.maxStake
     , bondedAssetClass:
         byteArrayToHex (getCurrencySymbol bas.currencySymbol)
-          /\ byteArrayToHex (getTokenName bas.tokenName)
-    , admin: byteArrayToHex $ ed25519KeyHashToBytes $ unwrap $ unwrap bpp.admin
+          /\ cborBytesToHex (getTokenName bas.tokenName)
+    , admin: rawBytesToHex $ ed25519KeyHashToBytes $ unwrap $ unwrap bpp.admin
     , nftCs: byteArrayToHex $ getCurrencySymbol bpp.nftCs
     , assocListCs: byteArrayToHex $ getCurrencySymbol bpp.assocListCs
     }
@@ -243,7 +243,7 @@ fromBondedPoolArgs bpa = do
   admin <- note (error $ "fromBondedPoolArgs: Invalid admin: " <> bpa.admin)
     $ wrap
     <<< wrap
-    <$> (ed25519KeyHashFromBytes =<< hexToByteArray bpa.admin)
+    <$> (ed25519KeyHashFromBytes =<< hexToRawBytes bpa.admin)
   currencySymbol <- toCs $ fst bpa.bondedAssetClass
   tokenName <- note (error "fromBondedPoolArgs: Invalid TN")
     $ mkTokenName

@@ -5,7 +5,7 @@ import Contract.Prelude
 import Contract.Address
   ( getNetworkId
   , ownPaymentPubKeyHash
-  , validatorHashEnterpriseAddress
+  , scriptHashAddress
   )
 import Contract.Monad
   ( Contract
@@ -41,6 +41,7 @@ import Contract.TxConstraints
 import Contract.Utxos (utxosAt)
 import Contract.Value (singleton)
 import Data.Map (toUnfoldable)
+import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Settings (unbondedStakingTokenName)
 import UnbondedStaking.Types
@@ -62,19 +63,20 @@ closeUnbondedPoolContract params@(UnbondedPoolParams { admin, nftCs }) = do
   logInfo_ "closeUnbondedPoolContract: Admin PaymentPubKeyHash" admin
 
   -- Get the bonded pool validator and hash
-  validator <- liftedE' "closeUnbondedPoolContract: Cannot create validator" $
-    mkUnbondedPoolValidator params
-  valHash <- liftedM "closeUnbondedPoolContract: Cannot hash validator"
+  validator <- liftedE' "closeUnbondedPoolContract: Cannot create validator"
+    $ mkUnbondedPoolValidator params
+  valHash <- liftContractM "closeUnbondedPoolContract: Cannot hash validator"
     $ validatorHash validator
   logInfo_ "closeUnbondedPoolContract: validatorHash" valHash
-  let poolAddr = validatorHashEnterpriseAddress networkId valHash
-  logInfo_ "closeUnbondedPoolContract: Pool address" poolAddr
+  let poolAddr = scriptHashAddress valHash
+  logInfo_ "closeUnbondedPoolContract: Pool address"
+    $ fromPlutusType (networkId /\ poolAddr)
 
   -- Get the bonded pool's utxo
   unbondedPoolUtxos <-
     liftedM
-      "closeUnbondedPoolContract: Cannot get pool's utxos at pool address" $
-      utxosAt poolAddr
+      "closeUnbondedPoolContract: Cannot get pool's utxos at pool address"
+      $ utxosAt poolAddr
   logInfo_ "closeUnbondedPoolContract: Pool's UTXOs" unbondedPoolUtxos
 
   -- Find the state datum
@@ -82,8 +84,8 @@ closeUnbondedPoolContract params@(UnbondedPoolParams { admin, nftCs }) = do
     "closeUnbondedPoolContract: Cannot create TokenName"
     unbondedStakingTokenName
   poolTxInput /\ poolTxOutput <-
-    liftContractM "closeUnbondedPoolContract: Cannot get state utxo" $
-      getUtxoWithNFT unbondedPoolUtxos nftCs tokenName
+    liftContractM "closeUnbondedPoolContract: Cannot get state utxo"
+      $ getUtxoWithNFT unbondedPoolUtxos nftCs tokenName
   logInfo_ "closeUnbondedPoolContract: Pool's State UTXO" poolTxInput
   poolDatumHash <-
     liftContractM
@@ -105,7 +107,7 @@ closeUnbondedPoolContract params@(UnbondedPoolParams { admin, nftCs }) = do
   unbondedStateDatumLookup <-
     liftContractM
       "closeUnbondedPoolContract: Could not create state datum lookup"
-      =<< ScriptLookups.datum oldUnbondedStateDatum
+      $ ScriptLookups.datum oldUnbondedStateDatum
 
   -- We build the transaction
   let
