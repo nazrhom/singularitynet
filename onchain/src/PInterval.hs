@@ -8,6 +8,7 @@ module PInterval (
   pcontains,
   pperiodicContains,
   getBondedPeriod,
+  getUnbondedPeriod,
 ) where
 
 import BondedStaking.PTypes (
@@ -31,6 +32,7 @@ import Generics.SOP (Generic, I (I))
 import PNatural (PNatural)
 import PTypes (
   PPeriod,
+  adminUpdatePeriod,
   bondingPeriod,
   closingPeriod,
   depositWithdrawPeriod,
@@ -40,6 +42,11 @@ import PTypes (
 import Plutarch (PlutusType (pcon', pmatch'))
 import Plutarch.Api.V1.Time (PPOSIXTime)
 import Plutarch.Unsafe (punsafeCoerce)
+import UnbondedStaking.PTypes (
+  PUnbondedPoolParams,
+  PUnbondedPoolParamsFields,
+  PUnbondedPoolParamsHRec,
+ )
 import Utils (pfalse, pletC, pletDataC, pmatchC, pnestedIf, ptrue, (>:))
 
 -- We create a `POrdering` type to simplify the implementation of the functions
@@ -333,7 +340,7 @@ pperiodicContains = plam $ \pi i' -> unTermCont $ do
       piPeriod = pto piPeriod'
       piStartOffset = pto piStartOffset'
       piEndOffset = pto piEndOffset'
-      --maxCycles = pto maxCycles'
+  -- maxCycles = pto maxCycles'
   -- Calculate cycle number based on transaction's start
   cycleN <- pletC $ pquot # (iStart - piBaseOffset) # piPeriod
   -- Calculate start and end of period
@@ -438,6 +445,71 @@ getBondedPeriod = phoistAcyclic $
               >: onlyWithdrawPeriod
           , pintervalFrom closeStart `pcontains` txTimeRange
               >: closingPeriod
+          ]
+          $ ptraceError
+            "the transaction's range does not belong to any valid period"
+
+-- | Get the UnbondedPool's period a certain POSIXTimeRange belongs to
+getUnbondedPeriod ::
+  forall (s :: S).
+  Term
+    s
+    ( PPOSIXTimeRange
+        :--> PUnbondedPoolParams
+        :--> PPeriod
+    )
+getUnbondedPeriod = phoistAcyclic $
+  plam $
+    \txTimeRange params -> unTermCont $ do
+      paramsF <- tcont $ pletFields @PUnbondedPoolParamsFields params
+      pure $ getPeriod' txTimeRange paramsF
+  where
+    getPeriod' ::
+      forall (s :: S).
+      Term s PPOSIXTimeRange ->
+      PUnbondedPoolParamsHRec s ->
+      Term s PPeriod
+    getPeriod' txTimeRange paramsF = unTermCont $ do
+      -- Convert from data
+      start <- pletDataC paramsF.start
+      userLength <- pletDataC paramsF.userLength
+      adminLength <- pletDataC paramsF.adminLength
+      bondingLength <- pletDataC paramsF.bondingLength
+      period <-
+        pletC $
+          punsafeCoerce $ pto userLength + pto adminLength + pto bondingLength
+      let -- We define the periodic intervals in which the Deposit/Withdrawal
+          -- and Bonding will happen
+          depositWithdrawal =
+            PPeriodicInterval
+              { piBaseOffset = start
+              , piPeriod = period
+              , piStartOffset = pconstant 0
+              , piEndOffset = userLength
+              , piMaxCycles = pcon PNothing
+              }
+          adminUpdate =
+            depositWithdrawal
+              { piStartOffset = userLength
+              , piEndOffset = punsafeCoerce $ pto userLength + pto adminLength
+              }
+          bonding =
+            depositWithdrawal
+              { piStartOffset = punsafeCoerce $ pto userLength + pto adminLength
+              , piEndOffset =
+                  punsafeCoerce $
+                    pto userLength + pto adminLength + pto bondingLength
+              }
+      pure $
+        pnestedIf
+          [ pintervalTo start `pcontains` txTimeRange
+              >: unavailablePeriod
+          , pperiodicContains # pcon depositWithdrawal # txTimeRange
+              >: depositWithdrawPeriod
+          , pperiodicContains # pcon adminUpdate # txTimeRange
+              >: adminUpdatePeriod
+          , pperiodicContains # pcon bonding # txTimeRange
+              >: bondingPeriod
           ]
           $ ptraceError
             "the transaction's range does not belong to any valid period"

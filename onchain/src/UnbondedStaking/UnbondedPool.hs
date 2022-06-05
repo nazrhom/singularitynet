@@ -5,7 +5,7 @@ module UnbondedStaking.UnbondedPool (
   punbondedPoolValidatorUntyped,
 ) where
 
-import Control.Monad((<=<))
+import Control.Monad ((<=<))
 import GHC.Records (getField)
 import InductiveLogic (
   doesNotConsumeUnbondedAssetGuard,
@@ -19,7 +19,6 @@ import Plutarch.Api.V1 (
   PAddress,
   PDatumHash,
   PMaybeData (PDJust, PDNothing),
-  PPOSIXTimeRange,
   PPubKeyHash,
   PScriptContext,
   PScriptPurpose,
@@ -33,43 +32,32 @@ import Plutarch.Crypto (pblake2b_256)
 import Plutarch.DataRepr (HRec)
 import Plutarch.Unsafe (punsafeCoerce)
 
-import PInterval (
-  pcontains,
-  pintervalTo,
-  piBaseOffset,
-  piEndOffset,
-  piMaxCycles,
-  piPeriod,
-  piStartOffset,
-  pperiodicContains,
-  PPeriodicInterval (PPeriodicInterval),
- )
+-- import PInterval (
+--   getUnbondedPeriod,
+--  )
 import PNatural (
   PNatRatio,
   PNatural,
   mkNatRatioUnsafe,
   natZero,
+  pCeil,
   ratZero,
   toNatRatio,
-  pCeil,
+  (#*),
   (#+),
   (#-),
-  (#*),
  )
 import PTypes (
   HField,
   PAssetClass,
-  PMintingAction(PMintHead, PMintInBetween, PMintEnd),
-  passetClass,
-  PPeriod,
+  PMintingAction (PMintEnd, PMintHead, PMintInBetween),
+  PTxInInfoFields,
+  PTxInInfoHRec,
   PTxInfoFields,
   PTxInfoHRec,
-  PTxInInfoHRec,
-  PTxInInfoFields,
-  unavailablePeriod,
-  depositWithdrawPeriod,
-  adminUpdatePeriod,
-  bondingPeriod,
+  passetClass,
+  -- depositWithdrawPeriod,
+  -- adminUpdatePeriod,
  )
 
 import SingularityNet.Settings (unbondedStakingTokenName)
@@ -91,8 +79,8 @@ import UnbondedStaking.PTypes (
   PUnbondedStakingDatum (PAssetDatum, PEntryDatum, PStateDatum),
  )
 import Utils (
-  getContinuingOutputWithNFT,
   getCoWithDatum,
+  getContinuingOutputWithNFT,
   getDatum,
   getDatumHash,
   getInput,
@@ -103,14 +91,11 @@ import Utils (
   peq,
   pfalse,
   pletC,
-  pletDataC,
-  pnestedIf,
-  ptryFromUndata,
   ptrue,
+  ptryFromUndata,
   signedBy,
   signedOnlyBy,
   toPBool,
-  (>:),
  )
 
 {- The validator has two responsibilities
@@ -151,10 +136,10 @@ punbondedPoolValidator = phoistAcyclic $
     pure $
       pmatch act $ \case
         PAdminAct dataRecord -> unTermCont $ do
-          guardC "punbondedPoolValidator: wrong period for PAdminAct \
-            \redeemer" $
-            getUnbondedPeriod # txInfoF.validRange # params #==
-              adminUpdatePeriod
+          -- guardC "punbondedPoolValidator: wrong period for PAdminAct \
+          --   \redeemer" $
+          --   getUnbondedPeriod # txInfoF.validRange # params #==
+          --     adminUpdatePeriod
           adminActParamsF <-
             tcont $ pletFields @["totalRewards", "totalDeposited"] dataRecord
           pure $
@@ -165,14 +150,15 @@ punbondedPoolValidator = phoistAcyclic $
               dat
               adminActParamsF
         PStakeAct dataRecord -> unTermCont $ do
-          guardC "punbondedPoolValidator: wrong period for PStakeAct \
-            \redeemer" $
-            getUnbondedPeriod # txInfoF.validRange # params #==
-              depositWithdrawPeriod
+          -- guardC "punbondedPoolValidator: wrong period for PStakeAct \
+          --   \redeemer" $
+          --   getUnbondedPeriod # txInfoF.validRange # params #==
+          --     depositWithdrawPeriod
           stakeActParamsF <-
-            tcont $ pletFields
-            @["stakeAmount", "pubKeyHash", "maybeMintingAction"]
-            dataRecord
+            tcont $
+              pletFields
+                @["stakeAmount", "pubKeyHash", "maybeMintingAction"]
+                dataRecord
           pure $
             stakeActLogic
               txInfoF
@@ -180,15 +166,16 @@ punbondedPoolValidator = phoistAcyclic $
               ctxF.purpose
               dat
               stakeActParamsF
-        PWithdrawAct dataRecord -> --unTermCont $ do
+        PWithdrawAct dataRecord ->
+          -- unTermCont $ do
           -- TODO: update with new fields (minting)
           let pkh = pfield @"pubKeyHash" # dataRecord
-            in withdrawActLogic pkh
+           in withdrawActLogic pkh
         PCloseAct _ -> unTermCont $ do
-          guardC "punbondedPoolValidator: wrong period for PCloseAct \
-            \redeemer" $
-            getUnbondedPeriod # txInfoF.validRange # params #==
-              adminUpdatePeriod
+          -- guardC "punbondedPoolValidator: wrong period for PCloseAct \
+          --   \redeemer" $
+          --   getUnbondedPeriod # txInfoF.validRange # params #==
+          --     adminUpdatePeriod
           pure $ closeActLogic txInfoF paramsF ctxF.purpose dat
 
 -- Untyped version to be serialised. This version is responsible for verifying
@@ -232,11 +219,10 @@ adminActLogic txInfoF paramsF purpose datum adminActParamsF = unTermCont $ do
       =<< getInput purpose txInfoF.inputs
   inputResolvedF <-
     tcont . pletFields @["address", "value", "datumHash"] $ inputF.resolved
-  let
-    poolAddr :: Term s PAddress
-    poolAddr = inputResolvedF.address
-    txInfoDataF :: Term s (PBuiltinList (PAsData (PTuple PDatumHash PDatum)))
-    txInfoDataF = getField @"data" txInfoF
+  let poolAddr :: Term s PAddress
+      poolAddr = inputResolvedF.address
+      txInfoDataF :: Term s (PBuiltinList (PAsData (PTuple PDatumHash PDatum)))
+      txInfoDataF = getField @"data" txInfoF
   -- We make sure that the input's Datum is updated correctly for each Datum
   -- constructor
   pure . pmatch datum $ \case
@@ -258,9 +244,9 @@ adminActLogic txInfoF paramsF purpose datum adminActParamsF = unTermCont $ do
         $ toPBool # oldEntryF.open
       guardC "adminActLogic: some fields in the given entries are not equal" $
         oldEntryF.key #== newEntryF.key
-        #&& oldEntryF.deposited #== newEntryF.deposited
-        #&& oldEntryF.open #== newEntryF.open
-        #&& oldEntryF.next #== newEntryF.next
+          #&& oldEntryF.deposited #== newEntryF.deposited
+          #&& oldEntryF.open #== newEntryF.open
+          #&& oldEntryF.next #== newEntryF.next
       guardC
         "adminActLogic: update failed because entry field 'newDeposit' \
         \is not zero"
@@ -307,7 +293,7 @@ stakeActLogic txInfoF paramsF purpose datum stakeActParamsF = unTermCont $ do
       =<< getInput purpose txInfoF.inputs
   let poolAddr :: Term s PAddress
       poolAddr = pfield @"address" # spentInput.resolved
-    -- Check that input spent is not an asset UTXO (user cannot withdraw)
+  -- Check that input spent is not an asset UTXO (user cannot withdraw)
   doesNotConsumeUnbondedAssetGuard datum
   -- Validate holder's signature
   guardC "stakeActLogic: tx not exclusively signed by the stake-holder" $
@@ -407,7 +393,7 @@ updateStakeLogic txInfoF paramsF spentInputF datum stakeAmt holderPkh = do
   ---- BUSINESS LOGIC ----
   guardC "updateStakeLogic: update failed because pool is not open" $
     toPBool # oldEntryF.open
-    #&& toPBool # newEntryF.open
+      #&& toPBool # newEntryF.open
   guardC "updateStakeLogic: spent entry's key does not match user's key" $
     oldEntryF.key #== stakeHolderKey
   guardC "updateStakeLogic: new entry does not have the stakeholder's key" $
@@ -473,7 +459,7 @@ newStakeLogic txInfoF paramsF spentInputF datum holderPkh stakeAmt mintAct = do
       ---- BUSINESS LOGIC ----
       guardC "newStakeLogic: update failed because pool state is not open" $
         toPBool # open
-        #&& toPBool # nextOpen
+          #&& toPBool # nextOpen
       newEntryGuard paramsF newEntryF stakeAmt stakeHolderKey
       ---- INDUCTIVE CONDITIONS ----
       -- Validate that spentOutRef is the state UTXO and matches redeemer
@@ -541,7 +527,7 @@ newStakeLogic txInfoF paramsF spentInputF datum holderPkh stakeAmt mintAct = do
       ---- BUSINESS LOGIC ----
       guardC "newStakeLogic: update failed because pool state is not open" $
         toPBool # prevEntryF.open
-        #&& toPBool # newEntryF.open
+          #&& toPBool # newEntryF.open
       -- Validate initialization of new entry
       newEntryGuard paramsF newEntryF stakeAmt stakeHolderKey
       -- Previous entry should keep the same values when updated
@@ -589,7 +575,7 @@ newStakeLogic txInfoF paramsF spentInputF datum holderPkh stakeAmt mintAct = do
       ---- BUSINESS LOGIC ----
       guardC "newStakeLogic: update failed because pool state is not open" $
         toPBool # endEntryF.open
-        #&& toPBool # newEntryF.open
+          #&& toPBool # newEntryF.open
       -- Validate initialization of new entry
       newEntryGuard paramsF newEntryF stakeAmt stakeHolderKey
       -- End entry should keep the same values when updated
@@ -643,11 +629,10 @@ closeActLogic txInfoF paramsF purpose inputStakingDatum = unTermCont $ do
       =<< getInput purpose txInfoF.inputs
   inputResolvedF <-
     tcont . pletFields @["address", "value", "datumHash"] $ inputF.resolved
-  let
-    poolAddr :: Term s PAddress
-    poolAddr = inputResolvedF.address
-    txInfoDataF :: Term s (PBuiltinList (PAsData (PTuple PDatumHash PDatum)))
-    txInfoDataF = getField @"data" txInfoF
+  let poolAddr :: Term s PAddress
+      poolAddr = inputResolvedF.address
+      txInfoDataF :: Term s (PBuiltinList (PAsData (PTuple PDatumHash PDatum)))
+      txInfoDataF = getField @"data" txInfoF
 
   -- We make sure that the input's Datum is updated correctly for each Datum
   -- constructor
@@ -691,8 +676,8 @@ closeActLogic txInfoF paramsF purpose inputStakingDatum = unTermCont $ do
         "closeActLogic: update failed because pool is not open"
         $ toPBool # oldEntryF.open
       guardC
-        "closeActLogic: update failed because entry field 'key' is changed" $
-        oldEntryF.key #== newEntryF.key
+        "closeActLogic: update failed because entry field 'key' is changed"
+        $ oldEntryF.key #== newEntryF.key
       guardC
         "closeActLogic: update failed because entry field 'rewards' \
         \is not updatedRewards"
@@ -791,70 +776,6 @@ equalEntriesGuard e1 e2 =
       #&& e1.totalDeposited #== e2.totalDeposited
       #&& e1.open #== e2.open
 
--- | Get the BondedPool's period a certain POSIXTimeRange belongs to
-getUnbondedPeriod ::
-  forall (s :: S).
-  Term
-    s
-    ( PPOSIXTimeRange
-        :--> PUnbondedPoolParams
-        :--> PPeriod
-    )
-getUnbondedPeriod = phoistAcyclic $
-  plam $
-    \txTimeRange params -> unTermCont $ do
-      paramsF <- tcont $ pletFields @PUnbondedPoolParamsFields params
-      pure $ getPeriod' txTimeRange paramsF
-  where
-    getPeriod' ::
-      forall (s :: S).
-      Term s PPOSIXTimeRange ->
-      PUnbondedPoolParamsHRec s ->
-      Term s PPeriod
-    getPeriod' txTimeRange paramsF = unTermCont $ do
-      -- Convert from data
-      start <- pletDataC paramsF.start
-      userLength <- pletDataC paramsF.userLength
-      adminLength <- pletDataC paramsF.adminLength
-      bondingLength <- pletDataC paramsF.bondingLength
-      period <- pletC $
-        punsafeCoerce $ pto userLength + pto adminLength + pto bondingLength
-      let
-        -- We define the periodic intervals in which the Deposit/Withdrawal
-        -- and Bonding will happen
-        depositWithdrawal =
-          PPeriodicInterval
-            { piBaseOffset = start
-            , piPeriod = period
-            , piStartOffset = pconstant 0
-            , piEndOffset = userLength
-            , piMaxCycles = pcon PNothing
-            }
-        adminUpdate =
-          depositWithdrawal
-            { piStartOffset = userLength
-            , piEndOffset = punsafeCoerce $ pto userLength + pto adminLength
-            }
-        bonding =
-          depositWithdrawal
-            { piStartOffset = punsafeCoerce $ pto userLength + pto adminLength
-            , piEndOffset = punsafeCoerce $
-                pto userLength + pto adminLength + pto bondingLength
-            }
-      pure $
-        pnestedIf
-          [ pintervalTo start `pcontains` txTimeRange
-              >: unavailablePeriod
-          , pperiodicContains # pcon depositWithdrawal # txTimeRange
-              >: depositWithdrawPeriod
-          , pperiodicContains # pcon adminUpdate # txTimeRange
-              >: adminUpdatePeriod
-          , pperiodicContains # pcon bonding # txTimeRange
-              >: bondingPeriod
-          ]
-          $ ptraceError
-            "the transaction's range does not belong to any valid period"
-
 calculateRewards ::
   forall (s :: S).
   Term s PNatRatio ->
@@ -866,18 +787,17 @@ calculateRewards ::
 calculateRewards rewards totalRewards deposited newDeposit totalDeposited =
   unTermCont $ do
     guardC
-      "calculateRewards: totalDeposited is zero" $
-      natZero #< totalDeposited
-    let
-      lhs = mkNatRatioUnsafe (pto totalRewards) (pto totalDeposited)
-      rhs = rewards #+ (toNatRatio deposited)
-      rhs' = rhs #- (toNatRatio newDeposit)
-    pure $ pmatch rhs' $ \case
-      PNothing ->
-        ptraceError
-          "calculateRewards: invalid deposit amount"
-      PJust rhs''  -> unTermCont $ do
-        let
-          f = rhs'' #* lhs
-          result = pCeil # (rewards #+ f)
-        pure $ toNatRatio result
+      "calculateRewards: totalDeposited is zero"
+      $ natZero #< totalDeposited
+    let lhs = mkNatRatioUnsafe (pto totalRewards) (pto totalDeposited)
+        rhs = rewards #+ (toNatRatio deposited)
+        rhs' = rhs #- (toNatRatio newDeposit)
+    pure $
+      pmatch rhs' $ \case
+        PNothing ->
+          ptraceError
+            "calculateRewards: invalid deposit amount"
+        PJust rhs'' -> unTermCont $ do
+          let f = rhs'' #* lhs
+              result = pCeil # (rewards #+ f)
+          pure $ toNatRatio result

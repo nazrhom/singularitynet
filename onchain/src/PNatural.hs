@@ -253,14 +253,14 @@ pletC = tcont . plet
 pCeil :: Term s (PNatRatio :--> PNatural)
 pCeil =
   phoistAcyclic $
-  plam $ \x -> unTermCont $ do
-    (numerator, denominator) <- getIntegers x
-    let
-      x' = pcon $ PRational numerator denominator
-      numerator' = pnumerator # x'
-      denominator' = pdenominator # x'
-      truncated = ptruncate # x'
-    pure $
-      pif (pmod # numerator' # denominator' #== 0)
-        (pcon $ PNatural truncated)
-        (pcon $ PNatural (truncated + 1))
+    plam $ \x -> unTermCont $ do
+      (numerator, denominator) <- getIntegers x
+      let x' = pcon $ PRational numerator denominator
+          numerator' = pnumerator # x'
+          denominator' = pdenominator # x'
+          truncated = ptruncate # x'
+      pure $
+        pif
+          (pmod # numerator' # denominator' #== 0)
+          (pcon $ PNatural truncated)
+          (pcon $ PNatural (truncated + 1))

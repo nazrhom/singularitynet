@@ -26,7 +26,7 @@ import SingularityNet.Natural (
   NatRatio,
   Natural,
  )
-import SingularityNet.Types (AssetClass, MintingAction, BurningAction)
+import SingularityNet.Types (AssetClass, BurningAction, MintingAction)
 
 {- | Unbonded pool's parameters
 

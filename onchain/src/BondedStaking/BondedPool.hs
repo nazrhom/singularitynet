@@ -21,7 +21,7 @@ import BondedStaking.PTypes (
   PEntryHRec,
  )
 
-import Control.Monad((<=<))
+import Control.Monad ((<=<))
 
 import Plutarch.Api.V1 (
   PAddress,
@@ -50,17 +50,16 @@ import PNatural (
  )
 import PTypes (
   HField,
-  PMintingAction(PMintHead, PMintInBetween, PMintEnd),
-  PPeriod (BondingPeriod, ClosingPeriod),
   PAssetClass,
-
+  PMintingAction (PMintEnd, PMintHead, PMintInBetween),
+  PPeriod (BondingPeriod, ClosingPeriod),
+  PTxInInfoFields,
+  PTxInInfoHRec,
   PTxInfoFields,
   PTxInfoHRec,
-  PTxInInfoHRec,
-  PTxInInfoFields,
-  --bondingPeriod,
-  --depositWithdrawPeriod,
-  --onlyWithdrawPeriod,
+  -- bondingPeriod,
+  -- depositWithdrawPeriod,
+  -- onlyWithdrawPeriod,
   passetClass,
  )
 
@@ -69,8 +68,8 @@ import PTypes (
 --  )
 
 import Utils (
-  getContinuingOutputWithNFT,
   getCoWithDatum,
+  getContinuingOutputWithNFT,
   getDatum,
   getDatumHash,
   getInput,

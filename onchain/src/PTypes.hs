@@ -49,19 +49,19 @@ import SingularityNet.Types (
  )
 
 import Plutarch.Api.V1 (
+  PDCert,
   PDatum,
   PDatumHash,
-  PDCert,
   PMaybeData,
   PPOSIXTime,
   PPOSIXTimeRange,
   PStakingCredential,
   PTokenName,
+  PTuple,
   PTxId,
   PTxInInfo,
   PTxOut,
   PTxOutRef,
-  PTuple,
   PValue,
  )
 import Plutarch.Api.V1.Crypto (PPubKeyHash)

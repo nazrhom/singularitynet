@@ -41,10 +41,12 @@ import Utils (
   punit,
  )
 
-import qualified BondedStaking.PTypes
-  as BS (PBondedStakingDatum (PAssetDatum))
-import qualified UnbondedStaking.PTypes
-  as US (PUnbondedStakingDatum (PAssetDatum))
+import BondedStaking.PTypes qualified as BS (
+  PBondedStakingDatum (PAssetDatum),
+ )
+import UnbondedStaking.PTypes qualified as US (
+  PUnbondedStakingDatum (PAssetDatum),
+ )
 
 -- | Fail if state UTXO is not in inputs or if it does not have the state token
 consumesStateUtxoGuard ::

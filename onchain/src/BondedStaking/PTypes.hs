@@ -35,8 +35,8 @@ import PNatural (PNatRatio, PNatural)
 import PTypes (
   HField,
   PAssetClass,
-  PMintingAction,
   PBurningAction,
+  PMintingAction,
  )
 import SingularityNet.Types (
   BondedPoolParams,

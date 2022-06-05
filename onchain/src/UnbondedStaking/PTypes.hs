@@ -52,8 +52,8 @@ import Plutarch.TryFrom (PTryFrom)
 import PTypes (
   HField,
   PAssetClass,
-  PMintingAction,
   PBurningAction,
+  PMintingAction,
  )
 
 import UnbondedStaking.Types (
@@ -219,63 +219,63 @@ instance PUnsafeLiftDecl PUnbondedStakingAction where
 ----- Type synonyms -----
 
 -- | HRec with all of `PEntry`'s fields
-type PEntryHRec (s :: S) = HRec '[
-    HField s "key" PByteString
-  , HField s "deposited" PNatural
-  , HField s "newDeposit" PNatural
-  , HField s "rewards" PNatRatio
-  , HField s "totalRewards" PNatural
-  , HField s "totalDeposited" PNatural
-  , HField s "open" PBoolData
-  , HField s "next" (PMaybeData PByteString)
-  ]
+type PEntryHRec (s :: S) =
+  HRec
+    '[ HField s "key" PByteString
+     , HField s "deposited" PNatural
+     , HField s "newDeposit" PNatural
+     , HField s "rewards" PNatRatio
+     , HField s "totalRewards" PNatural
+     , HField s "totalDeposited" PNatural
+     , HField s "open" PBoolData
+     , HField s "next" (PMaybeData PByteString)
+     ]
 
 -- | Type level list with all of `PEntry`'s fields
 type PEntryFields =
-  '[
-    "key",
-    "deposited",
-    "newDeposit",
-    "rewards",
-    "totalRewards",
-    "totalDeposited",
-    "open",
-    "next"
+  '[ "key"
+   , "deposited"
+   , "newDeposit"
+   , "rewards"
+   , "totalRewards"
+   , "totalDeposited"
+   , "open"
+   , "next"
    ]
 
 -- | HRec with all of `PUnbondedPoolParams`'s fields
-type PUnbondedPoolParamsHRec (s :: S) = HRec '[
-  HField s "start" PPOSIXTime,
-  HField s "userLength" PPOSIXTime,
-  HField s "adminLength" PPOSIXTime,
-  HField s "bondingLength" PPOSIXTime,
-  HField s "interestLength" PPOSIXTime,
-  HField s "increments" PNatural,
-  HField s "interest" PNatRatio,
-  HField s "minStake" PNatural,
-  HField s "maxStake" PNatural,
-  HField s "admin" PPubKeyHash,
-  HField s "unbondedAssetClass" PAssetClass,
-  HField s "nftCs" PCurrencySymbol,
-  HField s "assocListCs" PCurrencySymbol
-  ]
+type PUnbondedPoolParamsHRec (s :: S) =
+  HRec
+    '[ HField s "start" PPOSIXTime
+     , HField s "userLength" PPOSIXTime
+     , HField s "adminLength" PPOSIXTime
+     , HField s "bondingLength" PPOSIXTime
+     , HField s "interestLength" PPOSIXTime
+     , HField s "increments" PNatural
+     , HField s "interest" PNatRatio
+     , HField s "minStake" PNatural
+     , HField s "maxStake" PNatural
+     , HField s "admin" PPubKeyHash
+     , HField s "unbondedAssetClass" PAssetClass
+     , HField s "nftCs" PCurrencySymbol
+     , HField s "assocListCs" PCurrencySymbol
+     ]
 
 -- | Type level list with all of `PUnbondedPoolParams's field names
 type PUnbondedPoolParamsFields =
-  '[
-    "start",
-    "userLength",
-    "adminLength",
-    "bondingLength",
-    "interestLength",
-    "increments",
-    "interest",
-    "minStake",
-    "maxStake",
-    "admin",
-    "unbondedAssetClass",
-    "nftCs",
-    "assocListCs"
+  '[ "start"
+   , "userLength"
+   , "adminLength"
+   , "bondingLength"
+   , "interestLength"
+   , "increments"
+   , "interest"
+   , "minStake"
+   , "maxStake"
+   , "admin"
+   , "unbondedAssetClass"
+   , "nftCs"
+   , "assocListCs"
    ]
 
 ------ PBool data instance ------

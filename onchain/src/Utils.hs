@@ -870,4 +870,3 @@ parseStakingDatum ::
   TermCont s (Term s a)
 parseStakingDatum =
   ptryFromUndata @a . pforgetData . pdata
-
