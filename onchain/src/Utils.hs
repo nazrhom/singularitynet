@@ -39,12 +39,14 @@ module Utils (
   getDatum,
   getDatumHash,
   getContinuingOutputWithNFT,
+  getOutputSignedBy,
   getOnlySignatory,
   signedBy,
   signedOnlyBy,
   pconst,
   pflip,
   toPBool,
+  mkPubKeyCredential,
   (>:),
   PTxInfoFields,
   PTxInfoHRec,
@@ -77,6 +79,7 @@ import Plutarch.Api.V1 (
   PTuple,
   PTxId,
   PValue,
+  PCredential(PPubKeyCredential),
   ptuple,
  )
 import Plutarch.Api.V1.Tx (PTxInInfo, PTxOut, PTxOutRef)
@@ -715,6 +718,18 @@ getContinuingOutputWithNFT addr ac outputs =
       pure $
         pdata outputF.address #== pdata addr
           #&& oneOf # acF.currencySymbol # acF.tokenName # outputF.value
+          
+getOutputSignedBy ::
+  forall (s :: S).
+  Term s PPubKeyHash ->
+  Term s (PBuiltinList (PAsData PTxOut)) ->
+  TermCont s (Term s PTxOut)
+getOutputSignedBy pkh outputs = do
+  credential <- pletC $ mkPubKeyCredential pkh
+  output <- flip pfind outputs $ plam $ \output -> unTermCont $ do
+    let credential' = pfield @"credential" #$ pfield @"address" # output
+    pure $ pdata credential #== pdata credential'
+  pure $ pfromData output
 
 {- | Gets the `DatumHash` from a `PTxOut`. If not available, it will fail with
  an error.
@@ -896,7 +911,6 @@ type PEntryFields =
    , "next"
    ]
 
---
 -- Other functions
 
 {- | Returns a new Plutarch function that ignores the first paramter and returns
@@ -938,3 +952,7 @@ toPBool = phoistAcyclic $
     pmatch pbd $ \case
       PDFalse _ -> pfalse
       PDTrue _ -> ptrue
+
+-- | Build a `PCredential` from a `PPubKeyHash`
+mkPubKeyCredential :: forall (s :: S). Term s PPubKeyHash -> Term s PCredential
+mkPubKeyCredential pkh = pcon . PPubKeyCredential $ pdcons # pdata pkh # pdnil
