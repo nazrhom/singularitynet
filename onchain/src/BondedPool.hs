@@ -18,7 +18,9 @@ import Plutarch.Api.V1 (
   PTokenName (PTokenName),
   PTuple,
   PTxInfo,
+  PTxInInfo,
   PTxOut,
+  PTxOutRef,
   PValue,
   ptuple,
  )
@@ -42,6 +44,7 @@ import PTypes (
   PBondedStakingDatum (PAssetDatum, PEntryDatum, PStateDatum),
   PEntry,
   PMintingAction (PMintEnd, PMintHead, PMintInBetween),
+  PBurningAction (PBurnOther, PBurnOther, PBurnHead),
   PPeriod (BondingPeriod, ClosingPeriod),
   -- bondingPeriod,
   -- depositWithdrawPeriod,
@@ -64,6 +67,7 @@ import Utils (
   PTxInfoFields,
   PTxInfoHRec,
   getContinuingOutputWithNFT,
+  getOutputSignedBy,
   getDatum,
   getDatumHash,
   getInput,
@@ -80,6 +84,7 @@ import Utils (
   ptrue,
   ptryFromUndata,
   punit,
+  pfind,
   signedBy,
   signedOnlyBy,
  )
@@ -153,7 +158,7 @@ pbondedPoolValidator = phoistAcyclic $
                 ctxF.purpose
                 dat
                 actF
-        PWithdrawAct _act -> unTermCont $ do
+        PWithdrawAct act' -> unTermCont $ do
           -- period <- getBondedPeriod # txInfoF.validRange # params
           -- guardC "pbondedPoolValidator: wrong period for PWithdrawAct \
           --  \redeemer" $
@@ -162,7 +167,13 @@ pbondedPoolValidator = phoistAcyclic $
             "pbondedPoolValidator: a token should be burned when using \
             \ PWithdrawAct"
             $ isBurningEntry txInfoF.mint paramsF.assocListCs
-          pure withdrawActLogic
+          act <- tcont . pletFields @'["pubKeyHash", "burningAction"] $ act'
+          withdrawActLogic
+            txInfoF
+            paramsF
+            ctxF.purpose
+            dat
+            act
         PCloseAct _ -> unTermCont $ do
           -- guardC "pbondedPoolValidator: wrong period for PcloseAct redeemer" $
           --   getBondedPeriod # txInfoF.validRange # params #== closingPeriod
@@ -634,8 +645,101 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
           \entry"
           $ pfromData endEntryUpdated.key #< pfromData newEntry.key
 
-withdrawActLogic :: forall (s :: S). Term s PUnit
-withdrawActLogic = pconstant ()
+withdrawActLogic ::
+  forall (s :: S).
+  PTxInfoHRec s ->
+  PBondedPoolParamsHRec s ->
+  Term s PScriptPurpose ->
+  Term s PBondedStakingDatum ->
+  HRec
+  '[
+    HField s "pubKeyHash" PPubKeyHash,
+    HField s "burningAction" PBurningAction
+  ] ->
+  TermCont s (Term s PUnit)
+withdrawActLogic
+  txInfo
+  params
+  purpose
+  datum
+  act = do
+  -- Get the input being spent
+  spentInput <-
+    tcont . pletFields @PTxInInfoFields
+      =<< getInput purpose txInfo.inputs
+  -- Validate holder's signature
+  guardC "withdrawActLogic: tx not exclusively signed by the stake-holder" $
+    signedOnlyBy txInfo.signatories act.pubKeyHash
+  -- Get resulting output with staked assets and accrued rewards
+  withdrawOutput <-
+    getOutputSignedBy act.pubKeyHash txInfo.outputs
+  -- Check business and inductive conditions depending on redeemer
+  pure . pmatch (pfromData act.burningAction) $ \case
+    PBurnHead outRefs' -> unTermCont $ do
+      outRefs <- tcont . pletFields @'["state", "headEntry"] $ outRefs'
+      -- We check all conditions when consuming the state UTXO
+      --let withdrawHeadCheck =
+      --      withdrawHeadActLogic
+      --        spentInput act.pubKeyHash datum txInfo params outRefs.headEntry
+      pure $ pif (spentInput.outRef #== outRefs.state)
+              _
+              punit
+    PBurnOther entries' -> _
+
+withdrawHeadActLogic ::
+  forall (s :: S).
+  HRec
+  '[HField s "outRef" PTxOutRef,
+    HField s "resolved" PTxOut
+  ] ->
+  Term s PPubKeyHash ->
+  Term s PBondedStakingDatum ->
+  PTxInfoHRec s ->
+  PBondedPoolParamsHRec s ->
+  Term s PTxOutRef ->
+  Term s PTxOutRef ->
+  Term s PUnit
+withdrawHeadActLogic spentInput holderPkh datum txInfo params stateOutRef headEntryOutRef =
+  unTermCont $ do
+  -- Construct some useful values for later
+  stakeHolderKey <- pletC $ pblake2b_256 # pto holderPkh
+  stakeHolderTn <- pletC $ pcon $ PTokenName $ stakeHolderKey
+  spentInputResolved <-
+    tcont . pletFields @'["address", "value", "datumHash"] $ spentInput.resolved
+  let poolAddr :: Term s PAddress
+      poolAddr = spentInputResolved.address
+      stateTn :: Term s PTokenName
+      stateTn = pconstant bondedStakingTokenName
+  stateTok <- pletC $ passetClass # params.nftCs # stateTn
+  entryTok <- pletC $ passetClass # params.assocListCs # stakeHolderTn
+  txInfoData <- pletC $ getField @"data" txInfo
+  ---- FETCH DATUMS ----
+  -- Get datum for next state
+  nextStateTxOut <-
+    getContinuingOutputWithNFT poolAddr stateTok txInfo.outputs
+  nextStateHash <- getDatumHash nextStateTxOut
+  (nextEntryKey, _nextSizeLeft) <-
+    getStateData
+      =<< parseStakingDatum
+      =<< getDatum nextStateHash txInfoData
+  -- Get datum for current state
+  (entryKey, _sizeLeft) <- getStateData datum
+  -- Get datum for head entry
+  headEntry <- getInputEntry headEntryOutRef txInfoData txInfo.inputs
+  ---- INDUCTIVE CONDITIONS ----
+  -- Validate that spentOutRef is the state UTXO and matches redeemer
+  guardC "withdrawHeadActLogic: spent input is not the state UTXO" $
+    spentInputResolved.value `hasStateToken`
+      (params.nftCs, pconstant bondedStakingTokenName)
+  guardC
+    "withdrawHeadActLogic: spent input does not match redeemer \
+    \input"
+    $ spentInput.outRef #== pdata stateOutRef
+  -- Validate next state
+  guardC
+    "withdrawHeadActLogic: next pool state does not point to same location as \
+    \burned entry"
+    $ pdata nextEntryKey #== headEntry.next
 
 closeActLogic ::
   forall (s :: S).
@@ -779,6 +883,24 @@ getOutputEntry poolAddr ac txInfoData =
     <=< flip getDatum txInfoData
     <=< getDatumHash
     <=< getContinuingOutputWithNFT poolAddr ac
+    
+getInputEntry ::
+  forall (s :: S).
+  Term s PTxOutRef ->
+  Term s (PBuiltinList (PAsData (PTuple PDatumHash PDatum))) ->
+  Term s (PBuiltinList (PAsData PTxInInfo)) ->
+  TermCont s (PEntryHRec s)
+getInputEntry inputOutRef txInfoData inputs = do
+  entry <- flip pfind inputs $ plam $ \input ->
+    let outRef :: Term s PTxOutRef
+        outRef = pfield @"outRef" # input
+    in pdata outRef #== pdata inputOutRef
+  tcont . pletFields @PEntryFields
+    <=< getEntryData
+    <=< parseStakingDatum
+    <=< flip getDatum txInfoData
+    <=< getDatumHash
+    $ pfield @"resolved" # entry
 
 -- This function validates the fields for a freshly minted entry
 newEntryGuard ::
