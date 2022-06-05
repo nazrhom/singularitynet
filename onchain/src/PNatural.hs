@@ -11,7 +11,9 @@ module PNatural (
   PNatural (..),
   PNatRatio (..),
   PNonNegative (..),
+  natZero,
   pCeil,
+  ratZero,
   toPNatRatio,
   toPInteger,
   toPRational,
@@ -242,6 +244,12 @@ getIntegers ::
 getIntegers r' = do
   r <- tcont . pletFields @'["numerator", "denominator"] $ r'
   pure (pto $ pfromData r.numerator, pto $ pfromData r.denominator)
+
+natZero :: Term s PNatural
+natZero = pconstant $ Natural 0
+
+ratZero :: Term s PNatRatio
+ratZero = pconstant . NatRatio $ 0
 
 pletC :: forall (s :: S) (a :: PType). Term s a -> TermCont s (Term s a)
 pletC = tcont . plet

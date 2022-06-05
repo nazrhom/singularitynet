@@ -138,8 +138,8 @@ data PUnbondedStakingDatum (s :: S)
       ( Term
           s
           ( PDataRecord
-              '[ "maybeEntryName" ':= PMaybeData PByteString
-               , "open" ':= PBoolData
+              '[ "_0" ':= PMaybeData PByteString
+               , "_1" ':= PBoolData
                ]
           )
       )
@@ -147,7 +147,7 @@ data PUnbondedStakingDatum (s :: S)
       ( Term
           s
           ( PDataRecord
-              '[ "entry" ':= PEntry
+              '[ "_0" ':= PEntry
                ]
           )
       )

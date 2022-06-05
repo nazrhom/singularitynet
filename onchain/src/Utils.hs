@@ -39,6 +39,7 @@ module Utils (
   getDatum,
   getDatumHash,
   getContinuingOutputWithNFT,
+  getCoWithDatum,
   getOnlySignatory,
   signedBy,
   signedOnlyBy,
@@ -63,6 +64,7 @@ import Plutarch.Api.V1 (
   PValue,
   ptuple,
  )
+import Plutarch.Api.V1.Tuple (pbuiltinPairFromTuple)
 import Plutarch.Api.V1.Tx (PTxInInfo, PTxOut, PTxOutRef)
 import Plutarch.Bool (pand, por)
 import Plutarch.Builtin (pforgetData)
@@ -698,6 +700,55 @@ getContinuingOutputWithNFT addr ac outputs =
         pdata outputF.address #== pdata addr
           #&& oneOf # acF.currencySymbol # acF.tokenName # outputF.value
 
+{- | Gets the CO and datum that satisfy the given datum predicate.
+ It fails if no CO is found, or no CO satisfies the predicate, or too many COs
+ are found
+-}
+getCoWithDatum ::
+  forall (s :: S).
+  Term s PAddress ->
+  Term s (PDatum :--> PBool) ->
+  Term s (PBuiltinList (PAsData PTxOut)) ->
+  Term s (PBuiltinList (PAsData (PTuple PDatumHash PDatum))) ->
+  TermCont s (Term s PTxOut, Term s PDatum)
+getCoWithDatum poolAddr pred outputs datums = do
+  -- Filter COs with address and datum from outputs
+  cos <- pletC . flip pmapMaybe outputs . plam $
+    \output -> unTermCont $ do
+      outputF <- tcont $ pletFields @'["address", "datumHash"] output
+      pure $
+        pif
+          (pnot #$ pdata outputF.address #== pdata poolAddr)
+          -- Address does not match, ignore output
+          (pcon PNothing)
+          $ pmatch outputF.datumHash $ \case
+            -- Output does not have a datum, fail (pool outputs always
+            -- should)
+            PDNothing _ ->
+              ptraceError "getCoWithDatum: found CO without a datum"
+            PDJust datHash -> unTermCont $ do
+              datum <- getDatum (pfield @"_0" # datHash) datums
+              pure $
+                pif
+                  (pred # datum)
+                  ( pcon . PJust . pbuiltinPairFromTuple . pdata $
+                      ptuple # output # pdata datum
+                  )
+                  -- Datum does not satisfy predicate, ignore output
+                  (pcon PNothing)
+  -- Make sure it's the only output
+  ppairData . pmatch cos $ \case
+    PNil ->
+      ptraceError
+        "getCoWithDatum: found more than one CO with given \
+        \ datum"
+    PCons x xs -> pmatch xs $ \case
+      PCons _ _ ->
+        ptraceError
+          "getCoWithDatum: found more than one CO with\
+          \ given datum"
+      PNil -> pfromData x
+
 {- | Gets the `DatumHash` from a `PTxOut`. If not available, it will fail with
  an error.
 -}
@@ -809,11 +860,6 @@ pflip ::
   Term s a ->
   Term s c
 pflip f b a = f # a # b
-
--- Plutarch class instances
-
--- instance PEq PAddress where
---   a1 #== a2 = pdata a1 #== pdata a2
 
 -- | Returns the staking datum record with the provided type
 parseStakingDatum ::
