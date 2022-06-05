@@ -101,6 +101,7 @@ library
   import:          common-lang
   exposed-modules:
     BondedPool
+    InductiveLogic
     ListNFT
     PInterval
     PNatural

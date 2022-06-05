@@ -8,89 +8,251 @@ import Plutarch.Api.V1 (
   PPubKeyHash,
   PScriptContext,
   PTokenName (PTokenName),
+  PTxInInfo,
+  PTxOutRef,
   PValue,
  )
 import Plutarch.Api.V1.Scripts ()
 import Plutarch.Unsafe (punsafeCoerce)
 
-import PTypes (PMintingAction)
+import PTypes (
+  PBurningAction (PBurnHead, PBurnOther),
+  PListAction (PListInsert, PListRemove),
+  PMintingAction (PMintEnd, PMintHead, PMintInBetween),
+ )
+
+import InductiveLogic (
+  consumesEntryGuard,
+  consumesStateUtxoGuard,
+  hasNoNft,
+  inputPredicate,
+ )
 import Plutarch.Crypto (pblake2b_256)
-import Utils (getCs, guardC, oneOfWith, pconstantC, peq, pletC, ptryFromUndata)
+import Utils (
+  getCs,
+  getOnlySignatory,
+  guardC,
+  oneOf,
+  oneWith,
+  peq,
+  pflip,
+  pletC,
+  porList,
+  ptryFromUndata,
+  punit,
+ )
 
 {-
     This module implements the minting policy for the NFTs used as entries for
     the user's stakes in the on-chain association list.
 
-    Some level of validation is performed by this policy (at least the bare
-    minimum related to any NFT), as well as some other validation specific
-    to each user action. Specifically, most invariants related to maintaining
-    the linked list here.
+    The policy checks that:
+
+    1. The required NFTs are being consumed for the specified list action and
+       *only* these, no more, no less
+
+    2. The minted/burnt entries' `TokenName`s correspond to the transaction's
+       signatory
 
     Due to how the system is designed, this minting policy is only run when
     a user stakes *for the first time* (minting a new NFT) or when it withdraws
-    their stake (burning an NFT). Invariants related to the amount staked,
-    global or local limits, and other things are mostly delegated to the pool
-    validator and not treated here.
+    their stake (burning an NFT).
+
+    Invariants related to the amount staked, global or local limits, and other
+    things, are delegated to the pool validator and not treated here.
+    Importantly, inductive conditions of the association list are delegated to
+    the pool validator.
 -}
 
--- TODO: Inductive conditions related to staking and withdrawing not implemented
--- (that's why the redeemer isn't used yet). `burnsOrMintsOnce` ought to be
--- split in two parts, one for each of the two use cases (staking and
--- withdrawing).
 plistNFTPolicy ::
   forall (s :: S).
   Term
     s
     ( PCurrencySymbol
-        :--> PMintingAction
+        :--> PTokenName
+        :--> PListAction
         :--> PScriptContext
         :--> PUnit
     )
-plistNFTPolicy = plam $ \nftCs _mintAct ctx' -> unTermCont $ do
+plistNFTPolicy = plam $ \stateNftCs stateNftTn listAct ctx' -> unTermCont $ do
   -- This CurrencySymbol is only used for parametrization
-  _cs <- pletC nftCs
+  _cs <- pletC stateNftCs
   ctx <- tcont $ pletFields @'["txInfo", "purpose"] ctx'
   -- Own CurrencySymbol
-  cs <- getCs ctx.purpose
-  txInfo <- tcont $ pletFields @'["signatories", "mint"] ctx.txInfo
+  listNftCs <- getCs ctx.purpose
+  txInfo <- tcont $ pletFields @'["signatories", "mint", "inputs"] ctx.txInfo
   -- Get a *single* signatory or fail
-  signatory <- getSignatory txInfo.signatories
-  -- Calculate TokenName based on PubKeyHash
-  let tn :: Term s PTokenName
-      tn = pcon . PTokenName $ pblake2b_256 # pto signatory
-  -- Check the token was minted or burnt *once*
-  guardC "failed when checking minted value" $
-    burnsOrMintsOnce cs tn txInfo.mint
-  pconstantC ()
+  signatory <- getOnlySignatory txInfo.signatories
+  -- Make token name from signatory's public key hash
+  let entryTn = mkEntryTn signatory
+      -- Save state and list tokens for later
+      stateTok = (stateNftCs, stateNftTn)
+      listTok = (listNftCs, entryTn)
+  -- Dispatch to appropiate handler based on redeemer
+  pure $
+    pmatch listAct $ \case
+      PListInsert mintAct' ->
+        let mintAct = pfield @"_0" # mintAct'
+         in listInsertCheck txInfo.inputs txInfo.mint stateTok listTok mintAct
+      PListRemove burnAct' ->
+        let burnAct = pfield @"_0" # burnAct'
+         in listRemoveCheck txInfo.mint listTok burnAct
 
 plistNFTPolicyUntyped ::
-  forall (s :: S). Term s (PData :--> PData :--> PData :--> PUnit)
-plistNFTPolicyUntyped = plam $ \nftCs mintAct ctx ->
-  plistNFTPolicy # unTermCont (ptryFromUndata nftCs)
+  forall (s :: S). Term s (PData :--> PData :--> PData :--> PData :--> PUnit)
+plistNFTPolicyUntyped = plam $ \stateNftCs stateNftTn mintAct ctx ->
+  plistNFTPolicy # unTermCont (ptryFromUndata stateNftCs)
+    # unTermCont (ptryFromUndata stateNftTn)
     # unTermCont (ptryFromUndata mintAct)
     # punsafeCoerce ctx
 
-getSignatory ::
+listInsertCheck ::
   forall (s :: S).
-  Term s (PBuiltinList (PAsData PPubKeyHash)) ->
-  TermCont s (Term s PPubKeyHash)
-getSignatory ls = pure . pmatch ls $ \case
-  PCons pkh ps ->
-    pif
-      (pnull # ps)
-      (pfromData pkh)
-      (ptraceError "getSignatory: transaction has more than one signatory")
-  PNil -> ptraceError "getSignatory: empty list of signatories"
+  Term s (PBuiltinList (PAsData PTxInInfo)) ->
+  Term s PValue ->
+  (Term s PCurrencySymbol, Term s PTokenName) ->
+  (Term s PCurrencySymbol, Term s PTokenName) ->
+  Term s PMintingAction ->
+  Term s PUnit
+listInsertCheck
+  inputs
+  mintVal
+  (stateNftCs, stateNftTn)
+  (listNftCs, entryTn)
+  mintAct = unTermCont $ do
+    -- Validate stake-holder's signature and token count
+    mintGuard listNftCs entryTn mintVal
+    pure . pmatch mintAct $ \case
+      PMintHead stateOutRef' -> unTermCont $ do
+        let stateOutRef :: Term s PTxOutRef
+            stateOutRef = pfromData $ pfield @"_0" # stateOutRef'
+        mintHeadGuard stateNftCs listNftCs stateNftTn stateOutRef inputs
+      PMintInBetween entries -> unTermCont $ do
+        entriesF <- tcont $ pletFields @["previousEntry", "currentEntry"] entries
+        let prevEntry = entriesF.previousEntry
+            currEntry = entriesF.currentEntry
+        mintInBetweenGuard stateNftCs listNftCs prevEntry currEntry inputs
+      PMintEnd lastEntry' -> unTermCont $ do
+        let lastEntry :: Term s PTxOutRef
+            lastEntry = pfromData $ pfield @"_0" # lastEntry'
+        mintEndGuard stateNftCs listNftCs lastEntry inputs
 
-burnsOrMintsOnce ::
+-- TODO: Inductive conditions related to withdrawing not implemented
+listRemoveCheck ::
+  forall (s :: S).
+  Term s PValue ->
+  (Term s PCurrencySymbol, Term s PTokenName) ->
+  Term s PBurningAction ->
+  Term s PUnit
+listRemoveCheck mintVal (listNftCs, entryTn) burnAct = unTermCont $ do
+  -- Validate stake-holder's signature and token count
+  burnGuard listNftCs entryTn mintVal
+  pure . pmatch burnAct $ \case
+    PBurnHead _poolState -> punit
+    PBurnOther _prevEntry -> punit
+
+-- TODO
+
+-- Build the token name from the signatory's `PPubKeyHash`
+mkEntryTn :: Term s PPubKeyHash -> Term s PTokenName
+mkEntryTn pkh = pcon . PTokenName $ pblake2b_256 # pto pkh
+
+-- | Fails if the TX does *not* mint the appropriate list token
+mintGuard ::
+  forall (s :: S).
+  Term s PCurrencySymbol ->
+  Term s PTokenName ->
+  Term s PValue ->
+  TermCont s (Term s PUnit)
+mintGuard listNftCs entryTn mint =
+  guardC "mintGuard: failed when checking minted value" $
+    oneOf # listNftCs # entryTn # mint
+
+-- | Fails if the TX does *not* burn the appropriate list oken
+burnGuard ::
+  forall (s :: S).
+  Term s PCurrencySymbol ->
+  Term s PTokenName ->
+  Term s PValue ->
+  TermCont s (Term s PUnit)
+burnGuard listNftCs entryTn mint =
+  guardC "mintGuard: failed when checking minted value" $
+    burnCheck listNftCs entryTn mint
+
+-- Functions for validating the inputs
+mintHeadGuard ::
+  forall (s :: S).
+  Term s PCurrencySymbol ->
+  Term s PCurrencySymbol ->
+  Term s PTokenName ->
+  Term s PTxOutRef ->
+  Term s (PBuiltinList (PAsData PTxInInfo)) ->
+  TermCont s (Term s PUnit)
+mintHeadGuard stateNftCs listNftCs stateNftTn stateOutRef inputs = do
+  -- We check that the state UTXO is consumed
+  consumesStateUtxoGuard stateOutRef inputs stateNftCs stateNftTn
+  -- We check that the other inputs are not state nor list UTXOs
+  noNftGuard stateNftCs listNftCs [stateOutRef] inputs
+
+mintInBetweenGuard ::
+  forall (s :: S).
+  Term s PCurrencySymbol ->
+  Term s PCurrencySymbol ->
+  Term s PTxOutRef ->
+  Term s PTxOutRef ->
+  Term s (PBuiltinList (PAsData PTxInInfo)) ->
+  TermCont s (Term s PUnit)
+mintInBetweenGuard stateNftCs listNftCs prevEntry currEntry inputs = do
+  -- We check that `prevEntry` is consumed
+  consumesEntryGuard prevEntry inputs listNftCs
+  -- We check that the other inputs are not state nor list UTXOs
+  noNftGuard stateNftCs listNftCs [prevEntry, currEntry] inputs
+
+mintEndGuard ::
+  forall (s :: S).
+  Term s PCurrencySymbol ->
+  Term s PCurrencySymbol ->
+  Term s PTxOutRef ->
+  Term s (PBuiltinList (PAsData PTxInInfo)) ->
+  TermCont s (Term s PUnit)
+mintEndGuard stateNftCs listNftCs lastEntry inputs = do
+  -- Find entry UTXO in inputs and fail if it does not have the list NFT
+  consumesEntryGuard lastEntry inputs listNftCs
+  -- We check that the other inputs are not state nor list UTXOs
+  noNftGuard stateNftCs listNftCs [lastEntry] inputs
+
+-- Check that all unprotected inputs contain no state nor list NFTs
+noNftGuard ::
+  forall (s :: S).
+  Term s PCurrencySymbol ->
+  Term s PCurrencySymbol ->
+  [Term s PTxOutRef] ->
+  Term s (PBuiltinList (PAsData PTxInInfo)) ->
+  TermCont s (Term s PUnit)
+noNftGuard stateNftCs listNftCs protectedInputs inputs =
+  guardC
+    "noNftGuard: unallowed input in the transaction contains state or list\
+    \ NFT"
+    $ pflip pall inputs . inputPredicate $ \outRef val ->
+      let equalToSome :: [Term s PTxOutRef] -> Term s PBool
+          equalToSome = porList . fmap (\o -> pdata outRef #== pdata o)
+       in equalToSome protectedInputs #|| hasNoNft stateNftCs listNftCs val
+
+-- Check that the token was burnt once
+burnCheck ::
   forall (s :: S).
   Term s PCurrencySymbol ->
   Term s PTokenName ->
   Term s PValue ->
   Term s PBool
-burnsOrMintsOnce cs tn val =
-  oneOfWith
-    # (peq # cs)
-    # (peq # tn)
-    # (plam $ \n -> n #== 1 #|| n #== -1)
-    # val
+burnCheck cs tn mintVal = burnCheck' # cs # tn # mintVal
+  where
+    burnCheck' ::
+      Term s (PCurrencySymbol :--> PTokenName :--> PValue :--> PBool)
+    burnCheck' = phoistAcyclic $
+      plam $ \cs tn mintVal ->
+        oneWith
+          # (peq # cs)
+          # (peq # tn)
+          # (plam $ \n -> n #== -1)
+          # mintVal

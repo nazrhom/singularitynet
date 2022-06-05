@@ -13,8 +13,10 @@
 
 module PTypes (
   PBondedPoolParams (..),
+  PMintingAction (..),
+  PBurningAction (..),
+  PListAction (..),
   PBondedStakingAction (..),
-  PMintingAction,
   PBondedStakingDatum (..),
   PEntry,
   PAssetClass (PAssetClass),
@@ -42,7 +44,9 @@ import SingularityNet.Types (
   BondedPoolParams,
   BondedStakingAction,
   BondedStakingDatum,
+  BurningAction,
   Entry,
+  ListAction,
   MintingAction,
  )
 
@@ -140,12 +144,10 @@ data PEntry (s :: S)
           s
           ( PDataRecord
               '[ "key" ':= PByteString
-               , "sizeLeft" ':= PNatural
                , "newDeposit" ':= PNatural
                , "deposited" ':= PNatural
                , "staked" ':= PNatural
                , "rewards" ':= PNatRatio
-               , "value" ':= PBuiltinPair (PAsData PNatural) (PAsData PNatRatio)
                , "next" ':= PMaybeData PByteString
                ]
           )
@@ -205,8 +207,15 @@ instance PUnsafeLiftDecl PBondedStakingDatum where
 
 -- | `MintingAction` synonym
 data PMintingAction (s :: S)
-  = PStake (Term s (PDataRecord '[]))
-  | PWithdraw (Term s (PDataRecord '[]))
+  = PMintHead (Term s (PDataRecord '["_0" ':= PTxOutRef]))
+  | PMintInBetween
+      ( Term
+          s
+          ( PDataRecord
+              '["previousEntry" ':= PTxOutRef, "currentEntry" ':= PTxOutRef]
+          )
+      )
+  | PMintEnd (Term s (PDataRecord '["_0" ':= PTxOutRef]))
   deriving stock (GHC.Generic)
   deriving anyclass (Generic, PIsDataRepr)
   deriving
@@ -221,6 +230,42 @@ deriving via
 instance PUnsafeLiftDecl PMintingAction where
   type PLifted PMintingAction = MintingAction
 
+-- | `BurningAction` synonym
+data PBurningAction (s :: S)
+  = PBurnHead (Term s (PDataRecord '["_0" ':= PTxOutRef]))
+  | PBurnOther (Term s (PDataRecord '["_0" ':= PTxOutRef]))
+  deriving stock (GHC.Generic)
+  deriving anyclass (Generic, PIsDataRepr)
+  deriving
+    (PlutusType, PIsData)
+    via PIsDataReprInstances PBurningAction
+
+deriving via
+  PAsData (PIsDataReprInstances PBurningAction)
+  instance
+    PTryFrom PData (PAsData PBurningAction)
+
+instance PUnsafeLiftDecl PBurningAction where
+  type PLifted PBurningAction = BurningAction
+
+-- | `ListAction` synonym
+data PListAction (s :: S)
+  = PListInsert (Term s (PDataRecord '["_0" ':= PMintingAction]))
+  | PListRemove (Term s (PDataRecord '["_0" ':= PBurningAction]))
+  deriving stock (GHC.Generic)
+  deriving anyclass (Generic, PIsDataRepr)
+  deriving
+    (PlutusType, PIsData)
+    via PIsDataReprInstances PListAction
+
+deriving via
+  PAsData (PIsDataReprInstances PListAction)
+  instance
+    PTryFrom PData (PAsData PListAction)
+
+instance PUnsafeLiftDecl PListAction where
+  type PLifted PListAction = ListAction
+
 -- | `BondedStakingAction` synonym
 data PBondedStakingAction (s :: S)
   = PAdminAct (Term s (PDataRecord '["_0" ':= PNatural]))
@@ -228,18 +273,32 @@ data PBondedStakingAction (s :: S)
       ( Term
           s
           ( PDataRecord
-              '[ "_0" ':= PNatural
-               , "_1" ':= PPubKeyHash
+              '[ "stakeAmount" ':= PNatural
+               , "pubKeyHash" ':= PPubKeyHash
+               , "maybeMintingAction" ':= PMaybeData PMintingAction
                ]
           )
       )
-  | PWithdrawAct (Term s (PDataRecord '["_0" ':= PPubKeyHash]))
+  | PWithdrawAct
+      ( Term
+          s
+          ( PDataRecord
+              '[ "pubKeyHash" ':= PPubKeyHash
+               , "burningAction" ':= PBurningAction
+               ]
+          )
+      )
   | PCloseAct (Term s (PDataRecord '[]))
   deriving stock (GHC.Generic)
   deriving anyclass (Generic, PIsDataRepr)
   deriving
     (PlutusType, PIsData)
     via PIsDataReprInstances PBondedStakingAction
+
+deriving via
+  PAsData (PIsDataReprInstances (PMaybeData PMintingAction))
+  instance
+    PTryFrom PData (PAsData (PMaybeData PMintingAction))
 
 deriving via
   PAsData (PIsDataReprInstances PBondedStakingAction)
@@ -370,6 +429,16 @@ deriving via
   (DerivePConstantViaData MintingAction PMintingAction)
   instance
     (PConstant MintingAction)
+
+deriving via
+  (DerivePConstantViaData BurningAction PBurningAction)
+  instance
+    (PConstant BurningAction)
+
+deriving via
+  (DerivePConstantViaData ListAction PListAction)
+  instance
+    (PConstant ListAction)
 
 deriving via
   (DerivePConstantViaData BondedStakingAction PBondedStakingAction)
