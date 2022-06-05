@@ -3,10 +3,11 @@ module CreatePool (createBondedPoolContract) where
 import Contract.Prelude
 
 import Contract.Address
-  ( getNetworkId
+  ( AddressWithNetworkTag(AddressWithNetworkTag)
+  , getNetworkId
   , getWalletAddress
   , ownPaymentPubKeyHash
-  , validatorHashEnterpriseAddress
+  , scriptHashAddress
   )
 import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM)
 import Contract.PlutusData (PlutusData, Datum(Datum), toData)
@@ -28,6 +29,7 @@ import Contract.Utxos (utxosAt)
 import Contract.Value (scriptCurrencySymbol, singleton)
 import Data.Array (head)
 import Data.Map (toUnfoldable)
+import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Scripts.StateNFT (mkStateNFTPolicy)
@@ -49,12 +51,14 @@ createBondedPoolContract ibp = do
     ownPaymentPubKeyHash
   logInfo_ "createBondedPoolContract: Admin PaymentPubKeyHash" adminPkh
   -- Get the (Nami) wallet address
-  adminAddr <- liftedM "createBondedPoolContract: Cannot get wallet Address"
-    getWalletAddress
+  AddressWithNetworkTag { address: adminAddr } <-
+    liftedM "createBondedPoolContract: Cannot get wallet Address"
+      getWalletAddress
+  logInfo_ "createBondedPoolContract: User Address"
+    $ fromPlutusType (networkId /\ adminAddr)
   -- Get utxos at the wallet address
-  adminUtxos <-
-    liftedM "createBondedPoolContract: Cannot get user Utxos"
-      $ utxosAt adminAddr
+  adminUtxos <- liftedM "createBondedPoolContract: Cannot get user Utxos"
+    $ utxosAt adminAddr
   txOutRef <- liftContractM "createBondedPoolContract: Could not get head UTXO"
     $ fst
     <$> (head $ toUnfoldable $ unwrap adminUtxos)
@@ -62,13 +66,13 @@ createBondedPoolContract ibp = do
   -- Get the minting policy and currency symbol from the state NFT:
   statePolicy <- liftedE $ mkStateNFTPolicy Bonded txOutRef
   stateNftCs <-
-    liftedM
+    liftContractM
       "createBondedPoolContract: Cannot get CurrencySymbol from state NFT"
       $ scriptCurrencySymbol statePolicy
   -- Get the minting policy and currency symbol from the list NFT:
   listPolicy <- liftedE $ mkListNFTPolicy Bonded stateNftCs
   assocListCs <-
-    liftedM
+    liftContractM
       "createBondedPoolContract: Cannot get CurrencySymbol from state NFT"
       $ scriptCurrencySymbol listPolicy
   -- May want to hardcode this somewhere:
@@ -81,12 +85,13 @@ createBondedPoolContract ibp = do
   validator <-
     liftedE' "createBondedPoolContract: Cannot create validator"
       $ mkBondedPoolValidator params
-  valHash <- liftedM "createBondedPoolContract: Cannot hash validator"
-    (validatorHash validator)
+  valHash <- liftContractM "createBondedPoolContract: Cannot hash validator"
+    $ validatorHash validator
   let
     mintValue = singleton stateNftCs tokenName one
-    poolAddr = validatorHashEnterpriseAddress networkId valHash
-  logInfo_ "createPoolContract: BondedPool Validator's address" poolAddr
+    poolAddr = scriptHashAddress valHash
+  logInfo_ "createBondedPoolContract: BondedPool Validator's address"
+    $ fromPlutusType (networkId /\ poolAddr)
   let
     -- We initalize the pool with no head entry and a pool size of 100_000_000
     bondedStateDatum = Datum $ toData $ StateDatum

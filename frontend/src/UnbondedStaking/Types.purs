@@ -8,18 +8,26 @@ module UnbondedStaking.Types
 
 import Contract.Prelude
 
-import ConstrIndices (class HasConstrIndices, defaultConstrIndices)
 import Contract.Address (PaymentPubKeyHash)
 import Contract.Numeric.Natural (Natural)
 import Contract.Numeric.Rational (Rational)
-import Contract.PlutusData (class ToData, PlutusData(Constr), toData)
+import Contract.PlutusData
+  ( class HasPlutusSchema
+  , class ToData
+  , type (:+)
+  , type (:=)
+  , type (@@)
+  , I
+  , PlutusData(Constr)
+  , PNil
+  , genericToData
+  , toData
+  )
 import Contract.Prim.ByteArray (ByteArray)
 import Contract.Value (CurrencySymbol)
-
 import Data.BigInt (BigInt)
-
-import ToData (genericToData)
 import Types (AssetClass)
+import TypeLevel.Nat (S, Z)
 
 -- TODO: Add missing `ToData` instances for POSIXTime and NatRatio.
 newtype UnbondedPoolParams =
@@ -42,8 +50,6 @@ newtype UnbondedPoolParams =
 derive instance Generic UnbondedPoolParams _
 derive instance Eq UnbondedPoolParams
 derive instance Newtype UnbondedPoolParams _
-instance HasConstrIndices UnbondedPoolParams where
-  constrIndices = defaultConstrIndices
 
 newtype InitialUnbondedParams = InitialUnbondedParams
   { start :: BigInt
@@ -65,6 +71,8 @@ derive instance Eq InitialUnbondedParams
 instance Show InitialUnbondedParams where
   show = genericShow
 
+-- The generic intsance is given below this, but we use this one for compilation
+-- speed.
 -- We copy the order of the fields from the Haskell implementation
 instance ToData UnbondedPoolParams where
   toData (UnbondedPoolParams params) =
@@ -84,6 +92,45 @@ instance ToData UnbondedPoolParams where
       , toData params.assocListCs
       ]
 
+-- Add these back in when generic instances have faster compilation.
+-- instance https://github.com/Plutonomicon/cardano-transaction-lib/issues/433
+--   HasPlutusSchema UnbondedPoolParams
+--     ( "UnbondedPoolParams"
+--         :=
+--           ( "start" := I BigInt
+--               :+ "userLength"
+--               := I BigInt
+--               :+ "adminLength"
+--               := I BigInt
+--               :+ "bondingLength"
+--               := I BigInt
+--               :+ "interestLength"
+--               := I BigInt
+--               :+ "increments"
+--               := I Natural
+--               :+ "interest"
+--               := I Rational
+--               :+ "minStake"
+--               := I Natural
+--               :+ "maxStake"
+--               := I Natural
+--               :+ "admin"
+--               := I PaymentPubKeyHash
+--               :+ "unbondedAssetClass"
+--               := I AssetClass
+--               :+ "nftCs"
+--               := I CurrencySymbol
+--               :+ "assocListCs"
+--               := I CurrencySymbol
+--               :+ PNil
+--           )
+--         @@ Z
+--         :+ PNil
+--     )
+
+-- instance ToData UnbondedPoolParams where
+--   toData = genericToData
+
 data UnbondedStakingDatum
   = StateDatum { maybeEntryName :: Maybe ByteArray, open :: Boolean }
   | EntryDatum { entry :: Entry }
@@ -91,8 +138,27 @@ data UnbondedStakingDatum
 
 derive instance Generic UnbondedStakingDatum _
 derive instance Eq UnbondedStakingDatum
-instance HasConstrIndices UnbondedStakingDatum where
-  constrIndices = defaultConstrIndices
+
+instance
+  HasPlutusSchema UnbondedStakingDatum
+    ( "StateDatum"
+        :=
+          ( "maybeEntryName" := I (Maybe ByteArray)
+              :+ "open"
+              := I Boolean
+              :+ PNil
+          )
+        @@ Z
+        :+ "EntryDatum"
+        :=
+          ( "entry" := I Entry :+ PNil
+          )
+        @@ (S Z)
+        :+ "AssetDatum"
+        := PNil
+        @@ (S (S Z))
+        :+ PNil
+    )
 
 instance ToData UnbondedStakingDatum where
   toData = genericToData
@@ -111,8 +177,35 @@ data UnbondedStakingAction
 
 derive instance Generic UnbondedStakingAction _
 derive instance Eq UnbondedStakingAction
-instance HasConstrIndices UnbondedStakingAction where
-  constrIndices = defaultConstrIndices
+
+instance
+  HasPlutusSchema UnbondedStakingAction
+    ( "AdminAct"
+        :=
+          ( "totalRewards" := I Natural
+              :+ "totalDeposited"
+              := I Natural
+              :+ PNil
+          )
+        @@ Z
+        :+ "StakeAct"
+        :=
+          ( "stakeAmount" := I Natural
+              :+ "stakeHolder"
+              := I PaymentPubKeyHash
+              :+ PNil
+          )
+        @@ (S Z)
+        :+ "WithdrawAct"
+        :=
+          ( "stakeHolder" := I PaymentPubKeyHash :+ PNil
+          )
+        @@ (S (S Z))
+        :+ "CloseAct"
+        := PNil
+        @@ (S (S (S Z)))
+        :+ PNil
+    )
 
 instance ToData UnbondedStakingAction where
   toData = genericToData
@@ -131,8 +224,31 @@ newtype Entry =
 
 derive instance Generic Entry _
 derive instance Eq Entry
-instance HasConstrIndices Entry where
-  constrIndices = defaultConstrIndices
+
+instance
+  HasPlutusSchema Entry
+    ( "Entry"
+        :=
+          ( "key" := I ByteArray
+              :+ "deposited"
+              := I BigInt
+              :+ "newDeposit"
+              := I BigInt
+              :+ "rewards"
+              := I Rational
+              :+ "totalRewards"
+              := I BigInt
+              :+ "totalDeposited"
+              := I BigInt
+              :+ "open"
+              := I Boolean
+              :+ "next"
+              := I (Maybe ByteArray)
+              :+ PNil
+          )
+        @@ Z
+        :+ PNil
+    )
 
 instance ToData Entry where
   toData = genericToData

@@ -13,22 +13,17 @@ import Contract.Prelude
 import Contract.Address (PaymentPubKeyHash)
 import Contract.Monad (Contract, logInfo, tag)
 import Contract.Numeric.Natural (Natural, fromBigInt')
-import Contract.Transaction (TransactionInput, TransactionOutput, UtxoM)
-import Contract.Value (TokenName)
-import Data.Argonaut
-  ( Json
-  , class DecodeJson
-  , JsonDecodeError(TypeMismatch)
-  , caseJsonObject
-  , getField
-  )
+import Contract.Prim.ByteArray (hexToByteArray)
+import Contract.Scripts (PlutusScript)
+import Contract.Transaction (TransactionInput, TransactionOutput)
+import Contract.Utxos (UtxoM)
+import Contract.Value (CurrencySymbol, TokenName, valueOf)
+import Data.Argonaut.Core (Json, caseJsonObject)
+import Data.Argonaut.Decode.Combinators (getField) as Json
+import Data.Argonaut.Decode.Error (JsonDecodeError(TypeMismatch))
 import Data.Array (filter, head)
 import Data.BigInt (BigInt, fromInt)
-import Data.Identity (Identity(Identity))
 import Data.Map (toUnfoldable)
-import Plutus.ToPlutusType (toPlutusType)
-import Plutus.Types.CurrencySymbol (CurrencySymbol)
-import Plutus.Types.Value (valueOf)
 import Types
   ( BondedPoolParams(BondedPoolParams)
   , InitialBondedParams(InitialBondedParams)
@@ -41,13 +36,15 @@ import UnbondedStaking.Types
 -- | Helper to decode the local inputs such as unapplied minting policy and
 -- typed validator
 jsonReader
-  :: forall (a :: Type)
-   . DecodeJson a
-  => String
+  :: String
   -> Json
-  -> Either JsonDecodeError a
-jsonReader field = caseJsonObject (Left $ TypeMismatch "Expected Object")
-  $ flip getField field
+  -> Either JsonDecodeError PlutusScript
+jsonReader field = do
+  caseJsonObject (Left $ TypeMismatch "Expected Object") $ \o -> do
+    hex <- Json.getField o field
+    case hexToByteArray hex of
+      Nothing -> Left $ TypeMismatch "Could not convert to bytes"
+      Just bytes -> pure $ wrap bytes
 
 -- | Get the UTXO with the NFT defined by its `CurrencySymbol` and `TokenName`.
 -- If more than one UTXO contains the NFT, something is seriously wrong.
@@ -69,9 +66,8 @@ getUtxoWithNFT utxoM cs tn =
   hasNFT (Tuple _ txOutput') =
     let
       txOutput = unwrap txOutput'
-      Identity plutusValue = toPlutusType txOutput.amount
     in
-      valueOf plutusValue cs tn == one
+      valueOf txOutput.amount cs tn == one
 
 -- | Convert from `Int` to `Natural`
 nat :: Int -> Natural
