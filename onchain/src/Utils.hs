@@ -53,8 +53,7 @@ module Utils (
   (>:),
 ) where
 
-import GHC.TypeLits (Symbol)
-import PNatural (PNatRatio, PNatural (PNatural), PNonNegative ((#+)))
+import PNatural (PNatural (PNatural), PNonNegative ((#+)))
 import PTypes (PAssetClass, passetClass)
 import Plutarch.Api.V1 (
   PAddress,
@@ -69,7 +68,6 @@ import Plutarch.Api.V1 (
   PTokenName,
   PTuple,
   PValue,
-  PPOSIXTime,
   ptuple,
  )
 import Plutarch.Api.V1.Tuple (pbuiltinPairFromTuple)
@@ -84,8 +82,6 @@ import Plutarch.TryFrom (PTryFrom, ptryFrom)
 import SingularityNet.Natural (Natural (Natural))
 
 import UnbondedStaking.PTypes (PBoolData (PDFalse, PDTrue))
-import Plutarch.DataRepr (HRec)
-import Plutarch.DataRepr.Internal.Field (Labeled)
 
 -- Term-level boolean functions
 peq :: forall (s :: S) (a :: PType). PEq a => Term s (a :--> a :--> PBool)
@@ -934,93 +930,6 @@ signedOnlyBy ::
   Term s PPubKeyHash ->
   Term s PBool
 signedOnlyBy ls pkh = signedBy ls pkh #&& plength # ls #== 1
-
--- Helper functions for working with Plutarch synonyms types
-
--- Useful type family for reducing boilerplate in HRec types
-type family HField (s :: S) (field :: Symbol) (ptype :: PType) where
-  HField s field ptype = Labeled field (Term s (PAsData ptype))
-
--- | HRec with all of `PBondedPoolParams`'s fields
-type PBondedPoolParamsHRec (s :: S) =
-  HRec
-    '[ HField s "iterations" PNatural
-     , HField s "start" PPOSIXTime
-     , HField s "end" PPOSIXTime
-     , HField s "userLength" PPOSIXTime
-     , HField s "bondingLength" PPOSIXTime
-     , HField s "interest" PNatRatio
-     , HField s "minStake" PNatural
-     , HField s "maxStake" PNatural
-     , HField s "admin" PPubKeyHash
-     , HField s "bondedAssetClass" PAssetClass
-     , HField s "nftCs" PCurrencySymbol
-     , HField s "assocListCs" PCurrencySymbol
-     ]
-
--- | HRec with all of `PTxInInfo`'s fields
-type PTxInInfoHRec (s :: S) =
-  HRec
-    '[ HField s "outRef" PTxOutRef
-     , HField s "resolved" PTxOut
-     ]
-
--- | HRec with all of `PEntry`'s fields
-type PEntryHRec (s :: S) =
-  HRec
-    '[ HField s "key" PByteString
-     , HField s "newDeposit" PNatural
-     , HField s "deposited" PNatural
-     , HField s "staked" PNatural
-     , HField s "rewards" PNatRatio
-     , HField s "next" (PMaybeData PByteString)
-     ]
-
--- | Type level list with all of `PBondedPoolParams's field names
-type PBondedPoolParamsFields =
-  '[ "iterations"
-   , "start"
-   , "end"
-   , "userLength"
-   , "bondingLength"
-   , "interest"
-   , "minStake"
-   , "maxStake"
-   , "admin"
-   , "bondedAssetClass"
-   , "nftCs"
-   , "assocListCs"
-   ]
-
--- | Type level list with all of `PTxInfo`'s fields
-type PTxInfoFields =
-  '[ "inputs"
-   , "outputs"
-   , "fee"
-   , "mint"
-   , "dcert"
-   , "wdrl"
-   , "validRange"
-   , "signatories"
-   , "data"
-   , "id"
-   ]
-
--- | Type level list with all of `PTxInInfo`'s fields
-type PTxInInfoFields =
-  '[ "outRef"
-   , "resolved"
-   ]
-
--- | Type level list with all of `PEntry`'s fields
-type PEntryFields =
-  '[ "key"
-   , "newDeposit"
-   , "deposited"
-   , "staked"
-   , "rewards"
-   , "next"
-   ]
 
 -- Other functions
 
