@@ -3,6 +3,7 @@ module CallContract
   , callClosePool
   , callCreateBondedPool
   , callDepositBondedPool
+  , buildContractConfig
   ) where
 
 import Contract.Prelude
@@ -105,8 +106,8 @@ fromLogLevelStr = case _ of
   "Error" -> pure Error
   _ -> Nothing
 
-buildContractConfig :: SdkConfig -> Aff (ContractConfig ())
-buildContractConfig cfg = do
+buildContractConfig :: SdkConfig -> Effect (Promise (ContractConfig ()))
+buildContractConfig cfg = Promise.fromAff $ do
   serverPort <- convertPort "server" cfg.serverPort
   ogmiosPort <- convertPort "ogmios" cfg.ogmiosPort
   datumCachePort <- convertPort "datum cache" cfg.datumCachePort
