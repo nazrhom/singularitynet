@@ -376,7 +376,7 @@ userStakeBondedPoolContract params@(BondedPoolParams
             stakeValue = singleton assetCs assetTn amtBigInt
             entryValue = singleton assocListCs assocListTn one
 
-            -- Get the minting policy and currency symbol from the list NFT:
+          -- Get the minting policy and currency symbol from the list NFT:
           listPolicy <- liftedE $ mkListNFTPolicy Bonded nftCs
 
           entryDatumLookup <-
@@ -428,15 +428,17 @@ userStakeBondedPoolContract params@(BondedPoolParams
             $ fromData (unwrap firstListDatum)
 
           -- The updated first Entry Datum
-          firstEntryDatum <- case firstBondedListDatum of
+          firstConstraints /\ firstLookups <- case firstBondedListDatum of
             EntryDatum { entry } -> do
               let e = unwrap entry
-              if isJust mintingAction
-                then do -- a new middle entry is created so update next
+              firstEntryDatum <- case mintingAction of
+                -- MintInBetween and MintEnd are the same here
+                Just _ ->
+                  -- a new middle entry is created so update next
                   pure $ Datum $ toData $ EntryDatum { entry: Entry $ e
                     { next = Just hashedUserPkh
                     } }
-                else do -- depositing/updating at the first entry
+                Nothing -> do -- depositing/updating at the first entry
                   let updateDeposited = e.deposited + amtBigInt
                   unless (toBigInt minStake <= updateDeposited && updateDeposited <= toBigInt maxStake)
                     $ throwContractError
@@ -446,6 +448,29 @@ userStakeBondedPoolContract params@(BondedPoolParams
                     { newDeposit = e.newDeposit + amtBigInt
                     , deposited = updateDeposited
                     } }
+                _ -> throwContractError "userStakeBondedPoolContract: Shouldn't\
+                  \be minting head"
+              firstEntryDatumLookup <-
+                liftContractM
+                  "userStakeBondedPoolContract: Could not create state datum lookup"
+                  $ ScriptLookups.datum firstEntryDatum
+              listPolicy <- liftedE $ mkListNFTPolicy Bonded nftCs
+              let
+                valRedeemer = Redeemer $ toData $ StakeAct
+                  { stakeAmount: amt
+                  , stakeHolder: userPkh
+                  , mintingAction
+                  }
+                entryValue = singleton assocListCs assocListTn one
+                constr = mconcat
+                  [ mustPayToScript valHash firstEntryDatum entryValue
+                  , mustSpendScriptOutput firstInput valRedeemer
+                  ]
+                lu = mconcat
+                  [ firstEntryDatumLookup
+                  , ScriptLookups.mintingPolicy listPolicy
+                  ]
+              pure $ constr /\ lu
             _ -> throwContractError"userStakeBondedPoolContract: Datum not \
               \Entry constructor"
           middleConstraints /\ middleLookups <- if isJust mintingAction
@@ -501,10 +526,9 @@ userStakeBondedPoolContract params@(BondedPoolParams
             else pure $ mempty /\ mempty
 
            -- Get the Entry datum of the old assoc. list (second) element
-          lastEntryDatum <- case secondOutput of
-            Nothing -> do
-
-            Just so -> do --
+          lastConstraints /\ lastLookups <- case secondOutput, secondInput of
+            Nothing, Nothing -> pure $ mempty /\ mempty
+            Just so, Just si -> do --
               dHash <-  liftContractM
                 "userStakeBondedPoolContract: Could not get Entry Datum Hash"
                 (unwrap so).dataHash
@@ -514,54 +538,56 @@ userStakeBondedPoolContract params@(BondedPoolParams
               secondBondedListDatum :: BondedStakingDatum <- liftContractM
                 "userStakeBondedPoolContract: Cannot extract NFT State datum"
                 $ fromData (unwrap secondListDatum)
-              
+
               -- Unchanged in the case
-              case secondBondedListDatum of
+              lastEntryDatum <- case secondBondedListDatum of
                 EntryDatum { entry } ->
                   pure $ Datum $ toData $ EntryDatum { entry }
                 _ -> throwContractError"userStakeBondedPoolContract: Datum not \
                   \Entry constructor"
 
-          throwContractError"userStakeBondedPoolContract: Datum not \
+              let
+                valRedeemer = Redeemer $ toData $ StakeAct
+                  { stakeAmount: amt
+                  , stakeHolder: userPkh
+                  , mintingAction
+                  }
+              -- Get the minting policy and currency symbol from the list NFT:
+              listPolicy <- liftedE $ mkListNFTPolicy Bonded nftCs
+
+              lastEntryDatumLookup <-
+                liftContractM
+                  "userStakeBondedPoolContract: Could not create state datum lookup"
+                  $ ScriptLookups.datum lastEntryDatum
+              let
+                entryValue = singleton assocListCs assocListTn one
+                constr = mconcat
+                  [ mustPayToScript valHash lastEntryDatum entryValue
+                  , mustSpendScriptOutput si valRedeemer
+                  ]
+                lu = mconcat
+                  [ ScriptLookups.mintingPolicy listPolicy
+                  , lastEntryDatumLookup
+                  ]
+              pure $ constr /\ lu
+            _, _ -> throwContractError"userStakeBondedPoolContract: Datum not\
               \Entry constructor"
-
-
-
-          -- let
-          --   assetDatum = Datum $ toData AssetDatum
-          --   stateTokenValue = singleton nftCs tokenName one
-          --   assetParams = unwrap bondedAssetClass
-          --   assetCs = assetParams.currencySymbol
-          --   assetTn = assetParams.tokenName
-          --   stakeValue = singleton assetCs assetTn amtBigInt
-          --   entryValue = singleton assocListCs assocListTn one
-
-          --   -- Get the minting policy and currency symbol from the list NFT:
-          -- listPolicy <- liftedE $ mkListNFTPolicy Bonded nftCs
-
-          -- entryDatumLookup <-
-          --   liftContractM
-          --     "userStakeBondedPoolContract: Could not create state datum lookup"
-          --     $ ScriptLookups.datum entryDatum
-          -- let
-          --   constraints :: TxConstraints Unit Unit
-          --   constraints =
-          --     mconcat
-          --       [ mustPayToScript valHash assetDatum stakeValue
-          --       , mustPayToScript valHash entryDatum entryValue
-          --       , mustBeSignedBy userPkh
-          --       , mustSpendScriptOutput txIn valRedeemer
-          --       ]
-
-          --   lookup :: ScriptLookups.ScriptLookups PlutusData
-          --   lookup = mconcat
-          --     [ ScriptLookups.validator validator
-          --     , ScriptLookups.unspentOutputs $ unwrap userUtxos
-          --     , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
-          --     , entryDatumLookup
-          --     ]
-          -- pure $ constraints /\ lookup
-
+          pure $
+            mconcat
+              [ firstConstraints
+              , middleConstraints
+              , lastConstraints
+              , mustBeSignedBy userPkh
+              ]
+            /\
+              mconcat
+                [ ScriptLookups.validator validator
+                , ScriptLookups.unspentOutputs $ unwrap userUtxos
+                , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
+                , firstLookups
+                , middleLookups
+                , lastLookups
+                ]
     _ -> throwContractError "findAssocLuserStakeBondedPoolContractistUtxo: \
           \Datum incorrect type"
 

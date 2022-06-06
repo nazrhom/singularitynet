@@ -10,8 +10,7 @@ module Types
   , MintingAction(..)
   , PoolInfo(..)
   , StakingType(..)
-  )
-  where
+  ) where
 
 import Contract.Prelude
 
@@ -20,7 +19,7 @@ import Contract.Numeric.Natural (Natural)
 import Contract.Numeric.Rational (Rational)
 import Contract.PlutusData
   ( class FromData
-  ,  class HasPlutusSchema
+  , class HasPlutusSchema
   , class ToData
   , type (:+)
   , type (:=)
@@ -202,7 +201,6 @@ instance
         @@ (S (S Z))
         :+ PNil
     )
-
 
 instance FromData BondedStakingDatum where
   fromData = genericFromData

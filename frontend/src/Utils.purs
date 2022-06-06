@@ -7,8 +7,7 @@ module Utils
   , mkBondedPoolParams
   , mkUnbondedPoolParams
   , nat
-  )
-  where
+  ) where
 
 import Contract.Prelude
 
