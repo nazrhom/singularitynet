@@ -46,9 +46,9 @@ import PNatural (
   PNatRatio,
   PNatural,
   PNonNegative ((#*), (#+)),
-  roundDown,
   natZero,
   ratZero,
+  roundDown,
   toNatRatio,
  )
 import PTypes (
@@ -100,8 +100,8 @@ import Utils (
 import GHC.Records (getField)
 import InductiveLogic (
   doesNotConsumeBondedAssetGuard,
-  hasListNft,
   hasEntryToken,
+  hasListNft,
   hasStateToken,
   pointsNowhere,
   pointsTo,
