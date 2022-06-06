@@ -31,6 +31,7 @@ import PNatural (
   PNatural,
   PNonNegative ((#*), (#+)),
   toNatRatio,
+  roundDown
  )
 import PTypes (
   PAssetClass,
@@ -85,8 +86,11 @@ import Utils (
   ptryFromUndata,
   punit,
   pfind,
+  pnestedIf,
+  (>:),
   signedBy,
   signedOnlyBy,
+  getTokenTotal
  )
 
 import GHC.Records (getField)
@@ -671,19 +675,48 @@ withdrawActLogic
   guardC "withdrawActLogic: tx not exclusively signed by the stake-holder" $
     signedOnlyBy txInfo.signatories act.pubKeyHash
   -- Get resulting output with staked assets and accrued rewards
-  withdrawOutput <-
+  withdrawnOutput <-
     getOutputSignedBy act.pubKeyHash txInfo.outputs
   -- Check business and inductive conditions depending on redeemer
   pure . pmatch (pfromData act.burningAction) $ \case
     PBurnHead outRefs' -> unTermCont $ do
       outRefs <- tcont . pletFields @'["state", "headEntry"] $ outRefs'
-      -- We check all conditions when consuming the state UTXO
-      --let withdrawHeadCheck =
-      --      withdrawHeadActLogic
-      --        spentInput act.pubKeyHash datum txInfo params outRefs.headEntry
-      pure $ pif (spentInput.outRef #== outRefs.state)
-              _
-              punit
+      -- We check most conditions when consuming the state UTXO
+      let withdrawHeadCheck =
+            withdrawHeadActLogic
+              spentInput
+              act.pubKeyHash
+              datum
+              txInfo
+              params
+              outRefs.state
+              outRefs.headEntry
+          -- We validate the entry is effectively the head entry when consuming
+          -- it
+          entryCheck :: Term s PUnit
+          entryCheck = unTermCont $ do
+            guardC "withdrawHeadActLogic: spent entry is not an entry (no List \
+                   \NFT)" $
+              hasListNft params.assocListCs (pfield @"value" # spentInput.resolved)
+            guardC "withdrawHeadActLogic: spent entry does not match redeemer \
+                   \TxOutRef" $
+              outRefs.headEntry #== spentInput.outRef
+          -- We validate the asset input is effectively an asset UTXO
+          assetCheck :: Term s PUnit
+          assetCheck = unTermCont $ do
+            datum <-
+              parseStakingDatum @PBondedStakingDatum
+              <=< flip getDatum (getField @"data" txInfo)
+              <=< getDatumHash
+              $ spentInput.resolved
+            pure $ pmatch datum $ \case 
+              PAssetDatum _ -> punit
+              _ -> ptraceError "withdrawActLogic: expected asset input"
+      pure $
+        pnestedIf
+          [spentInput.outRef #== outRefs.state >: withdrawHeadCheck,
+           spentInput.outRef #== outRefs.headEntry >: entryCheck]
+           assetCheck
     PBurnOther entries' -> _
 
 withdrawHeadActLogic ::
@@ -723,9 +756,16 @@ withdrawHeadActLogic spentInput holderPkh datum txInfo params stateOutRef headEn
       =<< parseStakingDatum
       =<< getDatum nextStateHash txInfoData
   -- Get datum for current state
-  (entryKey, _sizeLeft) <- getStateData datum
+  entryKey <- getKey =<< fst <$> getStateData datum
   -- Get datum for head entry
   headEntry <- getInputEntry headEntryOutRef txInfoData txInfo.inputs
+  ---- BUSINESS LOGIC ----
+  -- Validate that withdrawn amount matches round_down(stake + rewards)
+  let withdrawnAmt :: Term s PNatural
+      withdrawnAmt = getTokenTotal params.bondedAssetClass txInfo.inputs
+  guardC "withdrawHeadActLogic: withdrawn amount does not match stake and \
+         \rewards" $
+    withdrawnAmt #== roundDown (toNatRatio headEntry.staked #+ headEntry.rewards)
   ---- INDUCTIVE CONDITIONS ----
   -- Validate that spentOutRef is the state UTXO and matches redeemer
   guardC "withdrawHeadActLogic: spent input is not the state UTXO" $
@@ -735,6 +775,9 @@ withdrawHeadActLogic spentInput holderPkh datum txInfo params stateOutRef headEn
     "withdrawHeadActLogic: spent input does not match redeemer \
     \input"
     $ spentInput.outRef #== pdata stateOutRef
+  -- Validate that consumed entry is head of the list
+  guardC "withdrawHeadActLogic: spent entry is not head of the list" $
+    entryKey #== headEntry.key
   -- Validate next state
   guardC
     "withdrawHeadActLogic: next pool state does not point to same location as \
@@ -940,6 +983,13 @@ equalEntriesGuard e1 e2 =
       #&& e1.newDeposit #== e2.newDeposit
       #&& e1.staked #== e2.staked
       #&& e1.rewards #== e2.rewards
+      
+getKey :: forall (s :: S).
+  Term s (PMaybeData PByteString) -> TermCont s (Term s PByteString)
+getKey = pure . flip pmatch (\case
+  PDJust key -> pfield @"_0" # key
+  PDNothing _ -> ptraceError "getKey: no key found")
+
 
 natZero :: Term s PNatural
 natZero = pconstant $ Natural 0
