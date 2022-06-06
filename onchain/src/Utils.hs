@@ -62,11 +62,11 @@ module Utils (
 ) where
 
 import GHC.TypeLits (Symbol)
-import SingularityNet.Natural(Natural(Natural))
-import PNatural (PNatRatio, PNatural(PNatural), PNonNegative ((#+)))
+import PNatural (PNatRatio, PNatural (PNatural), PNonNegative ((#+)))
 import PTypes (PAssetClass, passetClass)
 import Plutarch.Api.V1 (
   PAddress,
+  PCredential (PPubKeyCredential),
   PCurrencySymbol,
   PDCert,
   PDatum,
@@ -82,7 +82,6 @@ import Plutarch.Api.V1 (
   PTuple,
   PTxId,
   PValue,
-  PCredential(PPubKeyCredential),
   ptuple,
  )
 import Plutarch.Api.V1.Tx (PTxInInfo, PTxOut, PTxOutRef)
@@ -95,6 +94,7 @@ import Plutarch.Lift (
   PUnsafeLiftDecl,
  )
 import Plutarch.TryFrom (PTryFrom, ptryFrom)
+import SingularityNet.Natural (Natural (Natural))
 
 import UnbondedStaking.PTypes (PBoolData (PDFalse, PDTrue))
 
@@ -368,43 +368,58 @@ getTokenCount ::
   Term s PNatural
 getTokenCount ac val =
   getTokenCount' # ac # pto (pto val)
-  where getTokenCount' ::
-          forall (s :: S).
-          Term s (
-            PAssetClass :-->
-            PValueOuter :-->
-            PNatural)
-        getTokenCount' = phoistAcyclic $ plam $ \ac' val -> unTermCont $ do
-          ac <- tcont . pletFields @'["currencySymbol", "tokenName"] $ ac'
-          let cs = pfromData ac.currencySymbol
-              tn = pfromData ac.tokenName 
-          pure $ pfoldl # (foldCsMap # cs # tn) # pconstant (Natural 0) # val
-        foldCsMap :: forall (s :: S) .
-          Term s (
-            PCurrencySymbol :-->
-            PTokenName :-->
-            PNatural :-->
-            PBuiltinPair (PAsData PCurrencySymbol)
-                         (PAsData (PMap PTokenName PInteger)) :-->
-            PNatural)
-        foldCsMap = phoistAcyclic $ plam $ \cs tn acc pair ->
-          runTermCont (ppairData pair) $ \(cs', tnMap) ->
-            pif (cs #== cs')
-                (pfoldl # (foldTnMap # tn) # acc # pto tnMap)
-                acc
-        foldTnMap :: forall (s :: S).
-          Term s (
-            PTokenName :-->
-            PNatural :-->
-            PBuiltinPair (PAsData PTokenName)
-                         (PAsData PInteger) :-->
-            PNatural
-          )
-        foldTnMap = phoistAcyclic $ plam $ \tn acc pair ->
-          runTermCont (ppairData pair) $ \(tn', n) ->
-            pif (tn #== tn')
-                (acc #+ (pcon $ PNatural n))
-                acc
+  where
+    getTokenCount' ::
+      forall (s :: S).
+      Term
+        s
+        ( PAssetClass
+            :--> PValueOuter
+            :--> PNatural
+        )
+    getTokenCount' = phoistAcyclic $
+      plam $ \ac' val -> unTermCont $ do
+        ac <- tcont . pletFields @'["currencySymbol", "tokenName"] $ ac'
+        let cs = pfromData ac.currencySymbol
+            tn = pfromData ac.tokenName
+        pure $ pfoldl # (foldCsMap # cs # tn) # pconstant (Natural 0) # val
+    foldCsMap ::
+      forall (s :: S).
+      Term
+        s
+        ( PCurrencySymbol
+            :--> PTokenName
+            :--> PNatural
+            :--> PBuiltinPair
+                  (PAsData PCurrencySymbol)
+                  (PAsData (PMap PTokenName PInteger))
+            :--> PNatural
+        )
+    foldCsMap = phoistAcyclic $
+      plam $ \cs tn acc pair ->
+        runTermCont (ppairData pair) $ \(cs', tnMap) ->
+          pif
+            (cs #== cs')
+            (pfoldl # (foldTnMap # tn) # acc # pto tnMap)
+            acc
+    foldTnMap ::
+      forall (s :: S).
+      Term
+        s
+        ( PTokenName
+            :--> PNatural
+            :--> PBuiltinPair
+                  (PAsData PTokenName)
+                  (PAsData PInteger)
+            :--> PNatural
+        )
+    foldTnMap = phoistAcyclic $
+      plam $ \tn acc pair ->
+        runTermCont (ppairData pair) $ \(tn', n) ->
+          pif
+            (tn #== tn')
+            (acc #+ (pcon $ PNatural n))
+            acc
 
 -- go self ls cont = pmatch ls $ \case
 --  PNil -> pconstant False
@@ -767,7 +782,7 @@ getContinuingOutputWithNFT addr ac outputs =
       pure $
         pdata outputF.address #== pdata addr
           #&& oneOf # acF.currencySymbol # acF.tokenName # outputF.value
-          
+
 getOutputSignedBy ::
   forall (s :: S).
   Term s PPubKeyHash ->
@@ -775,11 +790,12 @@ getOutputSignedBy ::
   TermCont s (Term s PTxOut)
 getOutputSignedBy pkh outputs = do
   credential <- pletC $ mkPubKeyCredential pkh
-  output <- flip pfind outputs $ plam $ \output -> unTermCont $ do
-    let credential' = pfield @"credential" #$ pfield @"address" # output
-    pure $ pdata credential #== pdata credential'
+  output <- flip pfind outputs $
+    plam $ \output -> unTermCont $ do
+      let credential' = pfield @"credential" #$ pfield @"address" # output
+      pure $ pdata credential #== pdata credential'
   pure $ pfromData output
-  
+
 getTokenTotal ::
   forall (s :: S).
   Term s PAssetClass ->
@@ -787,15 +803,20 @@ getTokenTotal ::
   Term s PNatural
 getTokenTotal ac inputs =
   pfoldl # (sumAmount # ac) # pconstant (Natural 0) # inputs
-  where sumAmount :: Term s (
-          PAssetClass :-->
-          PNatural :-->
-          PAsData PTxInInfo :-->
-          PNatural)
-        sumAmount = phoistAcyclic $ plam $ \ac acc input ->
-          let val = pfield @"value" #$ pfield @"resolved" # pfromData input
-          in acc #+ getTokenCount ac val
-          
+  where
+    sumAmount ::
+      Term
+        s
+        ( PAssetClass
+            :--> PNatural
+            :--> PAsData PTxInInfo
+            :--> PNatural
+        )
+    sumAmount = phoistAcyclic $
+      plam $ \ac acc input ->
+        let val = pfield @"value" #$ pfield @"resolved" # pfromData input
+         in acc #+ getTokenCount ac val
+
 {- | Gets the `DatumHash` from a `PTxOut`. If not available, it will fail with
  an error.
 -}

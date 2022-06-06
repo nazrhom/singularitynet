@@ -22,10 +22,10 @@ import PTypes (
  )
 
 import InductiveLogic (
-  consumesEntryGuard,
-  consumesStateUtxoGuard,
-  consumesStateUtxoAndEntryGuard,
   consumesEntriesGuard,
+  consumesEntryGuard,
+  consumesStateUtxoAndEntryGuard,
+  consumesStateUtxoGuard,
   hasNoNft,
   inputPredicate,
  )
@@ -152,25 +152,25 @@ listRemoveCheck
   stateTok
   listTok@(listNftCs, entryTn)
   burnAct = unTermCont $ do
-  -- Validate stake-holder's signature and token count
-  burnGuard listNftCs entryTn mintVal
-  pure . pmatch burnAct $ \case
-    PBurnHead outRefs' -> unTermCont $ do
-      outRefs <- tcont . pletFields @'["state", "headEntry"] $ outRefs'
-      burnHeadGuard
-        stateTok
-        listTok
-        (pfromData outRefs.state)
-        (pfromData outRefs.headEntry)
-        inputs
-    PBurnOther outRefs' -> unTermCont $ do
-      outRefs <- tcont . pletFields @'["previousEntry", "burnEntry"] $ outRefs'
-      burnOtherGuard
-        stateTok
-        listTok
-        (pfromData outRefs.previousEntry)
-        (pfromData outRefs.burnEntry)
-        inputs
+    -- Validate stake-holder's signature and token count
+    burnGuard listNftCs entryTn mintVal
+    pure . pmatch burnAct $ \case
+      PBurnHead outRefs' -> unTermCont $ do
+        outRefs <- tcont . pletFields @'["state", "headEntry"] $ outRefs'
+        burnHeadGuard
+          stateTok
+          listTok
+          (pfromData outRefs.state)
+          (pfromData outRefs.headEntry)
+          inputs
+      PBurnOther outRefs' -> unTermCont $ do
+        outRefs <- tcont . pletFields @'["previousEntry", "burnEntry"] $ outRefs'
+        burnOtherGuard
+          stateTok
+          listTok
+          (pfromData outRefs.previousEntry)
+          (pfromData outRefs.burnEntry)
+          inputs
 
 -- TODO
 
@@ -241,7 +241,7 @@ mintEndGuard stateNftCs listNftCs lastEntry inputs = do
   consumesEntryGuard lastEntry inputs listNftCs
   -- We check that the other inputs are not state nor list UTXOs
   noNftGuard stateNftCs listNftCs [lastEntry] inputs
-  
+
 burnHeadGuard ::
   forall (s :: S).
   (Term s PCurrencySymbol, Term s PTokenName) ->
@@ -256,15 +256,15 @@ burnHeadGuard
   stateOutRef
   entryOutRef
   inputs = do
-  -- We check that the state UTXO and entry are consumed
-  consumesStateUtxoAndEntryGuard
-    stateOutRef
-    entryOutRef
-    inputs
-    stateTok
-    entryTok
-  -- We check that the other inputs are not state nor list UTXOs
-  noNftGuard stateNftCs listNftCs [stateOutRef, entryOutRef] inputs
+    -- We check that the state UTXO and entry are consumed
+    consumesStateUtxoAndEntryGuard
+      stateOutRef
+      entryOutRef
+      inputs
+      stateTok
+      entryTok
+    -- We check that the other inputs are not state nor list UTXOs
+    noNftGuard stateNftCs listNftCs [stateOutRef, entryOutRef] inputs
 
 burnOtherGuard ::
   forall (s :: S).

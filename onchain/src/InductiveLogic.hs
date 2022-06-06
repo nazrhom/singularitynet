@@ -83,24 +83,33 @@ consumesStateUtxoAndEntryGuard
   inputs
   stateTok
   entryTok = do
-  _ <- flip pfind inputs . inputPredicate $ \outRef val ->
-    pif
-      (pdata outRef #== pdata stateOutRef)
-      ( pif
-          (val `hasStateToken` stateTok)
-          ptrue
-          (ptraceError "consumesStateUtxoAndEntryGuard: state UTxO does not \
-            \have pool NFT"))
-      ( pif (pdata outRef #== pdata entryOutRef)
+    _ <- flip pfind inputs . inputPredicate $ \outRef val ->
+      pif
+        (pdata outRef #== pdata stateOutRef)
+        ( pif
+            (val `hasStateToken` stateTok)
+            ptrue
+            ( ptraceError
+                "consumesStateUtxoAndEntryGuard: state UTxO does not \
+                \have pool NFT"
+            )
+        )
+        ( pif
+            (pdata outRef #== pdata entryOutRef)
             ( pif
                 (val `hasEntryToken` entryTok)
                 ptrue
-                (ptraceError "consumesStateUtxoAndEntryGuard: entry UTxO does \
-                  \not have the expecte entry NFT"))
-            pfalse)
-  pure punit
-            --(ptraceError "consumesStateUtxoAndEntryGuard: txOutRef does not \
-            --  \have list NFT"))
+                ( ptraceError
+                    "consumesStateUtxoAndEntryGuard: entry UTxO does \
+                    \not have the expecte entry NFT"
+                )
+            )
+            pfalse
+        )
+    pure punit
+
+-- (ptraceError "consumesStateUtxoAndEntryGuard: txOutRef does not \
+--  \have list NFT"))
 
 {- | Fails if the two entries are not present in inputs or they don't have a
  list token
@@ -199,7 +208,7 @@ hasListNft listNftCs val = hasListNft' # listNftCs # val
           # (pconst ptrue)
           # (peq # 1)
           # val
-          
+
 hasEntryToken ::
   forall (s :: S).
   Term s PValue ->
