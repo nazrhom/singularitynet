@@ -100,7 +100,8 @@ common common-lang
 library
   import:          common-lang
   exposed-modules:
-    BondedPool
+    BondedStaking.BondedPool
+    BondedStaking.PTypes
     InductiveLogic
     ListNFT
     PInterval
