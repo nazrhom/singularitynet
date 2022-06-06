@@ -1,8 +1,9 @@
 module CallContract
-  ( ContractConfiguration
+  ( SdkConfig
   , callClosePool
   , callCreateBondedPool
   , callDepositBondedPool
+  , buildContractConfig
   ) where
 
 import Contract.Prelude
@@ -54,7 +55,7 @@ import Types.CborBytes (cborBytesToHex)
 import Types.RawBytes (hexToRawBytes, rawBytesToHex)
 
 -- | Configuation needed to call contracts from JS.
-type ContractConfiguration =
+type SdkConfig =
   { serverHost :: String
   , serverPort :: Number -- converts to UInt
   , serverSecure :: Boolean
@@ -98,15 +99,16 @@ type BondedPoolArgs =
   }
 
 fromLogLevelStr :: String -> Maybe LogLevel
-fromLogLevelStr "Trace" = pure Trace
-fromLogLevelStr "Debug" = pure Debug
-fromLogLevelStr "Info" = pure Info -- default
-fromLogLevelStr "Warn" = pure Warn
-fromLogLevelStr "Error" = pure Error
-fromLogLevelStr _ = Nothing
+fromLogLevelStr = case _ of
+  "Trace" -> pure Trace
+  "Debug" -> pure Debug
+  "Info" -> pure Info -- default
+  "Warn" -> pure Warn
+  "Error" -> pure Error
+  _ -> Nothing
 
-buildContractConfig :: ContractConfiguration -> Aff (ContractConfig ())
-buildContractConfig cfg = do
+buildContractConfig :: SdkConfig -> Effect (Promise (ContractConfig ()))
+buildContractConfig cfg = Promise.fromAff $ do
   serverPort <- convertPort "server" cfg.serverPort
   ogmiosPort <- convertPort "ogmios" cfg.ogmiosPort
   datumCachePort <- convertPort "datum cache" cfg.datumCachePort
@@ -145,32 +147,31 @@ buildContractConfig cfg = do
       $ UInt.fromNumber' port
 
 callCreateBondedPool
-  :: ContractConfiguration
+  :: (ContractConfig ())
   -> InitialBondedArgs
   -> Effect (Promise BondedPoolArgs)
 callCreateBondedPool cfg iba = Promise.fromAff do
-  contractConfig <- buildContractConfig cfg
   ibp <- liftEither $ fromInitialBondedArgs iba
-  bpp <- runContract contractConfig (createBondedPoolContract ibp)
+  bpp <- runContract cfg $ createBondedPoolContract ibp
   pure $ toBondedPoolArgs bpp
 
 callDepositBondedPool
-  :: ContractConfiguration -> BondedPoolArgs -> Effect (Promise Unit)
+  :: (ContractConfig ()) -> BondedPoolArgs -> Effect (Promise Unit)
 callDepositBondedPool = callWithBondedPoolArgs depositBondedPoolContract
 
 callClosePool
-  :: ContractConfiguration -> BondedPoolArgs -> Effect (Promise Unit)
+  :: (ContractConfig ()) -> BondedPoolArgs -> Effect (Promise Unit)
 callClosePool = callWithBondedPoolArgs closeBondedPoolContract
 
 callWithBondedPoolArgs
   :: (BondedPoolParams -> Contract () Unit)
-  -> ContractConfiguration
+  -> (ContractConfig ())
   -> BondedPoolArgs
   -> Effect (Promise Unit)
-callWithBondedPoolArgs contract cfg bpa = Promise.fromAff do
-  contractConfig <- buildContractConfig cfg
-  bpp <- liftEither $ fromBondedPoolArgs bpa
-  runContract contractConfig (contract bpp)
+callWithBondedPoolArgs contract cfg bpa = Promise.fromAff
+  $ runContract cfg
+  <<< contract
+  =<< liftEither (fromBondedPoolArgs bpa)
 
 fromInitialBondedArgs
   :: InitialBondedArgs -> Either Error InitialBondedParams

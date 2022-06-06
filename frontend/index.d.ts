@@ -1,19 +1,28 @@
+// This is something of a hack for creating an opaque type without nominal typing,
+// which typescript lacks
+//
+// It should not be possible to directly construct `ContractConfig`s
+declare const cfg: unique symbol;
+export type ContractConfig = typeof cfg;
+
+export function buildContractConfig(config: SdkConfig): Promise<ContractConfig>
+
 export function callCreatePool(
-  config: ContractConfiguration, args: InitialBondedArgs
+  config: ContractConfig, args: InitialBondedArgs
 ):
   Promise<BondedPoolArgs>
 
 export function callDepositPool(
-  config: ContractConfiguration, args: BondedPoolArgs
+  config: ContractConfig, args: BondedPoolArgs
 ):
   Promise<void>
 
 export function callClosePool(
-  config: ContractConfiguration, args: BondedPoolArgs
+  config: ContractConfig, args: BondedPoolArgs
 ):
   Promise<void>
 
-export type ContractConfiguration = {
+export type SdkConfig = {
   serverHost: string; // e.g. "localhost"
   serverPort: number; // uint
   serverSecure: boolean;
