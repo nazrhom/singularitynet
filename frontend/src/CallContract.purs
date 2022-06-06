@@ -97,12 +97,13 @@ type BondedPoolArgs =
   }
 
 fromLogLevelStr :: String -> Maybe LogLevel
-fromLogLevelStr "Trace" = pure Trace
-fromLogLevelStr "Debug" = pure Debug
-fromLogLevelStr "Info" = pure Info -- default
-fromLogLevelStr "Warn" = pure Warn
-fromLogLevelStr "Error" = pure Error
-fromLogLevelStr _ = Nothing
+fromLogLevelStr = case _ of
+  "Trace" -> pure Trace
+  "Debug" -> pure Debug
+  "Info" -> pure Info -- default
+  "Warn" -> pure Warn
+  "Error" -> pure Error
+  _ -> Nothing
 
 buildContractConfig :: SdkConfig -> Aff (ContractConfig ())
 buildContractConfig cfg = do
@@ -145,32 +146,31 @@ buildContractConfig cfg = do
       $ UInt.fromNumber' port
 
 callCreateBondedPool
-  :: SdkConfig
+  :: (ContractConfig ())
   -> InitialBondedArgs
   -> Effect (Promise BondedPoolArgs)
 callCreateBondedPool cfg iba = Promise.fromAff do
-  contractConfig <- buildContractConfig cfg
   ibp <- liftEither $ fromInitialBondedArgs iba
-  bpp <- runContract contractConfig (createBondedPoolContract ibp)
+  bpp <- runContract cfg $ createBondedPoolContract ibp
   pure $ toBondedPoolArgs bpp
 
 callDepositBondedPool
-  :: SdkConfig -> BondedPoolArgs -> Effect (Promise Unit)
+  :: (ContractConfig ()) -> BondedPoolArgs -> Effect (Promise Unit)
 callDepositBondedPool = callWithBondedPoolArgs depositBondedPoolContract
 
 callClosePool
-  :: SdkConfig -> BondedPoolArgs -> Effect (Promise Unit)
+  :: (ContractConfig ()) -> BondedPoolArgs -> Effect (Promise Unit)
 callClosePool = callWithBondedPoolArgs closeBondedPoolContract
 
 callWithBondedPoolArgs
   :: (BondedPoolParams -> Contract () Unit)
-  -> SdkConfig
+  -> (ContractConfig ())
   -> BondedPoolArgs
   -> Effect (Promise Unit)
-callWithBondedPoolArgs contract cfg bpa = Promise.fromAff do
-  contractConfig <- buildContractConfig cfg
-  bpp <- liftEither $ fromBondedPoolArgs bpa
-  runContract contractConfig (contract bpp)
+callWithBondedPoolArgs contract cfg bpa = Promise.fromAff
+  $ runContract cfg
+  <<< contract
+  =<< liftEither (fromBondedPoolArgs bpa)
 
 fromInitialBondedArgs
   :: InitialBondedArgs -> Either Error InitialBondedParams
