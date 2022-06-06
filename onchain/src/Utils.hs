@@ -42,6 +42,7 @@ module Utils (
   getContinuingOutputWithNFT,
   getOutputSignedBy,
   getTokenTotal,
+  getCoWithDatum,
   getOnlySignatory,
   signedBy,
   signedOnlyBy,
@@ -50,15 +51,6 @@ module Utils (
   toPBool,
   mkPubKeyCredential,
   (>:),
-  PTxInfoFields,
-  PTxInfoHRec,
-  PBondedPoolParamsHRec,
-  PBondedPoolParamsFields,
-  PTxInInfoFields,
-  PEntryFields,
-  PEntryHRec,
-  PTxInInfoHRec,
-  HField,
 ) where
 
 import GHC.TypeLits (Symbol)
@@ -68,27 +60,22 @@ import Plutarch.Api.V1 (
   PAddress,
   PCredential (PPubKeyCredential),
   PCurrencySymbol,
-  PDCert,
   PDatum,
   PDatumHash,
   PMap,
   PMaybeData (PDJust, PDNothing),
-  PPOSIXTime,
-  PPOSIXTimeRange,
   PPubKeyHash,
   PScriptPurpose (PMinting, PSpending),
-  PStakingCredential,
   PTokenName,
   PTuple,
-  PTxId,
   PValue,
+  PPOSIXTime,
   ptuple,
  )
+import Plutarch.Api.V1.Tuple (pbuiltinPairFromTuple)
 import Plutarch.Api.V1.Tx (PTxInInfo, PTxOut, PTxOutRef)
 import Plutarch.Bool (pand, por)
 import Plutarch.Builtin (pforgetData)
-import Plutarch.DataRepr (HRec)
-import Plutarch.DataRepr.Internal.Field (Labeled)
 import Plutarch.Lift (
   PLifted,
   PUnsafeLiftDecl,
@@ -97,6 +84,8 @@ import Plutarch.TryFrom (PTryFrom, ptryFrom)
 import SingularityNet.Natural (Natural (Natural))
 
 import UnbondedStaking.PTypes (PBoolData (PDFalse, PDTrue))
+import Plutarch.DataRepr (HRec)
+import Plutarch.DataRepr.Internal.Field (Labeled)
 
 -- Term-level boolean functions
 peq :: forall (s :: S) (a :: PType). PEq a => Term s (a :--> a :--> PBool)
@@ -817,6 +806,55 @@ getTokenTotal ac inputs =
         let val = pfield @"value" #$ pfield @"resolved" # pfromData input
          in acc #+ getTokenCount ac val
 
+{- | Gets the CO and datum that satisfy the given datum predicate.
+ It fails if no CO is found, or no CO satisfies the predicate, or too many COs
+ are found
+-}
+getCoWithDatum ::
+  forall (s :: S).
+  Term s PAddress ->
+  Term s (PDatum :--> PBool) ->
+  Term s (PBuiltinList (PAsData PTxOut)) ->
+  Term s (PBuiltinList (PAsData (PTuple PDatumHash PDatum))) ->
+  TermCont s (Term s PTxOut, Term s PDatum)
+getCoWithDatum poolAddr pred outputs datums = do
+  -- Filter COs with address and datum from outputs
+  cos <- pletC . flip pmapMaybe outputs . plam $
+    \output -> unTermCont $ do
+      outputF <- tcont $ pletFields @'["address", "datumHash"] output
+      pure $
+        pif
+          (pnot #$ pdata outputF.address #== pdata poolAddr)
+          -- Address does not match, ignore output
+          (pcon PNothing)
+          $ pmatch outputF.datumHash $ \case
+            -- Output does not have a datum, fail (pool outputs always
+            -- should)
+            PDNothing _ ->
+              ptraceError "getCoWithDatum: found CO without a datum"
+            PDJust datHash -> unTermCont $ do
+              datum <- getDatum (pfield @"_0" # datHash) datums
+              pure $
+                pif
+                  (pred # datum)
+                  ( pcon . PJust . pbuiltinPairFromTuple . pdata $
+                      ptuple # output # pdata datum
+                  )
+                  -- Datum does not satisfy predicate, ignore output
+                  (pcon PNothing)
+  -- Make sure it's the only output
+  ppairData . pmatch cos $ \case
+    PNil ->
+      ptraceError
+        "getCoWithDatum: found more than one CO with given \
+        \ datum"
+    PCons x xs -> pmatch xs $ \case
+      PCons _ _ ->
+        ptraceError
+          "getCoWithDatum: found more than one CO with\
+          \ given datum"
+      PNil -> pfromData x
+
 {- | Gets the `DatumHash` from a `PTxOut`. If not available, it will fail with
  an error.
 -}
@@ -897,24 +935,11 @@ signedOnlyBy ::
   Term s PBool
 signedOnlyBy ls pkh = signedBy ls pkh #&& plength # ls #== 1
 
+-- Helper functions for working with Plutarch synonyms types
+
 -- Useful type family for reducing boilerplate in HRec types
 type family HField (s :: S) (field :: Symbol) (ptype :: PType) where
   HField s field ptype = Labeled field (Term s (PAsData ptype))
-
--- | HRec with all of `PTxInfo`'s fields
-type PTxInfoHRec (s :: S) =
-  HRec
-    '[ HField s "inputs" (PBuiltinList (PAsData PTxInInfo))
-     , HField s "outputs" (PBuiltinList (PAsData PTxOut))
-     , HField s "fee" PValue
-     , HField s "mint" PValue
-     , HField s "dcert" (PBuiltinList (PAsData PDCert))
-     , HField s "wdrl" (PBuiltinList (PAsData (PTuple PStakingCredential PInteger)))
-     , HField s "validRange" PPOSIXTimeRange
-     , HField s "signatories" (PBuiltinList (PAsData PPubKeyHash))
-     , HField s "data" (PBuiltinList (PAsData (PTuple PDatumHash PDatum)))
-     , HField s "id" PTxId
-     ]
 
 -- | HRec with all of `PBondedPoolParams`'s fields
 type PBondedPoolParamsHRec (s :: S) =

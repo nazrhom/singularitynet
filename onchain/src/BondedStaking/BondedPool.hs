@@ -1,9 +1,25 @@
 {-# LANGUAGE UndecidableInstances #-}
 
-module BondedPool (
+module BondedStaking.BondedPool (
   pbondedPoolValidator,
   pbondedPoolValidatorUntyped,
 ) where
+
+import BondedStaking.PTypes (
+  PBondedPoolParams,
+  PBondedPoolParamsFields,
+  PBondedPoolParamsHRec,
+  PBondedStakingAction (
+    PAdminAct,
+    PCloseAct,
+    PStakeAct,
+    PWithdrawAct
+  ),
+  PBondedStakingDatum (PAssetDatum, PEntryDatum, PStateDatum),
+  PEntry,
+  PEntryFields,
+  PEntryHRec,
+ )
 
 import Control.Monad ((<=<))
 
@@ -22,8 +38,8 @@ import Plutarch.Api.V1 (
   PTxOut,
   PTxOutRef,
   PValue,
-  ptuple,
  )
+import Plutarch.Builtin (pforgetData)
 import Plutarch.Unsafe (punsafeCoerce)
 
 import PNatural (
@@ -31,22 +47,20 @@ import PNatural (
   PNatural,
   PNonNegative ((#*), (#+)),
   roundDown,
+  natZero,
+  ratZero,
   toNatRatio,
  )
 import PTypes (
+  HField,
   PAssetClass,
-  PBondedPoolParams,
-  PBondedStakingAction (
-    PAdminAct,
-    PCloseAct,
-    PStakeAct,
-    PWithdrawAct
-  ),
-  PBondedStakingDatum (PAssetDatum, PEntryDatum, PStateDatum),
   PBurningAction (PBurnHead, PBurnOther),
-  PEntry,
   PMintingAction (PMintEnd, PMintHead, PMintInBetween),
   PPeriod (BondingPeriod, ClosingPeriod),
+  PTxInInfoFields,
+  PTxInInfoHRec,
+  PTxInfoFields,
+  PTxInfoHRec,
   -- bondingPeriod,
   -- depositWithdrawPeriod,
   -- onlyWithdrawPeriod,
@@ -58,15 +72,7 @@ import PTypes (
 --  )
 
 import Utils (
-  HField,
-  PBondedPoolParamsFields,
-  PBondedPoolParamsHRec,
-  PEntryFields,
-  PEntryHRec,
-  PTxInInfoFields,
-  PTxInInfoHRec,
-  PTxInfoFields,
-  PTxInfoHRec,
+  getCoWithDatum,
   getContinuingOutputWithNFT,
   getDatum,
   getDatumHash,
@@ -82,9 +88,7 @@ import Utils (
   pfalse,
   pfind,
   pletC,
-  pmapMaybe,
   pnestedIf,
-  ppairData,
   ptrue,
   ptryFromUndata,
   punit,
@@ -94,13 +98,17 @@ import Utils (
  )
 
 import GHC.Records (getField)
-import InductiveLogic (doesNotConsumeAssetGuard, hasEntryToken, hasListNft, hasStateToken)
+import InductiveLogic (
+  doesNotConsumeBondedAssetGuard,
+  hasListNft,
+  hasEntryToken,
+  hasStateToken,
+  pointsNowhere,
+  pointsTo,
+ )
 import Plutarch.Api.V1.Scripts (PDatum)
-import Plutarch.Api.V1.Tuple (pbuiltinPairFromTuple)
-import Plutarch.Builtin (pforgetData)
 import Plutarch.Crypto (pblake2b_256)
 import Plutarch.DataRepr (HRec)
-import SingularityNet.Natural (NatRatio (NatRatio), Natural (Natural))
 import SingularityNet.Settings (bondedStakingTokenName)
 
 {- The validator has two responsibilities
@@ -358,7 +366,7 @@ stakeActLogic txInfo params purpose datum act =
     let poolAddr :: Term s PAddress
         poolAddr = pfield @"address" # spentInput.resolved
     -- Check that input spent is not an asset UTXO (user cannot withdraw)
-    doesNotConsumeAssetGuard datum
+    doesNotConsumeBondedAssetGuard datum
     -- Validate holder's signature
     guardC "stakeActLogic: tx not exclusively signed by the stake-holder" $
       signedOnlyBy txInfo.signatories act.pubKeyHash
@@ -922,82 +930,6 @@ getEntryData datum =
     PEntryDatum entry -> pfield @"_0" # entry
     _ -> ptraceError "getEntryDatum: datum is not PEntryDatum"
 
--- Returns true if it points to the given PKH
-pointsTo ::
-  forall (s :: S).
-  Term s (PMaybeData PByteString) ->
-  Term s PByteString ->
-  Term s PBool
-pointsTo entryKey tn = pointsTo' # entryKey # tn
-  where
-    pointsTo' :: Term s (PMaybeData PByteString :--> PByteString :--> PBool)
-    pointsTo' = phoistAcyclic $
-      plam $ \e t ->
-        pmatch e $ \case
-          PDJust t' -> pfield @"_0" # t' #== t
-          PDNothing _ -> pfalse
-
--- Returns false if it points nowhere
-pointsNowhere ::
-  forall (s :: S).
-  Term s (PMaybeData PByteString) ->
-  Term s PBool
-pointsNowhere x = pointsNowhere' # x
-  where
-    pointsNowhere' :: Term s (PMaybeData PByteString :--> PBool)
-    pointsNowhere' = phoistAcyclic $
-      plam . flip pmatch $ \case
-        PDJust _ -> pfalse
-        PDNothing _ -> ptrue
-
--- Gets the CO and datum that satisfy the given datum predicate.
--- It fails if no CO is found, or no CO satisfies the predicate, or too many COs
--- are found
-getCoWithDatum ::
-  forall (s :: S).
-  Term s PAddress ->
-  Term s (PDatum :--> PBool) ->
-  Term s (PBuiltinList (PAsData PTxOut)) ->
-  Term s (PBuiltinList (PAsData (PTuple PDatumHash PDatum))) ->
-  TermCont s (Term s PTxOut, Term s PDatum)
-getCoWithDatum poolAddr pred outputs datums = do
-  -- Filter COs with address and datum from outputs
-  cos <- pletC . flip pmapMaybe outputs . plam $
-    \output -> unTermCont $ do
-      outputF <- tcont $ pletFields @'["address", "datumHash"] output
-      pure $
-        pif
-          (pnot #$ pdata outputF.address #== pdata poolAddr)
-          -- Address does not match, ignore output
-          (pcon PNothing)
-          $ pmatch outputF.datumHash $ \case
-            -- Output does not have a datum, fail (pool outputs always
-            -- should)
-            PDNothing _ ->
-              ptraceError "getCoWithDatum: found CO without a datum"
-            PDJust datHash -> unTermCont $ do
-              datum <- getDatum (pfield @"_0" # datHash) datums
-              pure $
-                pif
-                  (pred # datum)
-                  ( pcon . PJust . pbuiltinPairFromTuple . pdata $
-                      ptuple # output # pdata datum
-                  )
-                  -- Datum does not satisfy predicate, ignore output
-                  (pcon PNothing)
-  -- Make sure it's the only output
-  ppairData . pmatch cos $ \case
-    PNil ->
-      ptraceError
-        "getCoWithDatum: found more than one CO with given \
-        \ datum"
-    PCons x xs -> pmatch xs $ \case
-      PCons _ _ ->
-        ptraceError
-          "getCoWithDatum: found more than one CO with\
-          \ given datum"
-      PNil -> pfromData x
-
 getOutputEntry ::
   forall (s :: S).
   Term s PAddress ->
@@ -1084,9 +1016,3 @@ getKey =
           PDJust key -> pfield @"_0" # key
           PDNothing _ -> ptraceError "getKey: no key found"
       )
-
-natZero :: Term s PNatural
-natZero = pconstant $ Natural 0
-
-ratZero :: Term s PNatRatio
-ratZero = pconstant . NatRatio $ 0

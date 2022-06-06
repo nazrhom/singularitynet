@@ -26,7 +26,7 @@ import SingularityNet.Natural (
   NatRatio,
   Natural,
  )
-import SingularityNet.Types (AssetClass)
+import SingularityNet.Types (AssetClass, BurningAction, MintingAction)
 
 {- | Unbonded pool's parameters
 
@@ -98,16 +98,28 @@ unstableMakeIsData ''UnbondedStakingDatum
 
 {- | Validator redeemers
 
-     These are used by the admin to deposit the rewards and close the pool and
-     withdraw the rewards unclaimed.
+     These are used by the admin to deposit the rewards, close the pool and
+     withdraw the unclaimed rewards.
 
-     These are used by the stakers to deposit their *initial* stake (after that
-     they only update their respective entry) and withdrawing their rewards.
+     These are used by the stakers to deposit their first stake or update their
+     already existing stake.
+
+     When the stake-holder makes their first deposit, the redeemer will be
+     `StakeAct amt pkh (Just mintAct)`, where `mintAct` specifies the type of
+     insertion that needs to checked by the validator.
+
+     When the stake-holder wants to update their existing stake, the last field
+     is set to `Nothing`, since no entry needs to be inserted or removed from
+     the list.
+
+     When the stake-holder wants to claim the their rewards, the redeemer will
+     be `WithdrawAct pkh burnAct`, where `burnAct` specifies the type of removal
+     that needs to be checked by the validator.
 -}
 data UnbondedStakingAction
   = AdminAct Natural Natural
-  | StakeAct Natural PubKeyHash
-  | WithdrawAct PubKeyHash
+  | StakeAct Natural PubKeyHash (Maybe MintingAction)
+  | WithdrawAct PubKeyHash BurningAction
   | CloseAct
   deriving stock (Show)
 

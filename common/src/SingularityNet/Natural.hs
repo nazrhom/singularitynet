@@ -67,7 +67,7 @@ instance FromData Natural where
 -}
 newtype NatRatio = NatRatio (Ratio Natural.Natural)
   deriving newtype (Eq, Ord, Show)
-  
+
 -- | This is the Haskell synonym used as representation for the `PNatRatio`,
 -- the Plutarch equivalent
 data NatRatioRepr = NatRatioRepr Natural Natural
@@ -76,7 +76,7 @@ unstableMakeIsData ''NatRatioRepr
 
 instance ToData NatRatio where
   toBuiltinData r = BuiltinData . toData . toNatRatioRepr $ r
-    
+
 -- We define conversions between `NatRatio` and `NatRatioRepr` to be able to
 -- define `UnsafeFromData` and `FromData` for `NatRatio`
 toNatRatioRepr :: NatRatio -> NatRatioRepr
