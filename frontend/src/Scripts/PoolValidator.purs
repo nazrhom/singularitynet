@@ -6,11 +6,16 @@ module Scripts.PoolValidator
 import Contract.Prelude
 
 import Contract.Monad (Contract, liftedE)
-import Contract.Scripts (ClientError, Validator(Validator), applyArgs)
+import Contract.Scripts
+  ( ClientError
+  , PlutusScript
+  , Validator(Validator)
+  , applyArgs
+  )
 import Contract.PlutusData (class ToData, toData)
-import Data.Argonaut (Json, JsonDecodeError)
+import Data.Argonaut.Core (Json)
+import Data.Argonaut.Decode.Error (JsonDecodeError)
 import Types (BondedPoolParams)
-import Types.Scripts (PlutusScript)
 import UnbondedStaking.Types (UnbondedPoolParams)
 import Utils (jsonReader)
 

@@ -5,6 +5,18 @@
 let
   inputs = {
 
+    "aeson" = pkgs.stdenv.mkDerivation {
+        name = "aeson";
+        version = "69bd18c4a9cffdebc45c55d2448740721a91854c";
+        src = pkgs.fetchgit {
+          url = "https://github.com/mlabs-haskell/purescript-aeson.git";
+          rev = "69bd18c4a9cffdebc45c55d2448740721a91854c";
+          sha256 = "1khn834wsqgf80p8xjyw6z06dhj8vknj7lhpm5dj44nqlaj8qhqb";
+        };
+        phases = "installPhase";
+        installPhase = "ln -s $src $out";
+      };
+
     "aff" = pkgs.stdenv.mkDerivation {
         name = "aff";
         version = "v6.0.0";
@@ -175,11 +187,11 @@ let
 
     "cardano-transaction-lib" = pkgs.stdenv.mkDerivation {
         name = "cardano-transaction-lib";
-        version = "bad5161270374d253212518d2a2e482162d74b1d";
+        version = "306696a64352382a3f8f11d8fed6ba53b9aa0deb";
         src = pkgs.fetchgit {
           url = "https://github.com/Plutonomicon/cardano-transaction-lib.git";
-          rev = "bad5161270374d253212518d2a2e482162d74b1d";
-          sha256 = "1lv2lp6ycgpdh3hxh3dpicdr06rsh4npv3prcmjl1jzaa4a671ld";
+          rev = "306696a64352382a3f8f11d8fed6ba53b9aa0deb";
+          sha256 = "0qs7mr0rzbzshfc8ildwli063nyk4l8y8si9fa9zprmf31ly07pl";
         };
         phases = "installPhase";
         installPhase = "ln -s $src $out";
@@ -1068,6 +1080,18 @@ let
           url = "https://github.com/paf31/purescript-safely.git";
           rev = "19f854737e17b4d058e5a1504a960821db36e4ab";
           sha256 = "1mrpz19smjsamz4cci287z89q715chzxna0gpbvdgivlca4z6879";
+        };
+        phases = "installPhase";
+        installPhase = "ln -s $src $out";
+      };
+
+    "sequences" = pkgs.stdenv.mkDerivation {
+        name = "sequences";
+        version = "v3.0.2";
+        src = pkgs.fetchgit {
+          url = "https://github.com/hdgarrood/purescript-sequences";
+          rev = "1f1d828ef30070569c812d0af23eb7253bb1e990";
+          sha256 = "0mc0jjs1119c2nyd08yhdmliq3s47lhrdknhziga3lnbzja889k4";
         };
         phases = "installPhase";
         installPhase = "ln -s $src $out";
