@@ -90,7 +90,7 @@ import Utils (
   (>:),
   signedBy,
   signedOnlyBy,
-  getTokenTotal, getTokenCount
+  getTokenCount
  )
 
 import GHC.Records (getField)
@@ -685,6 +685,30 @@ withdrawActLogic
     <=< (\txOut -> pure $ pfield @"value" # txOut)
     <=< getOutputSignedBy act.pubKeyHash
     $ txInfo.outputs
+  -- Validate the asset input is effectively an asset UTXO
+  let assetCheck :: Term s PUnit
+      assetCheck = unTermCont $ do
+        datum <-
+          parseStakingDatum @PBondedStakingDatum
+          <=< flip getDatum (getField @"data" txInfo)
+          <=< getDatumHash
+          $ spentInput.resolved
+        pure $ pmatch datum $ \case 
+          PAssetDatum _ -> punit
+          _ -> ptraceError "withdrawActLogic: expected asset input"
+      -- We validate the entry when consuming it
+      entryCheck :: Term s PTxOutRef -> Term s PUnit
+      entryCheck entryOutRef = unTermCont $ do
+        guardC "withdrawHeadActLogic: spent entry is not an entry (no List \
+               \NFT)" $
+          hasListNft params.assocListCs spentInputResolved.value
+        guardC "withdrawHeadActLogic: spent entry does not match redeemer \
+               \TxOutRef" $
+          pdata entryOutRef #== spentInput.outRef
+        guardC "withdrawHeadActLogic: entry does not belong to user" $
+          hasEntryToken
+            spentInputResolved.value
+            (params.assocListCs, entryTn)
   -- Check business and inductive conditions depending on redeemer
   pure . pmatch (pfromData act.burningAction) $ \case
     PBurnHead outRefs' -> unTermCont $ do
@@ -699,37 +723,27 @@ withdrawActLogic
               params
               outRefs.state
               outRefs.headEntry
-          -- We validate the entry is effectively the head entry when consuming
-          -- it. We also check that the user can consume it
-          entryCheck :: Term s PUnit
-          entryCheck = unTermCont $ do
-            guardC "withdrawHeadActLogic: spent entry is not an entry (no List \
-                   \NFT)" $
-              hasListNft params.assocListCs spentInputResolved.value
-            guardC "withdrawHeadActLogic: spent entry does not match redeemer \
-                   \TxOutRef" $
-              outRefs.headEntry #== spentInput.outRef
-            guardC "withdrawHeadActLogic: entry does not belong to user" $
-              hasEntryToken
-                spentInputResolved.value
-                (params.assocListCs, entryTn)
-          -- We validate the asset input is effectively an asset UTXO
-          assetCheck :: Term s PUnit
-          assetCheck = unTermCont $ do
-            datum <-
-              parseStakingDatum @PBondedStakingDatum
-              <=< flip getDatum (getField @"data" txInfo)
-              <=< getDatumHash
-              $ spentInput.resolved
-            pure $ pmatch datum $ \case 
-              PAssetDatum _ -> punit
-              _ -> ptraceError "withdrawActLogic: expected asset input"
       pure $
         pnestedIf
           [spentInput.outRef #== outRefs.state >: withdrawHeadCheck,
-           spentInput.outRef #== outRefs.headEntry >: entryCheck]
+           spentInput.outRef #== outRefs.headEntry >: entryCheck outRefs.headEntry]
            assetCheck
-    PBurnOther entries' -> _
+    PBurnOther entries' -> unTermCont $ do
+      entries <- tcont . pletFields @'["previousEntry", "burnEntry"] $ entries'
+      let withdrawOtherCheck :: Term s PUnit
+          withdrawOtherCheck =
+            withdrawOtherActLogic
+              spentInput
+              withdrawnAmt
+              datum
+              txInfo
+              params
+              entries.burnEntry
+      pure $
+        pnestedIf
+          [spentInput.outRef #== entries.previousEntry >: withdrawOtherCheck,
+           spentInput.outRef #== entries.burnEntry >: entryCheck entries.burnEntry]
+          $ assetCheck
 
 withdrawHeadActLogic ::
   forall (s :: S).
@@ -791,6 +805,61 @@ withdrawHeadActLogic spentInput withdrawnAmt datum txInfo params stateOutRef hea
   guardC "withdrawHeadActLogic: next pool state does not point to same \
           \location as burned entry"
     $ pdata nextEntryKey #== headEntry.next
+
+withdrawOtherActLogic ::
+  forall (s :: S).
+  HRec
+  '[HField s "outRef" PTxOutRef,
+    HField s "resolved" PTxOut
+  ] ->
+  Term s PNatural ->
+  Term s PBondedStakingDatum ->
+  PTxInfoHRec s ->
+  PBondedPoolParamsHRec s ->
+  Term s PTxOutRef ->
+  Term s PUnit
+withdrawOtherActLogic spentInput withdrawnAmt datum txInfo params burnEntryOutRef =
+  unTermCont $ do
+  -- Construct some useful values for later
+  spentInputResolved <-
+    tcont . pletFields @'["address", "value", "datumHash"] $ spentInput.resolved
+  let poolAddr :: Term s PAddress
+      poolAddr = spentInputResolved.address
+  txInfoData <- pletC $ getField @"data" txInfo
+  ---- FETCH DATUMS ----
+  -- Get datum for previous entry
+  prevEntry <- tcont . pletFields @PEntryFields =<< getEntryData datum
+  -- Get updated datum for previous entry
+  let prevEntryTok :: Term s PAssetClass
+      prevEntryTok = getTokenName params.assocListCs spentInputResolved.value
+  prevEntryUpdated <-
+    getOutputEntry
+      poolAddr
+      prevEntryTok
+      txInfoData
+      txInfo.outputs
+  -- Get datum for burned entry
+  burnEntry <- getInputEntry burnEntryOutRef txInfoData txInfo.inputs
+  ---- BUSINESS LOGIC ----
+  -- Validate withdrawn amount
+  guardC "withdrawOtherActLogic: withdrawn amount does not match stake and \
+         \rewards" $
+    withdrawnAmt #==
+      roundDown (toNatRatio burnEntry.staked #+ burnEntry.rewards)
+  ---- INDUCTIVE CONDITIONS ----
+  -- Validate that spentOutRef is the previous entry and matches redeemer
+  guardC "withdrawOtherActLogic: spent input is not an entry" $
+    hasListNft params.assocListCs spentInputResolved.value 
+  -- Validate that burn entry key matches the key in previous entry
+  guardC "withdrawOtherActLogic: consumed entry key does not match previous \
+          \entry's key" $
+    prevEntry.next `pointsTo` burnEntry.key
+  -- Validate updated entry
+  guardC "withdrawOtherActLogic: updated previous entry does not point to same \
+          \location as burned entry"
+    $ prevEntryUpdated.next #== pdata burnEntry.next
+  -- Validate other fields of updated entry (they should stay the same)
+  equalEntriesGuard prevEntryUpdated prevEntry
 
 closeActLogic ::
   forall (s :: S).
@@ -989,6 +1058,7 @@ equalEntriesGuard e1 e2 =
   guardC "equalEntriesGuard: some fields in the given entries are not equal" $
     e1.key #== e2.key
       #&& e1.newDeposit #== e2.newDeposit
+      #&& e1.deposited #== e2.deposited
       #&& e1.staked #== e2.staked
       #&& e1.rewards #== e2.rewards
       
