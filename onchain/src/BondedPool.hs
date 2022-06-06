@@ -90,11 +90,11 @@ import Utils (
   (>:),
   signedBy,
   signedOnlyBy,
-  getTokenTotal
+  getTokenTotal, getTokenCount
  )
 
 import GHC.Records (getField)
-import InductiveLogic (doesNotConsumeAssetGuard, hasListNft, hasStateToken)
+import InductiveLogic (doesNotConsumeAssetGuard, hasListNft, hasStateToken, hasEntryToken)
 import Plutarch.Api.V1.Scripts (PDatum)
 import Plutarch.Api.V1.Tuple (pbuiltinPairFromTuple)
 import Plutarch.Builtin (pforgetData)
@@ -667,16 +667,24 @@ withdrawActLogic
   purpose
   datum
   act = do
+  -- Construct some useful values for later
+  holderKey <- pure $ pblake2b_256 # pto (pfromData act.pubKeyHash)
+  entryTn <-
+    pletC . pcon . PTokenName $ holderKey
   -- Get the input being spent
   spentInput <-
     tcont . pletFields @PTxInInfoFields
       =<< getInput purpose txInfo.inputs
+  spentInputResolved <- tcont . pletFields @'["value"] $ spentInput.resolved
   -- Validate holder's signature
   guardC "withdrawActLogic: tx not exclusively signed by the stake-holder" $
     signedOnlyBy txInfo.signatories act.pubKeyHash
-  -- Get resulting output with staked assets and accrued rewards
-  withdrawnOutput <-
-    getOutputSignedBy act.pubKeyHash txInfo.outputs
+  -- Get amount staked from output
+  withdrawnAmt <-
+    pure . getTokenCount params.bondedAssetClass
+    <=< (\txOut -> pure $ pfield @"value" # txOut)
+    <=< getOutputSignedBy act.pubKeyHash
+    $ txInfo.outputs
   -- Check business and inductive conditions depending on redeemer
   pure . pmatch (pfromData act.burningAction) $ \case
     PBurnHead outRefs' -> unTermCont $ do
@@ -685,22 +693,26 @@ withdrawActLogic
       let withdrawHeadCheck =
             withdrawHeadActLogic
               spentInput
-              act.pubKeyHash
+              withdrawnAmt
               datum
               txInfo
               params
               outRefs.state
               outRefs.headEntry
           -- We validate the entry is effectively the head entry when consuming
-          -- it
+          -- it. We also check that the user can consume it
           entryCheck :: Term s PUnit
           entryCheck = unTermCont $ do
             guardC "withdrawHeadActLogic: spent entry is not an entry (no List \
                    \NFT)" $
-              hasListNft params.assocListCs (pfield @"value" # spentInput.resolved)
+              hasListNft params.assocListCs spentInputResolved.value
             guardC "withdrawHeadActLogic: spent entry does not match redeemer \
                    \TxOutRef" $
               outRefs.headEntry #== spentInput.outRef
+            guardC "withdrawHeadActLogic: entry does not belong to user" $
+              hasEntryToken
+                spentInputResolved.value
+                (params.assocListCs, entryTn)
           -- We validate the asset input is effectively an asset UTXO
           assetCheck :: Term s PUnit
           assetCheck = unTermCont $ do
@@ -725,18 +737,16 @@ withdrawHeadActLogic ::
   '[HField s "outRef" PTxOutRef,
     HField s "resolved" PTxOut
   ] ->
-  Term s PPubKeyHash ->
+  Term s PNatural ->
   Term s PBondedStakingDatum ->
   PTxInfoHRec s ->
   PBondedPoolParamsHRec s ->
   Term s PTxOutRef ->
   Term s PTxOutRef ->
   Term s PUnit
-withdrawHeadActLogic spentInput holderPkh datum txInfo params stateOutRef headEntryOutRef =
+withdrawHeadActLogic spentInput withdrawnAmt datum txInfo params stateOutRef headEntryOutRef =
   unTermCont $ do
   -- Construct some useful values for later
-  stakeHolderKey <- pletC $ pblake2b_256 # pto holderPkh
-  stakeHolderTn <- pletC $ pcon $ PTokenName $ stakeHolderKey
   spentInputResolved <-
     tcont . pletFields @'["address", "value", "datumHash"] $ spentInput.resolved
   let poolAddr :: Term s PAddress
@@ -744,7 +754,6 @@ withdrawHeadActLogic spentInput holderPkh datum txInfo params stateOutRef headEn
       stateTn :: Term s PTokenName
       stateTn = pconstant bondedStakingTokenName
   stateTok <- pletC $ passetClass # params.nftCs # stateTn
-  entryTok <- pletC $ passetClass # params.assocListCs # stakeHolderTn
   txInfoData <- pletC $ getField @"data" txInfo
   ---- FETCH DATUMS ----
   -- Get datum for next state
@@ -760,28 +769,27 @@ withdrawHeadActLogic spentInput holderPkh datum txInfo params stateOutRef headEn
   -- Get datum for head entry
   headEntry <- getInputEntry headEntryOutRef txInfoData txInfo.inputs
   ---- BUSINESS LOGIC ----
-  -- Validate that withdrawn amount matches round_down(stake + rewards)
-  let withdrawnAmt :: Term s PNatural
-      withdrawnAmt = getTokenTotal params.bondedAssetClass txInfo.inputs
+  -- Validate that entry key matches the key in state UTxO
+  guardC "withdrawHeadActLogic: consumed entry key does not match user's pkh" $
+    headEntry.key #== entryKey 
+  -- Validate withdrawn amount
   guardC "withdrawHeadActLogic: withdrawn amount does not match stake and \
          \rewards" $
-    withdrawnAmt #== roundDown (toNatRatio headEntry.staked #+ headEntry.rewards)
+    withdrawnAmt #==
+      roundDown (toNatRatio headEntry.staked #+ headEntry.rewards)
   ---- INDUCTIVE CONDITIONS ----
   -- Validate that spentOutRef is the state UTXO and matches redeemer
   guardC "withdrawHeadActLogic: spent input is not the state UTXO" $
     spentInputResolved.value `hasStateToken`
       (params.nftCs, pconstant bondedStakingTokenName)
-  guardC
-    "withdrawHeadActLogic: spent input does not match redeemer \
-    \input"
-    $ spentInput.outRef #== pdata stateOutRef
+  guardC "withdrawHeadActLogic: spent input does not match redeemer input" $
+    spentInput.outRef #== pdata stateOutRef
   -- Validate that consumed entry is head of the list
   guardC "withdrawHeadActLogic: spent entry is not head of the list" $
     entryKey #== headEntry.key
   -- Validate next state
-  guardC
-    "withdrawHeadActLogic: next pool state does not point to same location as \
-    \burned entry"
+  guardC "withdrawHeadActLogic: next pool state does not point to same \
+          \location as burned entry"
     $ pdata nextEntryKey #== headEntry.next
 
 closeActLogic ::
