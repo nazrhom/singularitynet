@@ -7,6 +7,8 @@ You can edit this file as you like.
   [ "aeson"
   , "aff"
   , "aff-promise"
+  , "argonaut-codecs"
+  , "argonaut-core"
   , "cardano-transaction-lib"
   , "control"
   , "arrays"

@@ -6,8 +6,6 @@ module SingularityNet.Natural (
   NonNegative ((^+), (^*), (^-)),
   Natural (Natural),
   NatRatio (NatRatio),
-  toTuple,
-  toRatio,
 ) where
 
 {-
@@ -31,7 +29,14 @@ import PlutusTx (
   FromData (fromBuiltinData),
   ToData (toBuiltinData),
   UnsafeFromData (unsafeFromBuiltinData),
+  unstableMakeIsData
  )
+
+-- Auxiliary functions
+gt0 :: Integer -> Maybe Natural
+gt0 n
+  | n < 0 = Nothing
+  | otherwise = Just . Natural $ fromInteger n
 
 {- | A natural datatype that wraps GHC's `Natural`. By using `Natural` instead
  of `Integer` we at least get a warning when using negative literals.
@@ -62,10 +67,26 @@ instance FromData Natural where
 -}
 newtype NatRatio = NatRatio (Ratio Natural.Natural)
   deriving newtype (Eq, Ord, Show)
+  
+-- | This is the Haskell synonym used as representation for the `PNatRatio`,
+-- the Plutarch equivalent
+data NatRatioRepr = NatRatioRepr Natural Natural
+
+unstableMakeIsData ''NatRatioRepr
 
 instance ToData NatRatio where
-  toBuiltinData (NatRatio r) =
-    BuiltinData . toData . toTuple $ r
+  toBuiltinData r = BuiltinData . toData . toNatRatioRepr $ r
+    
+-- We define conversions between `NatRatio` and `NatRatioRepr` to be able to
+-- define `UnsafeFromData` and `FromData` for `NatRatio`
+toNatRatioRepr :: NatRatio -> NatRatioRepr
+toNatRatioRepr (NatRatio r) =
+  NatRatioRepr (Natural $ numerator r) (Natural $ denominator r)
+
+fromNatRatioRepr :: NatRatioRepr -> Maybe NatRatio
+fromNatRatioRepr (NatRatioRepr (Natural n) (Natural d))
+  | d == 0 = Nothing
+  | otherwise = Just . NatRatio $ n % d
 
 instance UnsafeFromData NatRatio where
   unsafeFromBuiltinData x =
@@ -73,7 +94,7 @@ instance UnsafeFromData NatRatio where
      in NatRatio $ fromInteger n % fromInteger d
 
 instance FromData NatRatio where
-  fromBuiltinData = maybe Nothing toRatio . fromBuiltinData
+  fromBuiltinData = maybe Nothing fromNatRatioRepr . fromBuiltinData
 
 {- | A class for numeric types on which we want safe arithmetic operations that
  cannot change the signum
@@ -102,19 +123,3 @@ instance NonNegative NatRatio where
       else Just . NatRatio . fromRational $ subtraction
     where
       subtraction = toRational r - toRational q
-
--- Auxiliary functions
-gt0 :: Integer -> Maybe Natural
-gt0 n
-  | n < 0 = Nothing
-  | otherwise = Just . Natural $ fromInteger n
-
-toTuple :: Ratio Natural.Natural -> (Integer, Integer)
-toTuple x = (fromIntegral $ numerator x, fromIntegral $ denominator x)
-
-toRatio :: (Integer, Integer) -> Maybe NatRatio
-toRatio (n, d)
-  | n < 0 || d <= 0 = Nothing
-  | otherwise =
-      Just . NatRatio $
-        fromInteger n % fromInteger d

@@ -98,7 +98,6 @@ depositBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
     -- from Ogmios, update it properly and then submit it
     bondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
-      , sizeLeft: nat 100_000_000
       }
     -- This is the datum of the UTXO that will hold the rewards
     assetDatum = Datum $ toData AssetDatum
@@ -118,7 +117,7 @@ depositBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
     -- user stakes. It doesn't make much sense to deposit if there wasn't a
     -- change in the total amount of stakes (and accrued rewards). This will
     -- change when user staking is added
-    redeemerData = toData $ AdminAct { sizeLeft: nat 100_000_000 }
+    redeemerData = toData $ AdminAct
     redeemer = Redeemer redeemerData
 
     lookup :: ScriptLookups.ScriptLookups PlutusData

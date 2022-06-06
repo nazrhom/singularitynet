@@ -4,7 +4,6 @@ module Scripts.StateNFT
 
 import Contract.Prelude
 
-import Aeson (Aeson, JsonDecodeError)
 import Contract.Monad (Contract, liftedE)
 import Contract.PlutusData (toData)
 import Contract.Scripts
@@ -14,6 +13,8 @@ import Contract.Scripts
   , applyArgs
   )
 import Contract.Transaction (TransactionInput)
+import Data.Argonaut.Core (Json)
+import Data.Argonaut.Decode.Error (JsonDecodeError)
 import Types (StakingType(Bonded, Unbonded))
 import Utils (jsonReader)
 
@@ -34,5 +35,5 @@ mkStateNFTPolicy st txInput = do
   unappliedScript <- liftedE $ pure $ nftPolicy st
   applyArgs (MintingPolicy unappliedScript) [ toData txInput ]
 
-foreign import _bondedStateNFT :: Aeson
-foreign import _unbondedStateNFT :: Aeson
+foreign import _bondedStateNFT :: Json
+foreign import _unbondedStateNFT :: Json

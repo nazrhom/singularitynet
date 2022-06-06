@@ -12,8 +12,7 @@ import Contract.Address (PaymentPubKeyHash)
 import Contract.Numeric.Natural (Natural)
 import Contract.Numeric.Rational (Rational)
 import Contract.PlutusData
-  ( class FromData
-  , class HasPlutusSchema
+  ( class HasPlutusSchema
   , class ToData
   , type (:+)
   , type (:=)
@@ -21,7 +20,6 @@ import Contract.PlutusData
   , I
   , PlutusData(Constr)
   , PNil
-  , genericFromData
   , genericToData
   , toData
   )
@@ -73,6 +71,8 @@ derive instance Eq InitialUnbondedParams
 instance Show InitialUnbondedParams where
   show = genericShow
 
+-- The generic intsance is given below this, but we use this one for compilation
+-- speed.
 -- We copy the order of the fields from the Haskell implementation
 instance ToData UnbondedPoolParams where
   toData (UnbondedPoolParams params) =
@@ -93,7 +93,7 @@ instance ToData UnbondedPoolParams where
       ]
 
 -- Add these back in when generic instances have faster compilation.
--- instance
+-- instance https://github.com/Plutonomicon/cardano-transaction-lib/issues/433
 --   HasPlutusSchema UnbondedPoolParams
 --     ( "UnbondedPoolParams"
 --         :=
@@ -128,9 +128,6 @@ instance ToData UnbondedPoolParams where
 --         :+ PNil
 --     )
 
--- instance FromData UnbondedPoolParams where
---   fromData = genericFromData
-
 -- instance ToData UnbondedPoolParams where
 --   toData = genericToData
 
@@ -162,9 +159,6 @@ instance
         @@ (S (S Z))
         :+ PNil
     )
-
-instance FromData UnbondedStakingDatum where
-  fromData = genericFromData
 
 instance ToData UnbondedStakingDatum where
   toData = genericToData
@@ -213,9 +207,6 @@ instance
         :+ PNil
     )
 
-instance FromData UnbondedStakingAction where
-  fromData = genericFromData
-
 instance ToData UnbondedStakingAction where
   toData = genericToData
 
@@ -258,9 +249,6 @@ instance
         @@ Z
         :+ PNil
     )
-
-instance FromData Entry where
-  fromData = genericFromData
 
 instance ToData Entry where
   toData = genericToData

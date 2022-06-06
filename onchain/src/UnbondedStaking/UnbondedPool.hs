@@ -49,7 +49,7 @@ import Utils (
   pletC,
   pmatchC,
   ptryFromUndata,
-  signedByAdmin,
+  signedBy,
   toPBool,
  )
 
@@ -138,7 +138,7 @@ adminActLogic
 
     -- We check that the transaction was signed by the pool operator
     guardC "adminActLogic: transaction not signed by admin" $
-      signedByAdmin txInfoF.signatories paramsF.admin
+      signedBy txInfoF.signatories paramsF.admin
 
     -- We check that the transaction occurs during a bonding period
     -- We don't validate this for the demo, otherwise testing becomes
@@ -276,7 +276,7 @@ closeActLogic txInfo purpose params inputStakingDatum = unTermCont $ do
 
   -- We check that the transaction was signed by the pool operator
   guardC "closeActLogic: transaction not signed by admin" $
-    signedByAdmin txInfoF.signatories paramsF.admin
+    signedBy txInfoF.signatories paramsF.admin
 
   -- TODO: Validate transaction within adminLength
   -- We check that the transaction occurs during the closing period

@@ -96,7 +96,6 @@ createBondedPoolContract ibp = do
     -- We initalize the pool with no head entry and a pool size of 100_000_000
     bondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
-      , sizeLeft: nat 100_000_000
       }
 
     lookup :: ScriptLookups.ScriptLookups PlutusData

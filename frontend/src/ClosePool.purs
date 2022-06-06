@@ -74,7 +74,6 @@ closeBondedPoolContract params@(BondedPoolParams { admin }) = do
   let
     bondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
-      , sizeLeft: nat 100_000_000
       }
   bondedStateDatumLookup <-
     liftContractM
