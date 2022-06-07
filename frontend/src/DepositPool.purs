@@ -122,7 +122,7 @@ depositBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
     -- user stakes. It doesn't make much sense to deposit if there wasn't a
     -- change in the total amount of stakes (and accrued rewards). This will
     -- change when user staking is added
-    redeemerData = toData $ AdminAct
+    redeemerData = toData AdminAct
     redeemer = Redeemer redeemerData
 
     lookup :: ScriptLookups.ScriptLookups PlutusData

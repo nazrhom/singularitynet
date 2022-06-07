@@ -27,7 +27,7 @@ import Contract.Utxos (UtxoM(UtxoM))
 import Contract.Value
   ( CurrencySymbol
   , TokenName
-  , flattenValue
+  , flattenNonAdaAssets
   , getTokenName
   , valueOf
   )
@@ -168,7 +168,7 @@ mkOnchainAssocList (BondedPoolParams { assocListCs }) (UtxoM utxos) =
     :: TransactionInput /\ TransactionOutput
     -> Maybe (ByteArray /\ TransactionInput /\ TransactionOutput)
   getAssocListUtxos utxo@(_ /\ (TransactionOutput txOutput)) = do
-    let val = flattenValue txOutput.amount
+    let val = flattenNonAdaAssets txOutput.amount
     cs /\ tn /\ amt <- head val
     guard (length val == one && cs == assocListCs && amt == one)
     pure $ (unwrap $ getTokenName tn) /\ utxo

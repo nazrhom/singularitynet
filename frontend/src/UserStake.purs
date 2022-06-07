@@ -543,7 +543,7 @@ userStakeBondedPoolContract
                 , lastLookups
                 ]
     _ -> throwContractError
-      "findAssocLuserStakeBondedPoolContractistUtxo: \
+      "userStakeBondedPoolContract: \
       \Datum incorrect type"
 
   unattachedBalancedTx <-
