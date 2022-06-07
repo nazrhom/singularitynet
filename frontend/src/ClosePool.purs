@@ -44,7 +44,7 @@ import Types
   , BondedStakingAction(CloseAct)
   , BondedStakingDatum(StateDatum)
   )
-import Utils (logInfo_, nat)
+import Utils (logInfo_)
 
 closeBondedPoolContract :: BondedPoolParams -> Contract () Unit
 closeBondedPoolContract params@(BondedPoolParams { admin }) = do

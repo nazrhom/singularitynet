@@ -40,7 +40,7 @@ import Types
   , InitialBondedParams
   , StakingType(Bonded)
   )
-import Utils (logInfo_, mkBondedPoolParams, nat)
+import Utils (logInfo_, mkBondedPoolParams)
 
 -- Sets up pool configuration, mints the state NFT and deposits
 -- in the pool validator's address

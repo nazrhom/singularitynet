@@ -35,6 +35,7 @@ import Contract.TxConstraints
 import Contract.Utxos (utxosAt)
 import Contract.Value (singleton)
 import Control.Applicative (unless)
+import Data.BigInt (fromString) as BigInt
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
@@ -44,7 +45,7 @@ import Types
   , BondedPoolParams(BondedPoolParams)
   )
 import Types.Redeemer (Redeemer(Redeemer))
-import Utils (big, getUtxoWithNFT, logInfo_, nat)
+import Utils (getUtxoWithNFT, logInfo_)
 
 -- Deposits a certain amount in the pool
 depositBondedPoolContract :: BondedPoolParams -> Contract () Unit
@@ -106,12 +107,16 @@ depositBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
     liftContractM
       "depositBondedPoolContract: Could not create state datum lookup"
       $ ScriptLookups.datum bondedStateDatum
+  tempBigInt <-
+    liftContractM
+      "depositBondedPoolContract: TEMPORARY - cannot \
+      \convert String to BigInt" $ BigInt.fromString "2"
   let
     assetParams = unwrap (unwrap params).bondedAssetClass
     assetCs = assetParams.currencySymbol
     assetTn = assetParams.tokenName
     stateTokenValue = singleton nftCs tokenName one
-    depositValue = singleton assetCs assetTn (big 2)
+    depositValue = singleton assetCs assetTn tempBigInt
 
     -- We build the redeemer. The size does not change because there are no
     -- user stakes. It doesn't make much sense to deposit if there wasn't a
