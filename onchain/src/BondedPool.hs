@@ -131,12 +131,10 @@ pbondedPoolValidator = phoistAcyclic $
     -- corresponding logic
     pure $
       pmatch act $ \case
-        PAdminAct n -> unTermCont $ do
+        PAdminAct _ -> unTermCont $ do
           -- guardC "pbondedPoolValidator: wrong period for PAdminAct redeemer" $
           --  getBondedPeriod # txInfoF.validRange # params #== bondingPeriod
-          pure $
-            adminActLogic txInfoF paramsF ctxF.purpose dat $
-              pfield @"_0" # n
+          pure $ adminActLogic txInfoF paramsF ctxF.purpose dat
         PStakeAct act -> unTermCont $ do
           -- guardC "pbondedPoolValidator: wrong period for PStakeAct \
           -- \redeemer" $
@@ -204,9 +202,8 @@ adminActLogic ::
   PBondedPoolParamsHRec s ->
   Term s PScriptPurpose ->
   Term s PBondedStakingDatum ->
-  Term s PNatural ->
   Term s PUnit
-adminActLogic txInfo params purpose inputStakingDatum sizeLeft = unTermCont $ do
+adminActLogic txInfo params purpose inputStakingDatum = unTermCont $ do
   -- We check that the transaction was signed by the pool operator
   guardC "transaction not signed by admin" $
     signedBy txInfo.signatories params.admin
@@ -230,12 +227,12 @@ adminActLogic txInfo params purpose inputStakingDatum sizeLeft = unTermCont $ do
           stateTn = pconstant bondedStakingTokenName
           stateTok = passetClass # stateCs # stateTn
       -- Get current state
-      (stateHeadKey, _stateSize) <-
-        (\s -> pure (pfromData s._0, pfromData s._1))
-          <=< tcont . pletFields @'["_0", "_1"]
+      stateHeadKey <-
+        (\s -> pure (pfromData s._0))
+          <=< tcont . pletFields @'["_0"]
           $ state'
       -- We retrieve the continuing output's datum
-      (newStateHeadKey, newStateSize) <-
+      newStateHeadKey <-
         getStateData
           <=< parseStakingDatum
           <=< flip getDatum txInfoData
@@ -245,10 +242,6 @@ adminActLogic txInfo params purpose inputStakingDatum sizeLeft = unTermCont $ do
       ---- BUSINESS LOGIC ----
       guardC "adminActLogic: admin update should not update list head" $
         pdata stateHeadKey #== pdata newStateHeadKey
-      guardC
-        "adminActLogic: update failed because new size was not updated \
-        \correctly"
-        $ newStateSize #== sizeLeft
     PEntryDatum entry' -> unTermCont $ do
       ---- FETCH DATUMS ----
       -- Retrieve fields from entry
@@ -491,12 +484,12 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
         nextStateTxOut <-
           getContinuingOutputWithNFT poolAddr stateTok txInfo.outputs
         nextStateHash <- getDatumHash nextStateTxOut
-        (nextEntryKey, _nextSizeLeft) <-
+        nextEntryKey <-
           getStateData
             =<< parseStakingDatum
             =<< getDatum nextStateHash txInfoData
         -- Get datum for current state
-        (entryKey, _sizeLeft) <- getStateData datum
+        entryKey <- getStateData datum
         -- Get datum for new list entry
         newEntry <- getOutputEntry poolAddr newEntryTok txInfoData txInfo.outputs
         ---- BUSINESS LOGIC ----
@@ -674,12 +667,12 @@ closeActLogic txInfo params = unTermCont $ do
 getStateData ::
   forall (s :: S).
   Term s PBondedStakingDatum ->
-  TermCont s (Term s (PMaybeData PByteString), Term s PNatural)
+  TermCont s (Term s (PMaybeData PByteString))
 getStateData datum = do
-  record <- tcont . pletFields @["_0", "_1"] . pmatch datum $ \case
+  record <- tcont . pletFields @'["_0"] . pmatch datum $ \case
     PStateDatum record -> record
     _ -> ptraceError "getStateData: datum is not PStateDatum"
-  pure (pfromData record._0, pfromData record._1)
+  pure (pfromData record._0)
 
 -- Retrieves entry fields from staking datum
 getEntryData ::

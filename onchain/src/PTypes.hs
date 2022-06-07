@@ -268,7 +268,7 @@ instance PUnsafeLiftDecl PListAction where
 
 -- | `BondedStakingAction` synonym
 data PBondedStakingAction (s :: S)
-  = PAdminAct (Term s (PDataRecord '["_0" ':= PNatural]))
+  = PAdminAct (Term s (PDataRecord '[]))
   | PStakeAct
       ( Term
           s
