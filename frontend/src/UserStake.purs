@@ -26,13 +26,11 @@ import Contract.PlutusData
   , getDatumByHash
   , toData
   )
-import Contract.Prim.ByteArray (ByteArray, byteArrayToHex)
+import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
 import Contract.Transaction
   ( BalancedSignedTransaction(BalancedSignedTransaction)
-  , TransactionInput
-  , TransactionOutput(TransactionOutput)
   , balanceAndSignTx
   , submit
   )
@@ -43,17 +41,10 @@ import Contract.TxConstraints
   , mustPayToScript
   , mustSpendScriptOutput
   )
-import Contract.Utxos (UtxoM(UtxoM), utxosAt)
-import Contract.Value
-  ( flattenValue
-  , getTokenName
-  , mkTokenName
-  , singleton
-  )
-import Control.Alternative (guard)
+import Contract.Utxos (utxosAt)
+import Contract.Value (mkTokenName, singleton)
 import Control.Applicative (unless)
-import Data.Array (head, last, length, mapMaybe, partition, sortBy)
-import Data.Map (toUnfoldable)
+import Data.Array (head)
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
@@ -64,86 +55,17 @@ import Types
   , BondedPoolParams(BondedPoolParams)
   , Entry(Entry)
   , ListAction(ListInsert)
-  , MintingAction(MintEnd, MintHead, MintInBetween)
+  , MintingAction(MintHead)
   , StakingType(Bonded)
   )
 import Types.Redeemer (Redeemer(Redeemer))
-import Utils (getUtxoWithNFT, hashPkh, logInfo_)
-
--- | Makes an on chain assoc list returning the key, input and output. We could
--- | be more stringent on checks to ensure the list is genuinely connected
--- | although on chain code should enforce this.
-mkOnchainAssocList
-  :: BondedPoolParams
-  -> UtxoM
-  -> Array (ByteArray /\ TransactionInput /\ TransactionOutput)
-mkOnchainAssocList (BondedPoolParams { assocListCs }) (UtxoM utxos) =
-  sortBy compareBytes $ mapMaybe getAssocListUtxos $ toUnfoldable utxos
-  where
-  getAssocListUtxos
-    :: TransactionInput /\ TransactionOutput
-    -> Maybe (ByteArray /\ TransactionInput /\ TransactionOutput)
-  getAssocListUtxos utxo@(_ /\ (TransactionOutput txOutput)) = do
-    let val = flattenValue txOutput.amount
-    cs /\ tn /\ amt <- head val
-    guard (length val == one && cs == assocListCs && amt == one)
-    pure $ (unwrap $ getTokenName tn) /\ utxo
-
--- | Find the assoc list element to update or insert. This can be optimised
--- | if we compare pairs and exit early of course. But we'll do this for
--- | simplicity. THIS MUST BE USED ON A SORTED LIST, i.e. with
--- | `mkOnchainAssocList`
-findAssocElem
-  :: Array (ByteArray /\ TransactionInput /\ TransactionOutput)
-  -> ByteArray
-  -> Maybe
-       ( Maybe MintingAction
-           /\
-             { firstInput :: TransactionInput
-             , secondInput :: Maybe TransactionInput
-             }
-           /\
-             { firstOutput :: TransactionOutput
-             , secondOutput :: Maybe TransactionOutput
-             }
-           /\
-             { firstKey :: ByteArray
-             , secondKey :: Maybe ByteArray
-             }
-       )
-findAssocElem assocList hashedKey = do
-  -- The list should findAssocElem assocList hashedKey = do be sorted so no
-  -- need to resort
-  let { no, yes } = partition (fst >>> (>=) hashedKey) assocList
-  bytesL /\ txInputL /\ txOutputL <- last yes
-  -- If we're at the last element, it must be an end stake or updating last
-  -- element
-  if length no == zero then do
-    -- Workout whether it's an initial deposit
-    let
-      mintingAction =
-        if bytesL == hashedKey then Nothing
-        else Just $ MintEnd txInputL
-    pure
-      $ mintingAction
-      /\ { firstInput: txInputL, secondInput: Nothing }
-      /\ { firstOutput: txOutputL, secondOutput: Nothing }
-      /\ { firstKey: bytesL, secondKey: Nothing }
-  -- Otherwise, it is an inbetween stake or updating the first element
-  else do
-    bytesH /\ txInputH /\ txOutputH <- head no
-    let
-      mintingAction =
-        if bytesL == hashedKey then Nothing
-        else Just $ MintInBetween txInputL txInputH
-    pure
-      $ mintingAction
-      /\ { firstInput: txInputL, secondInput: Just txInputH }
-      /\ { firstOutput: txOutputL, secondOutput: Just txOutputH }
-      /\ { firstKey: bytesL, secondKey: Just bytesH }
-
-compareBytes :: forall (t :: Type). ByteArray /\ t -> ByteArray /\ t -> Ordering
-compareBytes (bytes /\ _) (bytes' /\ _) = compare bytes bytes'
+import Utils
+  ( findAssocElem
+  , getUtxoWithNFT
+  , hashPkh
+  , mkOnchainAssocList
+  , logInfo_
+  )
 
 -- Deposits a certain amount in the pool
 userStakeBondedPoolContract :: BondedPoolParams -> Natural -> Contract () Unit
