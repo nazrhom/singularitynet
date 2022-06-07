@@ -11,16 +11,15 @@
 -}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module UnbondedStaking.PTypes (
-  PBoolData (..),
+module BondedStaking.PTypes (
+  PBondedPoolParams (..),
+  PBondedPoolParamsHRec,
+  PBondedPoolParamsFields,
+  PBondedStakingAction (..),
+  PBondedStakingDatum (..),
   PEntry,
   PEntryFields,
   PEntryHRec,
-  PUnbondedPoolParams (..),
-  PUnbondedPoolParamsHRec,
-  PUnbondedPoolParamsFields,
-  PUnbondedStakingAction (..),
-  PUnbondedStakingDatum (..),
 ) where
 
 {-
@@ -33,6 +32,18 @@ import GHC.Generics qualified as GHC
 import Generics.SOP (Generic, I (I))
 
 import PNatural (PNatRatio, PNatural)
+import PTypes (
+  HField,
+  PAssetClass,
+  PBurningAction,
+  PMintingAction,
+ )
+import SingularityNet.Types (
+  BondedPoolParams,
+  BondedStakingAction,
+  BondedStakingDatum,
+  Entry,
+ )
 
 import Plutarch.Api.V1 (PMaybeData, PPOSIXTime)
 import Plutarch.Api.V1.Crypto (PPubKeyHash)
@@ -49,39 +60,24 @@ import Plutarch.Lift (
  )
 import Plutarch.TryFrom (PTryFrom)
 
-import PTypes (
-  HField,
-  PAssetClass,
-  PBurningAction,
-  PMintingAction,
- )
-
-import UnbondedStaking.Types (
-  Entry,
-  UnbondedPoolParams,
-  UnbondedStakingAction,
-  UnbondedStakingDatum,
- )
-
 ----- Plutarch synonyms -----
 
 -- | `BondedPoolParams` synonym
-newtype PUnbondedPoolParams (s :: S)
-  = PUnbondedPoolParams
+newtype PBondedPoolParams (s :: S)
+  = PBondedPoolParams
       ( Term
           s
           ( PDataRecord
-              '[ "start" ':= PPOSIXTime
+              '[ "iterations" ':= PNatural
+               , "start" ':= PPOSIXTime
+               , "end" ':= PPOSIXTime
                , "userLength" ':= PPOSIXTime
-               , "adminLength" ':= PPOSIXTime
                , "bondingLength" ':= PPOSIXTime
-               , "interestLength" ':= PPOSIXTime
-               , "increments" ':= PNatural
                , "interest" ':= PNatRatio
                , "minStake" ':= PNatural
                , "maxStake" ':= PNatural
                , "admin" ':= PPubKeyHash
-               , "unbondedAssetClass" ':= PAssetClass
+               , "bondedAssetClass" ':= PAssetClass
                , "nftCs" ':= PCurrencySymbol
                , "assocListCs" ':= PCurrencySymbol
                ]
@@ -91,15 +87,15 @@ newtype PUnbondedPoolParams (s :: S)
   deriving anyclass (Generic, PIsDataRepr)
   deriving
     (PlutusType, PIsData, PDataFields)
-    via PIsDataReprInstances PUnbondedPoolParams
+    via PIsDataReprInstances PBondedPoolParams
 
 deriving via
-  PAsData (PIsDataReprInstances PUnbondedPoolParams)
+  PAsData (PIsDataReprInstances PBondedPoolParams)
   instance
-    PTryFrom PData (PAsData PUnbondedPoolParams)
+    PTryFrom PData (PAsData PBondedPoolParams)
 
-instance PUnsafeLiftDecl PUnbondedPoolParams where
-  type PLifted PUnbondedPoolParams = UnbondedPoolParams
+instance PUnsafeLiftDecl PBondedPoolParams where
+  type PLifted PBondedPoolParams = BondedPoolParams
 
 -- | `Entry` synonym
 data PEntry (s :: S)
@@ -108,12 +104,11 @@ data PEntry (s :: S)
           s
           ( PDataRecord
               '[ "key" ':= PByteString
-               , "deposited" ':= PNatural
                , "newDeposit" ':= PNatural
+               , "deposited" ':= PNatural
+               , "staked" ':= PNatural
                , "rewards" ':= PNatRatio
-               , "totalRewards" ':= PNatural
-               , "totalDeposited" ':= PNatural
-               , "open" ':= PBoolData
+               , "value" ':= PBuiltinPair (PAsData PNatural) (PAsData PNatRatio)
                , "next" ':= PMaybeData PByteString
                ]
           )
@@ -133,13 +128,13 @@ instance PUnsafeLiftDecl PEntry where
   type PLifted PEntry = Entry
 
 -- | `BondedStakingDatum` synonym
-data PUnbondedStakingDatum (s :: S)
+data PBondedStakingDatum (s :: S)
   = PStateDatum
       ( Term
           s
           ( PDataRecord
               '[ "_0" ':= PMaybeData PByteString
-               , "_1" ':= PBoolData
+               , "_1" ':= PNatural
                ]
           )
       )
@@ -156,27 +151,24 @@ data PUnbondedStakingDatum (s :: S)
   deriving anyclass (Generic, PIsDataRepr)
   deriving
     (PlutusType, PIsData)
-    via PIsDataReprInstances PUnbondedStakingDatum
+    via PIsDataReprInstances PBondedStakingDatum
 
 deriving via
-  PAsData (PIsDataReprInstances PUnbondedStakingDatum)
+  PAsData (PIsDataReprInstances PBondedStakingDatum)
   instance
-    (PTryFrom PData (PAsData PUnbondedStakingDatum))
+    (PTryFrom PData (PAsData PBondedStakingDatum))
 
-instance PUnsafeLiftDecl PUnbondedStakingDatum where
-  type PLifted PUnbondedStakingDatum = UnbondedStakingDatum
+deriving via
+  (DerivePConstantViaData BondedStakingDatum PBondedStakingDatum)
+  instance
+    (PConstant BondedStakingDatum)
 
--- | `UnbondedStakingAction` synonym
-data PUnbondedStakingAction (s :: S)
-  = PAdminAct
-      ( Term
-          s
-          ( PDataRecord
-              '[ "totalRewards" ':= PNatural
-               , "totalDeposited" ':= PNatural
-               ]
-          )
-      )
+instance PUnsafeLiftDecl PBondedStakingDatum where
+  type PLifted PBondedStakingDatum = BondedStakingDatum
+
+-- | `BondedStakingAction` synonym
+data PBondedStakingAction (s :: S)
+  = PAdminAct (Term s (PDataRecord '["_0" ':= PNatural]))
   | PStakeAct
       ( Term
           s
@@ -201,7 +193,7 @@ data PUnbondedStakingAction (s :: S)
   deriving anyclass (Generic, PIsDataRepr)
   deriving
     (PlutusType, PIsData)
-    via PIsDataReprInstances PUnbondedStakingAction
+    via PIsDataReprInstances PBondedStakingAction
 
 deriving via
   PAsData (PIsDataReprInstances (PMaybeData PMintingAction))
@@ -209,12 +201,12 @@ deriving via
     PTryFrom PData (PAsData (PMaybeData PMintingAction))
 
 deriving via
-  PAsData (PIsDataReprInstances PUnbondedStakingAction)
+  PAsData (PIsDataReprInstances PBondedStakingAction)
   instance
-    PTryFrom PData (PAsData PUnbondedStakingAction)
+    PTryFrom PData (PAsData PBondedStakingAction)
 
-instance PUnsafeLiftDecl PUnbondedStakingAction where
-  type PLifted PUnbondedStakingAction = UnbondedStakingAction
+instance PUnsafeLiftDecl PBondedStakingAction where
+  type PLifted PBondedStakingAction = BondedStakingAction
 
 ----- Type synonyms -----
 
@@ -222,85 +214,62 @@ instance PUnsafeLiftDecl PUnbondedStakingAction where
 type PEntryHRec (s :: S) =
   HRec
     '[ HField s "key" PByteString
-     , HField s "deposited" PNatural
      , HField s "newDeposit" PNatural
+     , HField s "deposited" PNatural
+     , HField s "staked" PNatural
      , HField s "rewards" PNatRatio
-     , HField s "totalRewards" PNatural
-     , HField s "totalDeposited" PNatural
-     , HField s "open" PBoolData
      , HField s "next" (PMaybeData PByteString)
      ]
 
 -- | Type level list with all of `PEntry`'s fields
 type PEntryFields =
   '[ "key"
-   , "deposited"
    , "newDeposit"
+   , "deposited"
+   , "staked"
    , "rewards"
-   , "totalRewards"
-   , "totalDeposited"
-   , "open"
    , "next"
    ]
 
--- | HRec with all of `PUnbondedPoolParams`'s fields
-type PUnbondedPoolParamsHRec (s :: S) =
+-- | HRec with all of `PBondedPoolParams`'s fields
+type PBondedPoolParamsHRec (s :: S) =
   HRec
-    '[ HField s "start" PPOSIXTime
+    '[ HField s "iterations" PNatural
+     , HField s "start" PPOSIXTime
+     , HField s "end" PPOSIXTime
      , HField s "userLength" PPOSIXTime
-     , HField s "adminLength" PPOSIXTime
      , HField s "bondingLength" PPOSIXTime
-     , HField s "interestLength" PPOSIXTime
-     , HField s "increments" PNatural
      , HField s "interest" PNatRatio
      , HField s "minStake" PNatural
      , HField s "maxStake" PNatural
      , HField s "admin" PPubKeyHash
-     , HField s "unbondedAssetClass" PAssetClass
+     , HField s "bondedAssetClass" PAssetClass
      , HField s "nftCs" PCurrencySymbol
      , HField s "assocListCs" PCurrencySymbol
      ]
 
--- | Type level list with all of `PUnbondedPoolParams's field names
-type PUnbondedPoolParamsFields =
-  '[ "start"
+-- | Type level list with all of `PBondedPoolParams's field names
+type PBondedPoolParamsFields =
+  '[ "iterations"
+   , "start"
+   , "end"
    , "userLength"
-   , "adminLength"
    , "bondingLength"
-   , "interestLength"
-   , "increments"
    , "interest"
    , "minStake"
    , "maxStake"
    , "admin"
-   , "unbondedAssetClass"
+   , "bondedAssetClass"
    , "nftCs"
    , "assocListCs"
    ]
 
------- PBool data instance ------
-
-data PBoolData (s :: S)
-  = PDFalse (Term s (PDataRecord '[]))
-  | PDTrue (Term s (PDataRecord '[]))
-  deriving stock (GHC.Generic)
-  deriving anyclass (Generic)
-  deriving anyclass (PIsDataRepr)
-  deriving
-    (PlutusType, PIsData)
-    via PIsDataReprInstances PBoolData
-
-deriving via
-  PAsData (PIsDataReprInstances PBoolData)
-  instance
-    PTryFrom PData (PAsData PBoolData)
-
 ---- PConstant instances ----
 
 deriving via
-  (DerivePConstantViaData UnbondedPoolParams PUnbondedPoolParams)
+  (DerivePConstantViaData BondedPoolParams PBondedPoolParams)
   instance
-    (PConstant UnbondedPoolParams)
+    (PConstant BondedPoolParams)
 
 deriving via
   (DerivePConstantViaData Entry PEntry)
@@ -308,11 +277,6 @@ deriving via
     (PConstant Entry)
 
 deriving via
-  (DerivePConstantViaData UnbondedStakingDatum PUnbondedStakingDatum)
+  (DerivePConstantViaData BondedStakingAction PBondedStakingAction)
   instance
-    (PConstant UnbondedStakingDatum)
-
-deriving via
-  (DerivePConstantViaData UnbondedStakingAction PUnbondedStakingAction)
-  instance
-    (PConstant UnbondedStakingAction)
+    (PConstant BondedStakingAction)

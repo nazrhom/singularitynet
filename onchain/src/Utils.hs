@@ -22,6 +22,7 @@ module Utils (
   psndData,
   ptraceBool,
   getTokenName,
+  getTokenCount,
   oneOf,
   noneOf,
   allWith,
@@ -39,56 +40,46 @@ module Utils (
   getDatum,
   getDatumHash,
   getContinuingOutputWithNFT,
+  getOutputSignedBy,
+  getTokenTotal,
+  getCoWithDatum,
   getOnlySignatory,
   signedBy,
   signedOnlyBy,
   pconst,
   pflip,
   toPBool,
+  mkPubKeyCredential,
   (>:),
-  PTxInfoFields,
-  PTxInfoHRec,
-  PBondedPoolParamsHRec,
-  PBondedPoolParamsFields,
-  PTxInInfoFields,
-  PEntryFields,
-  PEntryHRec,
-  PTxInInfoHRec,
-  HField,
 ) where
 
-import GHC.TypeLits (Symbol)
-import PNatural (PNatRatio, PNatural)
+import PNatural (PNatural (PNatural), PNonNegative ((#+)))
 import PTypes (PAssetClass, passetClass)
 import Plutarch.Api.V1 (
   PAddress,
+  PCredential (PPubKeyCredential),
   PCurrencySymbol,
-  PDCert,
   PDatum,
   PDatumHash,
   PMap,
   PMaybeData (PDJust, PDNothing),
-  PPOSIXTime,
-  PPOSIXTimeRange,
   PPubKeyHash,
   PScriptPurpose (PMinting, PSpending),
-  PStakingCredential,
   PTokenName,
   PTuple,
-  PTxId,
   PValue,
   ptuple,
  )
+import Plutarch.Api.V1.Tuple (pbuiltinPairFromTuple)
 import Plutarch.Api.V1.Tx (PTxInInfo, PTxOut, PTxOutRef)
 import Plutarch.Bool (pand, por)
 import Plutarch.Builtin (pforgetData)
-import Plutarch.DataRepr (HRec)
-import Plutarch.DataRepr.Internal.Field (Labeled)
 import Plutarch.Lift (
   PLifted,
   PUnsafeLiftDecl,
  )
 import Plutarch.TryFrom (PTryFrom, ptryFrom)
+import SingularityNet.Natural (Natural (Natural))
 
 import UnbondedStaking.PTypes (PBoolData (PDFalse, PDTrue))
 
@@ -353,6 +344,67 @@ getTokenName cs val = pfix # getTokenName' # cs # pto (pto val)
             ptraceError
               "getTokenName: the token with given \
               \CurrencySymbol was not found"
+
+-- | Gets the amount of `PAssetClass` found in the passed `PValue`
+getTokenCount ::
+  forall (s :: S).
+  Term s PAssetClass ->
+  Term s PValue ->
+  Term s PNatural
+getTokenCount ac val =
+  getTokenCount' # ac # pto (pto val)
+  where
+    getTokenCount' ::
+      forall (s :: S).
+      Term
+        s
+        ( PAssetClass
+            :--> PValueOuter
+            :--> PNatural
+        )
+    getTokenCount' = phoistAcyclic $
+      plam $ \ac' val -> unTermCont $ do
+        ac <- tcont . pletFields @'["currencySymbol", "tokenName"] $ ac'
+        let cs = pfromData ac.currencySymbol
+            tn = pfromData ac.tokenName
+        pure $ pfoldl # (foldCsMap # cs # tn) # pconstant (Natural 0) # val
+    foldCsMap ::
+      forall (s :: S).
+      Term
+        s
+        ( PCurrencySymbol
+            :--> PTokenName
+            :--> PNatural
+            :--> PBuiltinPair
+                  (PAsData PCurrencySymbol)
+                  (PAsData (PMap PTokenName PInteger))
+            :--> PNatural
+        )
+    foldCsMap = phoistAcyclic $
+      plam $ \cs tn acc pair ->
+        runTermCont (ppairData pair) $ \(cs', tnMap) ->
+          pif
+            (cs #== cs')
+            (pfoldl # (foldTnMap # tn) # acc # pto tnMap)
+            acc
+    foldTnMap ::
+      forall (s :: S).
+      Term
+        s
+        ( PTokenName
+            :--> PNatural
+            :--> PBuiltinPair
+                  (PAsData PTokenName)
+                  (PAsData PInteger)
+            :--> PNatural
+        )
+    foldTnMap = phoistAcyclic $
+      plam $ \tn acc pair ->
+        runTermCont (ppairData pair) $ \(tn', n) ->
+          pif
+            (tn #== tn')
+            (acc #+ (pcon $ PNatural n))
+            acc
 
 -- go self ls cont = pmatch ls $ \case
 --  PNil -> pconstant False
@@ -716,6 +768,89 @@ getContinuingOutputWithNFT addr ac outputs =
         pdata outputF.address #== pdata addr
           #&& oneOf # acF.currencySymbol # acF.tokenName # outputF.value
 
+getOutputSignedBy ::
+  forall (s :: S).
+  Term s PPubKeyHash ->
+  Term s (PBuiltinList (PAsData PTxOut)) ->
+  TermCont s (Term s PTxOut)
+getOutputSignedBy pkh outputs = do
+  credential <- pletC $ mkPubKeyCredential pkh
+  output <- flip pfind outputs $
+    plam $ \output -> unTermCont $ do
+      let credential' = pfield @"credential" #$ pfield @"address" # output
+      pure $ pdata credential #== pdata credential'
+  pure $ pfromData output
+
+getTokenTotal ::
+  forall (s :: S).
+  Term s PAssetClass ->
+  Term s (PBuiltinList (PAsData PTxInInfo)) ->
+  Term s PNatural
+getTokenTotal ac inputs =
+  pfoldl # (sumAmount # ac) # pconstant (Natural 0) # inputs
+  where
+    sumAmount ::
+      Term
+        s
+        ( PAssetClass
+            :--> PNatural
+            :--> PAsData PTxInInfo
+            :--> PNatural
+        )
+    sumAmount = phoistAcyclic $
+      plam $ \ac acc input ->
+        let val = pfield @"value" #$ pfield @"resolved" # pfromData input
+         in acc #+ getTokenCount ac val
+
+{- | Gets the CO and datum that satisfy the given datum predicate.
+ It fails if no CO is found, or no CO satisfies the predicate, or too many COs
+ are found
+-}
+getCoWithDatum ::
+  forall (s :: S).
+  Term s PAddress ->
+  Term s (PDatum :--> PBool) ->
+  Term s (PBuiltinList (PAsData PTxOut)) ->
+  Term s (PBuiltinList (PAsData (PTuple PDatumHash PDatum))) ->
+  TermCont s (Term s PTxOut, Term s PDatum)
+getCoWithDatum poolAddr pred outputs datums = do
+  -- Filter COs with address and datum from outputs
+  cos <- pletC . flip pmapMaybe outputs . plam $
+    \output -> unTermCont $ do
+      outputF <- tcont $ pletFields @'["address", "datumHash"] output
+      pure $
+        pif
+          (pnot #$ pdata outputF.address #== pdata poolAddr)
+          -- Address does not match, ignore output
+          (pcon PNothing)
+          $ pmatch outputF.datumHash $ \case
+            -- Output does not have a datum, fail (pool outputs always
+            -- should)
+            PDNothing _ ->
+              ptraceError "getCoWithDatum: found CO without a datum"
+            PDJust datHash -> unTermCont $ do
+              datum <- getDatum (pfield @"_0" # datHash) datums
+              pure $
+                pif
+                  (pred # datum)
+                  ( pcon . PJust . pbuiltinPairFromTuple . pdata $
+                      ptuple # output # pdata datum
+                  )
+                  -- Datum does not satisfy predicate, ignore output
+                  (pcon PNothing)
+  -- Make sure it's the only output
+  ppairData . pmatch cos $ \case
+    PNil ->
+      ptraceError
+        "getCoWithDatum: found more than one CO with given \
+        \ datum"
+    PCons x xs -> pmatch xs $ \case
+      PCons _ _ ->
+        ptraceError
+          "getCoWithDatum: found more than one CO with\
+          \ given datum"
+      PNil -> pfromData x
+
 {- | Gets the `DatumHash` from a `PTxOut`. If not available, it will fail with
  an error.
 -}
@@ -796,107 +931,6 @@ signedOnlyBy ::
   Term s PBool
 signedOnlyBy ls pkh = signedBy ls pkh #&& plength # ls #== 1
 
--- Useful type family for reducing boilerplate in HRec types
-type family HField (s :: S) (field :: Symbol) (ptype :: PType) where
-  HField s field ptype = Labeled field (Term s (PAsData ptype))
-
--- | HRec with all of `PTxInfo`'s fields
-type PTxInfoHRec (s :: S) =
-  HRec
-    '[ HField s "inputs" (PBuiltinList (PAsData PTxInInfo))
-     , HField s "outputs" (PBuiltinList (PAsData PTxOut))
-     , HField s "fee" PValue
-     , HField s "mint" PValue
-     , HField s "dcert" (PBuiltinList (PAsData PDCert))
-     , HField s "wdrl" (PBuiltinList (PAsData (PTuple PStakingCredential PInteger)))
-     , HField s "validRange" PPOSIXTimeRange
-     , HField s "signatories" (PBuiltinList (PAsData PPubKeyHash))
-     , HField s "data" (PBuiltinList (PAsData (PTuple PDatumHash PDatum)))
-     , HField s "id" PTxId
-     ]
-
--- | HRec with all of `PBondedPoolParams`'s fields
-type PBondedPoolParamsHRec (s :: S) =
-  HRec
-    '[ HField s "iterations" PNatural
-     , HField s "start" PPOSIXTime
-     , HField s "end" PPOSIXTime
-     , HField s "userLength" PPOSIXTime
-     , HField s "bondingLength" PPOSIXTime
-     , HField s "interest" PNatRatio
-     , HField s "minStake" PNatural
-     , HField s "maxStake" PNatural
-     , HField s "admin" PPubKeyHash
-     , HField s "bondedAssetClass" PAssetClass
-     , HField s "nftCs" PCurrencySymbol
-     , HField s "assocListCs" PCurrencySymbol
-     ]
-
--- | HRec with all of `PTxInInfo`'s fields
-type PTxInInfoHRec (s :: S) =
-  HRec
-    '[ HField s "outRef" PTxOutRef
-     , HField s "resolved" PTxOut
-     ]
-
--- | HRec with all of `PEntry`'s fields
-type PEntryHRec (s :: S) =
-  HRec
-    '[ HField s "key" PByteString
-     , HField s "newDeposit" PNatural
-     , HField s "deposited" PNatural
-     , HField s "staked" PNatural
-     , HField s "rewards" PNatRatio
-     , HField s "next" (PMaybeData PByteString)
-     ]
-
--- | Type level list with all of `PBondedPoolParams's field names
-type PBondedPoolParamsFields =
-  '[ "iterations"
-   , "start"
-   , "end"
-   , "userLength"
-   , "bondingLength"
-   , "interest"
-   , "minStake"
-   , "maxStake"
-   , "admin"
-   , "bondedAssetClass"
-   , "nftCs"
-   , "assocListCs"
-   ]
-
--- | Type level list with all of `PTxInfo`'s fields
-type PTxInfoFields =
-  '[ "inputs"
-   , "outputs"
-   , "fee"
-   , "mint"
-   , "dcert"
-   , "wdrl"
-   , "validRange"
-   , "signatories"
-   , "data"
-   , "id"
-   ]
-
--- | Type level list with all of `PTxInInfo`'s fields
-type PTxInInfoFields =
-  '[ "outRef"
-   , "resolved"
-   ]
-
--- | Type level list with all of `PEntry`'s fields
-type PEntryFields =
-  '[ "key"
-   , "newDeposit"
-   , "deposited"
-   , "staked"
-   , "rewards"
-   , "next"
-   ]
-
---
 -- Other functions
 
 {- | Returns a new Plutarch function that ignores the first paramter and returns
@@ -938,3 +972,7 @@ toPBool = phoistAcyclic $
     pmatch pbd $ \case
       PDFalse _ -> pfalse
       PDTrue _ -> ptrue
+
+-- | Build a `PCredential` from a `PPubKeyHash`
+mkPubKeyCredential :: forall (s :: S). Term s PPubKeyHash -> Term s PCredential
+mkPubKeyCredential pkh = pcon . PPubKeyCredential $ pdcons # pdata pkh # pdnil

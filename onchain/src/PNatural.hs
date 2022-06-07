@@ -11,9 +11,16 @@ module PNatural (
   PNatural (..),
   PNatRatio (..),
   PNonNegative (..),
+  mkNatRatioUnsafe,
+  natZero,
+  pCeil,
+  ratZero,
   toNatRatio,
+  roundUp,
+  roundDown,
 ) where
 
+-- import Data.Ratio ((%))
 import GHC.Generics qualified as GHC
 import Generics.SOP (Generic, I (I))
 
@@ -32,6 +39,7 @@ import Plutarch.Lift (
   PLifted,
   PUnsafeLiftDecl,
  )
+import Plutarch.Rational (PRational (PRational), ptruncate)
 import Plutarch.TryFrom (PTryFrom)
 
 {- | `Natural` synonym.
@@ -158,8 +166,19 @@ instance PNonNegative PNatRatio where
 
 -- Conversion functions
 
-toNatRatio :: Term s PNatural -> Term s PNatRatio
+toNatRatio :: forall (s :: S). Term s PNatural -> Term s PNatRatio
 toNatRatio n = mkNatRatioUnsafe (pto n) 1
+
+roundUp :: forall (s :: S). Term s PNatRatio -> Term s PNatural
+roundUp r = runTermCont (getIntegers r) $ \(n, d) ->
+  pif
+    (d #== 1)
+    (mkNatUnsafe n)
+    (mkNatUnsafe $ pdiv # (n + d - (prem # n # d)) # d)
+
+roundDown :: forall (s :: S). Term s PNatRatio -> Term s PNatural
+roundDown r = runTermCont (getIntegers r) $ \(n, d) ->
+  mkNatUnsafe $ pdiv # (n - (prem # n # d)) # d
 
 -- Auxiliary functions
 gt0 :: Integer -> Maybe Natural
@@ -236,5 +255,26 @@ getIntegers r' = do
   r <- tcont . pletFields @'["numerator", "denominator"] $ r'
   pure (pto $ pfromData r.numerator, pto $ pfromData r.denominator)
 
+natZero :: Term s PNatural
+natZero = pconstant $ Natural 0
+
+ratZero :: Term s PNatRatio
+ratZero = pconstant . NatRatio $ 0
+
 pletC :: forall (s :: S) (a :: PType). Term s a -> TermCont s (Term s a)
 pletC = tcont . plet
+
+pCeil :: Term s (PNatRatio :--> PNatural)
+pCeil =
+  phoistAcyclic $
+    plam $ \x -> unTermCont $ do
+      (numerator, denominator) <- getIntegers x
+      let x' = pcon $ PRational numerator denominator
+          numerator' = pnumerator # x'
+          denominator' = pdenominator # x'
+          truncated = ptruncate # x'
+      pure $
+        pif
+          (pmod # numerator' # denominator' #== 0)
+          (pcon $ PNatural truncated)
+          (pcon $ PNatural (truncated + 1))

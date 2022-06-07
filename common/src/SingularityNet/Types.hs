@@ -137,8 +137,8 @@ data MintingAction
 unstableMakeIsData ''MintingAction
 
 data BurningAction
-  = BurnHead TxOutRef
-  | BurnOther TxOutRef
+  = BurnHead TxOutRef TxOutRef
+  | BurnOther TxOutRef TxOutRef
   deriving stock (GHC.Generic, Show)
   
 unstableMakeIsData ''BurningAction

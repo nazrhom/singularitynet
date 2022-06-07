@@ -2,6 +2,11 @@
 
 const frontend = import("./output.js");
 
+exports.buildContractConfig = async (sdkConfig) => {
+  const contracts = await frontend;
+  return contracts.buildContractConfig(sdkConfig)();
+};
+
 exports.callCreateBondedPool = async (config, args) => {
   const contracts = await frontend;
   return contracts.callCreateBondedPool(config)(args)();

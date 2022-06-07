@@ -1,12 +1,17 @@
 module InductiveLogic (
   consumesStateUtxoGuard,
+  consumesStateUtxoAndEntryGuard,
   consumesEntriesGuard,
   consumesEntryGuard,
-  doesNotConsumeAssetGuard,
-  hasStateNft,
+  doesNotConsumeBondedAssetGuard,
+  doesNotConsumeUnbondedAssetGuard,
+  hasStateToken,
+  hasEntryToken,
   hasListNft,
   hasNoNft,
   inputPredicate,
+  pointsNowhere,
+  pointsTo,
 ) where
 
 {-
@@ -16,6 +21,7 @@ module InductiveLogic (
 -}
 import Plutarch.Api.V1 (
   PCurrencySymbol,
+  PMaybeData (PDJust, PDNothing),
   PTokenName,
   PTxInInfo,
   PTxOutRef,
@@ -37,7 +43,12 @@ import Utils (
   punit,
  )
 
-import PTypes (PBondedStakingDatum (PAssetDatum))
+import BondedStaking.PTypes qualified as BS (
+  PBondedStakingDatum (PAssetDatum),
+ )
+import UnbondedStaking.PTypes qualified as US (
+  PUnbondedStakingDatum (PAssetDatum),
+ )
 
 -- | Fail if state UTXO is not in inputs or if it does not have the state token
 consumesStateUtxoGuard ::
@@ -46,23 +57,68 @@ consumesStateUtxoGuard ::
   -- |^ Redeemer's pool UTXO
   Term s (PBuiltinList (PAsData PTxInInfo)) ->
   -- |^ Transaction's inputs
-  Term s PCurrencySymbol ->
-  -- |^ Pool's currency symbol
-  Term s PTokenName ->
-  -- |^ Pool's token name
+  (Term s PCurrencySymbol, Term s PTokenName) ->
+  -- |^ Pool's token
   TermCont s (Term s PUnit)
-consumesStateUtxoGuard stateOutRef inputs stateNftCs stateNftTn = do
+consumesStateUtxoGuard stateOutRef inputs stateTok = do
   _ <- flip pfind inputs . inputPredicate $ \outRef val ->
     pif
       (pdata outRef #== pdata stateOutRef)
       ( pif
-          (hasStateNft stateNftCs stateNftTn val)
+          (val `hasStateToken` stateTok)
           ptrue
           $ ptraceError
             "consumesStateUtxoGuard: txOutRef does not have pool NFT"
       )
       pfalse
   pure punit
+
+consumesStateUtxoAndEntryGuard ::
+  forall (s :: S).
+  Term s PTxOutRef ->
+  -- |^ Redeemer's pool UTXO
+  Term s PTxOutRef ->
+  -- |^ Entry to consume
+  Term s (PBuiltinList (PAsData PTxInInfo)) ->
+  -- |^ Transaction's inputs
+  (Term s PCurrencySymbol, Term s PTokenName) ->
+  -- |^ Pool's token
+  (Term s PCurrencySymbol, Term s PTokenName) ->
+  -- |^ Entry's token
+  TermCont s (Term s PUnit)
+consumesStateUtxoAndEntryGuard
+  stateOutRef
+  entryOutRef
+  inputs
+  stateTok
+  entryTok = do
+    _ <- flip pfind inputs . inputPredicate $ \outRef val ->
+      pif
+        (pdata outRef #== pdata stateOutRef)
+        ( pif
+            (val `hasStateToken` stateTok)
+            ptrue
+            ( ptraceError
+                "consumesStateUtxoAndEntryGuard: state UTxO does not \
+                \have pool NFT"
+            )
+        )
+        ( pif
+            (pdata outRef #== pdata entryOutRef)
+            ( pif
+                (val `hasEntryToken` entryTok)
+                ptrue
+                ( ptraceError
+                    "consumesStateUtxoAndEntryGuard: entry UTxO does \
+                    \not have the expected entry NFT"
+                )
+            )
+            pfalse
+        )
+    pure punit
+
+-- (ptraceError "consumesStateUtxoAndEntryGuard: txOutRef does not \
+--  \have list NFT"))
 
 {- | Fails if the two entries are not present in inputs or they don't have a
  list token
@@ -124,15 +180,25 @@ consumesEntryGuard entry inputs listNftCs = do
           pfalse
   pure punit
 
-doesNotConsumeAssetGuard ::
+doesNotConsumeBondedAssetGuard ::
   forall (s :: S).
-  Term s PBondedStakingDatum ->
+  Term s BS.PBondedStakingDatum ->
   TermCont s (Term s PUnit)
-doesNotConsumeAssetGuard datum = do
+doesNotConsumeBondedAssetGuard datum = do
   result <- pure . pmatch datum $ \case
-    PAssetDatum _ -> ptrue
+    BS.PAssetDatum _ -> ptrue
     _ -> pfalse
-  guardC "doesNotConsumeAssetGuard: tx consumes asset utxo" result
+  guardC "doesNotConsumeBondedAssetGuard: tx consumes asset utxo" result
+
+doesNotConsumeUnbondedAssetGuard ::
+  forall (s :: S).
+  Term s US.PUnbondedStakingDatum ->
+  TermCont s (Term s PUnit)
+doesNotConsumeUnbondedAssetGuard datum = do
+  result <- pure . pmatch datum $ \case
+    US.PAssetDatum _ -> ptrue
+    _ -> pfalse
+  guardC "doesNotConsumeUnbondedAssetGuard: tx consumes asset utxo" result
 
 -- | Auxiliary function for building predicates on PTxInInfo's
 inputPredicate ::
@@ -162,20 +228,21 @@ hasListNft listNftCs val = hasListNft' # listNftCs # val
           # (peq # 1)
           # val
 
--- | Returns `ptrue` if value contains the pool's state token
-hasStateNft ::
+hasEntryToken ::
   forall (s :: S).
-  Term s PCurrencySymbol ->
-  Term s PTokenName ->
   Term s PValue ->
+  (Term s PCurrencySymbol, Term s PTokenName) ->
   Term s PBool
-hasStateNft stateNftCs stateNftTn val =
-  hasStateNft' # stateNftCs # stateNftTn # val
-  where
-    hasStateNft' :: Term s (PCurrencySymbol :--> PTokenName :--> PValue :--> PBool)
-    hasStateNft' = phoistAcyclic $
-      plam $ \cs tn val ->
-        oneOf # cs # tn # val
+hasEntryToken val (listNftCs, entryTn) = oneOf # listNftCs # entryTn # val
+
+-- | Returns `ptrue` if value contains the pool's state token
+hasStateToken ::
+  forall (s :: S).
+  Term s PValue ->
+  (Term s PCurrencySymbol, Term s PTokenName) ->
+  Term s PBool
+hasStateToken val (stateNftCs, stateNftTn) =
+  oneOf # stateNftCs # stateNftTn # val
 
 {- | Returns `ptrue` if value contains neither the pool's state token nor entry
  token
@@ -204,3 +271,31 @@ hasNoNft stateNftCs listNftCs val = hasNoNft' # stateNftCs # listNftCs # val
           # pconst ptrue
           # pconst ptrue
           # val
+
+-- Returns false if it points nowhere
+pointsNowhere ::
+  forall (s :: S).
+  Term s (PMaybeData PByteString) ->
+  Term s PBool
+pointsNowhere x = pointsNowhere' # x
+  where
+    pointsNowhere' :: Term s (PMaybeData PByteString :--> PBool)
+    pointsNowhere' = phoistAcyclic $
+      plam . flip pmatch $ \case
+        PDJust _ -> pfalse
+        PDNothing _ -> ptrue
+
+-- Returns true if it points to the given PKH
+pointsTo ::
+  forall (s :: S).
+  Term s (PMaybeData PByteString) ->
+  Term s PByteString ->
+  Term s PBool
+pointsTo entryKey tn = pointsTo' # entryKey # tn
+  where
+    pointsTo' :: Term s (PMaybeData PByteString :--> PByteString :--> PBool)
+    pointsTo' = phoistAcyclic $
+      plam $ \e t ->
+        pmatch e $ \case
+          PDJust t' -> pfield @"_0" # t' #== t
+          PDNothing _ -> pfalse
