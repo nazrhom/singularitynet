@@ -10,7 +10,7 @@ import GHC.Records (getField)
 import InductiveLogic (
   doesNotConsumeUnbondedAssetGuard,
   hasListNft,
-  hasStateNft,
+  hasStateToken,
   pointsNowhere,
   pointsTo,
  )
@@ -464,10 +464,9 @@ newStakeLogic txInfoF paramsF spentInputF datum holderPkh stakeAmt mintAct = do
       ---- INDUCTIVE CONDITIONS ----
       -- Validate that spentOutRef is the state UTXO and matches redeemer
       guardC "newStakeLogic (mintHead): spent input is not the state UTXO" $
-        hasStateNft
-          paramsF.nftCs
-          (pconstant unbondedStakingTokenName)
+        hasStateToken
           spentInputResolvedF.value
+          (paramsF.nftCs, pconstant unbondedStakingTokenName)
       guardC
         "newStakeLogic (mintHead): spent input does not match redeemer \
         \input"

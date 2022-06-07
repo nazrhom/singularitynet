@@ -16,6 +16,8 @@ module PNatural (
   pCeil,
   ratZero,
   toNatRatio,
+  roundUp,
+  roundDown,
 ) where
 
 -- import Data.Ratio ((%))
@@ -163,8 +165,20 @@ instance PNonNegative PNatRatio where
             (pdiv # d' # commonD)
 
 -- Conversion functions
-toNatRatio :: Term s PNatural -> Term s PNatRatio
+
+toNatRatio :: forall (s :: S). Term s PNatural -> Term s PNatRatio
 toNatRatio n = mkNatRatioUnsafe (pto n) 1
+
+roundUp :: forall (s :: S). Term s PNatRatio -> Term s PNatural
+roundUp r = runTermCont (getIntegers r) $ \(n, d) ->
+  pif
+    (d #== 1)
+    (mkNatUnsafe n)
+    (mkNatUnsafe $ pdiv # (n + d - (prem # n # d)) # d)
+
+roundDown :: forall (s :: S). Term s PNatRatio -> Term s PNatural
+roundDown r = runTermCont (getIntegers r) $ \(n, d) ->
+  mkNatUnsafe $ pdiv # (n - (prem # n # d)) # d
 
 -- Auxiliary functions
 gt0 :: Integer -> Maybe Natural

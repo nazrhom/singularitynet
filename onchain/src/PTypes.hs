@@ -144,8 +144,24 @@ instance PUnsafeLiftDecl PMintingAction where
 
 -- | `BurningAction` synonym
 data PBurningAction (s :: S)
-  = PBurnHead (Term s (PDataRecord '["_0" ':= PTxOutRef]))
-  | PBurnOther (Term s (PDataRecord '["_0" ':= PTxOutRef]))
+  = PBurnHead
+      ( Term
+          s
+          ( PDataRecord
+              '[ "state" ':= PTxOutRef
+               , "headEntry" ':= PTxOutRef
+               ]
+          )
+      )
+  | PBurnOther
+      ( Term
+          s
+          ( PDataRecord
+              '[ "previousEntry" ':= PTxOutRef
+               , "burnEntry" ':= PTxOutRef
+               ]
+          )
+      )
   deriving stock (GHC.Generic)
   deriving anyclass (Generic, PIsDataRepr)
   deriving
