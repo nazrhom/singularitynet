@@ -42,6 +42,7 @@ import PNatural (
   PNatRatio,
   PNatural,
   mkNatRatioUnsafe,
+  natPow,
   natZero,
   pCeil,
   ratZero,
@@ -56,7 +57,7 @@ import PTypes (
   PAssetClass,
   PBurningAction (PBurnHead, PBurnOther, PBurnSingle),
   PMintingAction (PMintEnd, PMintHead, PMintInBetween),
-  PPeriod,
+  PPeriod (BondingPeriod, DepositWithdrawPeriod),
   PTxInInfoFields,
   PTxInInfoHRec,
   PTxInfoFields,
@@ -67,6 +68,9 @@ import PTypes (
   bondingPeriod
  )
 
+import SingularityNet.Natural (
+  Natural (Natural),
+ )
 import SingularityNet.Settings (unbondedStakingTokenName)
 
 import UnbondedStaking.PTypes (
@@ -271,16 +275,17 @@ adminActLogic txInfoF paramsF purpose datum adminActParamsF = unTermCont $ do
         "adminActLogic: update failed because entry field 'newDeposit' \
         \is not zero"
         $ newEntryF.newDeposit #== natZero
-      guardC
-        "adminActLogic: update failed because entry field 'rewards' \
-        \is not updatedRewards"
-        $ newEntryF.rewards
-          #== calculateRewards
+      let rewards = calculateRewards
             oldEntryF.rewards
             adminActParamsF.totalRewards
             oldEntryF.deposited
             oldEntryF.newDeposit
             adminActParamsF.totalDeposited
+      guardC
+        "adminActLogic: update failed because entry field 'rewards' \
+        \is not updatedRewards"
+        $ newEntryF.rewards
+          #== toNatRatio (pCeil # rewards)
       guardC
         "adminActLogic: update failed because entry field 'totalRewards' \
         \is not newTotalRewards"
@@ -693,6 +698,7 @@ withdrawActLogic txInfoF paramsF purpose datum withdrawActParamsF period = do
               datum
               txInfoF
               paramsF
+              period
               outRefsF.state
               outRefsF.headEntry
       pure $
@@ -711,6 +717,7 @@ withdrawActLogic txInfoF paramsF purpose datum withdrawActParamsF period = do
               datum
               txInfoF
               paramsF
+              period
               entriesF.burnEntry
       pure $
         pnestedIf
@@ -757,58 +764,60 @@ withdrawHeadActLogic ::
   Term s PUnbondedStakingDatum ->
   PTxInfoHRec s ->
   PUnbondedPoolParamsHRec s ->
+  Term s PPeriod ->
   Term s PTxOutRef ->
   Term s PTxOutRef ->
   Term s PUnit
-withdrawHeadActLogic spentInput withdrawnAmt datum txInfo params stateOutRef headEntryOutRef =
+withdrawHeadActLogic spentInputF withdrawnAmt datum txInfoF paramsF period stateOutRef headEntryOutRef =
   unTermCont $ do
     -- Construct some useful values for later
-    spentInputResolved <-
-      tcont . pletFields @'["address", "value", "datumHash"] $ spentInput.resolved
+    spentInputResolvedF <-
+      tcont . pletFields @'["address", "value", "datumHash"] $ spentInputF.resolved
     let poolAddr :: Term s PAddress
-        poolAddr = spentInputResolved.address
+        poolAddr = spentInputResolvedF.address
         stateTn :: Term s PTokenName
         stateTn = pconstant unbondedStakingTokenName
-    stateTok <- pletC $ passetClass # params.nftCs # stateTn
-    txInfoData <- pletC $ getField @"data" txInfo
+    stateTok <- pletC $ passetClass # paramsF.nftCs # stateTn
+    txInfoDataF <- pletC $ getField @"data" txInfoF
     ---- FETCH DATUMS ----
     -- Get datum for next state
     nextStateTxOut <-
-      getContinuingOutputWithNFT poolAddr stateTok txInfo.outputs
+      getContinuingOutputWithNFT poolAddr stateTok txInfoF.outputs
     nextStateHash <- getDatumHash nextStateTxOut
-    (nextEntryKey, _nextSizeLeft) <-
+    (nextEntryKey, nextEntryOpen) <-
       getStateData
         =<< parseStakingDatum
-        =<< getDatum nextStateHash txInfoData
+        =<< getDatum nextStateHash txInfoDataF
     -- Get datum for current state
     entryKey <- getKey =<< fst <$> getStateData datum
     -- Get datum for head entry
-    headEntry <- getInputEntry headEntryOutRef txInfoData txInfo.inputs
+    headEntryF <- getInputEntry headEntryOutRef txInfoDataF txInfoF.inputs
     ---- BUSINESS LOGIC ----
+    -- Burning action only valid if pool is open
+    guardC "withdrawHeadActLogic: Pool is not open" $ toPBool # headEntryF.open
     -- Validate that entry key matches the key in state UTxO
     guardC "withdrawHeadActLogic: consumed entry key does not match user's pkh" $
-      headEntry.key #== entryKey
+      headEntryF.key #== entryKey
     -- Validate withdrawn amount
-    guardC
-      "withdrawHeadActLogic: withdrawn amount does not match stake and \
-      \rewards"
-      $ withdrawnAmt
-        #== roundDown (toNatRatio headEntry.deposited #+ headEntry.rewards)
+    withdrawRewardsGuard period withdrawnAmt paramsF.interest headEntryF
     ---- INDUCTIVE CONDITIONS ----
     -- Validate that spentOutRef is the state UTXO and matches redeemer
     guardC "withdrawHeadActLogic: spent input is not the state UTXO" $
-      spentInputResolved.value
-        `hasStateToken` (params.nftCs, pconstant unbondedStakingTokenName)
+      spentInputResolvedF.value
+        `hasStateToken` (paramsF.nftCs, pconstant unbondedStakingTokenName)
     guardC "withdrawHeadActLogic: spent input does not match redeemer input" $
-      spentInput.outRef #== pdata stateOutRef
+      spentInputF.outRef #== pdata stateOutRef
     -- Validate that consumed entry is head of the list
     guardC "withdrawHeadActLogic: spent entry is not head of the list" $
-      entryKey #== headEntry.key
+      entryKey #== headEntryF.key
     -- Validate next state
     guardC
       "withdrawHeadActLogic: next pool state does not point to same \
       \location as burned entry"
-      $ pdata nextEntryKey #== headEntry.next
+      $ pdata nextEntryKey #== headEntryF.next
+    guardC
+      "withdrawHeadActLogic: next pool state cannot close pool"
+      $ pdata nextEntryOpen #== headEntryF.open
 
 withdrawOtherActLogic ::
   forall (s :: S).
@@ -820,53 +829,52 @@ withdrawOtherActLogic ::
   Term s PUnbondedStakingDatum ->
   PTxInfoHRec s ->
   PUnbondedPoolParamsHRec s ->
+  Term s PPeriod ->
   Term s PTxOutRef ->
   Term s PUnit
-withdrawOtherActLogic spentInput withdrawnAmt datum txInfo params burnEntryOutRef =
+withdrawOtherActLogic spentInputF withdrawnAmt datum txInfoF paramsF period burnEntryOutRef =
   unTermCont $ do
     -- Construct some useful values for later
-    spentInputResolved <-
-      tcont . pletFields @'["address", "value", "datumHash"] $ spentInput.resolved
+    spentInputResolvedF <-
+      tcont . pletFields @'["address", "value", "datumHash"] $ spentInputF.resolved
     let poolAddr :: Term s PAddress
-        poolAddr = spentInputResolved.address
-    txInfoData <- pletC $ getField @"data" txInfo
+        poolAddr = spentInputResolvedF.address
+    txInfoData <- pletC $ getField @"data" txInfoF
     ---- FETCH DATUMS ----
     -- Get datum for previous entry
-    prevEntry <- tcont . pletFields @PEntryFields =<< getEntryData datum
+    prevEntryF <- tcont . pletFields @PEntryFields =<< getEntryData datum
     -- Get updated datum for previous entry
     let prevEntryTok :: Term s PAssetClass
-        prevEntryTok = getTokenName params.assocListCs spentInputResolved.value
-    prevEntryUpdated <-
+        prevEntryTok = getTokenName paramsF.assocListCs spentInputResolvedF.value
+    prevEntryUpdatedF <-
       getOutputEntry
         poolAddr
         prevEntryTok
         txInfoData
-        txInfo.outputs
+        txInfoF.outputs
     -- Get datum for burned entry
-    burnEntry <- getInputEntry burnEntryOutRef txInfoData txInfo.inputs
+    burnEntryF <- getInputEntry burnEntryOutRef txInfoData txInfoF.inputs
     ---- BUSINESS LOGIC ----
+    -- Burning action only valid if pool is open
+    guardC "withdrawHeadActLogic: Pool is not open" $ toPBool # burnEntryF.open
     -- Validate withdrawn amount
-    guardC
-      "withdrawOtherActLogic: withdrawn amount does not match stake and \
-      \rewards"
-      $ withdrawnAmt
-        #== roundDown (toNatRatio burnEntry.deposited #+ burnEntry.rewards)
+    withdrawRewardsGuard period withdrawnAmt paramsF.interest burnEntryF
     ---- INDUCTIVE CONDITIONS ----
     -- Validate that spentOutRef is the previous entry and matches redeemer
     guardC "withdrawOtherActLogic: spent input is not an entry" $
-      hasListNft params.assocListCs spentInputResolved.value
+      hasListNft paramsF.assocListCs spentInputResolvedF.value
     -- Validate that burn entry key matches the key in previous entry
     guardC
       "withdrawOtherActLogic: consumed entry key does not match previous \
       \entry's key"
-      $ prevEntry.next `pointsTo` burnEntry.key
+      $ prevEntryF.next `pointsTo` burnEntryF.key
     -- Validate updated entry
     guardC
       "withdrawOtherActLogic: updated previous entry does not point to same \
       \location as burned entry"
-      $ prevEntryUpdated.next #== pdata burnEntry.next
+      $ prevEntryUpdatedF.next #== pdata burnEntryF.next
     -- Validate other fields of updated entry (they should stay the same)
-    equalEntriesGuard prevEntryUpdated prevEntry
+    equalEntriesGuard prevEntryUpdatedF prevEntryF
 
 closeActLogic ::
   forall (s :: S).
@@ -935,16 +943,17 @@ closeActLogic txInfoF paramsF purpose inputStakingDatum = unTermCont $ do
       guardC
         "closeActLogic: update failed because entry field 'key' is changed"
         $ oldEntryF.key #== newEntryF.key
-      guardC
-        "closeActLogic: update failed because entry field 'rewards' \
-        \is not updatedRewards"
-        $ newEntryF.rewards
-          #== calculateRewards
+      let rewards = calculateRewards
             oldEntryF.rewards
             oldEntryF.totalRewards
             oldEntryF.deposited
             oldEntryF.newDeposit
             oldEntryF.totalDeposited
+      guardC
+        "closeActLogic: update failed because entry field 'rewards' \
+        \is not updatedRewards"
+        $ newEntryF.rewards
+          #== toNatRatio (pCeil # rewards)
       guardC
         "closeActLogic: update failed because entry field 'open' \
         \is not false"
@@ -1065,6 +1074,53 @@ getKey =
           PDNothing _ -> ptraceError "getKey: no key found"
       )
 
+withdrawRewardsGuard ::
+  forall (s :: S).
+  Term s PPeriod ->
+  Term s PNatural ->
+  Term s PNatRatio ->
+  PEntryHRec s ->
+  TermCont s (Term s PUnit)
+withdrawRewardsGuard period amount interest entryF =
+  pure . pmatch period $ \case
+    DepositWithdrawPeriod -> unTermCont $ do
+      let
+        rewards = roundDown $
+          calculateRewards
+            entryF.rewards
+            entryF.totalRewards
+            entryF.deposited
+            entryF.newDeposit
+            entryF.totalDeposited
+      guardC
+        "withdrawRewardsGuard: reward withdrawal amount not within bounds" $
+        entryF.deposited #<= amount
+        #&& amount #<= entryF.deposited #+ rewards
+    BondingPeriod -> unTermCont $ do
+      -- Calculate maximum withdrawal amount
+      guardC
+        "withdrawRewardsGuard: totalDeposited is zero" $
+        natZero #< entryF.totalDeposited
+      let
+        flhs = mkNatRatioUnsafe
+                (pto (entryF.totalRewards :: Term s PNatural))
+                (pto (entryF.totalDeposited :: Term s PNatural))
+        frhs = entryF.rewards #+ (toNatRatio entryF.deposited)
+        f = roundDown $ frhs #* flhs
+        natOne = pconstant $ Natural 1
+        rhsDenominator = interest #+ (toNatRatio natOne)
+        -- TODO: Implement POSIX time logic to calculate for k
+        -- (currently hard-coded to 1) (also unify rounding functions)
+        rhsDenominator' = pCeil # (natPow # rhsDenominator # natOne)
+        rhs = mkNatRatioUnsafe (pto f) (pto rhsDenominator')
+        bondingRewards = roundDown $ entryF.rewards #+ rhs
+      -- Validate amount is within bounds
+      guardC
+        "withdrawRewardsGuard: reward withdrawal amount not within bounds" $
+        entryF.deposited #<= amount
+        #&& amount #<= entryF.deposited #+ bondingRewards
+    _ -> ptraceError "withdrawRewardsGuard: invalid withdraw period"
+
 calculateRewards ::
   forall (s :: S).
   Term s PNatRatio ->
@@ -1088,5 +1144,4 @@ calculateRewards rewards totalRewards deposited newDeposit totalDeposited =
             "calculateRewards: invalid deposit amount"
         PJust rhs'' -> unTermCont $ do
           let f = rhs'' #* lhs
-              result = pCeil # (rewards #+ f)
-          pure $ toNatRatio result
+          pure $ rewards #+ f
