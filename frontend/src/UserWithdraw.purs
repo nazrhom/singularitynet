@@ -5,36 +5,32 @@ import Prelude
 
 import Contract.Address (AddressWithNetworkTag(AddressWithNetworkTag), getNetworkId, getWalletAddress, ownPaymentPubKeyHash, scriptHashAddress)
 import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM, logInfo', throwContractError)
-import Contract.Numeric.Natural (Natural, toBigInt)
 import Contract.PlutusData (PlutusData, Datum(Datum), fromData, getDatumByHash, toData)
-import Contract.Prim.ByteArray (ByteArray(..), byteArrayToHex)
+import Contract.Prim.ByteArray (ByteArray, byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
-import Contract.Transaction (BalancedSignedTransaction(BalancedSignedTransaction), TransactionInput(..), TransactionOutput(..), balanceAndSignTx, submit)
-import Contract.TxConstraints (TxConstraints, mustBeSignedBy, mustMintCurrencyWithRedeemer, mustMintValueWithRedeemer, mustPayToPubKey, mustPayToScript, mustSpendScriptOutput)
+import Contract.Transaction (BalancedSignedTransaction(BalancedSignedTransaction), TransactionInput, TransactionOutput, balanceAndSignTx, submit)
+import Contract.TxConstraints (TxConstraints, mustBeSignedBy, mustMintValueWithRedeemer, mustPayToPubKey, mustPayToScript, mustSpendScriptOutput)
 import Contract.Utxos (UtxoM(..), utxosAt)
 import Contract.Value (Value, mkTokenName, singleton)
-import Control.Applicative (unless)
 import Data.Array (catMaybes, head)
 import Data.BigInt (BigInt)
-import Data.Map (Map, toUnfoldable, fromFoldable)
+import Data.Map (toUnfoldable, fromFoldable)
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
-import Types (BondedPoolParams(BondedPoolParams), BondedStakingAction(..), BondedStakingDatum(..), BurningAction(..), Entry(..), ListAction(..), MintingAction(MintHead), StakingType(Bonded))
-import Types.Rational (Rational, denominator, numerator, reduce, (%))
+import Types (BondedPoolParams(BondedPoolParams), BondedStakingAction(..), BondedStakingDatum(..), BurningAction(..), Entry(..), ListAction(..), StakingType(Bonded))
+import Types.Rational (Rational, denominator, numerator)
 import Types.Redeemer (Redeemer(Redeemer))
-import Utils (findAssocElem, getUtxoWithNFT, hashPkh, mkOnchainAssocList, logInfo_)
+import Utils (findRemoveOtherElem, getUtxoWithNFT, hashPkh, logInfo_, mkOnchainAssocList)
 
 -- Deposits a certain amount in the pool
 userWithdrawBondedPoolContract :: BondedPoolParams -> Contract () Unit
 userWithdrawBondedPoolContract
   params@
     ( BondedPoolParams
-        { minStake
-        , maxStake
-        , bondedAssetClass
+        { bondedAssetClass
         , nftCs
         , assocListCs
         }
@@ -95,8 +91,8 @@ userWithdrawBondedPoolContract
       $ mkTokenName hashedUserPkh
   -- Build useful values for later
   let
-    assetDatum = Datum $ toData AssetDatum
     stateTokenValue = singleton nftCs tokenName one
+    mintEntryValue = singleton assocListCs assocListTn one
     burnEntryValue = singleton assocListCs assocListTn (-one)
     assetParams = unwrap bondedAssetClass
     assetCs = assetParams.currencySymbol
@@ -118,13 +114,17 @@ userWithdrawBondedPoolContract
         --  the list
         EQ -> do
           logInfo' "userWithdrawBondedPoolContract: Compare EQ"
-          (_ /\ txIn /\ txOut) <-
+          (_ /\ entryInput /\ entryOutput) <-
             liftContractM
               "userWithdrawBondedPoolContract: Cannot \
               \extract head from Assoc. List - this should be impossible"
               $ head assocList
           -- Get the datum of the head entry and the key of the new head
-          oldHeadEntry <- unwrap <$> getEntryDatumFromOutput txOut
+          logInfo' "userWithdrawBondedPoolContract: getting datum of entry to\
+            \consume (head)..."
+          oldHeadEntry <- unwrap <$> getEntryDatumFromOutput entryOutput
+          logInfo_ "userWithdrawBondedPoolContract: entry to consume"
+            oldHeadEntry
           let newHeadKey :: Maybe ByteArray
               newHeadKey = oldHeadEntry.next
           -- Get amount to withdraw
@@ -144,10 +144,10 @@ userWithdrawBondedPoolContract
           let valRedeemer = Redeemer <<< toData $
                WithdrawAct {
                  stakeHolder: userPkh ,
-                 burningAction: BurnHead txIn
+                 burningAction: BurnHead poolTxInput entryInput
                }
           -- Build minting policy redeemer
-          let mintRedeemer = Redeemer $ toData $ ListRemove $ BurnHead txIn
+          let mintRedeemer = Redeemer $ toData $ ListRemove $ BurnHead poolTxInput entryInput
           -- New state lookup
           stateDatumLookup <-
             liftContractM
@@ -158,14 +158,17 @@ userWithdrawBondedPoolContract
             constraints =
               mconcat
                 [ mustBeSignedBy userPkh
-                , mustSpendScriptOutput txIn valRedeemer
+                , mustSpendScriptOutput poolTxInput valRedeemer
+                , mustSpendScriptOutput entryInput valRedeemer
                 , mustMintValueWithRedeemer mintRedeemer burnEntryValue
+                , mustPayToScript valHash newState stateTokenValue
                 , mustPayToPubKey userPkh withdrawnVal
                 ]
 
             lookup :: ScriptLookups.ScriptLookups PlutusData
             lookup = mconcat
               [ ScriptLookups.validator validator
+              , ScriptLookups.mintingPolicy listPolicy
               , ScriptLookups.unspentOutputs $ unwrap userUtxos
               , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
               , stateDatumLookup
@@ -177,190 +180,80 @@ userWithdrawBondedPoolContract
           -- The hashed key is greater than so we must look at the assoc. list
           -- in more detail
           logInfo' "userWithdrawBondedPoolContract: Compare GT"
-          mintingAction
-            /\ { firstInput, secondInput }
+          { firstInput, secondInput }
             /\ { firstOutput, secondOutput }
-            /\ { secondKey } <-
+            /\ _ <-
             liftContractM
               "userWithdrawBondedPoolContract: Cannot get position in Assoc. List"
-              $ findAssocElem assocList hashedUserPkh
+              $ findRemoveOtherElem assocList hashedUserPkh
 
-          when (isJust mintingAction) $
-            throwContractError "userWithdrawBondedPoolContract: Could not find\
-              \ entry in list"
+          -- Get the entry datum of the previous entry
+          logInfo' "userWithdrawBondedPoolContract: getting datum of previous\
+            \entry..."
+          prevEntry <- unwrap <$> getEntryDatumFromOutput firstOutput
+          logInfo_ "userWithdrawBondedPoolContract: entry to consume" prevEntry
+
+          -- Get the entry datum of the entry to consume
+          logInfo' "userWithdrawBondedPoolContract: getting datum of entry to\
+            \ burn..."
+          burnEntry <- unwrap <$> getEntryDatumFromOutput secondOutput
+          logInfo_ "userWithdrawBondedPoolContract: entry to consume" burnEntry
           
+          -- Get amount to withdraw
+          let rewards :: Rational
+              rewards = burnEntry.rewards 
+              rewardsRounded :: BigInt
+              rewardsRounded = numerator rewards / denominator rewards
+              withdrawnAmt :: BigInt
+              withdrawnAmt = burnEntry.staked + rewardsRounded
+              withdrawnVal :: Value
+              withdrawnVal = singleton assetCs assetTn withdrawnAmt
+
+          -- Build updated previous entry and its lookup
+          let prevEntryUpdated = Datum $ toData $ EntryDatum
+                {
+                  entry: Entry $ prevEntry {
+                    next = burnEntry.next
+                  }
+                }
+          prevEntryDatumLookup <-
+            liftContractM
+              "userWithdrawBondedPoolContract: Could not create updated prev \
+                \ entry datum lookup"
+              $ ScriptLookups.datum prevEntryUpdated
+
           -- Build validator redeemer
-          --let
-          --  valRedeemer = Redeemer $ toData $ StakeAct
-          --    { stakeAmount: amt
-          --    , stakeHolder: userPkh
-          --    , mintingAction
-          --    }
+          let valRedeemer = Redeemer <<< toData $
+               WithdrawAct {
+                 stakeHolder: userPkh ,
+                 burningAction: BurnOther firstInput secondInput
+               }
 
-          ---- Get the Entry datum of the old assoc. list (first) element
-          --dHash <- liftContractM
-          --  "userWithdrawBondedPoolContract: Could not get Entry Datum Hash"
-          --  (unwrap firstOutput).dataHash
-          --logInfo_ "userWithdrawBondedPoolContract:" dHash
-          --firstListDatum <-
-          --  liftedM
-          --    "userWithdrawBondedPoolContract: Cannot get \
-          --    \Entry's  datum" $ getDatumByHash dHash
-          --firstBondedListDatum :: BondedStakingDatum <-
-          --  liftContractM
-          --    "userWithdrawBondedPoolContract: Cannot extract Assoc. List datum"
-          --    $ fromData (unwrap firstListDatum)
+          -- Build minting policy redeemer
+          let mintRedeemer = Redeemer $ toData $ ListRemove $ BurnOther firstInput secondInput
 
-          ---- Constraints for the first element.
-          --firstConstraints /\ firstLookups <- case firstBondedListDatum of
-          --  EntryDatum { entry } -> do
-          --    let e = unwrap entry
-          --    firstEntryDatum <-
-          --      if isJust mintingAction then
-          --        -- MintInBetween and MintEnd are the same here
-          --        -- a new middle entry is created so update next
-          --        pure $ Datum $ toData $ EntryDatum
-          --          { entry: Entry $ e
-          --              { next = Just hashedUserPkh
-          --              }
-          --          }
-          --      else do -- depositing/updating at the first entry
-          --        let updateDeposited = e.deposited + amtBigInt
-          --        unless
-          --          ( toBigInt minStake <= updateDeposited
-          --              && updateDeposited
-          --              <= toBigInt maxStake
-          --          )
-          --          $ throwContractError
-          --              "userWithdrawBondedPoolContract: Stake amount outside of \
-          --              \min/max range"
-          --        pure $ Datum $ toData $ EntryDatum
-          --          { entry: Entry $ e
-          --              { newDeposit = e.newDeposit + amtBigInt
-          --              , deposited = updateDeposited
-          --              }
-          --          }
-          --    firstEntryDatumLookup <-
-          --      liftContractM
-          --        "userWithdrawBondedPoolContract: Could not create state datum \
-          --        \lookup"
-          --        $ ScriptLookups.datum firstEntryDatum
-          --    let
-          --      constr = mconcat
-          --        [ mustPayToScript valHash firstEntryDatum entryValue
-          --        , mustSpendScriptOutput firstInput valRedeemer
-          --        ]
-          --      -- We add validator at the end. If we are minting i.e. when
-          --      -- mintingAction is "Just", we include those in
-          --      -- `middleConstraints` and `middleLookups` below
-          --      lu = firstEntryDatumLookup
-          --    pure $ constr /\ lu
-          --  _ -> throwContractError
-          --    "userWithdrawBondedPoolContract: Datum not \
-          --    \Entry constructor"
+          let
+            constraints :: TxConstraints Unit Unit
+            constraints =
+              mconcat
+                [ mustBeSignedBy userPkh
+                , mustSpendScriptOutput firstInput valRedeemer
+                , mustSpendScriptOutput secondInput valRedeemer
+                , mustMintValueWithRedeemer mintRedeemer burnEntryValue
+                , mustPayToScript valHash prevEntryUpdated mintEntryValue
+                , mustPayToPubKey userPkh withdrawnVal
+                ]
 
-          ---- Constraints for the potential middle element.
-          --middleConstraints /\ middleLookups <-
-          --  if isJust mintingAction then do -- a genuine new entry
-          --    unless (minStake <= amt && amt <= maxStake)
-          --      $ throwContractError
-          --          "userWithdrawBondedPoolContract: Stake amount outside of \
-          --          \min/max range"
-          --    -- Inbetween mint - this should not fail because we have `Just`
-          --    ma <- liftContractM
-          --      "userWithdrawBondedPoolContract: Could not get \
-          --      \minting action"
-          --      mintingAction
-          --    let
-          --      -- Minting a new Entry
-          --      mintRedeemer = Redeemer $ toData $ ListInsert ma
-
-          --      entryDatum = Datum $ toData $ Entry
-          --        { key: hashedUserPkh
-          --        , newDeposit: amtBigInt
-          --        , deposited: amtBigInt
-          --        , staked: zero
-          --        , rewards: zero
-          --        , next: secondKey -- points to original second key
-          --        }
-
-          --    entryDatumLookup <-
-          --      liftContractM
-          --        "userWithdrawBondedPoolContract: Could not create state datum \
-          --        \lookup"
-          --        $ ScriptLookups.datum entryDatum
-          --    let
-          --      constr = mconcat
-          --        [ mustMintValueWithRedeemer mintRedeemer entryValue
-          --        , mustPayToScript valHash entryDatum entryValue
-          --        ]
-          --      lu = mconcat
-          --        [ ScriptLookups.mintingPolicy listPolicy
-          --        , entryDatumLookup
-          --        ]
-          --    pure $ constr /\ lu
-          --  else pure $ mempty /\ mempty
-
-          ---- Get the constraints for the second assoc. list element
-          --lastConstraints /\ lastLookups <- case secondOutput, secondInput of
-          --  Nothing, Nothing -> pure $ mempty /\ mempty
-          --  Just so, Just si -> do --
-          --    dh <- liftContractM
-          --      "userWithdrawBondedPoolContract: Could not get Entry Datum Hash"
-          --      (unwrap so).dataHash
-          --    logInfo_ "userWithdrawBondedPoolContract:" dh
-          --    secondListDatum <-
-          --      liftedM
-          --        "userWithdrawBondedPoolContract: Cannot \
-          --        \get Entry's datum" $ getDatumByHash dh
-          --    secondBondedListDatum :: BondedStakingDatum <-
-          --      liftContractM
-          --        "userWithdrawBondedPoolContract: Cannot extract NFT State datum"
-          --        $ fromData (unwrap secondListDatum)
-
-          --    -- Unchanged in the case
-          --    lastEntryDatum <- case secondBondedListDatum of
-          --      EntryDatum { entry } ->
-          --        pure $ Datum $ toData $ EntryDatum { entry }
-          --      _ -> throwContractError
-          --        "userWithdrawBondedPoolContract: Datum not \
-          --        \Entry constructor"
-
-          --    lastEntryDatumLookup <-
-          --      liftContractM
-          --        "userWithdrawBondedPoolContract: Could not create state datum \
-          --        \lookup"
-          --        $ ScriptLookups.datum lastEntryDatum
-          --    let
-          --      constr = mconcat
-          --        [ mustPayToScript valHash lastEntryDatum entryValue
-          --        , mustSpendScriptOutput si valRedeemer
-          --        ]
-          --      lu = mconcat
-          --        [ ScriptLookups.mintingPolicy listPolicy
-          --        , lastEntryDatumLookup
-          --        ]
-          --    pure $ constr /\ lu
-          --  _, _ -> throwContractError
-          --    "userWithdrawBondedPoolContract: Datum not\
-          --    \Entry constructor"
-          --pure
-          --  $ mconcat
-          --      [ firstConstraints
-          --      , middleConstraints
-          --      , lastConstraints
-          --      , mustBeSignedBy userPkh
-          --      ]
-          --  /\
-          --    mconcat
-          --      [ ScriptLookups.validator validator
-          --      , ScriptLookups.unspentOutputs $ unwrap userUtxos
-          --      , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
-          --      , firstLookups
-          --      , middleLookups
-          --      , lastLookups
-          --      ]
-          undefined
+            lookup :: ScriptLookups.ScriptLookups PlutusData
+            lookup = mconcat
+              [ ScriptLookups.validator validator
+              , ScriptLookups.mintingPolicy listPolicy
+              , ScriptLookups.unspentOutputs $ unwrap userUtxos
+              , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
+              , prevEntryDatumLookup
+              ]
+              
+          pure $ constraints /\ lookup
 
   unattachedBalancedTx <-
     liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
