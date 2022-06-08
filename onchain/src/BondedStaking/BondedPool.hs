@@ -61,15 +61,16 @@ import PTypes (
   PTxInInfoHRec,
   PTxInfoFields,
   PTxInfoHRec,
-  -- bondingPeriod,
-  -- depositWithdrawPeriod,
-  -- onlyWithdrawPeriod,
+  bondingPeriod,
+  depositWithdrawPeriod,
+  onlyWithdrawPeriod,
+  closingPeriod,
   passetClass,
  )
 
--- import PInterval(
---  getBondedPeriod
---  )
+import PInterval(
+  getBondedPeriod
+  )
 
 import Utils (
   getCoWithDatum,
@@ -146,17 +147,18 @@ pbondedPoolValidator = phoistAcyclic $
     paramsF <- tcont $ pletFields @PBondedPoolParamsFields params
     -- Match on redeemer, check period and minted value, execute the
     -- corresponding logic
+    period <- pletC $ getBondedPeriod # txInfoF.validRange # params 
     pure $
       pmatch act $ \case
         PAdminAct _ -> unTermCont $ do
-          -- guardC "pbondedPoolValidator: wrong period for PAdminAct redeemer" $
-          --  getBondedPeriod # txInfoF.validRange # params #== bondingPeriod
+          guardC "pbondedPoolValidator: wrong period for PAdminAct redeemer" $
+            period #== bondingPeriod
           pure $ adminActLogic txInfoF paramsF ctxF.purpose dat
         PStakeAct act -> unTermCont $ do
-          -- guardC "pbondedPoolValidator: wrong period for PStakeAct \
-          -- \redeemer" $
-          --  getBondedPeriod # txInfoF.validRange # params
-          --     #== depositWithdrawPeriod
+          guardC "pbondedPoolValidator: wrong period for PStakeAct \
+           \redeemer" $
+            getBondedPeriod # txInfoF.validRange # params
+               #== depositWithdrawPeriod
           pure
             . pletFields
               @'["stakeAmount", "pubKeyHash", "maybeMintingAction"]
@@ -169,10 +171,9 @@ pbondedPoolValidator = phoistAcyclic $
                 dat
                 actF
         PWithdrawAct act' -> unTermCont $ do
-          -- period <- getBondedPeriod # txInfoF.validRange # params
-          -- guardC "pbondedPoolValidator: wrong period for PWithdrawAct \
-          --  \redeemer" $
-          --  period #== depositWithdrawPeriod #|| onlyWithdrawPeriod
+          guardC "pbondedPoolValidator: wrong period for PWithdrawAct \
+            \redeemer" $
+            period #== depositWithdrawPeriod #|| period #== onlyWithdrawPeriod
           guardC
             "pbondedPoolValidator: a token should be burned when using \
             \ PWithdrawAct"
@@ -185,8 +186,8 @@ pbondedPoolValidator = phoistAcyclic $
             dat
             act
         PCloseAct _ -> unTermCont $ do
-          -- guardC "pbondedPoolValidator: wrong period for PcloseAct redeemer" $
-          --   getBondedPeriod # txInfoF.validRange # params #== closingPeriod
+          guardC "pbondedPoolValidator: wrong period for PcloseAct redeemer" $
+            period #== closingPeriod
           pure $ closeActLogic ctxF.txInfo params
   where
     isBurningEntry ::
