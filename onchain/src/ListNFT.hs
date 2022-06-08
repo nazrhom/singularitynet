@@ -16,7 +16,7 @@ import Plutarch.Api.V1.Scripts ()
 import Plutarch.Unsafe (punsafeCoerce)
 
 import PTypes (
-  PBurningAction (PBurnHead, PBurnOther),
+  PBurningAction (PBurnHead, PBurnOther, PBurnSingle),
   PListAction (PListInsert, PListRemove),
   PMintingAction (PMintEnd, PMintHead, PMintInBetween),
  )
@@ -171,6 +171,13 @@ listRemoveCheck
           (pfromData outRefs.previousEntry)
           (pfromData outRefs.burnEntry)
           inputs
+      PBurnSingle outRef' -> unTermCont $ do
+        let outRef = pfield @"burnEntry" # outRef'
+        burnSingleGuard
+          stateTok
+          listTok
+          (pfromData outRef)
+          inputs
 
 -- TODO
 
@@ -284,6 +291,23 @@ burnOtherGuard
     consumesEntriesGuard prevEntryOutRef burnEntryOutRef inputs listNftCs
     -- We check that the other inputs are not state nor list UTXOs
     noNftGuard stateNftCs listNftCs [prevEntryOutRef, burnEntryOutRef] inputs
+
+burnSingleGuard ::
+  forall (s :: S).
+  (Term s PCurrencySymbol, Term s PTokenName) ->
+  (Term s PCurrencySymbol, Term s PTokenName) ->
+  Term s PTxOutRef ->
+  Term s (PBuiltinList (PAsData PTxInInfo)) ->
+  TermCont s (Term s PUnit)
+burnSingleGuard
+  (stateNftCs, _)
+  (listNftCs, _)
+  burnEntryOutRef
+  inputs = do
+    -- We check that the entry is consumed
+    consumesEntryGuard burnEntryOutRef inputs listNftCs
+    -- We check that the burn entry is not a state nor list UTXO
+    noNftGuard stateNftCs listNftCs [burnEntryOutRef] inputs
 
 -- Check that all unprotected inputs contain no state nor list NFTs
 noNftGuard ::

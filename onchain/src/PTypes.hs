@@ -162,6 +162,7 @@ data PBurningAction (s :: S)
                ]
           )
       )
+  | PBurnSingle (Term s (PDataRecord '["burnEntry" ':= PTxOutRef]))
   deriving stock (GHC.Generic)
   deriving anyclass (Generic, PIsDataRepr)
   deriving

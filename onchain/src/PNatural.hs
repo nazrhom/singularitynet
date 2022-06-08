@@ -12,6 +12,7 @@ module PNatural (
   PNatRatio (..),
   PNonNegative (..),
   mkNatRatioUnsafe,
+  natPow,
   natZero,
   pCeil,
   ratZero,
@@ -264,7 +265,7 @@ ratZero = pconstant . NatRatio $ 0
 pletC :: forall (s :: S) (a :: PType). Term s a -> TermCont s (Term s a)
 pletC = tcont . plet
 
-pCeil :: Term s (PNatRatio :--> PNatural)
+pCeil :: forall (s :: S). Term s (PNatRatio :--> PNatural)
 pCeil =
   phoistAcyclic $
     plam $ \x -> unTermCont $ do
@@ -278,3 +279,26 @@ pCeil =
           (pmod # numerator' # denominator' #== 0)
           (pcon $ PNatural truncated)
           (pcon $ PNatural (truncated + 1))
+
+natPow :: forall (s :: S). Term s (PNatRatio :--> PNatural :--> PNatRatio)
+natPow = pfix #$ plam pow
+  where
+    pow ::
+      forall (s :: S).
+      Term s (PNatRatio :--> PNatural :--> PNatRatio) ->
+      Term s PNatRatio ->
+      Term s PNatural ->
+      Term s PNatRatio
+    pow self base exp = unTermCont $ do
+      let exp' = exp #- (pconstant $ Natural 1)
+      pure $
+        pmatch exp' $ \case
+          PNothing ->
+            ptraceError
+              "natPow: invalid exponent"
+          PJust exp'' -> unTermCont $ do
+            pure $
+              pif
+                (exp #== natZero)
+                (toNatRatio $ pconstant $ Natural 1)
+                (base #* (self # base # exp''))

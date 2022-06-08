@@ -54,7 +54,7 @@ import PNatural (
 import PTypes (
   HField,
   PAssetClass,
-  PBurningAction (PBurnHead, PBurnOther),
+  PBurningAction (PBurnHead, PBurnOther, PBurnSingle),
   PMintingAction (PMintEnd, PMintHead, PMintInBetween),
   PPeriod (BondingPeriod, ClosingPeriod),
   PTxInInfoFields,
@@ -701,14 +701,13 @@ withdrawActLogic
         entryCheck :: Term s PTxOutRef -> Term s PUnit
         entryCheck entryOutRef = unTermCont $ do
           guardC
-            "withdrawHeadActLogic: spent entry is not an entry (no List \
-            \NFT)"
+            "withdrawActLogic: spent entry is not an entry (no List NFT)"
             $ hasListNft params.assocListCs spentInputResolved.value
           guardC
-            "withdrawHeadActLogic: spent entry does not match redeemer \
+            "withdrawActLogic: spent entry does not match redeemer \
             \TxOutRef"
             $ pdata entryOutRef #== spentInput.outRef
-          guardC "withdrawHeadActLogic: entry does not belong to user" $
+          guardC "withdrawActLogic: entry does not belong to user" $
             hasEntryToken
               spentInputResolved.value
               (params.assocListCs, entryTn)
@@ -749,6 +748,9 @@ withdrawActLogic
             , spentInput.outRef #== entries.burnEntry >: entryCheck entries.burnEntry
             ]
             $ assetCheck
+      PBurnSingle _ ->
+        ptraceError
+          "withdrawActLogic: burning action is invalid for bonded pool"
 
 withdrawHeadActLogic ::
   forall (s :: S).
