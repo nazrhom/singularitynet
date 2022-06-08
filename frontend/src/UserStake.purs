@@ -283,8 +283,6 @@ userStakeBondedPoolContract
               ]
           pure $ constraints /\ lookup
         EQ -> do
-          -- Ramiro: can you check the comment below please?
-          -- POTENTIAL FIXME: Is this included on on chain code?
           -- If we have equality, the on chain element must already exist, so
           -- we must spend and update it. In this case, we are updating the
           -- head of the list.
