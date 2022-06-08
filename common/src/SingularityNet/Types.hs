@@ -124,7 +124,7 @@ unstableMakeIsData ''BondedStakingDatum
      where an entry will be inserted or which entry will be removed. These
      aid the policy and validator by restricting the actions to be checked to
      only one.
-     
+
      In the minting policy, these are used as redeemers. In the validator, these
      are wrapped in a `Maybe` and are used only for the first stake of any user
 -}
@@ -139,8 +139,9 @@ unstableMakeIsData ''MintingAction
 data BurningAction
   = BurnHead TxOutRef TxOutRef
   | BurnOther TxOutRef TxOutRef
+  | BurnSingle TxOutRef
   deriving stock (GHC.Generic, Show)
-  
+
 unstableMakeIsData ''BurningAction
 
 -- | Minting policy redeemers
@@ -148,7 +149,7 @@ data ListAction
   = ListInsert MintingAction
   | ListRemove BurningAction
   deriving stock (GHC.Generic, Show)
-  
+
 unstableMakeIsData ''ListAction
 
 {- | Validator redeemers
@@ -158,7 +159,7 @@ unstableMakeIsData ''ListAction
 
      These are used by the stakers to deposit their first stake or update their
      already existing stake.
-     
+
      When the stake-holder makes their first deposit, the redeemer will be
      `StakeAct amt pkh (Just mintAct)`, where `mintAct` specifies the type of
      insertion that needs to checked by the validator.
@@ -166,7 +167,7 @@ unstableMakeIsData ''ListAction
      When the stake-holder wants to update their existing stake, the last field
      is set to `Nothing`, since no entry needs to be inserted or removed from
      the list.
-     
+
      When the stake-holder wants to claim the their rewards, the redeemer will
      be `WithdrawAct pkh burnAct`, where `burnAct` specifies the type of removal
      that needs to be checked by the validator.
