@@ -60,7 +60,7 @@ import Types
   )
 import Types.Redeemer (Redeemer(Redeemer))
 import Utils
-  ( findAssocElem
+  ( findInsertUpdateElem
   , getUtxoWithNFT
   , hashPkh
   , mkOnchainAssocList
@@ -369,7 +369,7 @@ userStakeBondedPoolContract
             /\ { secondKey } <-
             liftContractM
               "userStakeBondedPoolContract: Cannot get position in Assoc. List"
-              $ findAssocElem assocList hashedUserPkh
+              $ findInsertUpdateElem assocList hashedUserPkh
           let
             valRedeemer = Redeemer $ toData $ StakeAct
               { stakeAmount: amt
