@@ -110,7 +110,7 @@ consumesStateUtxoAndEntryGuard
                 ptrue
                 ( ptraceError
                     "consumesStateUtxoAndEntryGuard: entry UTxO does \
-                    \not have the expecte entry NFT"
+                    \not have the expected entry NFT"
                 )
             )
             pfalse
