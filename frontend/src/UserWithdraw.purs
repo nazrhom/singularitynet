@@ -102,6 +102,7 @@ userWithdrawBondedPoolContract
     assetParams = unwrap bondedAssetClass
     assetCs = assetParams.currencySymbol
     assetTn = assetParams.tokenName
+    assetDatum = Datum $ toData AssetDatum
     assocList = mkOnchainAssocList params bondedPoolUtxos
   ---- BUILD CONSTRAINTS AND LOOKUPS ----
   constraints /\ lookup <- case headEntry of
@@ -141,6 +142,18 @@ userWithdrawBondedPoolContract
               withdrawnAmt = oldHeadEntry.staked + rewardsRounded
               withdrawnVal :: Value
               withdrawnVal = singleton assetCs assetTn withdrawnAmt
+          -- Calculate assets to consume and change that needs to be returned
+          -- to the pool
+          consumedAssetUtxos /\ totalSpentAmt <-
+            liftContractM "userWithdrawBondedPoolContract: Cannot get asset \
+              \UTxOs to consume" $
+              getAssetsToConsume bondedAssetClass withdrawnAmt bondedAssetUtxos
+          let changeValue :: Value
+              changeValue = 
+                singleton
+                  (unwrap bondedAssetClass).currencySymbol
+                  (unwrap bondedAssetClass).tokenName
+                  $ totalSpentAmt - withdrawnAmt
           -- Build updated state
           let newState :: Datum
               newState = Datum <<< toData $
@@ -158,26 +171,28 @@ userWithdrawBondedPoolContract
             liftContractM
               "userWithdrawBondedPoolContract: Could not create state datum lookup"
               $ ScriptLookups.datum newState
-          let
-            constraints :: TxConstraints Unit Unit
-            constraints =
-              mconcat
-                [ mustBeSignedBy userPkh
-                , mustSpendScriptOutput poolTxInput valRedeemer
-                , mustSpendScriptOutput entryInput valRedeemer
-                , mustMintValueWithRedeemer mintRedeemer burnEntryValue
-                , mustPayToScript valHash newState stateTokenValue
-                , mustPayToPubKey userPkh withdrawnVal
-                ]
+              
+          let constraints :: TxConstraints Unit Unit
+              constraints =
+                mconcat
+                  [ mustBeSignedBy userPkh
+                  , mustSpendScriptOutput poolTxInput valRedeemer
+                  , mustSpendScriptOutput entryInput valRedeemer
+                  , mkAssetUtxosConstraints consumedAssetUtxos valRedeemer
+                  , mustMintValueWithRedeemer mintRedeemer burnEntryValue
+                  , mustPayToScript valHash newState stateTokenValue
+                  , mustPayToScript valHash assetDatum changeValue
+                  , mustPayToPubKey userPkh withdrawnVal
+                  ]
 
-            lookup :: ScriptLookups.ScriptLookups PlutusData
-            lookup = mconcat
-              [ ScriptLookups.validator validator
-              , ScriptLookups.mintingPolicy listPolicy
-              , ScriptLookups.unspentOutputs $ unwrap userUtxos
-              , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
-              , stateDatumLookup
-              ]
+              lookup :: ScriptLookups.ScriptLookups PlutusData
+              lookup = mconcat
+                [ ScriptLookups.validator validator
+                , ScriptLookups.mintingPolicy listPolicy
+                , ScriptLookups.unspentOutputs $ unwrap userUtxos
+                , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
+                , stateDatumLookup
+                ]
           pure $ constraints /\ lookup
         -- If hashedUserPkh > key, we find the wanted entry in the list and
         --  withdraw its respective funds
@@ -214,6 +229,19 @@ userWithdrawBondedPoolContract
               withdrawnVal :: Value
               withdrawnVal = singleton assetCs assetTn withdrawnAmt
 
+          -- Calculate assets to consume and change that needs to be returned
+          -- to the pool
+          consumedAssetUtxos /\ totalSpentAmt <-
+            liftContractM "userWithdrawBondedPoolContract: Cannot get asset \
+              \UTxOs to consume" $
+              getAssetsToConsume bondedAssetClass withdrawnAmt bondedAssetUtxos
+          let changeValue :: Value
+              changeValue = 
+                singleton
+                  (unwrap bondedAssetClass).currencySymbol
+                  (unwrap bondedAssetClass).tokenName
+                  $ totalSpentAmt - withdrawnAmt
+
           -- Build updated previous entry and its lookup
           let prevEntryUpdated = Datum $ toData $ EntryDatum
                 {
@@ -244,8 +272,10 @@ userWithdrawBondedPoolContract
                 [ mustBeSignedBy userPkh
                 , mustSpendScriptOutput firstInput valRedeemer
                 , mustSpendScriptOutput secondInput valRedeemer
+                , mkAssetUtxosConstraints consumedAssetUtxos valRedeemer
                 , mustMintValueWithRedeemer mintRedeemer burnEntryValue
                 , mustPayToScript valHash prevEntryUpdated mintEntryValue
+                , mustPayToScript valHash assetDatum changeValue
                 , mustPayToPubKeyAddress userPkh userStakingPubKeyHash withdrawnVal
                 ]
 
@@ -277,9 +307,9 @@ userWithdrawBondedPoolContract
     $ byteArrayToHex
     $ unwrap transactionHash
     
--- This receives a `UtxoM` with all the asset UTxOs of the pool and the desired
--- amount to withdraw. It returns a subset of these that sums at least
--- the given amount and the total amount
+-- | This receives a `UtxoM` with all the asset UTxOs of the pool and the desired
+-- | amount to withdraw. It returns a subset of these that sums at least
+-- | the given amount and the total amount
 getAssetsToConsume :: AssetClass -> BigInt -> UtxoM -> Maybe (UtxoM /\ BigInt)
 getAssetsToConsume (AssetClass ac) withdrawAmt assetUtxos =
   go assetList Map.empty zero
@@ -299,8 +329,14 @@ getAssetsToConsume (AssetClass ac) withdrawAmt assetUtxos =
                   toConsume' = Map.insert input output toConsume
                   sum' = sum + assetCount
               go arr' toConsume' sum'
+              
+-- | Builds constraints for asset UTxOs
+mkAssetUtxosConstraints :: UtxoM -> Redeemer -> TxConstraints Unit Unit
+mkAssetUtxosConstraints utxos redeemer =
+  foldMap (\(input /\ _) -> mustSpendScriptOutput input redeemer)
+          (Map.toUnfoldable $ unwrap utxos :: Array (TransactionInput /\ TransactionOutput))
     
--- This function filters all the asset UTxOs from a `UtxoM`
+-- | This function filters all the asset UTxOs from a `UtxoM`
 getBondedAssetUtxos :: forall (r :: Row Type) . UtxoM -> Contract r UtxoM
 getBondedAssetUtxos utxos = do
   assetUtxos <- catMaybes <$> for utxoAssocList \utxo@(_ /\ txOutput) -> do
@@ -319,7 +355,7 @@ getBondedAssetUtxos utxos = do
   where utxoAssocList :: Array (TransactionInput /\ TransactionOutput)
         utxoAssocList = Map.toUnfoldable $ unwrap utxos
         
--- Get entry datum from transaction output
+-- | Get entry datum from transaction output
 getEntryDatumFromOutput ::
   forall r . TransactionOutput -> Contract r Entry
 getEntryDatumFromOutput txOut = do
@@ -329,7 +365,7 @@ getEntryDatumFromOutput txOut = do
     _ -> throwContractError "getEntryDatumFromOutput: datum is not of Entry \
           \type"
           
--- Get state datum from transaction output
+-- | Get state datum from transaction output
 getStateDatumFromOutput ::
   forall r . TransactionOutput -> Contract r (Maybe ByteArray)
 getStateDatumFromOutput txOut = do
@@ -339,7 +375,7 @@ getStateDatumFromOutput txOut = do
     _ -> throwContractError "getStateDatumFromOutput: datum is not of State \
       \type"
           
--- Get a bonded datum from a transaction output
+-- | Get a bonded datum from a transaction output
 getBondedDatum ::
   forall r . TransactionOutput -> Contract r BondedStakingDatum
 getBondedDatum = 
