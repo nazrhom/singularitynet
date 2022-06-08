@@ -62,10 +62,10 @@ import PTypes (
   PTxInInfoHRec,
   PTxInfoFields,
   PTxInfoHRec,
-  passetClass,
-  depositWithdrawPeriod,
   adminUpdatePeriod,
-  bondingPeriod
+  bondingPeriod,
+  depositWithdrawPeriod,
+  passetClass,
  )
 
 import SingularityNet.Natural (
@@ -275,12 +275,13 @@ adminActLogic txInfoF paramsF purpose datum adminActParamsF = unTermCont $ do
         "adminActLogic: update failed because entry field 'newDeposit' \
         \is not zero"
         $ newEntryF.newDeposit #== natZero
-      let rewards = calculateRewards
-            oldEntryF.rewards
-            adminActParamsF.totalRewards
-            oldEntryF.deposited
-            oldEntryF.newDeposit
-            adminActParamsF.totalDeposited
+      let rewards =
+            calculateRewards
+              oldEntryF.rewards
+              adminActParamsF.totalRewards
+              oldEntryF.deposited
+              oldEntryF.newDeposit
+              adminActParamsF.totalDeposited
       guardC
         "adminActLogic: update failed because entry field 'rewards' \
         \is not updatedRewards"
@@ -737,8 +738,8 @@ withdrawActLogic txInfoF paramsF purpose datum withdrawActParamsF period = do
       -- Validate period
       guardC "withdrawActLogic: wrong period for PWithdrawAct redeemer" $
         period #== depositWithdrawPeriod
-        #|| period #== adminUpdatePeriod
-        #|| period #== bondingPeriod
+          #|| period #== adminUpdatePeriod
+          #|| period #== bondingPeriod
       ---- BUSINESS LOGIC ----
       -- Validate that entry key matches the key in state UTxO
       guardC "withdrawActLogic: consumed entry key does not match user's pkh" $
@@ -751,7 +752,7 @@ withdrawActLogic txInfoF paramsF purpose datum withdrawActParamsF period = do
           #== roundDown (toNatRatio entryF.deposited #+ entryF.rewards)
       pure $
         pnestedIf
-          [ spentInputF.outRef #== pdata entryOutRef >: entryCheck entryOutRef ]
+          [spentInputF.outRef #== pdata entryOutRef >: entryCheck entryOutRef]
           $ assetCheck
 
 withdrawHeadActLogic ::
@@ -943,12 +944,13 @@ closeActLogic txInfoF paramsF purpose inputStakingDatum = unTermCont $ do
       guardC
         "closeActLogic: update failed because entry field 'key' is changed"
         $ oldEntryF.key #== newEntryF.key
-      let rewards = calculateRewards
-            oldEntryF.rewards
-            oldEntryF.totalRewards
-            oldEntryF.deposited
-            oldEntryF.newDeposit
-            oldEntryF.totalDeposited
+      let rewards =
+            calculateRewards
+              oldEntryF.rewards
+              oldEntryF.totalRewards
+              oldEntryF.deposited
+              oldEntryF.newDeposit
+              oldEntryF.totalDeposited
       guardC
         "closeActLogic: update failed because entry field 'rewards' \
         \is not updatedRewards"
@@ -1084,41 +1086,41 @@ withdrawRewardsGuard ::
 withdrawRewardsGuard period amount interest entryF =
   pure . pmatch period $ \case
     DepositWithdrawPeriod -> unTermCont $ do
-      let
-        rewards = roundDown $
-          calculateRewards
-            entryF.rewards
-            entryF.totalRewards
-            entryF.deposited
-            entryF.newDeposit
-            entryF.totalDeposited
+      let rewards =
+            roundDown $
+              calculateRewards
+                entryF.rewards
+                entryF.totalRewards
+                entryF.deposited
+                entryF.newDeposit
+                entryF.totalDeposited
       guardC
-        "withdrawRewardsGuard: reward withdrawal amount not within bounds" $
-        entryF.deposited #<= amount
-        #&& amount #<= entryF.deposited #+ rewards
+        "withdrawRewardsGuard: reward withdrawal amount not within bounds"
+        $ entryF.deposited #<= amount
+          #&& amount #<= entryF.deposited #+ rewards
     BondingPeriod -> unTermCont $ do
       -- Calculate maximum withdrawal amount
       guardC
-        "withdrawRewardsGuard: totalDeposited is zero" $
-        natZero #< entryF.totalDeposited
-      let
-        flhs = mkNatRatioUnsafe
-                (pto (entryF.totalRewards :: Term s PNatural))
-                (pto (entryF.totalDeposited :: Term s PNatural))
-        frhs = entryF.rewards #+ (toNatRatio entryF.deposited)
-        f = roundDown $ frhs #* flhs
-        natOne = pconstant $ Natural 1
-        rhsDenominator = interest #+ (toNatRatio natOne)
-        -- TODO: Implement POSIX time logic to calculate for k
-        -- (currently hard-coded to 1) (also unify rounding functions)
-        rhsDenominator' = pCeil # (natPow # rhsDenominator # natOne)
-        rhs = mkNatRatioUnsafe (pto f) (pto rhsDenominator')
-        bondingRewards = roundDown $ entryF.rewards #+ rhs
+        "withdrawRewardsGuard: totalDeposited is zero"
+        $ natZero #< entryF.totalDeposited
+      let flhs =
+            mkNatRatioUnsafe
+              (pto (entryF.totalRewards :: Term s PNatural))
+              (pto (entryF.totalDeposited :: Term s PNatural))
+          frhs = entryF.rewards #+ (toNatRatio entryF.deposited)
+          f = roundDown $ frhs #* flhs
+          natOne = pconstant $ Natural 1
+          rhsDenominator = interest #+ (toNatRatio natOne)
+          -- TODO: Implement POSIX time logic to calculate for k
+          -- (currently hard-coded to 1) (also unify rounding functions)
+          rhsDenominator' = pCeil # (natPow # rhsDenominator # natOne)
+          rhs = mkNatRatioUnsafe (pto f) (pto rhsDenominator')
+          bondingRewards = roundDown $ entryF.rewards #+ rhs
       -- Validate amount is within bounds
       guardC
-        "withdrawRewardsGuard: reward withdrawal amount not within bounds" $
-        entryF.deposited #<= amount
-        #&& amount #<= entryF.deposited #+ bondingRewards
+        "withdrawRewardsGuard: reward withdrawal amount not within bounds"
+        $ entryF.deposited #<= amount
+          #&& amount #<= entryF.deposited #+ bondingRewards
     _ -> ptraceError "withdrawRewardsGuard: invalid withdraw period"
 
 calculateRewards ::

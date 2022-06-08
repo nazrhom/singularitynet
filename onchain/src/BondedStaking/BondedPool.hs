@@ -708,8 +708,8 @@ withdrawActLogic
         entryCheck :: Term s PTxOutRef -> Term s PUnit
         entryCheck entryOutRef = unTermCont $ do
           guardC
-            "withdrawActLogic: spent entry is not an entry (no List NFT)" $
-            hasListNft params.assocListCs spentInputResolved.value
+            "withdrawActLogic: spent entry is not an entry (no List NFT)"
+            $ hasListNft params.assocListCs spentInputResolved.value
           guardC
             "withdrawActLogic: spent entry does not match redeemer \
             \TxOutRef"

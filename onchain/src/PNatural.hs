@@ -297,7 +297,8 @@ natPow = pfix #$ plam pow
             ptraceError
               "natPow: invalid exponent"
           PJust exp'' -> unTermCont $ do
-            pure $ pif
-              (exp #== natZero)
-              (toNatRatio $ pconstant $ Natural 1)
-              (base #* (self # base # exp''))
+            pure $
+              pif
+                (exp #== natZero)
+                (toNatRatio $ pconstant $ Natural 1)
+                (base #* (self # base # exp''))
