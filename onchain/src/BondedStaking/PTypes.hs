@@ -134,7 +134,6 @@ data PBondedStakingDatum (s :: S)
           s
           ( PDataRecord
               '[ "_0" ':= PMaybeData PByteString
-               , "_1" ':= PNatural
                ]
           )
       )
@@ -168,7 +167,7 @@ instance PUnsafeLiftDecl PBondedStakingDatum where
 
 -- | `BondedStakingAction` synonym
 data PBondedStakingAction (s :: S)
-  = PAdminAct (Term s (PDataRecord '["_0" ':= PNatural]))
+  = PAdminAct (Term s (PDataRecord '[]))
   | PStakeAct
       ( Term
           s
