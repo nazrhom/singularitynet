@@ -44,7 +44,7 @@ import Types
   , BondedStakingAction(CloseAct)
   , BondedStakingDatum(StateDatum)
   )
-import Utils (logInfo_, nat)
+import Utils (logInfo_)
 
 closeBondedPoolContract :: BondedPoolParams -> Contract () Unit
 closeBondedPoolContract params@(BondedPoolParams { admin }) = do
@@ -74,7 +74,6 @@ closeBondedPoolContract params@(BondedPoolParams { admin }) = do
   let
     bondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
-      , sizeLeft: nat 100_000_000
       }
   bondedStateDatumLookup <-
     liftContractM

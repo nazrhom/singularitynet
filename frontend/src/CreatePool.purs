@@ -40,7 +40,7 @@ import Types
   , InitialBondedParams
   , StakingType(Bonded)
   )
-import Utils (logInfo_, mkBondedPoolParams, nat)
+import Utils (logInfo_, mkBondedPoolParams)
 
 -- Sets up pool configuration, mints the state NFT and deposits
 -- in the pool validator's address
@@ -96,7 +96,6 @@ createBondedPoolContract ibp = do
     -- We initalize the pool with no head entry and a pool size of 100_000_000
     bondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
-      , sizeLeft: nat 100_000_000
       }
 
     lookup :: ScriptLookups.ScriptLookups PlutusData

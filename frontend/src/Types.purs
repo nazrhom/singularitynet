@@ -18,7 +18,8 @@ import Contract.Address (Address, PaymentPubKeyHash)
 import Contract.Numeric.Natural (Natural)
 import Contract.Numeric.Rational (Rational)
 import Contract.PlutusData
-  ( class HasPlutusSchema
+  ( class FromData
+  , class HasPlutusSchema
   , class ToData
   , type (:+)
   , type (:=)
@@ -26,6 +27,7 @@ import Contract.PlutusData
   , I
   , PlutusData(Constr)
   , PNil
+  , genericFromData
   , genericToData
   , toData
   )
@@ -174,7 +176,7 @@ instance ToData BondedPoolParams where
 --   toData = genericToData
 
 data BondedStakingDatum
-  = StateDatum { maybeEntryName :: Maybe ByteArray, sizeLeft :: Natural }
+  = StateDatum { maybeEntryName :: Maybe ByteArray }
   | EntryDatum { entry :: Entry }
   | AssetDatum
 
@@ -186,8 +188,6 @@ instance
     ( "StateDatum"
         :=
           ( "maybeEntryName" := I (Maybe ByteArray)
-              :+ "sizeLeft"
-              := I Natural
               :+ PNil
           )
         @@ Z
@@ -202,6 +202,9 @@ instance
         :+ PNil
     )
 
+instance FromData BondedStakingDatum where
+  fromData = genericFromData
+
 instance ToData BondedStakingDatum where
   toData = genericToData
 
@@ -209,7 +212,7 @@ instance Show BondedStakingDatum where
   show = genericShow
 
 data BondedStakingAction
-  = AdminAct { sizeLeft :: Natural }
+  = AdminAct
   | StakeAct
       { stakeAmount :: Natural
       , stakeHolder :: PaymentPubKeyHash
@@ -223,10 +226,7 @@ data BondedStakingAction
 
 instance
   HasPlutusSchema BondedStakingAction
-    ( "AdminAct"
-        :=
-          ( "sizeLeft" := I Natural :+ PNil
-          )
+    ( "AdminAct" := PNil
         @@ Z
         :+ "StakeAct"
         :=
@@ -255,6 +255,9 @@ instance
 derive instance Generic BondedStakingAction _
 derive instance Eq BondedStakingAction
 
+instance FromData BondedStakingAction where
+  fromData = genericFromData
+
 instance ToData BondedStakingAction where
   toData = genericToData
 
@@ -272,17 +275,17 @@ instance Show MintingAction where
 instance
   HasPlutusSchema MintingAction
     ( "MintHead" := PNil @@ Z
-        :+ "C1"
-        := PNil
-        @@ (S Z)
         :+ "MintInBetween"
         := PNil
-        @@ (S (S Z))
+        @@ (S Z)
         :+ "MintEnd"
         := PNil
-        @@ (S (S (S Z)))
+        @@ (S (S Z))
         :+ PNil
     )
+
+instance FromData MintingAction where
+  fromData = genericFromData
 
 instance ToData MintingAction where
   toData = genericToData
@@ -300,14 +303,14 @@ instance Show BurningAction where
 instance
   HasPlutusSchema BurningAction
     ( "BurnHead" := PNil @@ Z
-        :+ "C1"
-        := PNil
-        @@ (S Z)
         :+ "BurnOther"
         := PNil
-        @@ (S (S Z))
+        @@ (S Z)
         :+ PNil
     )
+
+instance FromData BurningAction where
+  fromData = genericFromData
 
 instance ToData BurningAction where
   toData = genericToData
@@ -323,6 +326,7 @@ newtype Entry =
     }
 
 derive instance Generic Entry _
+derive instance Newtype Entry _
 derive instance Eq Entry
 
 instance
@@ -346,6 +350,9 @@ instance
         :+ PNil
     )
 
+instance FromData Entry where
+  fromData = genericFromData
+
 instance ToData Entry where
   toData = genericToData
 
@@ -357,3 +364,20 @@ data StakingType = Bonded | Unbonded
 data ListAction
   = ListInsert MintingAction
   | ListRemove BurningAction
+
+derive instance Generic ListAction _
+
+instance
+  HasPlutusSchema ListAction
+    ( "ListInsert" := PNil @@ Z
+        :+ "ListRemove"
+        := PNil
+        @@ (S Z)
+        :+ PNil
+    )
+
+instance ToData ListAction where
+  toData = genericToData
+
+instance Show ListAction where
+  show = genericShow

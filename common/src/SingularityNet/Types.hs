@@ -111,7 +111,7 @@ unstableMakeIsData ''Entry
      3. A dummy datum (in the case of the stake UTXOs)
 -}
 data BondedStakingDatum
-  = StateDatum (Maybe BuiltinByteString) Natural
+  = StateDatum (Maybe BuiltinByteString)
   | EntryDatum Entry
   | AssetDatum
   deriving stock (Show, GHC.Generic)
@@ -172,7 +172,7 @@ unstableMakeIsData ''ListAction
      that needs to be checked by the validator.
 -}
 data BondedStakingAction
-  = AdminAct Natural
+  = AdminAct
   | StakeAct Natural PubKeyHash (Maybe MintingAction)
   | WithdrawAct PubKeyHash BurningAction
   | CloseAct

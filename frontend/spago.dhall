@@ -10,6 +10,7 @@ You can edit this file as you like.
   , "argonaut-codecs"
   , "argonaut-core"
   , "cardano-transaction-lib"
+  , "control"
   , "arrays"
   , "bigints"
   , "exceptions"

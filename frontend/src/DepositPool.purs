@@ -35,6 +35,7 @@ import Contract.TxConstraints
 import Contract.Utxos (utxosAt)
 import Contract.Value (singleton)
 import Control.Applicative (unless)
+import Data.BigInt (fromString) as BigInt
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
@@ -44,7 +45,7 @@ import Types
   , BondedPoolParams(BondedPoolParams)
   )
 import Types.Redeemer (Redeemer(Redeemer))
-import Utils (big, getUtxoWithNFT, logInfo_, nat)
+import Utils (getUtxoWithNFT, logInfo_)
 
 -- Deposits a certain amount in the pool
 depositBondedPoolContract :: BondedPoolParams -> Contract () Unit
@@ -63,11 +64,11 @@ depositBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
       getWalletAddress
   -- Get utxos at the wallet address
   adminUtxos <-
-    liftedM "depositBondedPoolContract: Cannot get user Utxos" $
-      utxosAt adminAddr
+    liftedM "depositBondedPoolContract: Cannot get user Utxos"
+      $ utxosAt adminAddr
   -- Get the bonded pool validator and hash
-  validator <- liftedE' "depositBondedPoolContract: Cannot create validator" $
-    mkBondedPoolValidator params
+  validator <- liftedE' "depositBondedPoolContract: Cannot create validator"
+    $ mkBondedPoolValidator params
   valHash <- liftContractM "depositBondedPoolContract: Cannot hash validator"
     $ validatorHash validator
   logInfo_ "depositBondedPoolContract: validatorHash" valHash
@@ -77,15 +78,15 @@ depositBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
   -- Get the bonded pool's utxo
   bondedPoolUtxos <-
     liftedM
-      "depositBondedPoolContract: Cannot get pool's utxos at pool address" $
-      utxosAt poolAddr
+      "depositBondedPoolContract: Cannot get pool's utxos at pool address"
+      $ utxosAt poolAddr
   logInfo_ "depositBondedPoolContract: Pool UTXOs" bondedPoolUtxos
   tokenName <- liftContractM
     "depositBondedPoolContract: Cannot create TokenName"
     bondedStakingTokenName
   poolTxInput /\ poolTxOutput <-
-    liftContractM "depositBondedPoolContract: Cannot get state utxo" $
-      getUtxoWithNFT bondedPoolUtxos nftCs tokenName
+    liftContractM "depositBondedPoolContract: Cannot get state utxo"
+      $ getUtxoWithNFT bondedPoolUtxos nftCs tokenName
   logInfo_ "depositBondedPoolContract: Pool's UTXO" poolTxInput
   poolDatumHash <-
     liftContractM
@@ -98,7 +99,6 @@ depositBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
     -- from Ogmios, update it properly and then submit it
     bondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
-      , sizeLeft: nat 100_000_000
       }
     -- This is the datum of the UTXO that will hold the rewards
     assetDatum = Datum $ toData AssetDatum
@@ -107,18 +107,22 @@ depositBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
     liftContractM
       "depositBondedPoolContract: Could not create state datum lookup"
       $ ScriptLookups.datum bondedStateDatum
+  tempBigInt <-
+    liftContractM
+      "depositBondedPoolContract: TEMPORARY - cannot \
+      \convert String to BigInt" $ BigInt.fromString "2"
   let
     assetParams = unwrap (unwrap params).bondedAssetClass
     assetCs = assetParams.currencySymbol
     assetTn = assetParams.tokenName
     stateTokenValue = singleton nftCs tokenName one
-    depositValue = singleton assetCs assetTn (big 2)
+    depositValue = singleton assetCs assetTn tempBigInt
 
     -- We build the redeemer. The size does not change because there are no
     -- user stakes. It doesn't make much sense to deposit if there wasn't a
     -- change in the total amount of stakes (and accrued rewards). This will
     -- change when user staking is added
-    redeemerData = toData $ AdminAct { sizeLeft: nat 100_000_000 }
+    redeemerData = toData AdminAct
     redeemer = Redeemer redeemerData
 
     lookup :: ScriptLookups.ScriptLookups PlutusData
