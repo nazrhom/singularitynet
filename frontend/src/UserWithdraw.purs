@@ -1,7 +1,6 @@
 module UserWithdraw (userWithdrawBondedPoolContract) where
 
 import Contract.Prelude hiding (length)
-import Prelude
 
 import Contract.Address (AddressWithNetworkTag(AddressWithNetworkTag), getNetworkId, getWalletAddress, ownPaymentPubKeyHash, scriptHashAddress)
 import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM, logInfo', throwContractError)
