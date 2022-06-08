@@ -291,8 +291,8 @@ instance ToData MintingAction where
   toData = genericToData
 
 data BurningAction
-  = BurnHead TransactionInput
-  | BurnOther TransactionInput
+  = BurnHead TransactionInput TransactionInput
+  | BurnOther TransactionInput TransactionInput
 
 derive instance Generic BurningAction _
 derive instance Eq BurningAction
