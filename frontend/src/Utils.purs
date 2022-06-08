@@ -1,6 +1,7 @@
 module Utils
   ( big
-  , findAssocElem
+  , findInsertUpdateElem
+  , findRemoveOtherElem
   , getUtxoWithNFT
   , hashPkh
   , jsonReader
@@ -181,7 +182,7 @@ compareBytes (bytes /\ _) (bytes' /\ _) = compare bytes bytes'
 -- | if we compare pairs and exit early of course. But we'll do this for
 -- | simplicity. THIS MUST BE USED ON A SORTED LIST, i.e. with
 -- | `mkOnchainAssocList`. We should probably create a type for the output.
-findAssocElem
+findInsertUpdateElem
   :: Array (ByteArray /\ TransactionInput /\ TransactionOutput)
   -> ByteArray
   -> Maybe
@@ -199,7 +200,7 @@ findAssocElem
              , secondKey :: Maybe ByteArray
              }
        )
-findAssocElem assocList hashedKey = do
+findInsertUpdateElem assocList hashedKey = do
   -- The list should findAssocElem assocList hashedKey = do be sorted so no
   -- need to resort
   let { no, yes } = partition (fst >>> (>=) hashedKey) assocList
@@ -229,3 +230,37 @@ findAssocElem assocList hashedKey = do
       /\ { firstInput: txInputL, secondInput: Just txInputH }
       /\ { firstOutput: txOutputL, secondOutput: Just txOutputH }
       /\ { firstKey: bytesL, secondKey: Just bytesH }
+      
+-- | Find the element to remove from the list. This only works for the
+-- | in-between case, since it assumes that some entry will have a key less
+-- | than the given one.
+findRemoveOtherElem ::
+  Array (ByteArray /\ TransactionInput /\ TransactionOutput)
+  -> ByteArray
+  -> Maybe
+       ( { firstInput :: TransactionInput
+         , secondInput :: TransactionInput
+         }
+         /\
+         { firstOutput :: TransactionOutput
+         , secondOutput :: TransactionOutput
+         }
+         /\
+         { firstKey :: ByteArray
+         , secondKey :: ByteArray
+         }
+       )
+findRemoveOtherElem assocList hashedKey = do
+  let { no, yes } = partition (fst >>> (<) hashedKey) assocList
+  bytesL /\ txInputL /\ txOutputL <- last yes
+  bytesH /\ txInputH /\ txOutputH <- head no
+  if bytesH /= hashedKey
+    -- If the first element not less than `hashedKey` is not equal, then the
+    -- entry has not been found
+    then Nothing
+    -- Otherwise, this is the entry to remove and the last element of the
+    -- entries less than `hashedKey` is the previous entry
+    else Just $
+      { firstInput: txInputL, secondInput: txInputH }
+      /\ { firstOutput: txOutputL, secondOutput: txOutputH }
+      /\ { firstKey: bytesL, secondKey: bytesH }
