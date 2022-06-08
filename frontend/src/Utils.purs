@@ -230,37 +230,37 @@ findInsertUpdateElem assocList hashedKey = do
       /\ { firstInput: txInputL, secondInput: Just txInputH }
       /\ { firstOutput: txOutputL, secondOutput: Just txOutputH }
       /\ { firstKey: bytesL, secondKey: Just bytesH }
-      
+
 -- | Find the element to remove from the list. This only works for the
 -- | in-between case, since it assumes that some entry will have a key less
 -- | than the given one.
-findRemoveOtherElem ::
-  Array (ByteArray /\ TransactionInput /\ TransactionOutput)
+findRemoveOtherElem
+  :: Array (ByteArray /\ TransactionInput /\ TransactionOutput)
   -> ByteArray
   -> Maybe
        ( { firstInput :: TransactionInput
          , secondInput :: TransactionInput
          }
-         /\
-         { firstOutput :: TransactionOutput
-         , secondOutput :: TransactionOutput
-         }
-         /\
-         { firstKey :: ByteArray
-         , secondKey :: ByteArray
-         }
+           /\
+             { firstOutput :: TransactionOutput
+             , secondOutput :: TransactionOutput
+             }
+           /\
+             { firstKey :: ByteArray
+             , secondKey :: ByteArray
+             }
        )
 findRemoveOtherElem assocList hashedKey = do
   let { no, yes } = partition (fst >>> (<) hashedKey) assocList
   bytesL /\ txInputL /\ txOutputL <- last yes
   bytesH /\ txInputH /\ txOutputH <- head no
   if bytesH /= hashedKey
-    -- If the first element not less than `hashedKey` is not equal, then the
-    -- entry has not been found
-    then Nothing
-    -- Otherwise, this is the entry to remove and the last element of the
-    -- entries less than `hashedKey` is the previous entry
-    else Just $
-      { firstInput: txInputL, secondInput: txInputH }
-      /\ { firstOutput: txOutputL, secondOutput: txOutputH }
-      /\ { firstKey: bytesL, secondKey: bytesH }
+  -- If the first element not less than `hashedKey` is not equal, then the
+  -- entry has not been found
+  then Nothing
+  -- Otherwise, this is the entry to remove and the last element of the
+  -- entries less than `hashedKey` is the previous entry
+  else Just
+    $ { firstInput: txInputL, secondInput: txInputH }
+    /\ { firstOutput: txOutputL, secondOutput: txOutputH }
+    /\ { firstKey: bytesL, secondKey: bytesH }
