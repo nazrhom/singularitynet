@@ -2,14 +2,14 @@ module UserWithdraw (userWithdrawBondedPoolContract) where
 
 import Contract.Prelude hiding (length)
 
-import Contract.Address (AddressWithNetworkTag(AddressWithNetworkTag), getNetworkId, getWalletAddress, ownPaymentPubKeyHash, scriptHashAddress)
+import Contract.Address (AddressWithNetworkTag(AddressWithNetworkTag), getNetworkId, getWalletAddress, ownPaymentPubKeyHash, ownStakePubKeyHash, scriptHashAddress)
 import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM, logInfo', throwContractError)
 import Contract.PlutusData (PlutusData, Datum(Datum), fromData, getDatumByHash, toData)
 import Contract.Prim.ByteArray (ByteArray, byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
 import Contract.Transaction (BalancedSignedTransaction(BalancedSignedTransaction), TransactionInput, TransactionOutput, balanceAndSignTx, submit)
-import Contract.TxConstraints (TxConstraints, mustBeSignedBy, mustMintValueWithRedeemer, mustPayToPubKey, mustPayToScript, mustSpendScriptOutput)
+import Contract.TxConstraints (TxConstraints, mustBeSignedBy, mustMintValueWithRedeemer, mustPayToPubKey, mustPayToPubKeyAddress, mustPayToScript, mustSpendScriptOutput)
 import Contract.Utxos (UtxoM(..), utxosAt)
 import Contract.Value (Value, mkTokenName, singleton)
 import Data.Array (catMaybes, head)
@@ -43,6 +43,11 @@ userWithdrawBondedPoolContract
     ownPaymentPubKeyHash
   let hashedUserPkh = hashPkh userPkh
   logInfo_ "userWithdrawBondedPoolContract: User's PaymentPubKeyHash" userPkh
+  -- Get own staking hash
+  userStakingPubKeyHash <- liftedM "userWithdrawnBondedPoolContract: Cannot get\
+    \ user's staking pub key hash" $
+    ownStakePubKeyHash
+
   -- Get the (Nami) wallet address
   AddressWithNetworkTag { address: userAddr } <-
     liftedM "userWithdrawBondedPoolContract: Cannot get wallet Address"
@@ -240,7 +245,7 @@ userWithdrawBondedPoolContract
                 , mustSpendScriptOutput secondInput valRedeemer
                 , mustMintValueWithRedeemer mintRedeemer burnEntryValue
                 , mustPayToScript valHash prevEntryUpdated mintEntryValue
-                , mustPayToPubKey userPkh withdrawnVal
+                , mustPayToPubKeyAddress userPkh userStakingPubKeyHash withdrawnVal
                 ]
 
             lookup :: ScriptLookups.ScriptLookups PlutusData
