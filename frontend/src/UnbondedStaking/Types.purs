@@ -12,7 +12,8 @@ import Contract.Address (PaymentPubKeyHash)
 import Contract.Numeric.Natural (Natural)
 import Contract.Numeric.Rational (Rational)
 import Contract.PlutusData
-  ( class HasPlutusSchema
+  ( class FromData
+  , class HasPlutusSchema
   , class ToData
   , type (:+)
   , type (:=)
@@ -20,13 +21,14 @@ import Contract.PlutusData
   , I
   , PlutusData(Constr)
   , PNil
+  , genericFromData
   , genericToData
   , toData
   )
 import Contract.Prim.ByteArray (ByteArray)
 import Contract.Value (CurrencySymbol)
 import Data.BigInt (BigInt)
-import Types (AssetClass)
+import Types (AssetClass, BurningAction, MintingAction)
 import TypeLevel.Nat (S, Z)
 
 -- TODO: Add missing `ToData` instances for POSIXTime and NatRatio.
@@ -160,6 +162,9 @@ instance
         :+ PNil
     )
 
+instance FromData UnbondedStakingDatum where
+  fromData = genericFromData
+
 instance ToData UnbondedStakingDatum where
   toData = genericToData
 
@@ -171,12 +176,13 @@ data UnbondedStakingAction
   | StakeAct
       { stakeAmount :: Natural
       , stakeHolder :: PaymentPubKeyHash
+      , mintingAction :: Maybe MintingAction
       }
-  | WithdrawAct { stakeHolder :: PaymentPubKeyHash }
+  | WithdrawAct
+      { stakeHolder :: PaymentPubKeyHash
+      , burningAction :: Maybe BurningAction
+      }
   | CloseAct
-
-derive instance Generic UnbondedStakingAction _
-derive instance Eq UnbondedStakingAction
 
 instance
   HasPlutusSchema UnbondedStakingAction
@@ -193,12 +199,17 @@ instance
           ( "stakeAmount" := I Natural
               :+ "stakeHolder"
               := I PaymentPubKeyHash
+              :+ "mintingAction"
+              := I (Maybe MintingAction)
               :+ PNil
           )
         @@ (S Z)
         :+ "WithdrawAct"
         :=
-          ( "stakeHolder" := I PaymentPubKeyHash :+ PNil
+          ( "stakeHolder" := I PaymentPubKeyHash
+              :+ "burningAction"
+              := I (Maybe BurningAction)
+              :+ PNil
           )
         @@ (S (S Z))
         :+ "CloseAct"
@@ -206,6 +217,12 @@ instance
         @@ (S (S (S Z)))
         :+ PNil
     )
+
+derive instance Generic UnbondedStakingAction _
+derive instance Eq UnbondedStakingAction
+
+instance FromData UnbondedStakingAction where
+  fromData = genericFromData
 
 instance ToData UnbondedStakingAction where
   toData = genericToData
@@ -223,6 +240,7 @@ newtype Entry =
     }
 
 derive instance Generic Entry _
+derive instance Newtype Entry _
 derive instance Eq Entry
 
 instance
@@ -249,6 +267,9 @@ instance
         @@ Z
         :+ PNil
     )
+
+instance FromData Entry where
+  fromData = genericFromData
 
 instance ToData Entry where
   toData = genericToData

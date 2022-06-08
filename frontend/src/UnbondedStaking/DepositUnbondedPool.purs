@@ -44,7 +44,7 @@ import UnbondedStaking.Types
   -- , UnbondedStakingAction(AdminAct)
   , UnbondedStakingDatum(AssetDatum)
   )
-import Utils (logInfo_)
+import Utils (big, logInfo_)
 
 -- Deposits a certain amount in the pool
 depositUnbondedPoolContract :: UnbondedPoolParams -> Contract () Unit
@@ -77,10 +77,10 @@ depositUnbondedPoolContract
   logInfo_ "depositUnbondedPoolContract: Pool address"
     $ fromPlutusType (networkId /\ poolAddr)
 
-  tempBigInt <-
-    liftContractM
-      "depositUnbondedPoolContract: TEMPORARY - cannot\
-      \ convert String to BigInt" $ BigInt.fromString "4000000"
+  -- tempBigInt <-
+  --   liftContractM
+  --     "depositUnbondedPoolContract: TEMPORARY - cannot\
+  --     \ convert String to BigInt" $ BigInt.fromString "4000000"
   -- Create the datums and their ScriptLookups
   let
     -- This is the datum of the UTXO that will hold the rewards
@@ -88,7 +88,7 @@ depositUnbondedPoolContract
     assetParams = unwrap (unwrap params).unbondedAssetClass
     assetCs = assetParams.currencySymbol
     assetTn = assetParams.tokenName
-    depositValue = singleton assetCs assetTn tempBigInt
+    depositValue = singleton assetCs assetTn (big 4_000_000) --tempBigInt
 
     -- We build the redeemer. The size does not change because there are no
     -- user stakes. It doesn't make much sense to deposit if there wasn't a

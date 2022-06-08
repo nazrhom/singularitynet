@@ -159,10 +159,10 @@ hashPkh =
 -- | be more stringent on checks to ensure the list is genuinely connected
 -- | although on chain code should enforce this.
 mkOnchainAssocList
-  :: BondedPoolParams
+  :: CurrencySymbol
   -> UtxoM
   -> Array (ByteArray /\ TransactionInput /\ TransactionOutput)
-mkOnchainAssocList (BondedPoolParams { assocListCs }) (UtxoM utxos) =
+mkOnchainAssocList assocListCs (UtxoM utxos) =
   sortBy compareBytes $ mapMaybe getAssocListUtxos $ toUnfoldable utxos
   where
   getAssocListUtxos
