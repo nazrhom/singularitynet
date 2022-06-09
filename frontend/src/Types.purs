@@ -99,9 +99,6 @@ derive instance Generic BondedPoolParams _
 derive instance Eq BondedPoolParams
 derive instance Newtype BondedPoolParams _
 
-instance Show BondedPoolParams where
-  show = genericShow
-
 newtype InitialBondedParams = InitialBondedParams
   { iterations :: Natural
   , start :: BigInt
