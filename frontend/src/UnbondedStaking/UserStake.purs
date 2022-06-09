@@ -1,4 +1,4 @@
-module UnbondedStaking.UserStakeUnbonded (userStakeUnbondedPoolContract) where
+module UnbondedStaking.UserStake (userStakeUnbondedPoolContract) where
 
 import Contract.Prelude hiding (length)
 
@@ -154,7 +154,7 @@ userStakeUnbondedPoolContract
     StateDatum { maybeEntryName: Nothing, open: true } -> do
       logInfo'
         "userStakeUnbondedPoolContract: STAKE TYPE - StateDatum is \
-        \StateDatum { maybeEntryName: Nothing }"
+        \StateDatum { maybeEntryName: Nothing, open: true }"
       -- If the state UTXO has nothing, it is a head deposit, spending the state
       -- UTXO. It's the first stake so we just need to check amt is inside
       -- bounds.
@@ -221,7 +221,7 @@ userStakeUnbondedPoolContract
     StateDatum { maybeEntryName: Just key, open: true } -> do
       logInfo'
         "userStakeUnbondedPoolContract: STAKE TYPE - StateDatum is \
-        \StateDatum { maybeEntryName: Just ... }"
+        \StateDatum { maybeEntryName: Just ..., open: true }"
       let assocList = mkOnchainAssocList assocListCs unbondedPoolUtxos
       -- If hashedUserPkh < key, we have a head deposit, spending the state utxo
       -- If hashedUserPkh == key, this is a non-init deposit spending the first

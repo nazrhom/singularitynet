@@ -40,35 +40,31 @@ import Contract.TxConstraints
   ( TxConstraints
   , mustBeSignedBy
   , mustMintValueWithRedeemer
-  , mustPayToPubKey
   , mustPayToPubKeyAddress
   , mustPayToScript
   , mustSpendScriptOutput
   )
 import Contract.Utxos (UtxoM(..), utxosAt)
-import Contract.Value (Value, mkTokenName, singleton, valueOf)
+import Contract.Value (Value, mkTokenName, singleton)
 import Data.Array (catMaybes, head)
-import Data.Array as Array
 import Data.BigInt (BigInt)
-import Data.Map (Map)
 import Data.Map as Map
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Settings (unbondedStakingTokenName)
 import Types
-  ( AssetClass(..)
-  , BurningAction(..)
-  , ListAction(..)
+  ( BurningAction(BurnHead, BurnOther)
+  , ListAction(ListRemove)
   , StakingType(Unbonded)
   )
 import Types.Rational (Rational, denominator, numerator)
 import Types.Redeemer (Redeemer(Redeemer))
 import UnbondedStaking.Types
-  ( Entry(..)
+  ( Entry(Entry)
   , UnbondedPoolParams(UnbondedPoolParams)
-  , UnbondedStakingAction(..)
-  , UnbondedStakingDatum(..)
+  , UnbondedStakingAction(WithdrawAct)
+  , UnbondedStakingDatum(AssetDatum, EntryDatum, StateDatum)
   )
 import Utils
   ( findRemoveOtherElem
@@ -182,7 +178,7 @@ userWithdrawUnbondedPoolContract
         --  the list
         EQ -> do
           logInfo' "userWithdrawUnbondedPoolContract: Compare EQ"
-          (_ /\ entryInput /\ entryOutput) <-
+          _ /\ entryInput /\ entryOutput <-
             liftContractM
               "userWithdrawUnbondedPoolContract: Cannot \
               \extract head from Assoc. List - this should be impossible"
@@ -197,8 +193,8 @@ userWithdrawUnbondedPoolContract
           let
             newHeadKey :: Maybe ByteArray
             newHeadKey = oldHeadEntry.next
-          -- Get amount to withdraw
-          let
+
+            -- Get amount to withdraw
             rewards :: Rational
             rewards = oldHeadEntry.rewards
 
@@ -226,33 +222,20 @@ userWithdrawUnbondedPoolContract
                 (unwrap unbondedAssetClass).tokenName
                 $ totalSpentAmt
                 - withdrawnAmt
-          -- Build updated state
-          -- poolDatumHash <-
-          --   liftContractM
-          --     "userStakeBondedPoolContract: Could not get Pool UTXO's Datum Hash"
-          --     (unwrap poolTxOutput).dataHash
-          -- poolDatum <- liftedM "userWithdrawUnbondedPoolContract: Cannot get datum"
-          --   $ getDatumByHash poolDatumHash
-          -- unbondedStakingDatum :: UnbondedStakingDatum <-
-          --   liftContractM
-          --     "userWithdrawUnbondedPoolContract: Cannot extract NFT State datum"
-          --     $ fromData (unwrap poolDatum)
-          let
+
             newState :: Datum
             newState = Datum <<< toData $
               StateDatum
                 { maybeEntryName: newHeadKey
-                , open: poolOpenState --unbondedStakingDatum.open
+                , open: poolOpenState
                 }
-          -- Build validator redeemer
-          let
+            -- Build validator redeemer
             valRedeemer = Redeemer <<< toData $
               WithdrawAct
                 { stakeHolder: userPkh
                 , burningAction: BurnHead poolTxInput entryInput
                 }
-          -- Build minting policy redeemer
-          let
+            -- Build minting policy redeemer
             mintRedeemer = Redeemer $ toData $ ListRemove $ BurnHead poolTxInput
               entryInput
           -- New state lookup
@@ -260,7 +243,6 @@ userWithdrawUnbondedPoolContract
             liftContractM
               "userWithdrawUnbondedPoolContract: Could not create state datum lookup"
               $ ScriptLookups.datum newState
-
           let
             constraints :: TxConstraints Unit Unit
             constraints =
@@ -272,7 +254,8 @@ userWithdrawUnbondedPoolContract
                 , mustMintValueWithRedeemer mintRedeemer burnEntryValue
                 , mustPayToScript valHash newState stateTokenValue
                 , mustPayToScript valHash assetDatum changeValue
-                , mustPayToPubKey userPkh withdrawnVal
+                , mustPayToPubKeyAddress userPkh userStakingPubKeyHash
+                    withdrawnVal
                 ]
 
             lookup :: ScriptLookups.ScriptLookups PlutusData
@@ -343,9 +326,7 @@ userWithdrawUnbondedPoolContract
                 (unwrap unbondedAssetClass).tokenName
                 $ totalSpentAmt
                 - withdrawnAmt
-
-          -- Build updated previous entry and its lookup
-          let
+            -- Build updated previous entry and its lookup
             prevEntryUpdated = Datum $ toData $ EntryDatum
               { entry: Entry $ prevEntry
                   { next = burnEntry.next
@@ -364,13 +345,10 @@ userWithdrawUnbondedPoolContract
                 { stakeHolder: userPkh
                 , burningAction: BurnOther firstInput secondInput
                 }
-
-          -- Build minting policy redeemer
-          let
+            -- Build minting policy redeemer
             mintRedeemer = Redeemer $ toData $ ListRemove $ BurnOther firstInput
               secondInput
 
-          let
             constraints :: TxConstraints Unit Unit
             constraints =
               mconcat
@@ -436,7 +414,7 @@ getUnbondedAssetUtxos utxos = do
 
 -- | Get entry datum from transaction output
 getEntryDatumFromOutput
-  :: forall r. TransactionOutput -> Contract r Entry
+  :: forall (r :: Row Type). TransactionOutput -> Contract r Entry
 getEntryDatumFromOutput txOut = do
   unbondedDatum <- getUnbondedDatum txOut
   case unbondedDatum of
@@ -447,7 +425,9 @@ getEntryDatumFromOutput txOut = do
 
 -- | Get state datum from transaction output
 getStateDatumFromOutput
-  :: forall r. TransactionOutput -> Contract r (Tuple (Maybe ByteArray) Boolean)
+  :: forall (r :: Row Type)
+   . TransactionOutput
+  -> Contract r (Tuple (Maybe ByteArray) Boolean)
 getStateDatumFromOutput txOut = do
   unbondedDatum <- getUnbondedDatum txOut
   case unbondedDatum of
@@ -458,7 +438,9 @@ getStateDatumFromOutput txOut = do
 
 -- | Get a bonded datum from a transaction output
 getUnbondedDatum
-  :: forall r. TransactionOutput -> Contract r UnbondedStakingDatum
+  :: forall (r :: Row Type)
+   . TransactionOutput
+  -> Contract r UnbondedStakingDatum
 getUnbondedDatum =
   liftContractM
     "getUnbondedDatum: could not parse datum as bonded staking datum"

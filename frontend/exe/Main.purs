@@ -29,13 +29,13 @@ import Settings (testInitBondedParams)
 import UserStake (userStakeBondedPoolContract)
 
 -- import Settings (testInitUnbondedParams)
--- import UnbondedStaking.CreateUnbondedPool (createUnbondedPoolContract)
--- import UnbondedStaking.UserStakeUnbonded (userStakeUnbondedPoolContract)
+-- import UnbondedStaking.CreatePool (createUnbondedPoolContract)
+-- import UnbondedStaking.UserStake (userStakeUnbondedPoolContract)
 
 -- import Settings (testInitUnbondedParams)
--- import UnbondedStaking.CloseUnbondedPool (closeUnbondedPoolContract)
--- import UnbondedStaking.CreateUnbondedPool (createUnbondedPoolContract)
--- import UnbondedStaking.DepositUnbondedPool (depositUnbondedPoolContract)
+-- import UnbondedStaking.ClosePool (closeUnbondedPoolContract)
+-- import UnbondedStaking.CreatePool (createUnbondedPoolContract)
+-- import UnbondedStaking.DepositPool (depositUnbondedPoolContract)
 
 -- main :: Effect Unit
 -- main = launchAff_ $ do
