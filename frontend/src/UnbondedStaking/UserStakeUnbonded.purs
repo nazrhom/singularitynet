@@ -70,7 +70,8 @@ import Utils
   )
 
 -- Deposits a certain amount in the pool
-userStakeUnbondedPoolContract :: UnbondedPoolParams -> Natural -> Contract () Unit
+userStakeUnbondedPoolContract
+  :: UnbondedPoolParams -> Natural -> Contract () Unit
 userStakeUnbondedPoolContract
   params@
     ( UnbondedPoolParams
@@ -99,8 +100,9 @@ userStakeUnbondedPoolContract
   -- Get the unbonded pool validator and hash
   validator <- liftedE' "userStakeUnbondedPoolContract: Cannot create validator"
     $ mkUnbondedPoolValidator params
-  valHash <- liftContractM "userStakeUnbondedPoolContract: Cannot hash validator"
-    $ validatorHash validator
+  valHash <-
+    liftContractM "userStakeUnbondedPoolContract: Cannot hash validator"
+      $ validatorHash validator
   logInfo_ "userStakeUnbondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
   logInfo_ "userStakeUnbondedPoolContract: Pool address"

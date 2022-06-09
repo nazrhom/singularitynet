@@ -216,7 +216,8 @@ userWithdrawUnbondedPoolContract
             liftContractM
               "userWithdrawUnbondedPoolContract: Cannot get asset \
               \UTxOs to consume" $
-              getAssetsToConsume unbondedAssetClass withdrawnAmt unbondedAssetUtxos
+              getAssetsToConsume unbondedAssetClass withdrawnAmt
+                unbondedAssetUtxos
           let
             changeValue :: Value
             changeValue =
@@ -301,14 +302,16 @@ userWithdrawUnbondedPoolContract
             "userWithdrawUnbondedPoolContract: getting datum of previous\
             \entry..."
           prevEntry <- unwrap <$> getEntryDatumFromOutput firstOutput
-          logInfo_ "userWithdrawUnbondedPoolContract: entry to consume" prevEntry
+          logInfo_ "userWithdrawUnbondedPoolContract: entry to consume"
+            prevEntry
 
           -- Get the entry datum of the entry to consume
           logInfo'
             "userWithdrawUnbondedPoolContract: getting datum of entry to\
             \ burn..."
           burnEntry <- unwrap <$> getEntryDatumFromOutput secondOutput
-          logInfo_ "userWithdrawUnbondedPoolContract: entry to consume" burnEntry
+          logInfo_ "userWithdrawUnbondedPoolContract: entry to consume"
+            burnEntry
 
           -- Get amount to withdraw
           let
@@ -330,7 +333,8 @@ userWithdrawUnbondedPoolContract
             liftContractM
               "userWithdrawUnbondedPoolContract: Cannot get asset \
               \UTxOs to consume" $
-              getAssetsToConsume unbondedAssetClass withdrawnAmt unbondedAssetUtxos
+              getAssetsToConsume unbondedAssetClass withdrawnAmt
+                unbondedAssetUtxos
           let
             changeValue :: Value
             changeValue =
@@ -456,7 +460,8 @@ getStateDatumFromOutput txOut = do
 getUnbondedDatum
   :: forall r. TransactionOutput -> Contract r UnbondedStakingDatum
 getUnbondedDatum =
-  liftContractM "getUnbondedDatum: could not parse datum as bonded staking datum"
+  liftContractM
+    "getUnbondedDatum: could not parse datum as bonded staking datum"
     <<< fromData
     <<< unwrap
     <=< liftContractM "getUnbondedDatum: could not get datum"

@@ -12,8 +12,7 @@ module Utils
   , mkOnchainAssocList
   , mkUnbondedPoolParams
   , nat
-  )
-  where
+  ) where
 
 import Contract.Prelude hiding (length)
 
