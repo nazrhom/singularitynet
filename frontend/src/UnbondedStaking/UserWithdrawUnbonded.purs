@@ -1,4 +1,4 @@
-module UserWithdraw (userWithdrawBondedPoolContract) where
+module UnbondedStaking.UserWithdraw (userWithdrawUnbondedPoolContract) where
 
 import Contract.Prelude hiding (length)
 
@@ -54,20 +54,22 @@ import Data.Map (Map)
 import Data.Map as Map
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.ListNFT (mkListNFTPolicy)
-import Scripts.PoolValidator (mkBondedPoolValidator)
-import Settings (bondedStakingTokenName)
+import Scripts.PoolValidator (mkUnbondedPoolValidator)
+import Settings (unbondedStakingTokenName)
 import Types
   ( AssetClass(..)
-  , BondedPoolParams(BondedPoolParams)
-  , BondedStakingAction(..)
-  , BondedStakingDatum(..)
   , BurningAction(..)
-  , Entry(..)
   , ListAction(..)
-  , StakingType(Bonded)
+  , StakingType(Unbonded)
   )
 import Types.Rational (Rational, denominator, numerator)
 import Types.Redeemer (Redeemer(Redeemer))
+import UnbondedStaking.Types
+  ( Entry(..)
+  , UnbondedPoolParams(UnbondedPoolParams)
+  , UnbondedStakingAction(..)
+  , UnbondedStakingDatum(..)
+  )
 import Utils
   ( findRemoveOtherElem
   , getUtxoWithNFT
@@ -77,11 +79,11 @@ import Utils
   )
 
 -- Deposits a certain amount in the pool
-userWithdrawBondedPoolContract :: BondedPoolParams -> Contract () Unit
-userWithdrawBondedPoolContract
+userWithdrawUnbondedPoolContract :: UnbondedPoolParams -> Contract () Unit
+userWithdrawUnbondedPoolContract
   params@
-    ( BondedPoolParams
-        { bondedAssetClass
+    ( UnbondedPoolParams
+        { unbondedAssetClass
         , nftCs
         , assocListCs
         }
@@ -90,10 +92,10 @@ userWithdrawBondedPoolContract
   -- Get network ID
   networkId <- getNetworkId
   -- Get own public key hash and compute hashed version
-  userPkh <- liftedM "userWithdrawBondedPoolContract: Cannot get user's pkh"
+  userPkh <- liftedM "userWithdrawUnbondedPoolContract: Cannot get user's pkh"
     ownPaymentPubKeyHash
   let hashedUserPkh = hashPkh userPkh
-  logInfo_ "userWithdrawBondedPoolContract: User's PaymentPubKeyHash" userPkh
+  logInfo_ "userWithdrawUnbondedPoolContract: User's PaymentPubKeyHash" userPkh
   -- Get own staking hash
   userStakingPubKeyHash <-
     liftedM
@@ -102,93 +104,93 @@ userWithdrawBondedPoolContract
       ownStakePubKeyHash
   -- Get the (Nami) wallet address
   AddressWithNetworkTag { address: userAddr } <-
-    liftedM "userWithdrawBondedPoolContract: Cannot get wallet Address"
+    liftedM "userWithdrawUnbondedPoolContract: Cannot get wallet Address"
       getWalletAddress
   -- Get utxos at the wallet address
   userUtxos <-
-    liftedM "userWithdrawBondedPoolContract: Cannot get user Utxos"
+    liftedM "userWithdrawUnbondedPoolContract: Cannot get user Utxos"
       $ utxosAt userAddr
   ---- FETCH POOL DATA ----
-  -- Get the bonded pool validator and hash
+  -- Get the unbonded pool validator and hash
   validator <-
-    liftedE' "userWithdrawBondedPoolContract: Cannot create validator"
-      $ mkBondedPoolValidator params
+    liftedE' "userWithdrawUnbondedPoolContract: Cannot create validator"
+      $ mkUnbondedPoolValidator params
   valHash <-
-    liftContractM "userWithdrawBondedPoolContract: Cannot hash validator"
+    liftContractM "userWithdrawUnbondedPoolContract: Cannot hash validator"
       $ validatorHash validator
-  logInfo_ "userWithdrawBondedPoolContract: validatorHash" valHash
+  logInfo_ "userWithdrawUnbondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
-  logInfo_ "userWithdrawBondedPoolContract: Pool address"
+  logInfo_ "userWithdrawUnbondedPoolContract: Pool address"
     $ fromPlutusType (networkId /\ poolAddr)
-  -- Get the bonded pool's utxo
-  bondedPoolUtxos <-
+  -- Get the unbonded pool's utxo
+  unbondedPoolUtxos <-
     liftedM
-      "userWithdrawBondedPoolContract: Cannot get pool's\
+      "userWithdrawUnbondedPoolContract: Cannot get pool's\
       \ utxos at pool address"
       $ utxosAt poolAddr
-  logInfo_ "userWithdrawBondedPoolContract: Pool UTxOs" bondedPoolUtxos
+  logInfo_ "userWithdrawUnbondedPoolContract: Pool UTxOs" unbondedPoolUtxos
   tokenName <- liftContractM
-    "userWithdrawBondedPoolContract: Cannot create TokenName"
-    bondedStakingTokenName
+    "userWithdrawUnbondedPoolContract: Cannot create TokenName"
+    unbondedStakingTokenName
   poolTxInput /\ poolTxOutput <-
-    liftContractM "userWithdrawBondedPoolContract: Cannot get state utxo"
-      $ getUtxoWithNFT bondedPoolUtxos nftCs tokenName
-  logInfo' "userWithdrawBondedPoolContract: Getting head entry of the pool..."
-  headEntry <- getStateDatumFromOutput poolTxOutput
-  logInfo_ "userWithdrawBondedPoolContract: Head entry of the pool" headEntry
-  -- Get asset UTxOs in bonded pool
+    liftContractM "userWithdrawUnbondedPoolContract: Cannot get state utxo"
+      $ getUtxoWithNFT unbondedPoolUtxos nftCs tokenName
+  logInfo' "userWithdrawUnbondedPoolContract: Getting head entry of the pool..."
+  headEntry /\ poolOpenState <- getStateDatumFromOutput poolTxOutput
+  logInfo_ "userWithdrawUnbondedPoolContract: Head entry of the pool" headEntry
+  -- Get asset UTxOs in unbonded pool
   logInfo'
-    "userWithdrawBondedPoolContract: Getting bonded assets in \
+    "userWithdrawUnbondedPoolContract: Getting bonded assets in \
     \the pool..."
-  bondedAssetUtxos <- getBondedAssetUtxos bondedPoolUtxos
+  unbondedAssetUtxos <- getUnbondedAssetUtxos unbondedPoolUtxos
   logInfo_ "userWithdrawnBondedPoolContract: Bonded Asset UTxOs"
-    bondedAssetUtxos
+    unbondedAssetUtxos
   -- Get the minting policy and currency symbol from the list NFT:
-  listPolicy <- liftedE $ mkListNFTPolicy Bonded nftCs
+  listPolicy <- liftedE $ mkListNFTPolicy Unbonded nftCs
   -- Get the token name for the user by hashing
   assocListTn <-
     liftContractM
-      "userWithdrawBondedPoolContract: Could not create token name for user`"
+      "userWithdrawUnbondedPoolContract: Could not create token name for user`"
       $ mkTokenName hashedUserPkh
   -- Build useful values for later
   let
     stateTokenValue = singleton nftCs tokenName one
     mintEntryValue = singleton assocListCs assocListTn one
     burnEntryValue = singleton assocListCs assocListTn (-one)
-    assetParams = unwrap bondedAssetClass
+    assetParams = unwrap unbondedAssetClass
     assetCs = assetParams.currencySymbol
     assetTn = assetParams.tokenName
     assetDatum = Datum $ toData AssetDatum
-    assocList = mkOnchainAssocList assocListCs bondedPoolUtxos
+    assocList = mkOnchainAssocList assocListCs unbondedPoolUtxos
   ---- BUILD CONSTRAINTS AND LOOKUPS ----
   constraints /\ lookup <- case headEntry of
     Nothing -> throwContractError
-      "userWithdrawBondedPoolContract: no entries \
+      "userWithdrawUnbondedPoolContract: no entries \
       \in the pool, expected at least one"
     Just headKey -> do
       logInfo'
-        "userWithdrawBondedPoolContract: Found the head entry successfully"
+        "userWithdrawUnbondedPoolContract: Found the head entry successfully"
       case compare hashedUserPkh headKey of
         -- If hashedUserPkh < headKey, we are trying to withdraw a non-existent
         --  entry
         LT -> throwContractError
-          "userWithdrawBondedPoolContract: entry key < \
+          "userWithdrawUnbondedPoolContract: entry key < \
           \head key (non existent)"
         -- If hashedUserPkh == key, we are trying to withdraw the first entry of
         --  the list
         EQ -> do
-          logInfo' "userWithdrawBondedPoolContract: Compare EQ"
+          logInfo' "userWithdrawUnbondedPoolContract: Compare EQ"
           (_ /\ entryInput /\ entryOutput) <-
             liftContractM
-              "userWithdrawBondedPoolContract: Cannot \
+              "userWithdrawUnbondedPoolContract: Cannot \
               \extract head from Assoc. List - this should be impossible"
               $ head assocList
           -- Get the datum of the head entry and the key of the new head
           logInfo'
-            "userWithdrawBondedPoolContract: getting datum of entry to\
+            "userWithdrawUnbondedPoolContract: getting datum of entry to\
             \consume (head)..."
           oldHeadEntry <- unwrap <$> getEntryDatumFromOutput entryOutput
-          logInfo_ "userWithdrawBondedPoolContract: entry to consume"
+          logInfo_ "userWithdrawUnbondedPoolContract: entry to consume"
             oldHeadEntry
           let
             newHeadKey :: Maybe ByteArray
@@ -202,7 +204,7 @@ userWithdrawBondedPoolContract
             rewardsRounded = numerator rewards / denominator rewards
 
             withdrawnAmt :: BigInt
-            withdrawnAmt = oldHeadEntry.staked + rewardsRounded
+            withdrawnAmt = oldHeadEntry.deposited + rewardsRounded
 
             withdrawnVal :: Value
             withdrawnVal = singleton assetCs assetTn withdrawnAmt
@@ -210,22 +212,35 @@ userWithdrawBondedPoolContract
           -- to the pool
           consumedAssetUtxos /\ totalSpentAmt <-
             liftContractM
-              "userWithdrawBondedPoolContract: Cannot get asset \
+              "userWithdrawUnbondedPoolContract: Cannot get asset \
               \UTxOs to consume" $
-              getAssetsToConsume bondedAssetClass withdrawnAmt bondedAssetUtxos
+              getAssetsToConsume unbondedAssetClass withdrawnAmt unbondedAssetUtxos
           let
             changeValue :: Value
             changeValue =
               singleton
-                (unwrap bondedAssetClass).currencySymbol
-                (unwrap bondedAssetClass).tokenName
+                (unwrap unbondedAssetClass).currencySymbol
+                (unwrap unbondedAssetClass).tokenName
                 $ totalSpentAmt
                 - withdrawnAmt
           -- Build updated state
+          -- poolDatumHash <-
+          --   liftContractM
+          --     "userStakeBondedPoolContract: Could not get Pool UTXO's Datum Hash"
+          --     (unwrap poolTxOutput).dataHash
+          -- poolDatum <- liftedM "userWithdrawUnbondedPoolContract: Cannot get datum"
+          --   $ getDatumByHash poolDatumHash
+          -- unbondedStakingDatum :: UnbondedStakingDatum <-
+          --   liftContractM
+          --     "userWithdrawUnbondedPoolContract: Cannot extract NFT State datum"
+          --     $ fromData (unwrap poolDatum)
           let
             newState :: Datum
             newState = Datum <<< toData $
-              StateDatum { maybeEntryName: newHeadKey }
+              StateDatum
+                { maybeEntryName: newHeadKey
+                , open: poolOpenState --unbondedStakingDatum.open
+                }
           -- Build validator redeemer
           let
             valRedeemer = Redeemer <<< toData $
@@ -240,7 +255,7 @@ userWithdrawBondedPoolContract
           -- New state lookup
           stateDatumLookup <-
             liftContractM
-              "userWithdrawBondedPoolContract: Could not create state datum lookup"
+              "userWithdrawUnbondedPoolContract: Could not create state datum lookup"
               $ ScriptLookups.datum newState
 
           let
@@ -262,7 +277,7 @@ userWithdrawBondedPoolContract
               [ ScriptLookups.validator validator
               , ScriptLookups.mintingPolicy listPolicy
               , ScriptLookups.unspentOutputs $ unwrap userUtxos
-              , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
+              , ScriptLookups.unspentOutputs $ unwrap unbondedPoolUtxos
               , stateDatumLookup
               ]
           pure $ constraints /\ lookup
@@ -271,27 +286,27 @@ userWithdrawBondedPoolContract
         GT -> do
           -- The hashed key is greater than so we must look at the assoc. list
           -- in more detail
-          logInfo' "userWithdrawBondedPoolContract: Compare GT"
+          logInfo' "userWithdrawUnbondedPoolContract: Compare GT"
           { firstInput, secondInput }
             /\ { firstOutput, secondOutput }
             /\ _ <-
             liftContractM
-              "userWithdrawBondedPoolContract: Cannot get position in Assoc. List"
+              "userWithdrawUnbondedPoolContract: Cannot get position in Assoc. List"
               $ findRemoveOtherElem assocList hashedUserPkh
 
           -- Get the entry datum of the previous entry
           logInfo'
-            "userWithdrawBondedPoolContract: getting datum of previous\
+            "userWithdrawUnbondedPoolContract: getting datum of previous\
             \entry..."
           prevEntry <- unwrap <$> getEntryDatumFromOutput firstOutput
-          logInfo_ "userWithdrawBondedPoolContract: entry to consume" prevEntry
+          logInfo_ "userWithdrawUnbondedPoolContract: entry to consume" prevEntry
 
           -- Get the entry datum of the entry to consume
           logInfo'
-            "userWithdrawBondedPoolContract: getting datum of entry to\
+            "userWithdrawUnbondedPoolContract: getting datum of entry to\
             \ burn..."
           burnEntry <- unwrap <$> getEntryDatumFromOutput secondOutput
-          logInfo_ "userWithdrawBondedPoolContract: entry to consume" burnEntry
+          logInfo_ "userWithdrawUnbondedPoolContract: entry to consume" burnEntry
 
           -- Get amount to withdraw
           let
@@ -302,7 +317,7 @@ userWithdrawBondedPoolContract
             rewardsRounded = numerator rewards / denominator rewards
 
             withdrawnAmt :: BigInt
-            withdrawnAmt = burnEntry.staked + rewardsRounded
+            withdrawnAmt = burnEntry.deposited + rewardsRounded
 
             withdrawnVal :: Value
             withdrawnVal = singleton assetCs assetTn withdrawnAmt
@@ -311,15 +326,15 @@ userWithdrawBondedPoolContract
           -- to the pool
           consumedAssetUtxos /\ totalSpentAmt <-
             liftContractM
-              "userWithdrawBondedPoolContract: Cannot get asset \
+              "userWithdrawUnbondedPoolContract: Cannot get asset \
               \UTxOs to consume" $
-              getAssetsToConsume bondedAssetClass withdrawnAmt bondedAssetUtxos
+              getAssetsToConsume unbondedAssetClass withdrawnAmt unbondedAssetUtxos
           let
             changeValue :: Value
             changeValue =
               singleton
-                (unwrap bondedAssetClass).currencySymbol
-                (unwrap bondedAssetClass).tokenName
+                (unwrap unbondedAssetClass).currencySymbol
+                (unwrap unbondedAssetClass).tokenName
                 $ totalSpentAmt
                 - withdrawnAmt
 
@@ -332,7 +347,7 @@ userWithdrawBondedPoolContract
               }
           prevEntryDatumLookup <-
             liftContractM
-              "userWithdrawBondedPoolContract: Could not create updated prev \
+              "userWithdrawUnbondedPoolContract: Could not create updated prev \
               \ entry datum lookup"
               $ ScriptLookups.datum prevEntryUpdated
 
@@ -369,7 +384,7 @@ userWithdrawBondedPoolContract
               [ ScriptLookups.validator validator
               , ScriptLookups.mintingPolicy listPolicy
               , ScriptLookups.unspentOutputs $ unwrap userUtxos
-              , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
+              , ScriptLookups.unspentOutputs $ unwrap unbondedPoolUtxos
               , prevEntryDatumLookup
               ]
 
@@ -378,17 +393,17 @@ userWithdrawBondedPoolContract
   unattachedBalancedTx <-
     liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
   logInfo_
-    "userWithdrawBondedPoolContract: unAttachedUnbalancedTx"
+    "userWithdrawUnbondedPoolContract: unAttachedUnbalancedTx"
     unattachedBalancedTx
   BalancedSignedTransaction { signedTxCbor } <-
     liftedM
-      "userWithdrawBondedPoolContract: Cannot balance, reindex redeemers, attach \
+      "userWithdrawUnbondedPoolContract: Cannot balance, reindex redeemers, attach \
       \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
   transactionHash <- submit signedTxCbor
   logInfo_
-    "userWithdrawBondedPoolContract: Transaction successfully submitted with hash"
+    "userWithdrawUnbondedPoolContract: Transaction successfully submitted with hash"
     $ byteArrayToHex
     $ unwrap transactionHash
 
@@ -429,19 +444,19 @@ mkAssetUtxosConstraints utxos redeemer =
     )
 
 -- | This function filters all the asset UTxOs from a `UtxoM`
-getBondedAssetUtxos :: forall (r :: Row Type). UtxoM -> Contract r UtxoM
-getBondedAssetUtxos utxos = do
+getUnbondedAssetUtxos :: forall (r :: Row Type). UtxoM -> Contract r UtxoM
+getUnbondedAssetUtxos utxos = do
   assetUtxos <- catMaybes <$> for utxoAssocList \utxo@(_ /\ txOutput) -> do
     datumHash <- liftContractM "getAssetUtxos: could not get datum hash"
       (unwrap txOutput).dataHash
     datum <-
       liftContractM "getAssetUtxos: could not get datum"
         =<< getDatumByHash datumHash
-    bondedDatum :: BondedStakingDatum <-
+    unbondedDatum :: UnbondedStakingDatum <-
       liftContractM
         "getAssetUtxos: could not parse datum as a bonded staking \
         \datum" $ fromData (unwrap datum)
-    case bondedDatum of
+    case unbondedDatum of
       AssetDatum -> pure $ Just utxo
       _ -> pure Nothing
   pure <<< UtxoM $ Map.fromFoldable assetUtxos
@@ -453,8 +468,8 @@ getBondedAssetUtxos utxos = do
 getEntryDatumFromOutput
   :: forall r. TransactionOutput -> Contract r Entry
 getEntryDatumFromOutput txOut = do
-  bondedDatum <- getBondedDatum txOut
-  case bondedDatum of
+  unbondedDatum <- getUnbondedDatum txOut
+  case unbondedDatum of
     EntryDatum { entry: e } -> pure e
     _ -> throwContractError
       "getEntryDatumFromOutput: datum is not of Entry \
@@ -462,24 +477,24 @@ getEntryDatumFromOutput txOut = do
 
 -- | Get state datum from transaction output
 getStateDatumFromOutput
-  :: forall r. TransactionOutput -> Contract r (Maybe ByteArray)
+  :: forall r. TransactionOutput -> Contract r (Tuple (Maybe ByteArray) Boolean)
 getStateDatumFromOutput txOut = do
-  bondedDatum <- getBondedDatum txOut
-  case bondedDatum of
-    StateDatum { maybeEntryName: key } -> pure key
+  unbondedDatum <- getUnbondedDatum txOut
+  case unbondedDatum of
+    StateDatum { maybeEntryName: key, open: isOpen } -> pure $ (key /\ isOpen)
     _ -> throwContractError
       "getStateDatumFromOutput: datum is not of State \
       \type"
 
 -- | Get a bonded datum from a transaction output
-getBondedDatum
-  :: forall r. TransactionOutput -> Contract r BondedStakingDatum
-getBondedDatum =
-  liftContractM "getBondedDatum: could not parse datum as bonded staking datum"
+getUnbondedDatum
+  :: forall r. TransactionOutput -> Contract r UnbondedStakingDatum
+getUnbondedDatum =
+  liftContractM "getUnbondedDatum: could not parse datum as bonded staking datum"
     <<< fromData
     <<< unwrap
-    <=< liftContractM "getBondedDatum: could not get datum"
+    <=< liftContractM "getUnbondedDatum: could not get datum"
     <=< getDatumByHash
-    <=< liftContractM "getBondedDatum: could not get datum hash"
+    <=< liftContractM "getUnbondedDatum: could not get datum hash"
     <<< _.dataHash
     <<< unwrap

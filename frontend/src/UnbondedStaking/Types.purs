@@ -53,6 +53,9 @@ derive instance Generic UnbondedPoolParams _
 derive instance Eq UnbondedPoolParams
 derive instance Newtype UnbondedPoolParams _
 
+instance Show UnbondedPoolParams where
+  show = genericShow
+
 newtype InitialUnbondedParams = InitialUnbondedParams
   { start :: BigInt
   , userLength :: BigInt
@@ -180,7 +183,7 @@ data UnbondedStakingAction
       }
   | WithdrawAct
       { stakeHolder :: PaymentPubKeyHash
-      , burningAction :: Maybe BurningAction
+      , burningAction :: BurningAction
       }
   | CloseAct
 
@@ -208,7 +211,7 @@ instance
         :=
           ( "stakeHolder" := I PaymentPubKeyHash
               :+ "burningAction"
-              := I (Maybe BurningAction)
+              := I (BurningAction)
               :+ PNil
           )
         @@ (S (S Z))

@@ -62,7 +62,7 @@ import UnbondedStaking.Types
   , UnbondedPoolParams(UnbondedPoolParams)
   )
 import Utils
-  ( findAssocElem
+  ( findInsertUpdateElem
   , getUtxoWithNFT
   , hashPkh
   , mkOnchainAssocList
@@ -377,7 +377,7 @@ userStakeUnbondedPoolContract
             /\ { secondKey } <-
             liftContractM
               "userStakeUnbondedPoolContract: Cannot get position in Assoc. List"
-              $ findAssocElem assocList hashedUserPkh
+              $ findInsertUpdateElem assocList hashedUserPkh
           let
             valRedeemer = Redeemer $ toData $ StakeAct
               { stakeAmount: amt

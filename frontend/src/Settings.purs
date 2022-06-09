@@ -89,7 +89,7 @@ testInitUnbondedParams = do
     , interestLength: big 2
     , increments: nat 2
     , interest: interest
-    , minStake: nat 1000
+    , minStake: nat 1
     , maxStake: nat 10_000
     , unbondedAssetClass: AssetClass
         { currencySymbol: adaSymbol
