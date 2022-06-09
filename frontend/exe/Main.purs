@@ -29,6 +29,10 @@ import Settings (testInitBondedParams)
 import UserStake (userStakeBondedPoolContract)
 
 -- import Settings (testInitUnbondedParams)
+-- import UnbondedStaking.CreateUnbondedPool (createUnbondedPoolContract)
+-- import UnbondedStaking.UserStakeUnbonded (userStakeUnbondedPoolContract)
+
+-- import Settings (testInitUnbondedParams)
 -- import UnbondedStaking.CloseUnbondedPool (closeUnbondedPoolContract)
 -- import UnbondedStaking.CreateUnbondedPool (createUnbondedPoolContract)
 -- import UnbondedStaking.DepositUnbondedPool (depositUnbondedPoolContract)
@@ -70,6 +74,22 @@ main = launchAff_ do
   userCfg <- mkConfig
   userStake <- liftM (error "Cannot create Natural") $ Natural.fromString "5"
   runContract_ userCfg $ userStakeBondedPoolContract bondedParams userStake
+
+-- Unbonded Test
+-- main :: Effect Unit
+-- main = launchAff_ do
+--   adminCfg <- mkConfig
+--   unbondedParams <-
+--     runContract adminCfg do
+--       initParams <- liftContractM "main: Cannot initiate unbonded parameters"
+--         testInitUnbondedParams
+--       unbondedParams <- createUnbondedPoolContract initParams
+--       logInfo' "SWITCH WALLETS NOW TO CHANGE USERS"
+--       liftAff $ delay $ wrap $ toNumber 80_000
+--       pure unbondedParams
+--   userCfg <- mkConfig
+--   userStake <- liftM (error "Cannot create Natural") $ Natural.fromString "5000000"
+--   runContract_ userCfg $ userStakeUnbondedPoolContract unbondedParams userStake
 
 mkConfig :: Aff (ContractConfig ())
 mkConfig = do

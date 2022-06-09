@@ -46,19 +46,16 @@ import Contract.TxConstraints
   , mustSpendScriptOutput
   )
 import Contract.Utxos (UtxoM(..), utxosAt)
-import Contract.Value (Value, mkTokenName, singleton, valueOf)
+import Contract.Value (Value, mkTokenName, singleton)
 import Data.Array (catMaybes, head)
-import Data.Array as Array
 import Data.BigInt (BigInt)
-import Data.Map (Map)
 import Data.Map as Map
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
 import Types
-  ( AssetClass(..)
-  , BondedPoolParams(BondedPoolParams)
+  ( BondedPoolParams(BondedPoolParams)
   , BondedStakingAction(..)
   , BondedStakingDatum(..)
   , BurningAction(..)
@@ -70,6 +67,8 @@ import Types.Rational (Rational, denominator, numerator)
 import Types.Redeemer (Redeemer(Redeemer))
 import Utils
   ( findRemoveOtherElem
+  , getAssetsToConsume
+  , mkAssetUtxosConstraints
   , getUtxoWithNFT
   , hashPkh
   , logInfo_
@@ -391,42 +390,6 @@ userWithdrawBondedPoolContract
     "userWithdrawBondedPoolContract: Transaction successfully submitted with hash"
     $ byteArrayToHex
     $ unwrap transactionHash
-
--- | This receives a `UtxoM` with all the asset UTxOs of the pool and the desired
--- | amount to withdraw. It returns a subset of these that sums at least
--- | the given amount and the total amount
-getAssetsToConsume :: AssetClass -> BigInt -> UtxoM -> Maybe (UtxoM /\ BigInt)
-getAssetsToConsume (AssetClass ac) withdrawAmt assetUtxos =
-  go assetList Map.empty zero
-  where
-  assetList :: Array (TransactionInput /\ TransactionOutput)
-  assetList = Map.toUnfoldable <<< unwrap $ assetUtxos
-
-  go
-    :: Array (TransactionInput /\ TransactionOutput)
-    -> Map TransactionInput TransactionOutput
-    -> BigInt
-    -> Maybe (UtxoM /\ BigInt)
-  go arr toConsume sum
-    | sum >= withdrawAmt = Just $ UtxoM toConsume /\ (sum - withdrawAmt)
-    | null arr = Nothing
-    | otherwise = do
-        input /\ output <- Array.head arr
-        arr' <- Array.tail arr
-        let
-          assetCount = valueOf (unwrap output).amount ac.currencySymbol
-            ac.tokenName
-          toConsume' = Map.insert input output toConsume
-          sum' = sum + assetCount
-        go arr' toConsume' sum'
-
--- | Builds constraints for asset UTxOs
-mkAssetUtxosConstraints :: UtxoM -> Redeemer -> TxConstraints Unit Unit
-mkAssetUtxosConstraints utxos redeemer =
-  foldMap (\(input /\ _) -> mustSpendScriptOutput input redeemer)
-    ( Map.toUnfoldable $ unwrap utxos
-        :: Array (TransactionInput /\ TransactionOutput)
-    )
 
 -- | This function filters all the asset UTxOs from a `UtxoM`
 getBondedAssetUtxos :: forall (r :: Row Type). UtxoM -> Contract r UtxoM
