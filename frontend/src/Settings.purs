@@ -2,14 +2,14 @@ module Settings
   ( agixCs
   , agixTn
   , bondedStakingTokenName
-  , bondedHardCodedParams
   , ntxCs
   , ntxTn
+  , testInitBondedParams
   , testInitUnbondedParams
   , unbondedStakingTokenName
   ) where
 
-import Prelude
+import Contract.Prelude
 
 import Contract.Numeric.NatRatio (fromNaturals, toRational)
 import Contract.Numeric.Rational (Rational)
@@ -23,13 +23,19 @@ import Contract.Value
   , mkTokenName
   )
 import Data.Maybe (Maybe)
-import Types (AssetClass(AssetClass), BondedPoolParams(BondedPoolParams))
+import Types
+  ( AssetClass(AssetClass)
+  , InitialBondedParams(InitialBondedParams)
+  )
 import UnbondedStaking.Types (InitialUnbondedParams(InitialUnbondedParams))
-import Types.UnbalancedTransaction (PaymentPubKeyHash)
 import Utils (nat, big)
 
 bondedStakingTokenName :: Maybe TokenName
 bondedStakingTokenName = mkTokenName =<< byteArrayFromAscii "BondedStakingToken"
+
+unbondedStakingTokenName :: Maybe TokenName
+unbondedStakingTokenName = mkTokenName =<< byteArrayFromAscii
+  "UnbondedStakingToken"
 
 interest' :: Maybe Rational
 interest' = toRational <$> fromNaturals (nat 1) (nat 100)
@@ -49,21 +55,13 @@ ntxCs = mkCurrencySymbol
 ntxTn :: Maybe TokenName
 ntxTn = mkTokenName =<< byteArrayFromAscii "NTX"
 
-unbondedStakingTokenName :: Maybe TokenName
-unbondedStakingTokenName = mkTokenName =<< byteArrayFromAscii
-  "UnbondedStakingToken"
-
--- Temporary, serialise to JSON
-bondedHardCodedParams
-  :: PaymentPubKeyHash
-  -> CurrencySymbol
-  -> CurrencySymbol
-  -> Maybe BondedPoolParams
-bondedHardCodedParams adminPkh nftCs assocListCs = do
+-- Used for local example:
+testInitBondedParams :: Maybe InitialBondedParams
+testInitBondedParams = do
   interest <- interest'
   currencySymbol <- agixCs
   tokenName <- agixTn
-  pure $ BondedPoolParams
+  pure $ InitialBondedParams
     { iterations: nat 3
     , start: big 1000
     , end: big 2000
@@ -72,13 +70,10 @@ bondedHardCodedParams adminPkh nftCs assocListCs = do
     , interest
     , minStake: nat 1000
     , maxStake: nat 10_000
-    , admin: adminPkh
     , bondedAssetClass: AssetClass
         { currencySymbol
         , tokenName
         }
-    , nftCs
-    , assocListCs
     }
 
 testInitUnbondedParams :: Maybe InitialUnbondedParams
@@ -94,8 +89,8 @@ testInitUnbondedParams = do
     , interestLength: big 2
     , increments: nat 2
     , interest: interest
-    , minStake: nat 1000
-    , maxStake: nat 10_000
+    , minStake: nat 1
+    , maxStake: nat 100_000_000
     , unbondedAssetClass: AssetClass
         { currencySymbol: adaSymbol
         , tokenName: adaToken

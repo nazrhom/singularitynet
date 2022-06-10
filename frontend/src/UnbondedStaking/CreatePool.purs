@@ -3,13 +3,14 @@ module UnbondedStaking.CreatePool (createUnbondedPoolContract) where
 import Contract.Prelude
 
 import Contract.Address
-  ( getNetworkId
+  ( AddressWithNetworkTag(AddressWithNetworkTag)
+  , getNetworkId
   , getWalletAddress
   , ownPaymentPubKeyHash
-  , validatorHashEnterpriseAddress
+  , scriptHashAddress
   )
 import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM)
-import Contract.PlutusData (PlutusData, Datum(Datum), toData)
+import Contract.PlutusData (Datum(Datum), PlutusData, toData)
 import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
@@ -28,6 +29,7 @@ import Contract.Utxos (utxosAt)
 import Contract.Value (scriptCurrencySymbol, singleton)
 import Data.Array (head)
 import Data.Map (toUnfoldable)
+import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Scripts.StateNFT (mkStateNFTPolicy)
@@ -50,8 +52,11 @@ createUnbondedPoolContract iup = do
     ownPaymentPubKeyHash
   logInfo_ "createUnbondedPoolContract: Admin PaymentPubKeyHash" adminPkh
   -- Get the (Nami) wallet address
-  adminAddr <- liftedM "createUnbondedPoolContract: Cannot get wallet Address"
-    getWalletAddress
+  AddressWithNetworkTag { address: adminAddr } <-
+    liftedM "createUnbondedPoolContract: Cannot get wallet Address"
+      getWalletAddress
+  logInfo_ "createUnbondedPoolContract: User Address"
+    $ fromPlutusType (networkId /\ adminAddr)
   -- Get utxos at the wallet address
   adminUtxos <-
     liftedM "createUnbondedPoolContract: Cannot get user Utxos"
@@ -61,41 +66,44 @@ createUnbondedPoolContract iup = do
       $ fst
       <$> (head $ toUnfoldable $ unwrap adminUtxos)
   logInfo_ "createUnbondedPoolContract: Admin Utxos" adminUtxos
+
   -- Get the minting policy and currency symbol from the state NFT:
   statePolicy <- liftedE $ mkStateNFTPolicy Unbonded txOutRef
   stateNftCs <-
-    liftedM
+    liftContractM
       "createUnbondedPoolContract: Cannot get CurrencySymbol from /\
       \state NFT"
       $ scriptCurrencySymbol statePolicy
   -- Get the minting policy and currency symbol from the list NFT:
   listPolicy <- liftedE $ mkListNFTPolicy Unbonded stateNftCs
   assocListCs <-
-    liftedM
+    liftContractM
       "createUnbondedPoolContract: Cannot get CurrencySymbol from /\
       \state NFT"
       $ scriptCurrencySymbol listPolicy
+
   -- May want to hardcode this somewhere:
   tokenName <-
     liftContractM "createUnbondedPoolContract: Cannot create TokenName"
       unbondedStakingTokenName
+
   -- We define the parameters of the pool
   let params = mkUnbondedPoolParams adminPkh stateNftCs assocListCs iup
   -- Get the bonding validator and hash
   validator <- liftedE' "createUnbondedPoolContract: Cannot create validator"
     $ mkUnbondedPoolValidator params
-  valHash <- liftedM "createUnbondedPoolContract: Cannot hash validator"
+  valHash <- liftContractM "createUnbondedPoolContract: Cannot hash validator"
     (validatorHash validator)
   let
     mintValue = singleton stateNftCs tokenName one
-    poolAddr = validatorHashEnterpriseAddress networkId valHash
-  logInfo_
-    "createUnbondedPoolContract: UnbondedPool Validator's address"
-    poolAddr
+    poolAddr = scriptHashAddress valHash
+  logInfo_ "createUnbondedPoolContract: UnbondedPool Validator's address"
+    $ fromPlutusType (networkId /\ poolAddr)
+
   let
     unbondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
-      , isOpen: true
+      , open: true
       }
 
     lookup :: ScriptLookups.ScriptLookups PlutusData
@@ -116,6 +124,7 @@ createUnbondedPoolContract iup = do
 
   unattachedBalancedTx <-
     liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
+
   -- `balanceAndSignTx` does the following:
   -- 1) Balance a transaction
   -- 2) Reindex `Spend` redeemers after finalising transaction inputs.
@@ -126,6 +135,7 @@ createUnbondedPoolContract iup = do
       "createUnbondedPoolContract: Cannot balance, reindex redeemers, attach /\
       \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
+
   -- Submit transaction using Cbor-hex encoded `ByteArray`
   transactionHash <- submit signedTxCbor
   logInfo_
@@ -133,5 +143,6 @@ createUnbondedPoolContract iup = do
     \with hash"
     $ byteArrayToHex
     $ unwrap transactionHash
+
   -- Return the pool info for subsequent transactions
   pure params

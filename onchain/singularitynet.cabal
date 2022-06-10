@@ -100,13 +100,16 @@ common common-lang
 library
   import:          common-lang
   exposed-modules:
-    BondedPool
+    BondedStaking.BondedPool
+    BondedStaking.PTypes
+    InductiveLogic
     ListNFT
     PInterval
     PNatural
     PTypes
     SingularityNet
     StateNFT
+    UnbondedStaking.PTypes
     UnbondedStaking.Types
     UnbondedStaking.UnbondedPool
     Utils
@@ -146,8 +149,8 @@ test-suite singularitynet-test
 
   other-modules:
     Test.Common
-    Test.SpecBondedAdmin
     Test.SpecNFT
+    Test.SpecPeriod
     Test.Utils
 
   hs-source-dirs: test

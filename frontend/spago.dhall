@@ -4,18 +4,21 @@ You can edit this file as you like.
 -}
 { name = "singularitynet-frontend"
 , dependencies =
-  [ "aff"
+  [ "aeson"
+  , "aff"
+  , "aff-promise"
+  , "argonaut-codecs"
+  , "argonaut-core"
   , "cardano-transaction-lib"
-  , "argonaut"
+  , "control"
   , "arrays"
   , "bigints"
+  , "exceptions"
   , "integers"
   , "maybe"
-  , "newtype"
   , "ordered-collections"
   , "prelude"
-  , "tuples"
-  , "identity"
+  , "uint"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "exe/**/*.purs", "test/**/*.purs" ]

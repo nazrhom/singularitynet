@@ -18,7 +18,7 @@
       repo = "cardano-transaction-lib";
       # NOTE
       # Keep this in sync with the rev in `frontend/packages.dhall`
-      rev = "03e65b0ebc0be3ccbc98a0621ce786390f887129";
+      rev = "2082bf7455146c6f497b687dd8ccfe9e68567844";
     };
   };
 
@@ -198,6 +198,7 @@
               inherit src;
               projectName = "singularitynet-frontend";
               nodejs = pkgs.nodejs-12_x;
+              shell.packages = [ pkgs.fd ];
             };
           in
           {

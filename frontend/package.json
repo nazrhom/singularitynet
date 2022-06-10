@@ -3,20 +3,24 @@
   "version": "0.1.0",
   "description": "",
   "main": "index.js",
+  "types": "index.d.ts",
   "directories": {
     "test": "test"
   },
   "scripts": {
     "test": "spago run --main Test.Main",
-    "dev": "make run-dev",
-    "build": "make run-build"
+    "ps:dev": "make ps-dev",
+    "ps:build": "make ps-build",
+    "js:build": "make js-build"
   },
   "author": "",
   "dependencies": {
     "@ngua/cardano-serialization-lib-browser": "9.1.2",
     "@ngua/cardano-serialization-lib-nodejs": "9.1.2",
     "big-integer": "1.6.51",
+    "blakejs": "1.2.1",
     "bufferutil": "4.0.5",
+    "jssha": "3.2.0",
     "node-polyfill-webpack-plugin": "1.1.4",
     "uniqid": "5.4.0",
     "reconnecting-websocket": "4.4.0",

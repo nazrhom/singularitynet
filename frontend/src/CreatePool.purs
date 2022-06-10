@@ -3,10 +3,11 @@ module CreatePool (createBondedPoolContract) where
 import Contract.Prelude
 
 import Contract.Address
-  ( getNetworkId
+  ( AddressWithNetworkTag(AddressWithNetworkTag)
+  , getNetworkId
   , getWalletAddress
   , ownPaymentPubKeyHash
-  , validatorHashEnterpriseAddress
+  , scriptHashAddress
   )
 import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM)
 import Contract.PlutusData (PlutusData, Datum(Datum), toData)
@@ -28,42 +29,50 @@ import Contract.Utxos (utxosAt)
 import Contract.Value (scriptCurrencySymbol, singleton)
 import Data.Array (head)
 import Data.Map (toUnfoldable)
+import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Scripts.StateNFT (mkStateNFTPolicy)
-import Settings (bondedStakingTokenName, bondedHardCodedParams)
-import Types (BondedStakingDatum(StateDatum), PoolInfo, StakingType(Bonded))
-import Utils (logInfo_, nat)
+import Settings (bondedStakingTokenName)
+import Types
+  ( BondedPoolParams
+  , BondedStakingDatum(StateDatum)
+  , InitialBondedParams
+  , StakingType(Bonded)
+  )
+import Utils (logInfo_, mkBondedPoolParams)
 
 -- Sets up pool configuration, mints the state NFT and deposits
 -- in the pool validator's address
-createBondedPoolContract :: Contract () PoolInfo
-createBondedPoolContract = do
+createBondedPoolContract :: InitialBondedParams -> Contract () BondedPoolParams
+createBondedPoolContract ibp = do
   networkId <- getNetworkId
   adminPkh <- liftedM "createBondedPoolContract: Cannot get admin's pkh"
     ownPaymentPubKeyHash
-  logInfo_ "createPoolContract: Admin PaymentPubKeyHash" adminPkh
+  logInfo_ "createBondedPoolContract: Admin PaymentPubKeyHash" adminPkh
   -- Get the (Nami) wallet address
-  adminAddr <- liftedM "createBondedPoolContract: Cannot get wallet Address"
-    getWalletAddress
+  AddressWithNetworkTag { address: adminAddr } <-
+    liftedM "createBondedPoolContract: Cannot get wallet Address"
+      getWalletAddress
+  logInfo_ "createBondedPoolContract: User Address"
+    $ fromPlutusType (networkId /\ adminAddr)
   -- Get utxos at the wallet address
-  adminUtxos <-
-    liftedM "createBondedPoolContract: Cannot get user Utxos"
-      $ utxosAt adminAddr
+  adminUtxos <- liftedM "createBondedPoolContract: Cannot get user Utxos"
+    $ utxosAt adminAddr
   txOutRef <- liftContractM "createBondedPoolContract: Could not get head UTXO"
     $ fst
     <$> (head $ toUnfoldable $ unwrap adminUtxos)
-  logInfo_ "createPoolContract: Admin Utxos" adminUtxos
+  logInfo_ "createBondedPoolContract: Admin Utxos" adminUtxos
   -- Get the minting policy and currency symbol from the state NFT:
   statePolicy <- liftedE $ mkStateNFTPolicy Bonded txOutRef
   stateNftCs <-
-    liftedM
+    liftContractM
       "createBondedPoolContract: Cannot get CurrencySymbol from state NFT"
       $ scriptCurrencySymbol statePolicy
   -- Get the minting policy and currency symbol from the list NFT:
   listPolicy <- liftedE $ mkListNFTPolicy Bonded stateNftCs
   assocListCs <-
-    liftedM
+    liftContractM
       "createBondedPoolContract: Cannot get CurrencySymbol from state NFT"
       $ scriptCurrencySymbol listPolicy
   -- May want to hardcode this somewhere:
@@ -71,24 +80,22 @@ createBondedPoolContract = do
     liftContractM "createBondedPoolContract: Cannot create TokenName"
       bondedStakingTokenName
   -- We define the parameters of the pool
-  params <-
-    liftContractM "createBondedPoolContract: Failed to create parameters"
-      $ bondedHardCodedParams adminPkh stateNftCs assocListCs
+  let params = mkBondedPoolParams adminPkh stateNftCs assocListCs ibp
   -- Get the bonding validator and hash
   validator <-
     liftedE' "createBondedPoolContract: Cannot create validator"
       $ mkBondedPoolValidator params
-  valHash <- liftedM "createBondedPoolContract: Cannot hash validator"
-    (validatorHash validator)
+  valHash <- liftContractM "createBondedPoolContract: Cannot hash validator"
+    $ validatorHash validator
   let
     mintValue = singleton stateNftCs tokenName one
-    poolAddr = validatorHashEnterpriseAddress networkId valHash
-  logInfo_ "createPoolContract: BondedPool Validator's address" poolAddr
+    poolAddr = scriptHashAddress valHash
+  logInfo_ "createBondedPoolContract: BondedPool Validator's address"
+    $ fromPlutusType (networkId /\ poolAddr)
   let
     -- We initalize the pool with no head entry and a pool size of 100_000_000
     bondedStateDatum = Datum $ toData $ StateDatum
       { maybeEntryName: Nothing
-      , sizeLeft: nat 100_000_000
       }
 
     lookup :: ScriptLookups.ScriptLookups PlutusData
@@ -127,4 +134,4 @@ createBondedPoolContract = do
     $ byteArrayToHex
     $ unwrap transactionHash
   -- Return the pool info for subsequent transactions
-  pure $ wrap { stateNftCs, assocListCs, poolAddr }
+  pure params
