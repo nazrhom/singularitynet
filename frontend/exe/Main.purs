@@ -23,9 +23,9 @@ import Effect.Aff (delay)
 import Settings (testInitBondedParams)
 
 -- import Settings (testInitUnbondedParams)
--- import UnbondedStaking.CloseUnbondedPool (closeUnbondedPoolContract)
--- import UnbondedStaking.CreateUnbondedPool (createUnbondedPoolContract)
--- import UnbondedStaking.DepositUnbondedPool (depositUnbondedPoolContract)
+-- import UnbondedStaking.ClosePool (closeUnbondedPoolContract)
+-- import UnbondedStaking.CreatePool (createUnbondedPoolContract)
+-- import UnbondedStaking.DepositPool (depositUnbondedPoolContract)
 
 main :: Effect Unit
 main = launchAff_ $ do
