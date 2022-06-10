@@ -62,15 +62,15 @@ import PTypes (
   PTxInfoFields,
   PTxInfoHRec,
   bondingPeriod,
+  closingPeriod,
   depositWithdrawPeriod,
   onlyWithdrawPeriod,
-  closingPeriod,
   passetClass,
  )
 
-import PInterval(
-  getBondedPeriod
-  )
+import PInterval (
+  getBondedPeriod,
+ )
 
 import Utils (
   getCoWithDatum,
@@ -147,7 +147,7 @@ pbondedPoolValidator = phoistAcyclic $
     paramsF <- tcont $ pletFields @PBondedPoolParamsFields params
     -- Match on redeemer, check period and minted value, execute the
     -- corresponding logic
-    period <- pletC $ getBondedPeriod # txInfoF.validRange # params 
+    period <- pletC $ getBondedPeriod # txInfoF.validRange # params
     pure $
       pmatch act $ \case
         PAdminAct _ -> unTermCont $ do
@@ -155,10 +155,11 @@ pbondedPoolValidator = phoistAcyclic $
             period #== bondingPeriod
           pure $ adminActLogic txInfoF paramsF ctxF.purpose dat
         PStakeAct act -> unTermCont $ do
-          guardC "pbondedPoolValidator: wrong period for PStakeAct \
-           \redeemer" $
-            getBondedPeriod # txInfoF.validRange # params
-               #== depositWithdrawPeriod
+          guardC
+            "pbondedPoolValidator: wrong period for PStakeAct \
+            \redeemer"
+            $ getBondedPeriod # txInfoF.validRange # params
+              #== depositWithdrawPeriod
           pure
             . pletFields
               @'["stakeAmount", "pubKeyHash", "maybeMintingAction"]
@@ -171,9 +172,10 @@ pbondedPoolValidator = phoistAcyclic $
                 dat
                 actF
         PWithdrawAct act' -> unTermCont $ do
-          guardC "pbondedPoolValidator: wrong period for PWithdrawAct \
-            \redeemer" $
-            period #== depositWithdrawPeriod #|| period #== onlyWithdrawPeriod
+          guardC
+            "pbondedPoolValidator: wrong period for PWithdrawAct \
+            \redeemer"
+            $ period #== depositWithdrawPeriod #|| period #== onlyWithdrawPeriod
           guardC
             "pbondedPoolValidator: a token should be burned when using \
             \ PWithdrawAct"
