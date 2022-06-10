@@ -8,6 +8,7 @@ module PInterval (
   pcontains,
   pperiodicContains,
   getBondedPeriod,
+  getUnbondedBondingPeriodIncrement,
   getUnbondedPeriod,
 ) where
 
@@ -29,7 +30,15 @@ import Plutarch.Api.V1 (
 
 import GHC.Generics qualified as GHC
 import Generics.SOP (Generic, I (I))
-import PNatural (PNatural)
+import PNatural (
+  PNatural,
+  mkNatUnsafe,
+  natOne,
+  natZero,
+  (#*),
+  (#+),
+  (#-),
+ )
 import PTypes (
   PPeriod,
   adminUpdatePeriod,
@@ -47,7 +56,16 @@ import UnbondedStaking.PTypes (
   PUnbondedPoolParamsFields,
   PUnbondedPoolParamsHRec,
  )
-import Utils (pfalse, pletC, pletDataC, pmatchC, pnestedIf, ptrue, (>:))
+import Utils (
+  guardC,
+  pfalse,
+  pletC,
+  pletDataC,
+  pmatchC,
+  pnestedIf,
+  ptrue,
+  (>:)
+ )
 
 -- We create a `POrdering` type to simplify the implementation of the functions
 -- Internally it is represented as a `PInteger`s from 0 to 2
@@ -513,3 +531,143 @@ getUnbondedPeriod = phoistAcyclic $
           ]
           $ ptraceError
             "the transaction's range does not belong to any valid period"
+
+-- | Returns the current increment number within the bonding period
+getUnbondedBondingPeriodIncrement ::
+  forall (s :: S).
+  Term s PPOSIXTimeRange ->
+  PUnbondedPoolParamsHRec s ->
+  Term s PNatural
+getUnbondedBondingPeriodIncrement txTimeRange paramsF = unTermCont $ do
+  -- Convert from data
+  start <- pletDataC paramsF.start
+  userLength <- pletDataC paramsF.userLength
+  adminLength <- pletDataC paramsF.adminLength
+  bondingLength <- pletDataC paramsF.bondingLength
+  interestLength <- pletDataC paramsF.interestLength
+  increments <- pletDataC paramsF.increments
+  period <-
+    pletC $
+      punsafeCoerce $ pto userLength + pto adminLength + pto bondingLength
+  -- Define intervals
+  let
+    bonding =
+      PPeriodicInterval
+        { piBaseOffset = start
+        , piPeriod = period
+        , piStartOffset = punsafeCoerce $ pto userLength + pto adminLength
+        , piEndOffset =
+            punsafeCoerce $
+              pto userLength + pto adminLength + pto bondingLength
+        , piMaxCycles = pcon PNothing
+        }
+    incrementList = mkIncrementIntervals # pcon bonding # interestLength # increments # increments
+  -- Verify that we are in the bonding interval
+  guardC
+    "getUnbondedBondingPeriodIncrement: transaction's range is not inside of bonding period" $
+    pperiodicContains # pcon bonding # txTimeRange
+  -- Determine increment interval
+  let
+    index = getIncrementListIntervalIndex # natZero # incrementList # txTimeRange
+    -- List is zero-indexed, while increment bounds in spec is from 1 to
+    -- increments, where k ~= increments is the lower interval bound
+    currentIncrement = increments #- (index #+ natOne)
+  pure $
+    pmatch currentIncrement $ \case
+      PNothing ->
+        ptraceError
+          "getUnbondedBondingPeriodIncrement: invalid increment"
+      PJust currentIncrement' -> currentIncrement'
+
+-- | Creates a list of intervals of 'interestLength' inside the bonding period
+mkIncrementIntervals ::
+  forall (s :: S).
+  Term s
+    ( PPeriodicInterval
+        :--> PPOSIXTime
+        :--> PNatural
+        :--> PNatural
+        :--> PList PPeriodicInterval
+    )
+mkIncrementIntervals = pfix #$ plam listIntervals
+  where
+    listIntervals ::
+      forall (s :: S).
+      Term s (PPeriodicInterval :--> PPOSIXTime :--> PNatural :--> PNatural :--> PList PPeriodicInterval) ->
+      Term s PPeriodicInterval ->
+      Term s PPOSIXTime ->
+      Term s PNatural ->
+      Term s PNatural ->
+      Term s (PList PPeriodicInterval)
+    listIntervals self period delta maxIncrements increment = unTermCont $ do
+      let
+        nextIncrement = increment #- natOne
+        currentIncrement = maxIncrements #- increment
+      pure $
+        pmatch nextIncrement $ \case
+          PNothing ->
+            ptraceError
+              "mkIncrementIntervals: invalid increment parameters"
+          PJust nextIncrement' -> unTermCont $ do
+            pure $
+              pmatch currentIncrement $ \case
+                PNothing ->
+                  ptraceError
+                    "mkIncrementIntervals: invalid increment parameters"
+                PJust currentIncrement' -> unTermCont $ do
+                  -- Get fields from periodic interval
+                  ( PPeriodicInterval
+                      piBaseOffset'
+                      piPeriod'
+                      piStartOffset'
+                      _
+                      maxCycles'
+                    ) <-
+                    pmatchC period
+                  let
+                    delta' = mkNatUnsafe $ pto delta
+                    start = mkNatUnsafe $ pto $ piStartOffset'
+                    startOffset = start #+ (delta' #* currentIncrement')
+                    endOffset = start #+ (delta' #* (currentIncrement' #+ natOne))
+                    incrementInterval =
+                      PPeriodicInterval
+                        { piBaseOffset = piBaseOffset'
+                        , piPeriod = piPeriod'
+                        , piStartOffset = punsafeCoerce $ pto startOffset
+                        , piEndOffset = punsafeCoerce $ pto endOffset
+                        , piMaxCycles = maxCycles'
+                        }
+                  pure $
+                    pif
+                      (nextIncrement' #== natZero)
+                      (pcon $ PSCons (pcon incrementInterval) $ pcon PSNil)
+                      (pcon $ PSCons (pcon incrementInterval) (self # period # delta # maxIncrements # nextIncrement'))
+
+-- | Returns the index of the interval list where the txRange is contained
+getIncrementListIntervalIndex ::
+  forall (s :: S).
+  Term s
+    ( PNatural
+        :--> PList PPeriodicInterval
+        :--> PPOSIXTimeRange
+        :--> PNatural
+    )
+getIncrementListIntervalIndex = pfix #$ plam listIndex
+  where
+    listIndex ::
+      forall (s :: S).
+      Term s (PNatural :--> PList PPeriodicInterval :--> PPOSIXTimeRange :--> PNatural) ->
+      Term s PNatural ->
+      Term s (PList PPeriodicInterval) ->
+      Term s PPOSIXTimeRange ->
+      Term s PNatural
+    listIndex self index list txRange = unTermCont $ do
+      pure $
+        pmatch list $ \case
+          PSNil ->
+            ptraceError "getIncrementListIntervalIndex: transaction's is not inside bonding period"
+          PSCons i is ->
+            pif
+              (pperiodicContains # i # txRange)
+              index
+              (self # (index #+ natOne) # is # txRange)
