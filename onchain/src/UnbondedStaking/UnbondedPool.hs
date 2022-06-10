@@ -43,8 +43,8 @@ import PNatural (
   PNatRatio,
   PNatural,
   mkNatRatioUnsafe,
-  natPow,
   natOne,
+  natPow,
   natZero,
   ratZero,
   roundDown,
@@ -153,9 +153,10 @@ punbondedPoolValidator = phoistAcyclic $
     pure $
       pmatch act $ \case
         PAdminAct dataRecord -> unTermCont $ do
-          guardC "punbondedPoolValidator: wrong period for PAdminAct \
-            \redeemer" $
-            period #== adminUpdatePeriod
+          guardC
+            "punbondedPoolValidator: wrong period for PAdminAct \
+            \redeemer"
+            $ period #== adminUpdatePeriod
           adminActParamsF <-
             tcont $ pletFields @["totalRewards", "totalDeposited"] dataRecord
           pure $
@@ -166,9 +167,10 @@ punbondedPoolValidator = phoistAcyclic $
               dat
               adminActParamsF
         PStakeAct dataRecord -> unTermCont $ do
-          guardC "punbondedPoolValidator: wrong period for PStakeAct \
-            \redeemer" $
-            period #== depositWithdrawPeriod
+          guardC
+            "punbondedPoolValidator: wrong period for PStakeAct \
+            \redeemer"
+            $ period #== depositWithdrawPeriod
           stakeActParamsF <-
             tcont $
               pletFields
@@ -193,9 +195,10 @@ punbondedPoolValidator = phoistAcyclic $
             withdrawActParamsF
             period
         PCloseAct _ -> unTermCont $ do
-          guardC "punbondedPoolValidator: wrong period for PCloseAct \
-            \redeemer" $
-            period #== adminUpdatePeriod
+          guardC
+            "punbondedPoolValidator: wrong period for PCloseAct \
+            \redeemer"
+            $ period #== adminUpdatePeriod
           pure $ closeActLogic txInfoF paramsF ctxF.purpose dat
 
 -- Untyped version to be serialised. This version is responsible for verifying
@@ -1105,7 +1108,11 @@ withdrawRewardsGuard period amount paramsF txInfoF entryF =
           frhs = entryF.rewards #+ (toNatRatio entryF.deposited)
           f = roundDown $ frhs #* flhs
           rhsDenominator = paramsF.interest #+ (toNatRatio natOne)
-          rhsDenominator' = roundUp $ natPow # rhsDenominator # (getUnbondedBondingPeriodIncrement txInfoF.validRange paramsF)
+          rhsDenominator' =
+            roundUp $
+              natPow
+                # rhsDenominator
+                # (getUnbondedBondingPeriodIncrement txInfoF.validRange paramsF)
           rhs = mkNatRatioUnsafe (pto f) (pto rhsDenominator')
           bondingRewards = roundDown $ entryF.rewards #+ rhs
 
