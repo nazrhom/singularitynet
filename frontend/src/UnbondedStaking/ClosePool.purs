@@ -1,4 +1,4 @@
-module UnbondedStaking.CloseUnbondedPool (closeUnbondedPoolContract) where
+module UnbondedStaking.ClosePool (closeUnbondedPoolContract) where
 
 import Contract.Prelude
 

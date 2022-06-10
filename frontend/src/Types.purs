@@ -220,7 +220,7 @@ data BondedStakingAction
       }
   | WithdrawAct
       { stakeHolder :: PaymentPubKeyHash
-      , burningAction :: Maybe BurningAction
+      , burningAction :: BurningAction
       }
   | CloseAct
 
@@ -242,7 +242,7 @@ instance
         :=
           ( "stakeHolder" := I PaymentPubKeyHash
               :+ "burningAction"
-              := I (Maybe BurningAction)
+              := I BurningAction
               :+ PNil
           )
         @@ (S (S Z))
@@ -291,8 +291,8 @@ instance ToData MintingAction where
   toData = genericToData
 
 data BurningAction
-  = BurnHead TransactionInput
-  | BurnOther TransactionInput
+  = BurnHead TransactionInput TransactionInput
+  | BurnOther TransactionInput TransactionInput
 
 derive instance Generic BurningAction _
 derive instance Eq BurningAction
