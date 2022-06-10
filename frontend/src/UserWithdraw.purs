@@ -40,7 +40,6 @@ import Contract.TxConstraints
   ( TxConstraints
   , mustBeSignedBy
   , mustMintValueWithRedeemer
-  , mustPayToPubKey
   , mustPayToPubKeyAddress
   , mustPayToScript
   , mustSpendScriptOutput
@@ -56,11 +55,11 @@ import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
 import Types
   ( BondedPoolParams(BondedPoolParams)
-  , BondedStakingAction(..)
-  , BondedStakingDatum(..)
-  , BurningAction(..)
-  , Entry(..)
-  , ListAction(..)
+  , BondedStakingAction(WithdrawAct)
+  , BondedStakingDatum(AssetDatum, EntryDatum, StateDatum)
+  , BurningAction(BurnHead, BurnOther)
+  , Entry(Entry)
+  , ListAction(ListRemove)
   , StakingType(Bonded)
   )
 import Types.Rational (Rational, denominator, numerator)
@@ -177,7 +176,7 @@ userWithdrawBondedPoolContract
         --  the list
         EQ -> do
           logInfo' "userWithdrawBondedPoolContract: Compare EQ"
-          (_ /\ entryInput /\ entryOutput) <-
+          _ /\ entryInput /\ entryOutput <-
             liftContractM
               "userWithdrawBondedPoolContract: Cannot \
               \extract head from Assoc. List - this should be impossible"
@@ -192,8 +191,8 @@ userWithdrawBondedPoolContract
           let
             newHeadKey :: Maybe ByteArray
             newHeadKey = oldHeadEntry.next
-          -- Get amount to withdraw
-          let
+
+            -- Get amount to withdraw
             rewards :: Rational
             rewards = oldHeadEntry.rewards
 
@@ -220,20 +219,20 @@ userWithdrawBondedPoolContract
                 (unwrap bondedAssetClass).tokenName
                 $ totalSpentAmt
                 - withdrawnAmt
-          -- Build updated state
-          let
+
+            -- Build updated state
             newState :: Datum
             newState = Datum <<< toData $
               StateDatum { maybeEntryName: newHeadKey }
-          -- Build validator redeemer
-          let
+
+            -- Build validator redeemer
             valRedeemer = Redeemer <<< toData $
               WithdrawAct
                 { stakeHolder: userPkh
                 , burningAction: BurnHead poolTxInput entryInput
                 }
-          -- Build minting policy redeemer
-          let
+
+            -- Build minting policy redeemer
             mintRedeemer = Redeemer $ toData $ ListRemove $ BurnHead poolTxInput
               entryInput
           -- New state lookup
@@ -253,7 +252,8 @@ userWithdrawBondedPoolContract
                 , mustMintValueWithRedeemer mintRedeemer burnEntryValue
                 , mustPayToScript valHash newState stateTokenValue
                 , mustPayToScript valHash assetDatum changeValue
-                , mustPayToPubKey userPkh withdrawnVal
+                , mustPayToPubKeyAddress userPkh userStakingPubKeyHash
+                    withdrawnVal
                 ]
 
             lookup :: ScriptLookups.ScriptLookups PlutusData
@@ -322,8 +322,7 @@ userWithdrawBondedPoolContract
                 $ totalSpentAmt
                 - withdrawnAmt
 
-          -- Build updated previous entry and its lookup
-          let
+            -- Build updated previous entry and its lookup
             prevEntryUpdated = Datum $ toData $ EntryDatum
               { entry: Entry $ prevEntry
                   { next = burnEntry.next
@@ -343,12 +342,10 @@ userWithdrawBondedPoolContract
                 , burningAction: BurnOther firstInput secondInput
                 }
 
-          -- Build minting policy redeemer
-          let
+            -- Build minting policy redeemer
             mintRedeemer = Redeemer $ toData $ ListRemove $ BurnOther firstInput
               secondInput
 
-          let
             constraints :: TxConstraints Unit Unit
             constraints =
               mconcat
@@ -414,7 +411,7 @@ getBondedAssetUtxos utxos = do
 
 -- | Get entry datum from transaction output
 getEntryDatumFromOutput
-  :: forall r. TransactionOutput -> Contract r Entry
+  :: forall (r :: Row Type). TransactionOutput -> Contract r Entry
 getEntryDatumFromOutput txOut = do
   bondedDatum <- getBondedDatum txOut
   case bondedDatum of
@@ -425,7 +422,7 @@ getEntryDatumFromOutput txOut = do
 
 -- | Get state datum from transaction output
 getStateDatumFromOutput
-  :: forall r. TransactionOutput -> Contract r (Maybe ByteArray)
+  :: forall (r :: Row Type). TransactionOutput -> Contract r (Maybe ByteArray)
 getStateDatumFromOutput txOut = do
   bondedDatum <- getBondedDatum txOut
   case bondedDatum of
@@ -436,7 +433,7 @@ getStateDatumFromOutput txOut = do
 
 -- | Get a bonded datum from a transaction output
 getBondedDatum
-  :: forall r. TransactionOutput -> Contract r BondedStakingDatum
+  :: forall (r :: Row Type). TransactionOutput -> Contract r BondedStakingDatum
 getBondedDatum =
   liftContractM "getBondedDatum: could not parse datum as bonded staking datum"
     <<< fromData

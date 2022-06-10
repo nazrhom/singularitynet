@@ -28,7 +28,6 @@ import Contract.Transaction
   )
 import Contract.TxConstraints
   ( TxConstraints
-  , mustBeSignedBy
   , mustSpendScriptOutput
   )
 import Contract.Utxos (UtxoM(UtxoM))
@@ -55,7 +54,7 @@ import Types
   , InitialBondedParams(InitialBondedParams)
   , MintingAction(MintEnd, MintInBetween)
   )
-import Types.Redeemer (Redeemer(Redeemer))
+import Types.Redeemer (Redeemer)
 import UnbondedStaking.Types
   ( UnbondedPoolParams(UnbondedPoolParams)
   , InitialUnbondedParams(InitialUnbondedParams)
