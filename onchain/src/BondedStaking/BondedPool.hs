@@ -195,7 +195,7 @@ pbondedPoolValidator = phoistAcyclic $
       Term s PCurrencySymbol ->
       Term s PBool
     isBurningEntry val cs =
-      oneWith # (peq # cs) # (pconst ptrue) # (peq # (-1)) # val
+      oneWith # (peq # cs) # pconst ptrue # (peq # (-1)) # val
 
 -- Untyped version to be serialised. This version is responsible for verifying
 -- that the parameters (pool params, datum and redeemer) have the proper types.
@@ -274,7 +274,7 @@ adminActLogic txInfo params purpose inputStakingDatum = unTermCont $ do
       -- Get updated entry
       newEntry <-
         tcont . pletFields @PEntryFields
-        =<< getOutputEntry poolAddr entryTok txInfoData txInfo.outputs
+          =<< getOutputEntry poolAddr entryTok txInfoData txInfo.outputs
       ---- BUSINESS LOGIC ----
       pure $
         pif
@@ -372,15 +372,13 @@ stakeActLogic txInfo params purpose datum act =
       natZero #<= stakeAmt
     -- Get asset output of the transaction (new locked stake)
     assetOutput <-
-      (tcont . pletFields @'["value"])
-        =<< fmap
-          fst
-          ( getCoWithDatum
-              poolAddr
-              isAssetDatum
-              txInfo.outputs
-              $ getField @"data" txInfo
-          )
+      (tcont . pletFields @'["value"] . fst)
+        =<< ( getCoWithDatum
+                poolAddr
+                isAssetDatum
+                txInfo.outputs
+                $ getField @"data" txInfo
+            )
     -- Check that the correct amount of the assetclass is locked
     bondedAsset <-
       tcont . pletFields @'["currencySymbol", "tokenName"] $
@@ -457,7 +455,7 @@ updateStakeLogic txInfo params spentInput datum stakeAmt holderPkh = do
   entry <- tcont . pletFields @PEntryFields =<< getEntryData datum
   newEntry <-
     tcont . pletFields @PEntryFields
-    =<< getOutputEntry poolAddr newEntryTok txInfoData txInfo.outputs
+      =<< getOutputEntry poolAddr newEntryTok txInfoData txInfo.outputs
   ---- BUSINESS LOGIC ----
   guardC "updateStakeLogic: spent entry's key does not match user's key" $
     entry.key #== stakeHolderKey
@@ -520,7 +518,7 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
         -- Get datum for new list entry
         newEntry <-
           tcont . pletFields @PEntryFields
-          =<< getOutputEntry poolAddr newEntryTok txInfoData txInfo.outputs
+            =<< getOutputEntry poolAddr newEntryTok txInfoData txInfo.outputs
         ---- BUSINESS LOGIC ----
         newEntryGuard params newEntry stakeAmt stakeHolderKey
         ---- INDUCTIVE CONDITIONS ----
@@ -573,11 +571,11 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
                 spentInputResolved.value
         prevEntryUpdated <-
           tcont . pletFields @PEntryFields
-          =<< getOutputEntry poolAddr prevEntryTok txInfoData txInfo.outputs
+            =<< getOutputEntry poolAddr prevEntryTok txInfoData txInfo.outputs
         -- Get datum for new list entry
         newEntry <-
           tcont . pletFields @PEntryFields
-          =<< getOutputEntry poolAddr newEntryTok txInfoData txInfo.outputs
+            =<< getOutputEntry poolAddr newEntryTok txInfoData txInfo.outputs
         -- Get the current entry's key
         currEntryKey <- pure . pmatch prevEntry.next $ \case
           PDJust key -> pfield @"_0" # key
@@ -627,11 +625,11 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
                 spentInputResolved.value
         endEntryUpdated <-
           tcont . pletFields @PEntryFields
-          =<< getOutputEntry poolAddr endEntryTok txInfoData txInfo.outputs
+            =<< getOutputEntry poolAddr endEntryTok txInfoData txInfo.outputs
         -- Get datum for new list entry
         newEntry <-
           tcont . pletFields @PEntryFields
-          =<< getOutputEntry poolAddr newEntryTok txInfoData txInfo.outputs
+            =<< getOutputEntry poolAddr newEntryTok txInfoData txInfo.outputs
         ---- BUSINESS LOGIC ----
         -- Validate initialization of new entry
         newEntryGuard params newEntry stakeAmt stakeHolderKey
@@ -680,7 +678,7 @@ withdrawActLogic
   datum
   act = do
     -- Construct some useful values for later
-    holderKey <- pure $ pblake2b_256 # pto (pfromData act.pubKeyHash)
+    let holderKey = pblake2b_256 # pto (pfromData act.pubKeyHash)
     entryTn <-
       pletC . pcon . PTokenName $ holderKey
     -- Get the input being spent
@@ -802,7 +800,7 @@ withdrawHeadActLogic spentInput withdrawnAmt datum txInfo params stateOutRef hea
     -- Get datum for head entry
     headEntry <-
       tcont . pletFields @PEntryFields
-      =<< getInputEntry headEntryOutRef txInfoData txInfo.inputs
+        =<< getInputEntry headEntryOutRef txInfoData txInfo.inputs
     ---- BUSINESS LOGIC ----
     -- Validate that entry key matches the key in state UTxO
     guardC "withdrawHeadActLogic: consumed entry key does not match user's pkh" $
@@ -857,15 +855,15 @@ withdrawOtherActLogic spentInput withdrawnAmt datum txInfo params burnEntryOutRe
         prevEntryTok = getTokenName params.assocListCs spentInputResolved.value
     prevEntryUpdated <-
       tcont . pletFields @PEntryFields
-      =<< getOutputEntry
-        poolAddr
-        prevEntryTok
-        txInfoData
-        txInfo.outputs
+        =<< getOutputEntry
+          poolAddr
+          prevEntryTok
+          txInfoData
+          txInfo.outputs
     -- Get datum for burned entry
     burnEntry <-
       tcont . pletFields @PEntryFields
-      =<< getInputEntry burnEntryOutRef txInfoData txInfo.inputs
+        =<< getInputEntry burnEntryOutRef txInfoData txInfo.inputs
     ---- BUSINESS LOGIC ----
     -- Validate withdrawn amount
     guardC
@@ -950,7 +948,7 @@ getOutputEntry ::
   Term s (PBuiltinList (PAsData PTxOut)) ->
   TermCont s (Term s PEntry)
 getOutputEntry poolAddr ac txInfoData =
-    getEntryData
+  getEntryData
     <=< parseStakingDatum
     <=< flip getDatum txInfoData
     <=< getDatumHash
