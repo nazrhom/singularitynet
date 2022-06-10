@@ -1,10 +1,13 @@
 module Utils
   ( big
-  , findAssocElem
+  , findInsertUpdateElem
+  , findRemoveOtherElem
+  , getAssetsToConsume
   , getUtxoWithNFT
   , hashPkh
   , jsonReader
   , logInfo_
+  , mkAssetUtxosConstraints
   , mkBondedPoolParams
   , mkOnchainAssocList
   , mkUnbondedPoolParams
@@ -23,6 +26,10 @@ import Contract.Transaction
   ( TransactionInput
   , TransactionOutput(TransactionOutput)
   )
+import Contract.TxConstraints
+  ( TxConstraints
+  , mustSpendScriptOutput
+  )
 import Contract.Utxos (UtxoM(UtxoM))
 import Contract.Value
   ( CurrencySymbol
@@ -36,14 +43,18 @@ import Data.Argonaut.Core (Json, caseJsonObject)
 import Data.Argonaut.Decode.Combinators (getField) as Json
 import Data.Argonaut.Decode.Error (JsonDecodeError(TypeMismatch))
 import Data.Array (filter, head, last, length, partition, mapMaybe, sortBy)
+import Data.Array as Array
 import Data.BigInt (BigInt, fromInt)
-import Data.Map (toUnfoldable)
+import Data.Map (Map, toUnfoldable)
+import Data.Map as Map
 import Serialization.Hash (ed25519KeyHashToBytes)
 import Types
-  ( BondedPoolParams(BondedPoolParams)
+  ( AssetClass(AssetClass)
+  , BondedPoolParams(BondedPoolParams)
   , InitialBondedParams(InitialBondedParams)
   , MintingAction(MintEnd, MintInBetween)
   )
+import Types.Redeemer (Redeemer)
 import UnbondedStaking.Types
   ( UnbondedPoolParams(UnbondedPoolParams)
   , InitialUnbondedParams(InitialUnbondedParams)
@@ -84,6 +95,42 @@ getUtxoWithNFT utxoM cs tn =
       txOutput = unwrap txOutput'
     in
       valueOf txOutput.amount cs tn == one
+
+-- | This receives a `UtxoM` with all the asset UTxOs of the pool and the desired
+-- | amount to withdraw. It returns a subset of these that sums at least
+-- | the given amount and the total amount
+getAssetsToConsume :: AssetClass -> BigInt -> UtxoM -> Maybe (UtxoM /\ BigInt)
+getAssetsToConsume (AssetClass ac) withdrawAmt assetUtxos =
+  go assetList Map.empty zero
+  where
+  assetList :: Array (TransactionInput /\ TransactionOutput)
+  assetList = Map.toUnfoldable <<< unwrap $ assetUtxos
+
+  go
+    :: Array (TransactionInput /\ TransactionOutput)
+    -> Map TransactionInput TransactionOutput
+    -> BigInt
+    -> Maybe (UtxoM /\ BigInt)
+  go arr toConsume sum
+    | sum >= withdrawAmt = Just $ UtxoM toConsume /\ (sum - withdrawAmt)
+    | null arr = Nothing
+    | otherwise = do
+        input /\ output <- Array.head arr
+        arr' <- Array.tail arr
+        let
+          assetCount = valueOf (unwrap output).amount ac.currencySymbol
+            ac.tokenName
+          toConsume' = Map.insert input output toConsume
+          sum' = sum + assetCount
+        go arr' toConsume' sum'
+
+-- | Builds constraints for asset UTxOs
+mkAssetUtxosConstraints :: UtxoM -> Redeemer -> TxConstraints Unit Unit
+mkAssetUtxosConstraints utxos redeemer =
+  foldMap (\(input /\ _) -> mustSpendScriptOutput input redeemer)
+    ( Map.toUnfoldable $ unwrap utxos
+        :: Array (TransactionInput /\ TransactionOutput)
+    )
 
 -- | Convert from `Int` to `Natural`
 nat :: Int -> Natural
@@ -158,10 +205,10 @@ hashPkh =
 -- | be more stringent on checks to ensure the list is genuinely connected
 -- | although on chain code should enforce this.
 mkOnchainAssocList
-  :: BondedPoolParams
+  :: CurrencySymbol
   -> UtxoM
   -> Array (ByteArray /\ TransactionInput /\ TransactionOutput)
-mkOnchainAssocList (BondedPoolParams { assocListCs }) (UtxoM utxos) =
+mkOnchainAssocList assocListCs (UtxoM utxos) =
   sortBy compareBytes $ mapMaybe getAssocListUtxos $ toUnfoldable utxos
   where
   getAssocListUtxos
@@ -181,7 +228,7 @@ compareBytes (bytes /\ _) (bytes' /\ _) = compare bytes bytes'
 -- | if we compare pairs and exit early of course. But we'll do this for
 -- | simplicity. THIS MUST BE USED ON A SORTED LIST, i.e. with
 -- | `mkOnchainAssocList`. We should probably create a type for the output.
-findAssocElem
+findInsertUpdateElem
   :: Array (ByteArray /\ TransactionInput /\ TransactionOutput)
   -> ByteArray
   -> Maybe
@@ -199,7 +246,7 @@ findAssocElem
              , secondKey :: Maybe ByteArray
              }
        )
-findAssocElem assocList hashedKey = do
+findInsertUpdateElem assocList hashedKey = do
   -- The list should findAssocElem assocList hashedKey = do be sorted so no
   -- need to resort
   let { no, yes } = partition (fst >>> (>=) hashedKey) assocList
@@ -229,3 +276,37 @@ findAssocElem assocList hashedKey = do
       /\ { firstInput: txInputL, secondInput: Just txInputH }
       /\ { firstOutput: txOutputL, secondOutput: Just txOutputH }
       /\ { firstKey: bytesL, secondKey: Just bytesH }
+
+-- | Find the element to remove from the list. This only works for the
+-- | in-between case, since it assumes that some entry will have a key less
+-- | than the given one.
+findRemoveOtherElem
+  :: Array (ByteArray /\ TransactionInput /\ TransactionOutput)
+  -> ByteArray
+  -> Maybe
+       ( { firstInput :: TransactionInput
+         , secondInput :: TransactionInput
+         }
+           /\
+             { firstOutput :: TransactionOutput
+             , secondOutput :: TransactionOutput
+             }
+           /\
+             { firstKey :: ByteArray
+             , secondKey :: ByteArray
+             }
+       )
+findRemoveOtherElem assocList hashedKey = do
+  let { no, yes } = partition (fst >>> (<) hashedKey) assocList
+  bytesL /\ txInputL /\ txOutputL <- last yes
+  bytesH /\ txInputH /\ txOutputH <- head no
+  if bytesH /= hashedKey
+  -- If the first element not less than `hashedKey` is not equal, then the
+  -- entry has not been found
+  then Nothing
+  -- Otherwise, this is the entry to remove and the last element of the
+  -- entries less than `hashedKey` is the previous entry
+  else Just
+    $ { firstInput: txInputL, secondInput: txInputH }
+    /\ { firstOutput: txOutputL, secondOutput: txOutputH }
+    /\ { firstKey: bytesL, secondKey: bytesH }

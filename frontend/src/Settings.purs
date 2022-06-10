@@ -68,7 +68,7 @@ testInitBondedParams = do
     , userLength: big 100
     , bondingLength: big 4
     , interest
-    , minStake: nat 1
+    , minStake: nat 1000
     , maxStake: nat 10_000
     , bondedAssetClass: AssetClass
         { currencySymbol
@@ -89,8 +89,8 @@ testInitUnbondedParams = do
     , interestLength: big 2
     , increments: nat 2
     , interest: interest
-    , minStake: nat 1000
-    , maxStake: nat 10_000
+    , minStake: nat 1
+    , maxStake: nat 100_000_000
     , unbondedAssetClass: AssetClass
         { currencySymbol: adaSymbol
         , tokenName: adaToken
