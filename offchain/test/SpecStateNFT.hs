@@ -34,10 +34,12 @@ import Test.Plutip.Predicate (shouldFail, shouldSucceed)
 import Test.Tasty (TestTree)
 
 import Ledger (ChainIndexTxOut, scriptCurrencySymbol)
-import Ledger qualified as Contract
+import Ledger qualified as Ledger
 import Ledger.Constraints (ScriptLookups)
 import Ledger.Constraints.TxConstraints (TxConstraints)
+
 import SingularityNet.Settings (bondedStakingTokenName)
+import Utils(getOwnData, testAdminWallet)
 
 specStateNFT :: Script -> TestTree
 specStateNFT policyScript =
@@ -45,17 +47,17 @@ specStateNFT policyScript =
     "State NFT Policy"
     [ assertExecution
         "should validate correct transaction"
-        (initAda [100])
+        testAdminWallet 
         (withContract . const $ nftMint 1)
         [shouldSucceed]
     , assertExecution
         "should not mint more than once"
-        (initAda [100])
+        testAdminWallet
         (withContract . const $ nftMint 5)
         [shouldFail]
     , assertExecution
         "should not consume the wrong outRef"
-        (initAda [100, 100])
+        (initAda [5, 100])
         (withContract $ const wrongOutRefMint)
         [shouldFail]
     ]
@@ -112,10 +114,7 @@ specStateNFT policyScript =
         , MintingPolicy
         )
     initContract = do
-      pkh <- Contract.ownPaymentPubKeyHash
-      let ownAddress :: Address
-          ownAddress = Contract.pubKeyHashAddress pkh Nothing
-      utxos <- Contract.utxosAt ownAddress
+      (pkh, _, utxos) <- getOwnData
       let outRef = head . Map.keys $ utxos
       pure (pkh, utxos, outRef, stateNFTPolicy outRef)
 
