@@ -139,5 +139,6 @@ test-suite singularitynet-offchain-test
   -- We can only import modules from Common!
   other-modules:  SpecStateNFT
                   , SpecPoolCreate
+                  , SpecUserStake
                   , Utils
                   , Types
