@@ -278,10 +278,10 @@ adminActLogic txInfoF paramsF purpose datum adminActParamsF = unTermCont $ do
       let rewards =
             calculateRewards
               oldEntryF.rewards
-              adminActParamsF.totalRewards
+              oldEntryF.totalRewards
               oldEntryF.deposited
               oldEntryF.newDeposit
-              adminActParamsF.totalDeposited
+              oldEntryF.totalDeposited
       guardC
         "adminActLogic: update failed because entry field 'rewards' \
         \is not updatedRewards"
@@ -1086,18 +1086,13 @@ withdrawRewardsGuard ::
 withdrawRewardsGuard period amount interest entryF =
   pure . pmatch period $ \case
     DepositWithdrawPeriod -> unTermCont $ do
-      let rewards =
-            roundDown $
-              calculateRewards
-                entryF.rewards
-                entryF.totalRewards
-                entryF.deposited
-                entryF.newDeposit
-                entryF.totalDeposited
-      guardC
-        "withdrawRewardsGuard: reward withdrawal amount not within bounds"
-        $ entryF.deposited #<= amount
-          #&& amount #<= entryF.deposited #+ rewards
+      -- User can deposit then withdraw in the first cycle, resulting in
+      -- division by zero in rewards calculation (totalDeposited = 0)
+      pure $
+        pif
+          (entryF.totalDeposited #== natZero)
+          (depositWithdrawGuardNoRewards amount entryF)
+          (depositWithdrawGuardWithRewards amount entryF)
     BondingPeriod -> unTermCont $ do
       -- Calculate maximum withdrawal amount
       guardC
@@ -1122,6 +1117,35 @@ withdrawRewardsGuard period amount interest entryF =
         $ entryF.deposited #<= amount
           #&& amount #<= entryF.deposited #+ bondingRewards
     _ -> ptraceError "withdrawRewardsGuard: invalid withdraw period"
+  where
+    depositWithdrawGuardNoRewards ::
+      forall (s :: S).
+      Term s PNatural ->
+      PEntryHRec s ->
+      Term s PUnit
+    depositWithdrawGuardNoRewards amount entryF = unTermCont $ do
+      guardC
+        "withdrawRewardsGuard: reward withdrawal amount not within bounds"
+        $ entryF.deposited #<= amount
+          #&& amount #<= entryF.deposited
+    depositWithdrawGuardWithRewards ::
+      forall (s :: S).
+      Term s PNatural ->
+      PEntryHRec s ->
+      Term s PUnit
+    depositWithdrawGuardWithRewards amount entryF = unTermCont $ do
+      let rewards =
+            roundDown $
+              calculateRewards
+                entryF.rewards
+                entryF.totalRewards
+                entryF.deposited
+                entryF.newDeposit
+                entryF.totalDeposited
+      guardC
+        "withdrawRewardsGuard: reward withdrawal amount not within bounds"
+        $ entryF.deposited #<= amount
+          #&& amount #<= entryF.deposited #+ rewards
 
 calculateRewards ::
   forall (s :: S).
