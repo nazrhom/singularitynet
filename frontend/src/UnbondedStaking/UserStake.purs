@@ -554,7 +554,7 @@ userStakeUnbondedPoolContract
                 ]
     StateDatum { maybeEntryName: _, open: false } ->
       throwContractError
-        "userStakeUnbondedPoolContract: Cannot deposited to a closed pool"
+        "userStakeUnbondedPoolContract: Cannot deposit to a closed pool"
     _ -> throwContractError
       "userStakeUnbondedPoolContract: \
       \Datum incorrect type"
