@@ -72,7 +72,7 @@ import Utils
 -- Deposits a certain amount in the pool
 depositUnbondedPoolContract :: UnbondedPoolParams -> Contract () Unit
 depositUnbondedPoolContract
-    params@
+  params@
     ( UnbondedPoolParams
         { admin
         , nftCs
@@ -104,7 +104,7 @@ depositUnbondedPoolContract
   let poolAddr = scriptHashAddress valHash
   logInfo_ "depositUnbondedPoolContract: Pool address"
     $ fromPlutusType (networkId /\ poolAddr)
- -- Get the unbonded pool's utxo
+  -- Get the unbonded pool's utxo
   unbondedPoolUtxos <-
     liftedM
       "depositUnbondedPoolContract: Cannot get pool's utxos at pool address"
@@ -135,23 +135,26 @@ depositUnbondedPoolContract
       logInfo'
         "depositUnbondedPoolContract: STAKE TYPE - StateDatum is \
         \StateDatum { maybeEntryName: Just ..., open: true }"
-      let assocList = mkOnchainAssocList assocListCs unbondedPoolUtxos
-          updateContractList = (mkEntryUpdateList params valHash) <$> assocList
+      let
+        assocList = mkOnchainAssocList assocListCs unbondedPoolUtxos
+        updateContractList = (mkEntryUpdateList params valHash) <$> assocList
       updateList <- sequence updateContractList
       -- Concatinate constraints/lookups
       let
         constraintList = fst <$> updateList
         lookupList = snd <$> updateList
+
         constraints :: TxConstraints Unit Unit
         constraints =
           (mustBeSignedBy admin)
-          <> (mconcat $ mconcat constraintList)
+            <> (mconcat $ mconcat constraintList)
+
         lookups :: ScriptLookups.ScriptLookups PlutusData
         lookups =
           (ScriptLookups.validator validator)
-          <> (ScriptLookups.unspentOutputs $ unwrap adminUtxos)
-          <> (ScriptLookups.unspentOutputs $ unwrap unbondedPoolUtxos)
-          <> (mconcat lookupList)
+            <> (ScriptLookups.unspentOutputs $ unwrap adminUtxos)
+            <> (ScriptLookups.unspentOutputs $ unwrap unbondedPoolUtxos)
+            <> (mconcat lookupList)
       -- Build transaction
       unattachedBalancedTx <-
         liftedE $ ScriptLookups.mkUnbalancedTx lookups constraints
@@ -160,8 +163,8 @@ depositUnbondedPoolContract
         unattachedBalancedTx
       BalancedSignedTransaction { signedTxCbor } <-
         liftedM
-          "depositUnbondedPoolContract: Cannot balance, reindex redeemers, attach /\
-          \datums redeemers and sign"
+          "depositUnbondedPoolContract: Cannot balance, reindex redeemers, /\
+          \attach datums redeemers and sign"
           $ balanceAndSignTx unattachedBalancedTx
       -- Submit transaction using Cbor-hex encoded `ByteArray`
       transactionHash <- submit signedTxCbor
@@ -183,32 +186,36 @@ depositUnbondedPoolContract
   logInfo' "depositUnbondedPoolContract: Finished updating pool entries"
 
 -- | Calculates user awards according to spec formula
-calculateRewards ::
-  Rational ->
-  BigInt ->
-  BigInt ->
-  BigInt ->
-  BigInt ->
-  Contract () Rational
+calculateRewards
+  :: Rational
+  -> BigInt
+  -> BigInt
+  -> BigInt
+  -> BigInt
+  -> Contract () Rational
 calculateRewards rewards totalRewards deposited newDeposit totalDeposited = do
-  if totalDeposited == big 0
-    then throwContractError "calculateRewards: totalDeposited is zero"
-    else
-      let lhs = mkRatUnsafe $ totalRewards % totalDeposited
-          rhs = rewards + mkRatUnsafe (deposited % big 1)
-          rhs' = rhs - mkRatUnsafe (newDeposit % big 1)
-          f = rhs' * lhs
-      in
-        if f < zero
-          then throwContractError "calculateRewards: invalid rewards amount"
-          else pure $ rewards + f
+  if totalDeposited == big 0 then throwContractError
+    "calculateRewards: totalDeposited is zero"
+  else
+    let
+      lhs = mkRatUnsafe $ totalRewards % totalDeposited
+      rhs = rewards + mkRatUnsafe (deposited % big 1)
+      rhs' = rhs - mkRatUnsafe (newDeposit % big 1)
+      f = rhs' * lhs
+    in
+      if f < zero then throwContractError
+        "calculateRewards: invalid rewards amount"
+      else pure $ rewards + f
 
 -- | Creates a constraint and lookups list for updating each user entry
-mkEntryUpdateList ::
-  UnbondedPoolParams ->
-  ValidatorHash ->
-  (ByteArray /\ TransactionInput /\ TransactionOutput) ->
-  Contract () (Tuple (Array (TxConstraints Unit Unit)) (ScriptLookups.ScriptLookups PlutusData))
+mkEntryUpdateList
+  :: UnbondedPoolParams
+  -> ValidatorHash
+  -> (ByteArray /\ TransactionInput /\ TransactionOutput)
+  -> Contract ()
+       ( Tuple (Array (TxConstraints Unit Unit))
+           (ScriptLookups.ScriptLookups PlutusData)
+       )
 mkEntryUpdateList
   ( UnbondedPoolParams
       { increments
@@ -219,67 +226,73 @@ mkEntryUpdateList
   )
   valHash
   (_ /\ txIn /\ txOut) = do
-    -- Get the Entry datum of the old assoc. list element
-    dHash <- liftContractM
-      "mkEntryUpdateList: Could not get Entry Datum Hash"
-      (unwrap txOut).dataHash
-    logInfo_ "mkEntryUpdateList: datum hash " dHash
-    listDatum <-
-      liftedM
-        "mkEntryUpdateList: Cannot get Entry's datum" $ getDatumByHash dHash
-    unbondedListDatum :: UnbondedStakingDatum <-
-      liftContractM
-        "mkEntryUpdateList: Cannot extract NFT State datum"
-        $ fromData (unwrap listDatum)
-    -- The get the entry datum
-    case unbondedListDatum of
-      EntryDatum { entry } -> do
-        let e = unwrap entry
-        calculatedRewards <-
-          calculateRewards
-            e.rewards e.totalRewards e.deposited e.newDeposit e.totalDeposited
-        -- Get the token name for the user by hashing
-        assocListTn <-
-          liftContractM
-            "mkEntryUpdateList: Could not create token name for user`"
-            $ mkTokenName e.key
-        -- Update the entry datum
-        let
-          updatedRewards = roundUp calculatedRewards
-          updatedTotalDeposited = e.deposited + updatedRewards
-          incrementsRat = mkRatUnsafe (toBigInt increments % big 1)
-          updatedTotalRewards = updatedTotalDeposited * (roundUp (interest * incrementsRat))
-          -- Datum and redeemer creation
-          entryDatum = Datum $ toData $ EntryDatum
-            { entry: Entry $ e
-                { newDeposit = big 0
-                , rewards = mkRatUnsafe (updatedRewards % big 1)
-                , totalRewards = updatedTotalRewards
-                , totalDeposited = updatedTotalDeposited
-                }
-            }
-          valRedeemer = Redeemer $ toData $ AdminAct
-            { totalRewards: fromBigInt' $ updatedTotalRewards
-            , totalDeposited: fromBigInt' $ updatedTotalDeposited
-            }
-          -- Build asset datum and value types
-          assetDatum = Datum $ toData AssetDatum
-          assetParams = unwrap unbondedAssetClass
-          assetCs = assetParams.currencySymbol
-          assetTn = assetParams.tokenName
-          depositValue = singleton assetCs assetTn updatedRewards
-          entryValue = singleton assocListCs assocListTn one
-          -- Build constraints and lookups
-          constraints :: Array (TxConstraints Unit Unit)
-          constraints =
-            [ mustPayToScript valHash assetDatum depositValue
-            , mustPayToScript valHash entryDatum entryValue
-            , mustSpendScriptOutput txIn valRedeemer
-            ]
-        entryDatumLookup <-
-          liftContractM
-            "mkEntryUpdateList: Could not create state datum lookup"
-            $ ScriptLookups.datum entryDatum
-        pure (constraints /\ entryDatumLookup)
-      _ -> throwContractError
-        "mkEntryUpdateList: Datum not Entry constructor"
+  -- Get the Entry datum of the old assoc. list element
+  dHash <- liftContractM
+    "mkEntryUpdateList: Could not get Entry Datum Hash"
+    (unwrap txOut).dataHash
+  logInfo_ "mkEntryUpdateList: datum hash " dHash
+  listDatum <-
+    liftedM
+      "mkEntryUpdateList: Cannot get Entry's datum" $ getDatumByHash dHash
+  unbondedListDatum :: UnbondedStakingDatum <-
+    liftContractM
+      "mkEntryUpdateList: Cannot extract NFT State datum"
+      $ fromData (unwrap listDatum)
+  -- The get the entry datum
+  case unbondedListDatum of
+    EntryDatum { entry } -> do
+      let e = unwrap entry
+      calculatedRewards <-
+        calculateRewards
+          e.rewards
+          e.totalRewards
+          e.deposited
+          e.newDeposit
+          e.totalDeposited
+      -- Get the token name for the user by hashing
+      assocListTn <-
+        liftContractM
+          "mkEntryUpdateList: Could not create token name for user`"
+          $ mkTokenName e.key
+      -- Update the entry datum
+      let
+        updatedRewards = roundUp calculatedRewards
+        updatedTotalDeposited = e.deposited + updatedRewards
+        incrementsRat = mkRatUnsafe (toBigInt increments % big 1)
+        updatedTotalRewards = updatedTotalDeposited *
+          (roundUp (interest * incrementsRat))
+        -- Datum and redeemer creation
+        entryDatum = Datum $ toData $ EntryDatum
+          { entry: Entry $ e
+              { newDeposit = big 0
+              , rewards = mkRatUnsafe (updatedRewards % big 1)
+              , totalRewards = updatedTotalRewards
+              , totalDeposited = updatedTotalDeposited
+              }
+          }
+        valRedeemer = Redeemer $ toData $ AdminAct
+          { totalRewards: fromBigInt' $ updatedTotalRewards
+          , totalDeposited: fromBigInt' $ updatedTotalDeposited
+          }
+        -- Build asset datum and value types
+        assetDatum = Datum $ toData AssetDatum
+        assetParams = unwrap unbondedAssetClass
+        assetCs = assetParams.currencySymbol
+        assetTn = assetParams.tokenName
+        depositValue = singleton assetCs assetTn updatedRewards
+        entryValue = singleton assocListCs assocListTn one
+
+        -- Build constraints and lookups
+        constraints :: Array (TxConstraints Unit Unit)
+        constraints =
+          [ mustPayToScript valHash assetDatum depositValue
+          , mustPayToScript valHash entryDatum entryValue
+          , mustSpendScriptOutput txIn valRedeemer
+          ]
+      entryDatumLookup <-
+        liftContractM
+          "mkEntryUpdateList: Could not create state datum lookup"
+          $ ScriptLookups.datum entryDatum
+      pure (constraints /\ entryDatumLookup)
+    _ -> throwContractError
+      "mkEntryUpdateList: Datum not Entry constructor"

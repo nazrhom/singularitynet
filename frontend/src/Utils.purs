@@ -146,18 +146,20 @@ big = fromInt
 
 roundUp :: Rational -> BigInt
 roundUp r =
-  let n = numerator r
-      d = denominator r
+  let
+    n = numerator r
+    d = denominator r
   in
-    if d == big 1
-      then n
-      else quot (n + d - (rem n d)) d
+    if d == big 1 then n
+    else quot (n + d - (rem n d)) d
 
 roundDown :: Rational -> BigInt
 roundDown r =
-  let n = numerator r
-      d = denominator r
-  in quot (n - (rem n d)) d
+  let
+    n = numerator r
+    d = denominator r
+  in
+    quot (n - (rem n d)) d
 
 -- | Converts a `Maybe Rational` to a `Rational` when using the (%) constructor
 mkRatUnsafe :: Maybe Rational -> Rational
