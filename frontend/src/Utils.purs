@@ -10,8 +10,11 @@ module Utils
   , mkAssetUtxosConstraints
   , mkBondedPoolParams
   , mkOnchainAssocList
+  , mkRatUnsafe
   , mkUnbondedPoolParams
   , nat
+  , roundDown
+  , roundUp
   ) where
 
 import Contract.Prelude hiding (length)
@@ -20,6 +23,7 @@ import Contract.Address (PaymentPubKeyHash)
 import Contract.Hashing (blake2b256Hash)
 import Contract.Monad (Contract, logInfo, tag)
 import Contract.Numeric.Natural (Natural, fromBigInt')
+import Contract.Numeric.Rational (Rational, numerator, denominator)
 import Contract.Prim.ByteArray (ByteArray, hexToByteArray)
 import Contract.Scripts (PlutusScript)
 import Contract.Transaction
@@ -44,7 +48,7 @@ import Data.Argonaut.Decode.Combinators (getField) as Json
 import Data.Argonaut.Decode.Error (JsonDecodeError(TypeMismatch))
 import Data.Array (filter, head, last, length, partition, mapMaybe, sortBy)
 import Data.Array as Array
-import Data.BigInt (BigInt, fromInt)
+import Data.BigInt (BigInt, fromInt, quot, rem)
 import Data.Map (Map, toUnfoldable)
 import Data.Map as Map
 import Serialization.Hash (ed25519KeyHashToBytes)
@@ -139,6 +143,28 @@ nat = fromBigInt' <<< fromInt
 -- | Convert from `Int` to `BigInt`
 big :: Int -> BigInt
 big = fromInt
+
+roundUp :: Rational -> BigInt
+roundUp r =
+  let
+    n = numerator r
+    d = denominator r
+  in
+    if d == one then n
+    else quot (n + d - (rem n d)) d
+
+roundDown :: Rational -> BigInt
+roundDown r =
+  let
+    n = numerator r
+    d = denominator r
+  in
+    quot (n - (rem n d)) d
+
+-- | Converts a `Maybe Rational` to a `Rational` when using the (%) constructor
+mkRatUnsafe :: Maybe Rational -> Rational
+mkRatUnsafe Nothing = zero
+mkRatUnsafe (Just r) = r
 
 logInfo_
   :: forall (r :: Row Type) (a :: Type)
