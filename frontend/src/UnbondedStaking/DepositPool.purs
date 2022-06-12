@@ -145,15 +145,15 @@ depositUnbondedPoolContract
 
         constraints :: TxConstraints Unit Unit
         constraints =
-          (mustBeSignedBy admin)
-            <> (mconcat $ mconcat constraintList)
+          mustBeSignedBy admin
+            <> mconcat (mconcat constraintList)
 
         lookups :: ScriptLookups.ScriptLookups PlutusData
         lookups =
-          (ScriptLookups.validator validator)
-            <> (ScriptLookups.unspentOutputs $ unwrap adminUtxos)
-            <> (ScriptLookups.unspentOutputs $ unwrap unbondedPoolUtxos)
-            <> (mconcat lookupList)
+          ScriptLookups.validator validator
+            <> ScriptLookups.unspentOutputs (unwrap adminUtxos)
+            <> ScriptLookups.unspentOutputs (unwrap unbondedPoolUtxos)
+            <> mconcat lookupList
       -- Build transaction
       unattachedBalancedTx <-
         liftedE $ ScriptLookups.mkUnbalancedTx lookups constraints
@@ -172,7 +172,7 @@ depositUnbondedPoolContract
         $ byteArrayToHex
         $ unwrap transactionHash
     -- Other error cases:
-    StateDatum { maybeEntryName: Nothing, open: true } -> do
+    StateDatum { maybeEntryName: Nothing, open: true } ->
       throwContractError
         "depositUnbondedPoolContract: There are no users in the pool to \
         \deposit rewards for"
@@ -193,18 +193,16 @@ calculateRewards
   -> BigInt
   -> Contract () Rational
 calculateRewards rewards totalRewards deposited newDeposit totalDeposited = do
-  if totalDeposited == big 0 then throwContractError
-    "calculateRewards: totalDeposited is zero"
-  else
-    let
-      lhs = mkRatUnsafe $ totalRewards % totalDeposited
-      rhs = rewards + mkRatUnsafe (deposited % big 1)
-      rhs' = rhs - mkRatUnsafe (newDeposit % big 1)
-      f = rhs' * lhs
-    in
-      if f < zero then throwContractError
-        "calculateRewards: invalid rewards amount"
-      else pure $ rewards + f
+  when (totalDeposited == zero) $
+    throwContractError "calculateRewards: totalDeposited is zero"
+  let
+    lhs = mkRatUnsafe $ totalRewards % totalDeposited
+    rhs = rewards + mkRatUnsafe (deposited % one)
+    rhs' = rhs - mkRatUnsafe (newDeposit % one)
+    f = rhs' * lhs
+  when (f < zero) $ throwContractError
+    "calculateRewards: invalid rewards amount"
+  pure $ rewards + f
 
 -- | Creates a constraint and lookups list for updating each user entry
 mkEntryUpdateList
@@ -257,14 +255,14 @@ mkEntryUpdateList
       let
         updatedRewards = roundUp calculatedRewards
         updatedTotalDeposited = e.deposited + updatedRewards
-        incrementsRat = mkRatUnsafe (toBigInt increments % big 1)
+        incrementsRat = mkRatUnsafe (toBigInt increments % one)
         updatedTotalRewards = updatedTotalDeposited *
           (roundUp (interest * incrementsRat))
         -- Datum and redeemer creation
         entryDatum = Datum $ toData $ EntryDatum
           { entry: Entry $ e
-              { newDeposit = big 0
-              , rewards = mkRatUnsafe (updatedRewards % big 1)
+              { newDeposit = zero
+              , rewards = mkRatUnsafe (updatedRewards % one)
               , totalRewards = updatedTotalRewards
               , totalDeposited = updatedTotalDeposited
               }

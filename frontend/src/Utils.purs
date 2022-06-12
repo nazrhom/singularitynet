@@ -150,7 +150,7 @@ roundUp r =
     n = numerator r
     d = denominator r
   in
-    if d == big 1 then n
+    if d == one then n
     else quot (n + d - (rem n d)) d
 
 roundDown :: Rational -> BigInt

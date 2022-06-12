@@ -19,7 +19,6 @@ You can edit this file as you like.
   , "maybe"
   , "ordered-collections"
   , "prelude"
-  , "rationals"
   , "text-encoding"
   , "uint"
   ]

@@ -134,13 +134,12 @@ closeUnbondedPoolContract
         \StateDatum { maybeEntryName: Just ..., open: true }"
       let
         assocList = mkOnchainAssocList assocListCs unbondedPoolUtxos
-        updateContractList = (mkEntryUpdateList params valHash) <$> assocList
         stateTokenValue = singleton nftCs tokenName one
         stateDatum = Datum $ toData $ StateDatum
           { maybeEntryName: Just key
           , open: false
           }
-      updateList <- sequence updateContractList
+      updateList <- traverse (mkEntryUpdateList params valHash) assocList
       unbondedStateDatumLookup <-
         liftContractM
           "closeUnbondedPoolContract: Could not create state datum lookup"
@@ -152,18 +151,18 @@ closeUnbondedPoolContract
 
         constraints :: TxConstraints Unit Unit
         constraints =
-          (mustBeSignedBy admin)
+          mustBeSignedBy admin
             <> mustIncludeDatum poolDatum
             <> mustPayToScript valHash stateDatum stateTokenValue
-            <> (mconcat $ mconcat constraintList)
+            <> mconcat (mconcat constraintList)
 
         lookups :: ScriptLookups.ScriptLookups PlutusData
         lookups =
-          (ScriptLookups.validator validator)
-            <> (ScriptLookups.unspentOutputs $ unwrap adminUtxos)
-            <> (ScriptLookups.unspentOutputs $ unwrap unbondedPoolUtxos)
+          ScriptLookups.validator validator
+            <> ScriptLookups.unspentOutputs (unwrap adminUtxos)
+            <> ScriptLookups.unspentOutputs (unwrap unbondedPoolUtxos)
             <> unbondedStateDatumLookup
-            <> (mconcat lookupList)
+            <> mconcat lookupList
       logInfo' "closeUnbondedPoolContract: Built tx constraints and lookups"
       pure $ constraints /\ lookups
     -- Closing pool with no users
@@ -237,18 +236,16 @@ calculateRewards
   -> BigInt
   -> Contract () Rational
 calculateRewards rewards totalRewards deposited newDeposit totalDeposited = do
-  if totalDeposited == big 0 then throwContractError
+  when (totalDeposited == zero) $ throwContractError
     "calculateRewards: totalDeposited is zero"
-  else
-    let
-      lhs = mkRatUnsafe $ totalRewards % totalDeposited
-      rhs = rewards + mkRatUnsafe (deposited % big 1)
-      rhs' = rhs - mkRatUnsafe (newDeposit % big 1)
-      f = rhs' * lhs
-    in
-      if f < zero then throwContractError
-        "calculateRewards: invalid rewards amount"
-      else pure $ rewards + f
+  let
+    lhs = mkRatUnsafe $ totalRewards % totalDeposited
+    rhs = rewards + mkRatUnsafe (deposited % one)
+    rhs' = rhs - mkRatUnsafe (newDeposit % one)
+    f = rhs' * lhs
+  when (f < zero) $ throwContractError
+    "calculateRewards: invalid rewards amount"
+  pure $ rewards + f
 
 -- | Creates a constraint and lookups list for updating each user entry
 mkEntryUpdateList
@@ -271,7 +268,7 @@ mkEntryUpdateList
   dHash <- liftContractM
     "mkEntryUpdateList: Could not get Entry Datum Hash"
     (unwrap txOut).dataHash
-  logInfo_ "mkEntryUpdateList: datum hash " dHash
+  logInfo_ "mkEntryUpdateList: datum hash" dHash
   listDatum <-
     liftedM
       "mkEntryUpdateList: Cannot get Entry's datum" $ getDatumByHash dHash
@@ -293,7 +290,7 @@ mkEntryUpdateList
       -- Get the token name for the user by hashing
       assocListTn <-
         liftContractM
-          "mkEntryUpdateList: Could not create token name for user`"
+          "mkEntryUpdateList: Could not create token name for user"
           $ mkTokenName e.key
       -- Update the entry datum
       let
@@ -301,7 +298,7 @@ mkEntryUpdateList
         -- Datum and redeemer creation
         entryDatum = Datum $ toData $ EntryDatum
           { entry: Entry $ e
-              { rewards = mkRatUnsafe (updatedRewards % big 1)
+              { rewards = mkRatUnsafe (updatedRewards % one)
               , open = false
               }
           }
