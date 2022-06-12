@@ -23,7 +23,6 @@ import Contract.Numeric.Rational (Rational, (%))
 import Contract.PlutusData
   ( PlutusData
   , Datum(Datum)
-  , datumHash
   , fromData
   , getDatumByHash
   , toData
