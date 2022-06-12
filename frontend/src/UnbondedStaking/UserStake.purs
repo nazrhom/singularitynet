@@ -176,15 +176,17 @@ userStakeUnbondedPoolContract
           , open: true
           }
         -- The new Entry
-        entryDatum = Datum $ toData $ Entry
-          { key: hashedUserPkh
-          , deposited: amtBigInt
-          , newDeposit: amtBigInt
-          , rewards: zero
-          , totalRewards: zero
-          , totalDeposited: zero
-          , open: true
-          , next: Nothing -- There are no other elements in the list
+        entryDatum = Datum $ toData $ EntryDatum
+          { entry: Entry
+              { key: hashedUserPkh
+              , deposited: amtBigInt
+              , newDeposit: amtBigInt
+              , rewards: zero
+              , totalRewards: zero
+              , totalDeposited: zero
+              , open: true
+              , next: Nothing -- There are no other elements in the list
+              }
           }
 
       unbondedStateDatumLookup <-
@@ -251,15 +253,17 @@ userStakeUnbondedPoolContract
               , open: true
               }
             -- The new Entry
-            entryDatum = Datum $ toData $ Entry
-              { key: hashedUserPkh
-              , deposited: amtBigInt
-              , newDeposit: amtBigInt
-              , rewards: zero
-              , totalRewards: zero
-              , totalDeposited: zero
-              , open: true
-              , next: Just key -- points to the previous head.
+            entryDatum = Datum $ toData $ EntryDatum
+              { entry: Entry
+                  { key: hashedUserPkh
+                  , deposited: amtBigInt
+                  , newDeposit: amtBigInt
+                  , rewards: zero
+                  , totalRewards: zero
+                  , totalDeposited: zero
+                  , open: true
+                  , next: Just key -- points to the previous head.
+                  }
               }
 
           unbondedStateDatumLookup <-
@@ -465,15 +469,17 @@ userStakeUnbondedPoolContract
                 -- Minting a new Entry
                 mintRedeemer = Redeemer $ toData $ ListInsert ma
 
-                entryDatum = Datum $ toData $ Entry
-                  { key: hashedUserPkh
-                  , deposited: amtBigInt
-                  , newDeposit: amtBigInt
-                  , rewards: zero
-                  , totalRewards: zero
-                  , totalDeposited: zero
-                  , open: true
-                  , next: secondKey -- points to original second key
+                entryDatum = Datum $ toData $ EntryDatum
+                  { entry: Entry
+                      { key: hashedUserPkh
+                      , deposited: amtBigInt
+                      , newDeposit: amtBigInt
+                      , rewards: zero
+                      , totalRewards: zero
+                      , totalDeposited: zero
+                      , open: true
+                      , next: secondKey -- points to original second key
+                      }
                   }
 
               entryDatumLookup <-
