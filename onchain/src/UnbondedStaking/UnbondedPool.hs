@@ -276,13 +276,12 @@ adminActLogic txInfoF paramsF purpose datum adminActParamsF = unTermCont $ do
         \is not zero"
         $ newEntryF.newDeposit #== natZero
       let rewards =
-            roundUp $
-              calculateRewards
-                oldEntryF.rewards
-                oldEntryF.totalRewards
-                oldEntryF.deposited
-                oldEntryF.newDeposit
-                oldEntryF.totalDeposited
+            calculateRewards
+              oldEntryF.rewards
+              oldEntryF.totalRewards
+              oldEntryF.deposited
+              oldEntryF.newDeposit
+              oldEntryF.totalDeposited
       guardC
         "adminActLogic: update failed because entry field 'rewards' \
         \is not updatedRewards"
@@ -946,13 +945,12 @@ closeActLogic txInfoF paramsF purpose inputStakingDatum = unTermCont $ do
         "closeActLogic: update failed because entry field 'key' is changed"
         $ oldEntryF.key #== newEntryF.key
       let rewards =
-            roundUp $
-              calculateRewards
-                oldEntryF.rewards
-                oldEntryF.totalRewards
-                oldEntryF.deposited
-                oldEntryF.newDeposit
-                oldEntryF.totalDeposited
+            calculateRewards
+              oldEntryF.rewards
+              oldEntryF.totalRewards
+              oldEntryF.deposited
+              oldEntryF.newDeposit
+              oldEntryF.totalDeposited
       guardC
         "closeActLogic: update failed because entry field 'rewards' \
         \is not updatedRewards"
