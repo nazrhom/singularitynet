@@ -60,8 +60,7 @@ import UnbondedStaking.Types
   , UnbondedStakingDatum(AssetDatum, EntryDatum, StateDatum)
   )
 import Utils
-  ( big
-  , getUtxoWithNFT
+  ( getUtxoWithNFT
   , mkOnchainAssocList
   , mkRatUnsafe
   , roundUp
