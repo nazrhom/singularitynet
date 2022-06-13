@@ -3,6 +3,7 @@ module Utils (
     testAdminWallet
     , testUserWallet
     , testUserStake
+    , testAdminDeposit
     , testInitialBondedParams
     , createBondedPool
     , userHeadStake
@@ -53,6 +54,9 @@ testUserWallet = initAda [10_000, 10_000]
 
 testUserStake :: Natural
 testUserStake = Natural 2000
+
+testAdminDeposit :: Natural
+testAdminDeposit = Natural 2000
 
 -- We use Ada as bonded asset because we can't initialize wallets with tokens
 -- we are not able to mint
