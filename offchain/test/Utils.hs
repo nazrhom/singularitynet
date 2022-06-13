@@ -6,6 +6,7 @@ module Utils (
     , testInitialBondedParams
     , createBondedPool
     , userHeadStake
+    , poolDeposit
     , bondedPoolInitialDatum
     , getOwnData
     , getFirstUtxo
@@ -26,7 +27,7 @@ import Data.Map qualified as Map
 import PlutusTx.Builtins (blake2b_256)
 import Plutus.V1.Ledger.Api (CurrencySymbol)
 import Types(InitialBondedPoolParams(..), BondedPoolScripts(..), BondedPoolTypedScripts (..), TBondedPool (TBondedPool, tbpTxOutRef, tbpStateDatum), TEntry (TEntry, teEntryDatum, teTxOutRef))
-import SingularityNet.Types (BondedPoolParams(..), BondedStakingDatum (StateDatum, EntryDatum, AssetDatum), AssetClass (AssetClass), Entry (..), BondedStakingAction (StakeAct), ListAction (ListInsert), MintingAction (MintHead))
+import SingularityNet.Types (BondedPoolParams(..), BondedStakingDatum (StateDatum, EntryDatum, AssetDatum), AssetClass (AssetClass), Entry (..), BondedStakingAction (StakeAct, AdminAct), ListAction (ListInsert), MintingAction (MintHead))
 import Ledger.Contexts (scriptCurrencySymbol)
 import Plutus.V1.Ledger.Api (singleton, ToData (toBuiltinData), adaSymbol, adaToken)
 import SingularityNet.Settings (bondedStakingTokenName)
@@ -279,7 +280,79 @@ userHeadStake
           EntryDatum _ -> Contract.throwError "userHeadStake: received an Entry"
           AssetDatum -> Contract.throwError "userHeadStake: received an AssetDatum"
 userHeadStake _ _ _ _ _ = Contract.throwError "userHeadStake: not called with one wallet"
-  
+
+-- This is a stub, it consumes the correct outputs but it does not update any datum
+-- or deposits the correct amount
+poolDeposit ::
+    BondedPoolTypedScripts ->
+    BondedPoolParams ->
+    TBondedPool ->                                           -- Current pool state
+    [TEntry] ->                                              -- Entries to update
+    Natural ->                                               -- Deposit amount
+    Contract String EmptySchema Text (TBondedPool, [TEntry]) -- Updated state and entries
+poolDeposit
+    BondedPoolTypedScripts {..}
+    bpp@BondedPoolParams {..}
+    TBondedPool {..}
+    entries
+    depositAmt@(Natural depositAmtNat) = do
+        (ownPPkh@(PaymentPubKeyHash ownPkh), ownKey, ownUtxos) <- getOwnData
+        -- Get pool utxos
+        let valHash = Ledger.validatorHash validator
+            poolAddr = Ledger.scriptAddress validator
+        poolUtxos <- Contract.utxosAt poolAddr
+        let
+            -- Repeat entry
+            EntryDatum entry = teEntryDatum $ head entries
+            entryTxOutRef = teTxOutRef $ head entries
+            entryDatum = Ledger.Datum . toBuiltinData . EntryDatum $ entry
+            -- Repeat state
+            stateDatum = Datum $ toBuiltinData tbpStateDatum
+            -- Prepare asset datum
+            assetDatum = Ledger.Datum . toBuiltinData $ AssetDatum
+            -- Prepare values
+            entryVal = singleton assocListCs (TokenName ownKey) 1
+            stateVal = singleton nftCs bondedStakingTokenName 1
+            depositVal = singleton adaSymbol adaToken (fromIntegral depositAmtNat)
+            -- Prepare minting and list action
+            mintAct = MintHead tbpTxOutRef
+            listAct = ListInsert mintAct
+            -- Prepare policy redeemer
+            mintRedeemer = Ledger.Redeemer . toBuiltinData $ listAct
+            -- Prepare validator redeemer
+            valRedeemer = Ledger.Redeemer . toBuiltinData $ AdminAct
+            -- Prepare lookups and constraints
+            lookups :: ScriptLookups Void
+            lookups =
+              Constraints.otherScript validator
+              <> Constraints.otherData stateDatum
+              <> Constraints.otherData entryDatum
+              <> Constraints.otherData assetDatum
+              <> Constraints.unspentOutputs ownUtxos
+              <> Constraints.unspentOutputs poolUtxos
+            constraints :: TxConstraints Void Void
+            constraints =
+              Constraints.mustMintValueWithRedeemer mintRedeemer entryVal
+                <> Constraints.mustPayToOtherScript valHash stateDatum stateVal
+                <> Constraints.mustPayToOtherScript valHash entryDatum entryVal
+                <> Constraints.mustPayToOtherScript valHash assetDatum depositVal
+                <> Constraints.mustBeSignedBy ownPPkh
+                <> Constraints.mustSpendScriptOutput tbpTxOutRef valRedeemer
+                <> Constraints.mustSpendScriptOutput entryTxOutRef valRedeemer
+
+            -- Submit and await transaction
+        tx <- Contract.submitTxConstraintsWith lookups constraints
+        Contract.awaitTxConfirmed $ Tx.getCardanoTxId tx
+        -- Get outrefs of the pool and the new entry
+        let txOutputs = Ledger.getCardanoTxUnspentOutputsTx tx
+        newPoolUtxo <- liftContractM "poolDeposit: Could not get new UTxO\
+            \ of the pool" $
+            findPoolUtxo bpp txOutputs
+        entryUtxo <- liftContractM "poolDeposit: Could not get new UTxO\
+            \ of the entry" $
+            findEntryUtxo bpp ownKey txOutputs
+        pure (TBondedPool { tbpTxOutRef = newPoolUtxo , tbpStateDatum},
+              [TEntry { teTxOutRef = entryUtxo, teEntryDatum = EntryDatum entry}])
 -- Create the parameters of the pool from the initial params and other
 -- information obtained at runtime
 mkBondedPoolParams ::
