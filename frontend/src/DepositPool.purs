@@ -15,14 +15,24 @@ import Contract.Monad
   , liftedE
   , liftedE'
   , liftedM
+  , logInfo'
   , throwContractError
   )
-import Contract.PlutusData (PlutusData, Datum(Datum), toData, datumHash)
-import Contract.Prim.ByteArray (byteArrayToHex)
+import Contract.Numeric.Rational ((%), Rational)
+import Contract.PlutusData
+  ( PlutusData
+  , Datum(Datum)
+  , fromData
+  , getDatumByHash
+  , toData
+  )
+import Contract.Prim.ByteArray (ByteArray, byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
-import Contract.Scripts (validatorHash)
+import Contract.Scripts (ValidatorHash, validatorHash)
 import Contract.Transaction
   ( BalancedSignedTransaction(BalancedSignedTransaction)
+  , TransactionInput
+  , TransactionOutput
   , balanceAndSignTx
   , submit
   )
@@ -33,23 +43,37 @@ import Contract.TxConstraints
   , mustSpendScriptOutput
   )
 import Contract.Utxos (utxosAt)
-import Contract.Value (singleton)
+import Contract.Value (mkTokenName, singleton)
 import Control.Applicative (unless)
-import Data.BigInt (fromString) as BigInt
+import Data.BigInt (BigInt)
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
 import Types
   ( BondedStakingAction(AdminAct)
-  , BondedStakingDatum(AssetDatum, StateDatum)
+  , BondedStakingDatum(AssetDatum, EntryDatum, StateDatum)
   , BondedPoolParams(BondedPoolParams)
+  , Entry(Entry)
   )
 import Types.Redeemer (Redeemer(Redeemer))
-import Utils (getUtxoWithNFT, logInfo_)
+import Utils
+  ( getUtxoWithNFT
+  , logInfo_
+  , mkOnchainAssocList
+  , mkRatUnsafe
+  , roundUp
+  )
 
 -- Deposits a certain amount in the pool
 depositBondedPoolContract :: BondedPoolParams -> Contract () Unit
-depositBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
+depositBondedPoolContract
+  params@
+    ( BondedPoolParams
+        { admin
+        , nftCs
+        , assocListCs
+        }
+    ) = do
   -- Fetch information related to the pool
   -- Get network ID and check admin's PKH
   networkId <- getNetworkId
@@ -93,77 +117,153 @@ depositBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
       "depositBondedPoolContract: Could not get Pool UTXO's Datum Hash"
       (unwrap poolTxOutput).dataHash
   logInfo_ "depositBondedPoolContract: Pool's UTXO DatumHash" poolDatumHash
-  -- Create the datums and their ScriptLookups
-  let
-    -- We can hardcode the state for now. We should actually fetch the datum
-    -- from Ogmios, update it properly and then submit it
-    bondedStateDatum = Datum $ toData $ StateDatum
-      { maybeEntryName: Nothing
-      }
-    -- This is the datum of the UTXO that will hold the rewards
-    assetDatum = Datum $ toData AssetDatum
-
-  bondedStateDatumLookup <-
+  poolDatum <- liftedM "depositBondedPoolContract: Cannot get datum"
+    $ getDatumByHash poolDatumHash
+  bondedStakingDatum :: BondedStakingDatum <-
     liftContractM
-      "depositBondedPoolContract: Could not create state datum lookup"
-      $ ScriptLookups.datum bondedStateDatum
-  tempBigInt <-
-    liftContractM
-      "depositBondedPoolContract: TEMPORARY - cannot \
-      \convert String to BigInt" $ BigInt.fromString "2"
+      "depositBondedPoolContract: Cannot extract NFT State datum"
+      $ fromData (unwrap poolDatum)
+
+  -- Update the association list
+  case bondedStakingDatum of
+    -- Non-empty user list
+    StateDatum { maybeEntryName: Just _ } -> do
+      logInfo'
+        "depositBondedPoolContract: STAKE TYPE - StateDatum is \
+        \StateDatum { maybeEntryName: Just ... }"
+      let
+        assocList = mkOnchainAssocList assocListCs bondedPoolUtxos
+      updateList <- traverse (mkEntryUpdateList params valHash) assocList
+      -- Concatinate constraints/lookups
+      let
+        assocListconstraints = fst <$> updateList
+        assocListLookups = snd <$> updateList
+
+        constraints :: TxConstraints Unit Unit
+        constraints = mustBeSignedBy admin <> mconcat assocListconstraints
+
+        lookups :: ScriptLookups.ScriptLookups PlutusData
+        lookups =
+          ScriptLookups.validator validator
+            <> ScriptLookups.unspentOutputs (unwrap adminUtxos)
+            <> ScriptLookups.unspentOutputs (unwrap bondedPoolUtxos)
+            <> mconcat assocListLookups
+      -- Build transaction
+      unattachedBalancedTx <-
+        liftedE $ ScriptLookups.mkUnbalancedTx lookups constraints
+      logInfo_
+        "depositBondedPoolContract: unAttachedUnbalancedTx"
+        unattachedBalancedTx
+      BalancedSignedTransaction { signedTxCbor } <-
+        liftedM
+          "depositBondedPoolContract: Cannot balance, reindex redeemers, /\
+          \attach datums redeemers and sign"
+          $ balanceAndSignTx unattachedBalancedTx
+      -- Submit transaction using Cbor-hex encoded `ByteArray`
+      transactionHash <- submit signedTxCbor
+      logInfo_
+        "depositBondedPoolContract: Transaction successfully submitted with \
+        \hash"
+        $ byteArrayToHex
+        $ unwrap transactionHash
+    -- Other error cases:
+    StateDatum { maybeEntryName: Nothing } ->
+      throwContractError
+        "depositBondedPoolContract: There are no users in the pool to deposit \
+        \rewards for"
+    _ ->
+      throwContractError "depositBondedPoolContract: Datum incorrect type"
+
+-- | Calculates user rewards
+calculateRewards
+  :: Rational -- interest
+  -> BigInt -- newDeposit
+  -> BigInt -- deposited
+  -> Contract () Rational
+calculateRewards interest newDeposit deposited = do
+  when (deposited == zero) $
+    throwContractError "calculateRewards: totalDeposited is zero"
   let
-    assetParams = unwrap (unwrap params).bondedAssetClass
-    assetCs = assetParams.currencySymbol
-    assetTn = assetParams.tokenName
-    stateTokenValue = singleton nftCs tokenName one
-    depositValue = singleton assetCs assetTn tempBigInt
+    oldDeposited = deposited - newDeposit
+    recentRewards = interest * mkRatUnsafe (oldDeposited % one)
+  when (recentRewards < zero) $ throwContractError
+    "calculateRewards: invalid rewards amount"
+  pure recentRewards
 
-    -- We build the redeemer. The size does not change because there are no
-    -- user stakes. It doesn't make much sense to deposit if there wasn't a
-    -- change in the total amount of stakes (and accrued rewards). This will
-    -- change when user staking is added
-    redeemerData = toData AdminAct
-    redeemer = Redeemer redeemerData
-
-    lookup :: ScriptLookups.ScriptLookups PlutusData
-    lookup = mconcat
-      [ ScriptLookups.validator validator
-      , ScriptLookups.unspentOutputs $ unwrap adminUtxos
-      , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
-      , bondedStateDatumLookup
-      ]
-
-    -- Seems suspect, not sure if typed constraints are working as expected
-    constraints :: TxConstraints Unit Unit
-    constraints =
-      mconcat
-        [
-          -- Update the pool's state
-          mustPayToScript valHash bondedStateDatum stateTokenValue
-        -- Deposit rewards in a separate UTXO
-        , mustPayToScript valHash assetDatum depositValue
-        , mustBeSignedBy admin
-        , mustSpendScriptOutput poolTxInput redeemer
-        ]
-  dh <- liftContractM "depositBondedPoolContract: Cannot Hash AssetDatum"
-    $ datumHash assetDatum
-  dh' <- liftContractM "depositBondedPoolContract: Cannot Hash BondedStateDatum"
-    $ datumHash bondedStateDatum
-  logInfo_ "depositBondedPoolContract: DatumHash of AssetDatum" dh
-  logInfo_ "depositBondedPoolContract: DatumHash of BondedStateDatum" dh'
-  unattachedBalancedTx <-
-    liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
-  logInfo_
-    "depositBondedPoolContract: unAttachedUnbalancedTx"
-    unattachedBalancedTx
-  BalancedSignedTransaction { signedTxCbor } <-
+-- | Creates a constraint and lookups list for updating each user entry
+mkEntryUpdateList
+  :: BondedPoolParams
+  -> ValidatorHash
+  -> (ByteArray /\ TransactionInput /\ TransactionOutput)
+  -> Contract ()
+       ( Tuple (TxConstraints Unit Unit)
+           (ScriptLookups.ScriptLookups PlutusData)
+       )
+mkEntryUpdateList
+  (BondedPoolParams { interest, bondedAssetClass, assocListCs })
+  valHash
+  (_ /\ txIn /\ txOut) = do
+  -- Get the Entry datum of the old assoc. list element
+  dHash <- liftContractM
+    "mkEntryUpdateList: Could not get Entry Datum Hash"
+    (unwrap txOut).dataHash
+  logInfo_ "mkEntryUpdateList: datum hash" dHash
+  listDatum <-
     liftedM
-      "depositBondedPoolContract: Cannot balance, reindex redeemers, attach \
-      \datums redeemers and sign"
-      $ balanceAndSignTx unattachedBalancedTx
-  -- Submit transaction using Cbor-hex encoded `ByteArray`
-  transactionHash <- submit signedTxCbor
-  logInfo_
-    "depositBondedPoolContract: Transaction successfully submitted with hash"
-    $ byteArrayToHex
-    $ unwrap transactionHash
+      "mkEntryUpdateList: Cannot get Entry's datum" $ getDatumByHash dHash
+  bondedListDatum :: BondedStakingDatum <-
+    liftContractM
+      "mkEntryUpdateList: Cannot extract NFT State datum"
+      $ fromData (unwrap listDatum)
+  -- The get the entry datum
+  case bondedListDatum of
+    EntryDatum { entry } -> do
+      let e = unwrap entry
+      calculatedRewards <-
+        calculateRewards
+          interest
+          e.newDeposit
+          e.deposited
+      -- Get the token name for the user by hashing
+      assocListTn <-
+        liftContractM
+          "mkEntryUpdateList: Could not create token name for user"
+          $ mkTokenName e.key
+      -- Update the entry datum
+      let
+        recentRewards = roundUp calculatedRewards
+        updatedDeposited = e.deposited + recentRewards
+        newRewards = e.rewards + mkRatUnsafe (recentRewards % one)
+        -- Datum and redeemer creation
+        entryDatum = Datum $ toData $ EntryDatum
+          { entry: Entry $ e
+              { newDeposit = zero -- reset to zero
+              , deposited = updatedDeposited
+              , staked = updatedDeposited -- redundant
+              , rewards = newRewards
+              }
+          }
+        valRedeemer = Redeemer $ toData $ AdminAct
+        -- Build asset datum and value types
+        assetDatum = Datum $ toData AssetDatum
+        assetParams = unwrap bondedAssetClass
+        assetCs = assetParams.currencySymbol
+        assetTn = assetParams.tokenName
+        depositValue = singleton assetCs assetTn recentRewards
+        entryValue = singleton assocListCs assocListTn one
+
+        -- Build constraints and lookups
+        constraints :: TxConstraints Unit Unit
+        constraints =
+          mconcat
+            [ mustPayToScript valHash assetDatum depositValue
+            , mustPayToScript valHash entryDatum entryValue
+            , mustSpendScriptOutput txIn valRedeemer
+            ]
+      entryDatumLookup <-
+        liftContractM
+          "mkEntryUpdateList: Could not create state datum lookup"
+          $ ScriptLookups.datum entryDatum
+      pure (constraints /\ entryDatumLookup)
+    _ -> throwContractError
+      "mkEntryUpdateList: Datum not Entry constructor"

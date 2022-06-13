@@ -135,8 +135,7 @@ depositUnbondedPoolContract
         \StateDatum { maybeEntryName: Just ..., open: true }"
       let
         assocList = mkOnchainAssocList assocListCs unbondedPoolUtxos
-        updateContractList = (mkEntryUpdateList params valHash) <$> assocList
-      updateList <- sequence updateContractList
+      updateList <- traverse (mkEntryUpdateList params valHash) assocList
       -- Concatinate constraints/lookups
       let
         constraintList = fst <$> updateList
@@ -167,7 +166,8 @@ depositUnbondedPoolContract
       -- Submit transaction using Cbor-hex encoded `ByteArray`
       transactionHash <- submit signedTxCbor
       logInfo_
-        "updateEntry: Transaction successfully submitted with hash"
+        "depositUnbondedPoolContract: Transaction successfully submitted with \
+        \hash"
         $ byteArrayToHex
         $ unwrap transactionHash
     -- Other error cases:
@@ -226,7 +226,7 @@ mkEntryUpdateList
   dHash <- liftContractM
     "mkEntryUpdateList: Could not get Entry Datum Hash"
     (unwrap txOut).dataHash
-  logInfo_ "mkEntryUpdateList: datum hash " dHash
+  logInfo_ "mkEntryUpdateList: datum hash" dHash
   listDatum <-
     liftedM
       "mkEntryUpdateList: Cannot get Entry's datum" $ getDatumByHash dHash
@@ -248,7 +248,7 @@ mkEntryUpdateList
       -- Get the token name for the user by hashing
       assocListTn <-
         liftContractM
-          "mkEntryUpdateList: Could not create token name for user`"
+          "mkEntryUpdateList: Could not create token name for user"
           $ mkTokenName e.key
       -- Update the entry datum
       let
