@@ -7,17 +7,22 @@ export type ContractConfig = typeof cfg;
 
 export function buildContractConfig(config: SdkConfig): Promise<ContractConfig>
 
-export function callCreatePool(
+export function callCreateBondedPool(
   config: ContractConfig, args: InitialBondedArgs
 ):
   Promise<BondedPoolArgs>
 
-export function callDepositPool(
+export function callDepositBondedPool(
   config: ContractConfig, args: BondedPoolArgs
 ):
   Promise<void>
 
-export function callClosePool(
+export function callCloseBondedPool(
+  config: ContractConfig, args: BondedPoolArgs
+):
+  Promise<void>
+
+export function callUserStakeBondedPool(
   config: ContractConfig, args: BondedPoolArgs
 ):
   Promise<void>
