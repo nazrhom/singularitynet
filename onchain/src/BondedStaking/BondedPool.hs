@@ -227,6 +227,7 @@ adminActLogic txInfo params = unTermCont $ do
   -- We check that the transaction was signed by the pool operator
   guardC "transaction not signed by admin" $
     signedBy txInfo.signatories params.admin
+  pure punit
 
 stakeActLogic ::
   forall (s :: S).
