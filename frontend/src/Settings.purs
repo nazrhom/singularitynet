@@ -37,8 +37,13 @@ unbondedStakingTokenName :: Maybe TokenName
 unbondedStakingTokenName = mkTokenName =<< byteArrayFromAscii
   "UnbondedStakingToken"
 
-interest' :: Maybe Rational
-interest' = toRational <$> fromNaturals (nat 1) (nat 100)
+-- Defined as fixed rate for one cycle in APY
+bondedInterest :: Maybe Rational
+bondedInterest = toRational <$> fromNaturals (nat 1) (nat 100)
+
+-- Defined as fixed rate for one time increment in APY
+unbondedInterest :: Maybe Rational
+unbondedInterest = toRational <$> fromNaturals (nat 1) (nat 100)
 
 -- Could make these unsafe/partial for convenience:
 agixCs :: Maybe CurrencySymbol
@@ -58,7 +63,7 @@ ntxTn = mkTokenName =<< byteArrayFromAscii "NTX"
 -- Used for local example:
 testInitBondedParams :: Maybe InitialBondedParams
 testInitBondedParams = do
-  interest <- interest'
+  interest <- bondedInterest
   currencySymbol <- agixCs
   tokenName <- agixTn
   pure $ InitialBondedParams
@@ -68,7 +73,7 @@ testInitBondedParams = do
     , userLength: big 100
     , bondingLength: big 4
     , interest
-    , minStake: nat 1000
+    , minStake: nat 1
     , maxStake: nat 10_000
     , bondedAssetClass: AssetClass
         { currencySymbol
@@ -78,16 +83,16 @@ testInitBondedParams = do
 
 testInitUnbondedParams :: Maybe InitialUnbondedParams
 testInitUnbondedParams = do
-  interest <- interest'
+  interest <- unbondedInterest
   -- currencySymbol <- agixTn
   -- tokenName <- ntxTn
   pure $ InitialUnbondedParams
     { start: big 1000
     , userLength: big 100
     , adminLength: big 100
-    , bondingLength: big 4
+    , bondingLength: big 100
     , interestLength: big 2
-    , increments: nat 2
+    , increments: nat 50
     , interest: interest
     , minStake: nat 1
     , maxStake: nat 100_000_000
