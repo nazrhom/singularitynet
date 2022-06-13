@@ -223,7 +223,7 @@ userHeadStake
                     , rewards = NatRatio 0
                     , next = Nothing
                 }
-                entryDatum = Ledger.Datum . toBuiltinData $ entry
+                entryDatum = Ledger.Datum . toBuiltinData $ EntryDatum entry
                 -- Prepare new state
                 newState = StateDatum $ Just userKey
                 stateDatum = Ledger.Datum . toBuiltinData $ newState
