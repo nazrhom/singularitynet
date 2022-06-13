@@ -9,8 +9,8 @@ serialise-scripts:
 
 serialise-scripts-offchain:
 	cabal build
-	cabal exec serialise -- state-policy -o /dev/stdout | ${FILTERSCRIPT} > ../../singularitynet2/offchain/scripts/BondedStateNFT.plutus
-	cabal exec serialise -- list-policy -o /dev/stdout | ${FILTERSCRIPT} > ../../singularitynet2/offchain/scripts/BondedListNFT.plutus
-	cabal exec serialise -- validator -o /dev/stdout | ${FILTERSCRIPT} > ../../singularitynet2/offchain/scripts/BondedPoolValidator.plutus
+	cabal exec serialise -- state-policy -o /dev/stdout | ${FILTERSCRIPT} > ../offchain/scripts/BondedStateNFT.plutus
+	cabal exec serialise -- list-policy -o /dev/stdout | ${FILTERSCRIPT} > ../offchain/scripts/BondedListNFT.plutus
+	cabal exec serialise -- validator -o /dev/stdout | ${FILTERSCRIPT} > ../offchain/scripts/BondedPoolValidator.plutus
 
 .PHONY: serialise-scripts
