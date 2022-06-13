@@ -19,6 +19,8 @@ import Contract.PlutusData
   ( Datum(Datum)
   , PlutusData
   , Redeemer(Redeemer)
+  , fromData
+  , getDatumByHash
   , toData
   )
 import Contract.Prim.ByteArray (byteArrayToHex)
@@ -39,15 +41,16 @@ import Contract.Utxos (utxosAt)
 import Data.Map (toUnfoldable)
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkBondedPoolValidator)
+import Settings (bondedStakingTokenName)
 import Types
   ( BondedPoolParams(BondedPoolParams)
   , BondedStakingAction(CloseAct)
   , BondedStakingDatum(StateDatum)
   )
-import Utils (logInfo_)
+import Utils (logInfo_, getUtxoWithNFT)
 
 closeBondedPoolContract :: BondedPoolParams -> Contract () Unit
-closeBondedPoolContract params@(BondedPoolParams { admin }) = do
+closeBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
   -- Fetch information related to the pool
   -- Get network ID and check admin's PKH
   networkId <- getNetworkId
@@ -71,10 +74,25 @@ closeBondedPoolContract params@(BondedPoolParams { admin }) = do
     liftedM "closeBondedPoolContract: Cannot get pool's utxos at pool address" $
       utxosAt poolAddr
   logInfo_ "closeBondedPoolContract: Pool's UTXOs" bondedPoolUtxos
-  let
-    bondedStateDatum = Datum $ toData $ StateDatum
-      { maybeEntryName: Nothing
-      }
+  tokenName <- liftContractM
+    "closeBondedPoolContract: Cannot create TokenName"
+    bondedStakingTokenName
+  poolTxInput /\ poolTxOutput <-
+    liftContractM "closeBondedPoolContract: Cannot get state utxo"
+      $ getUtxoWithNFT bondedPoolUtxos nftCs tokenName
+  logInfo_ "closeBondedPoolContract: Pool's UTXO" poolTxInput
+  poolDatumHash <-
+    liftContractM
+      "closeBondedPoolContract: Could not get Pool UTXO's Datum Hash"
+      (unwrap poolTxOutput).dataHash
+  logInfo_ "closeBondedPoolContract: Pool's UTXO DatumHash" poolDatumHash
+  poolDatum <- liftedM "closeBondedPoolContract: Cannot get datum"
+    $ getDatumByHash poolDatumHash
+  bondedStakingDatum :: BondedStakingDatum <-
+    liftContractM
+      "closeBondedPoolContract: Cannot extract NFT State datum"
+      $ fromData (unwrap poolDatum)
+  let bondedStateDatum = Datum $ toData bondedStakingDatum
   bondedStateDatumLookup <-
     liftContractM
       "closeBondedPoolContract: Could not create state datum lookup"
