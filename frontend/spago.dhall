@@ -13,6 +13,7 @@ You can edit this file as you like.
   , "arrays"
   , "bigints"
   , "cardano-transaction-lib"
+  , "console"
   , "control"
   , "exceptions"
   , "integers"

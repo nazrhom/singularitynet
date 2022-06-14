@@ -2,6 +2,7 @@ module Main (main) where
 
 import Contract.Prelude
 
+-- import CallContract (bondedCallContractExample1)
 import ClosePool (closeBondedPoolContract)
 import Contract.Address (NetworkId(TestnetId))
 import Contract.Monad
@@ -83,6 +84,9 @@ main = launchAff_ do
     liftAff $ delay $ wrap $ toNumber 100_000
   -- Admin closes pool
   runContract_ adminCfg $ closeBondedPoolContract bondedParams
+
+-- main :: Effect Unit
+-- main = bondedCallContractExample1
 
 mkConfig :: Aff (ContractConfig ())
 mkConfig = do

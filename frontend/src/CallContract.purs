@@ -1,5 +1,6 @@
 module CallContract
   ( SdkConfig
+  , bondedCallContractExample1
   , buildContractConfig
   , callCloseBondedPool
   , callCreateBondedPool
@@ -19,6 +20,7 @@ import Contract.Monad
       , Warn
       , Error
       )
+  , launchAff_
   , runContract
   , mkContractConfig
   )
@@ -43,11 +45,13 @@ import Control.Promise as Promise
 import ClosePool (closeBondedPoolContract)
 import CreatePool (createBondedPoolContract)
 import Data.BigInt (BigInt)
+import Data.BigInt as BigInt
 import Data.Int as Int
 import Data.UInt as UInt
 import Data.UInt (UInt)
 import DepositPool (depositBondedPoolContract)
-import Effect.Aff (error)
+import Effect.Aff (delay, error)
+import Effect.Class.Console (log)
 import Effect.Exception (Error)
 import Serialization.Address (intToNetworkId)
 import Serialization.Hash (ed25519KeyHashFromBytes, ed25519KeyHashToBytes)
@@ -290,3 +294,78 @@ fromBondedPoolArgs bpa = do
   toCs str = note (error "fromBondedPoolArgs: Invalid CS")
     $ mkCurrencySymbol
     =<< hexToByteArray str
+
+------------------------ Used for Testing SDK ----------------------------------
+defaultSdkConfig :: SdkConfig
+defaultSdkConfig =
+  { serverHost: "localhost"
+  , serverPort: 8081.0 -- converts to UInt
+  , serverSecure: false
+  , ogmiosHost: "localhost"
+  , ogmiosPort: 1337.0 -- converts to UInt
+  , ogmiosSecure: false
+  , datumCacheHost: "localhost"
+  , datumCachePort: 9999.0 -- converts to UInt
+  , datumCacheSecure: false
+  , networkId: zero -- converts to Int
+  , logLevel: "Info" -- "Trace", "Debug", "Info", "Warn", "Error"
+  }
+
+testInitialBondedArgs :: Maybe InitialBondedArgs
+testInitialBondedArgs = do
+  -- Whilst some of these numbers are small, I'd rather use fromString to be safe.
+  iterations <- BigInt.fromString "3"
+  start <- BigInt.fromString "1000"
+  end <- BigInt.fromString "2000"
+  userLength <- BigInt.fromString "100"
+  bondingLength <- BigInt.fromString "4"
+  interestNum <- BigInt.fromString "10"
+  interestDen <- BigInt.fromString "100"
+  let interest = interestNum /\ interestDen
+  minStake <- BigInt.fromString "1"
+  maxStake <- BigInt.fromString "10000"
+  let
+    bondedCs = "6f1a1f0c7ccf632cc9ff4b79687ed13ffe5b624cce288b364ebdce50"
+    bondedTn = "AGIX"
+    bondedAssetClass = bondedCs /\ bondedTn
+  pure
+    { iterations
+    , start
+    , end
+    , userLength
+    , bondingLength
+    , interest
+    , minStake
+    , maxStake
+    , bondedAssetClass
+    }
+
+-- Bonded example: admin deposit, user head stake, admin deposit and admin close.
+bondedCallContractExample1 :: Effect Unit
+bondedCallContractExample1 = launchAff_ do
+  adminCfg <- Promise.toAffE $ buildContractConfig defaultSdkConfig
+  iba <-
+    liftM
+      ( error
+          "bondedCallContractExample1: Could not create \
+          \InitialBondedArgs"
+      )
+      $ testInitialBondedArgs
+  log "STARTING AS ADMIN"
+  -- Create pool
+  bondedParams <- Promise.toAffE $ callCreateBondedPool adminCfg iba
+  log "SWITCH WALLETS NOW - CHANGE TO USER 1"
+  delay $ wrap $ Int.toNumber 100_000
+  -- User 1 deposits
+  userCfg <- Promise.toAffE $ buildContractConfig defaultSdkConfig
+  userStake <- liftM (error "bondedCallContractExample1: Cannot create BigInt")
+    $ BigInt.fromString "10"
+  Promise.toAffE $ callUserStakeBondedPool userCfg bondedParams userStake
+  log "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
+  delay $ wrap $ Int.toNumber 100_000
+  -- Admin deposit
+  Promise.toAffE $ callDepositBondedPool adminCfg bondedParams
+  log "DON'T SWITCH WALLETS - STAY AS ADMIN"
+  delay $ wrap $ Int.toNumber 100_000
+  -- Admin close
+  Promise.toAffE $ callCloseBondedPool adminCfg bondedParams
