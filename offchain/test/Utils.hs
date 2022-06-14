@@ -56,7 +56,7 @@ testUserStake :: Natural
 testUserStake = Natural 2000
 
 testAdminDeposit :: Natural
-testAdminDeposit = Natural 2000
+testAdminDeposit = Natural 10
 
 -- We use Ada as bonded asset because we can't initialize wallets with tokens
 -- we are not able to mint
@@ -293,36 +293,36 @@ poolDeposit ::
     TBondedPool ->                                           -- Current pool state
     [TEntry] ->                                              -- Entries to update
     Natural ->                                               -- Deposit amount
-    Contract String EmptySchema Text (TBondedPool, [TEntry]) -- Updated state and entries
+    Contract String EmptySchema Text (TBondedPool, [TEntry])
 poolDeposit
     BondedPoolTypedScripts {..}
     bpp@BondedPoolParams {..}
     TBondedPool {..}
     entries
-    depositAmt@(Natural depositAmtNat) = do
-        (ownPPkh@(PaymentPubKeyHash ownPkh), ownKey, ownUtxos) <- getOwnData
+    (Natural depositAmtNat) = do
+        (ownPPkh, _, ownUtxos) <- getOwnData
         -- Get pool utxos
         let valHash = Ledger.validatorHash validator
             poolAddr = Ledger.scriptAddress validator
         poolUtxos <- Contract.utxosAt poolAddr
+        -- Get entry
+        let TEntry{..} = head entries
+        entry <- liftContractM "poolDeposit: could not get entry from TEntry" $
+            case teEntryDatum of
+                EntryDatum e -> Just e
+                _ -> Nothing
         let
             -- Repeat entry
-            EntryDatum entry = teEntryDatum $ head entries
-            entryTxOutRef = teTxOutRef $ head entries
             entryDatum = Ledger.Datum . toBuiltinData . EntryDatum $ entry
+            userKey = key entry
             -- Repeat state
             stateDatum = Datum $ toBuiltinData tbpStateDatum
             -- Prepare asset datum
             assetDatum = Ledger.Datum . toBuiltinData $ AssetDatum
             -- Prepare values
-            entryVal = singleton assocListCs (TokenName ownKey) 1
+            entryVal = singleton assocListCs (TokenName userKey) 1
             stateVal = singleton nftCs bondedStakingTokenName 1
             depositVal = singleton adaSymbol adaToken (fromIntegral depositAmtNat)
-            -- Prepare minting and list action
-            mintAct = MintHead tbpTxOutRef
-            listAct = ListInsert mintAct
-            -- Prepare policy redeemer
-            mintRedeemer = Ledger.Redeemer . toBuiltinData $ listAct
             -- Prepare validator redeemer
             valRedeemer = Ledger.Redeemer . toBuiltinData $ AdminAct
             -- Prepare lookups and constraints
@@ -336,13 +336,12 @@ poolDeposit
               <> Constraints.unspentOutputs poolUtxos
             constraints :: TxConstraints Void Void
             constraints =
-              Constraints.mustMintValueWithRedeemer mintRedeemer entryVal
-                <> Constraints.mustPayToOtherScript valHash stateDatum stateVal
+                Constraints.mustPayToOtherScript valHash stateDatum stateVal
                 <> Constraints.mustPayToOtherScript valHash entryDatum entryVal
                 <> Constraints.mustPayToOtherScript valHash assetDatum depositVal
                 <> Constraints.mustBeSignedBy ownPPkh
                 <> Constraints.mustSpendScriptOutput tbpTxOutRef valRedeemer
-                <> Constraints.mustSpendScriptOutput entryTxOutRef valRedeemer
+                <> Constraints.mustSpendScriptOutput teTxOutRef valRedeemer
 
             -- Submit and await transaction
         tx <- Contract.submitTxConstraintsWith lookups constraints
@@ -354,7 +353,7 @@ poolDeposit
             findPoolUtxo bpp txOutputs
         entryUtxo <- liftContractM "poolDeposit: Could not get new UTxO\
             \ of the entry" $
-            findEntryUtxo bpp ownKey txOutputs
+            findEntryUtxo bpp userKey txOutputs
         pure (TBondedPool { tbpTxOutRef = newPoolUtxo , tbpStateDatum},
               [TEntry { teTxOutRef = entryUtxo, teEntryDatum = EntryDatum entry}])
 -- Create the parameters of the pool from the initial params and other
