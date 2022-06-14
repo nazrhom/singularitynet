@@ -45,7 +45,7 @@ import Settings (bondedStakingTokenName)
 import Types
   ( BondedPoolParams(BondedPoolParams)
   , BondedStakingAction(CloseAct)
-  , BondedStakingDatum(StateDatum)
+  , BondedStakingDatum
   )
 import Utils (logInfo_, getUtxoWithNFT)
 
