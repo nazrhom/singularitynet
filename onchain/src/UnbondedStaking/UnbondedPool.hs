@@ -98,7 +98,7 @@ import Utils (
   getOutputSignedBy,
   getTokenCount,
   getTokenName,
-  guardC,
+  pguardC,
   oneWith,
   parseStakingDatum,
   peq,
@@ -153,7 +153,7 @@ punbondedPoolValidator = phoistAcyclic $
     pure $
       pmatch act $ \case
         PAdminAct dataRecord -> unTermCont $ do
-          -- guardC "punbondedPoolValidator: wrong period for PAdminAct \
+          -- pguardC "punbondedPoolValidator: wrong period for PAdminAct \
           --   \redeemer" $
           --   getUnbondedPeriod # txInfoF.validRange # params #==
           --     adminUpdatePeriod
@@ -167,7 +167,7 @@ punbondedPoolValidator = phoistAcyclic $
               dat
               adminActParamsF
         PStakeAct dataRecord -> unTermCont $ do
-          -- guardC "punbondedPoolValidator: wrong period for PStakeAct \
+          -- pguardC "punbondedPoolValidator: wrong period for PStakeAct \
           --   \redeemer" $
           --   getUnbondedPeriod # txInfoF.validRange # params #==
           --     depositWithdrawPeriod
@@ -196,7 +196,7 @@ punbondedPoolValidator = phoistAcyclic $
             withdrawActParamsF
             period
         PCloseAct _ -> unTermCont $ do
-          -- guardC "punbondedPoolValidator: wrong period for PCloseAct \
+          -- pguardC "punbondedPoolValidator: wrong period for PCloseAct \
           --   \redeemer" $
           --   getUnbondedPeriod # txInfoF.validRange # params #==
           --     adminUpdatePeriod
@@ -235,7 +235,7 @@ adminActLogic ::
   Term s PUnit
 adminActLogic txInfoF paramsF purpose datum adminActParamsF = unTermCont $ do
   -- We check that the transaction was signed by the pool operator
-  guardC "adminActLogic: transaction not signed by admin" $
+  pguardC "adminActLogic: transaction not signed by admin" $
     signedBy txInfoF.signatories paramsF.admin
   -- We get the input's address
   inputF <-
@@ -263,15 +263,15 @@ adminActLogic txInfoF paramsF purpose datum adminActParamsF = unTermCont $ do
       entryTok <- pletC $ getTokenName paramsF.assocListCs inputResolvedF.value
       newEntryF <- getOutputEntry poolAddr entryTok txInfoDataF txInfoF.outputs
       ---- BUSINESS LOGIC ----
-      guardC
+      pguardC
         "adminActLogic: update failed because pool is not open"
         $ toPBool # oldEntryF.open
-      guardC "adminActLogic: some fields in the given entries are not equal" $
+      pguardC "adminActLogic: some fields in the given entries are not equal" $
         oldEntryF.key #== newEntryF.key
           #&& oldEntryF.deposited #== newEntryF.deposited
           #&& oldEntryF.open #== newEntryF.open
           #&& oldEntryF.next #== newEntryF.next
-      guardC
+      pguardC
         "adminActLogic: update failed because entry field 'newDeposit' \
         \is not zero"
         $ newEntryF.newDeposit #== natZero
@@ -282,19 +282,20 @@ adminActLogic txInfoF paramsF purpose datum adminActParamsF = unTermCont $ do
               oldEntryF.deposited
               oldEntryF.newDeposit
               oldEntryF.totalDeposited
-      guardC
+      pguardC
         "adminActLogic: update failed because entry field 'rewards' \
         \is not updatedRewards"
         $ newEntryF.rewards
           #== toNatRatio (pCeil # rewards)
-      guardC
+      pguardC
         "adminActLogic: update failed because entry field 'totalRewards' \
         \is not newTotalRewards"
         $ newEntryF.totalRewards #== adminActParamsF.totalRewards
-      guardC
+      pguardC
         "adminActLogic: update failed because entry field \
         \'totalDeposited' is not newTotalDeposited"
         $ newEntryF.totalDeposited #== adminActParamsF.totalDeposited
+      pure punit
     PAssetDatum _ ->
       ptraceError
         "adminActLogic: update failed because a wrong \
@@ -322,12 +323,12 @@ stakeActLogic txInfoF paramsF purpose datum stakeActParamsF = unTermCont $ do
   -- Check that input spent is not an asset UTXO (user cannot withdraw)
   doesNotConsumeUnbondedAssetGuard datum
   -- Validate holder's signature
-  guardC "stakeActLogic: tx not exclusively signed by the stake-holder" $
+  pguardC "stakeActLogic: tx not exclusively signed by the stake-holder" $
     signedOnlyBy txInfoF.signatories stakeActParamsF.pubKeyHash
   -- Check that amount is positive
   let stakeAmt :: Term s PNatural
       stakeAmt = pfromData stakeActParamsF.stakeAmount
-  guardC "stakeActLogic: stake amount is not positive or within bounds" $
+  pguardC "stakeActLogic: stake amount is not positive or within bounds" $
     natZero #<= stakeAmt
   -- Get asset output of the transaction (new locked stake)
   assetOutput <-
@@ -344,7 +345,7 @@ stakeActLogic txInfoF paramsF purpose datum stakeActParamsF = unTermCont $ do
   unbondedAsset <-
     tcont . pletFields @'["currencySymbol", "tokenName"] $
       paramsF.unbondedAssetClass
-  guardC "stakeActLogic: amount deposited does not match redeemer's amount" $
+  pguardC "stakeActLogic: amount deposited does not match redeemer's amount" $
     oneWith # (peq # unbondedAsset.currencySymbol)
       # (peq # unbondedAsset.tokenName)
       # (peq #$ pto $ pfromData stakeActParamsF.stakeAmount)
@@ -354,7 +355,7 @@ stakeActLogic txInfoF paramsF purpose datum stakeActParamsF = unTermCont $ do
     -- conditions must be checked
     PDJust mintAct -> unTermCont $ do
       -- Check that minted value is a list entry (minting policy is run)
-      guardC "stakeActLogic: failure when checking minted value in minting tx" $
+      pguardC "stakeActLogic: failure when checking minted value in minting tx" $
         hasListNft paramsF.assocListCs txInfoF.mint
       -- Check inductive conditions and business logic
       newStakeLogic
@@ -368,7 +369,7 @@ stakeActLogic txInfoF paramsF purpose datum stakeActParamsF = unTermCont $ do
     -- If no minting action is provided, this is a stake update
     PDNothing _ -> unTermCont $ do
       -- A list token should *not* be minted
-      guardC
+      pguardC
         "stakeActLogic: failure when checking minted value in non-minting \
         \ tx"
         $ pnot #$ hasListNft paramsF.assocListCs txInfoF.mint
@@ -417,27 +418,28 @@ updateStakeLogic txInfoF paramsF spentInputF datum stakeAmt holderPkh = do
   oldEntryF <- tcont . pletFields @PEntryFields =<< getEntryData datum
   newEntryF <- getOutputEntry poolAddr newEntryTok txInfoData txInfoF.outputs
   ---- BUSINESS LOGIC ----
-  guardC "updateStakeLogic: update failed because pool is not open" $
+  pguardC "updateStakeLogic: update failed because pool is not open" $
     toPBool # oldEntryF.open
       #&& toPBool # newEntryF.open
-  guardC "updateStakeLogic: spent entry's key does not match user's key" $
+  pguardC "updateStakeLogic: spent entry's key does not match user's key" $
     oldEntryF.key #== stakeHolderKey
-  guardC "updateStakeLogic: new entry does not have the stakeholder's key" $
+  pguardC "updateStakeLogic: new entry does not have the stakeholder's key" $
     newEntryF.key #== stakeHolderKey
-  guardC "updateStakeLogic: incorrect update of newDeposit" $
+  pguardC "updateStakeLogic: incorrect update of newDeposit" $
     newEntryF.newDeposit #== oldEntryF.newDeposit #+ stakeAmt
-  guardC "updateStakeLogic: incorrect update of deposit" $
+  pguardC "updateStakeLogic: incorrect update of deposit" $
     newEntryF.deposited #== oldEntryF.deposited #+ stakeAmt
-  guardC "updateStakeLogic: update increases stake beyond allowed bounds" $
+  pguardC "updateStakeLogic: update increases stake beyond allowed bounds" $
     pfromData paramsF.minStake #<= newEntryF.deposited
       #&& pfromData newEntryF.deposited #<= paramsF.maxStake
-  guardC
+  pguardC
     "updateStakeLogic: update should not change rewards, totalRewards, \
     \  totalDeposited, or next fields"
     $ oldEntryF.rewards #== newEntryF.rewards
       #&& oldEntryF.totalRewards #== newEntryF.totalRewards
       #&& oldEntryF.totalDeposited #== newEntryF.totalDeposited
       #&& oldEntryF.next #== newEntryF.next
+  pure punit
 
 {- | This function checks all inductive conditions and makes all necessary
  business logic validation on the state/entry updates and new entries
@@ -483,22 +485,22 @@ newStakeLogic txInfoF paramsF spentInputF datum holderPkh stakeAmt mintAct = do
       newEntryF <-
         getOutputEntry poolAddr newEntryTok txInfoData txInfoF.outputs
       ---- BUSINESS LOGIC ----
-      guardC "newStakeLogic: update failed because pool state is not open" $
+      pguardC "newStakeLogic: update failed because pool state is not open" $
         toPBool # open
           #&& toPBool # nextOpen
       newEntryGuard paramsF newEntryF stakeAmt stakeHolderKey
       ---- INDUCTIVE CONDITIONS ----
       -- Validate that spentOutRef is the state UTXO and matches redeemer
-      guardC "newStakeLogic (mintHead): spent input is not the state UTXO" $
+      pguardC "newStakeLogic (mintHead): spent input is not the state UTXO" $
         hasStateToken
           spentInputResolvedF.value
           (paramsF.nftCs, pconstant unbondedStakingTokenName)
-      guardC
+      pguardC
         "newStakeLogic (mintHead): spent input does not match redeemer \
         \input"
         $ spentInputF.outRef #== pfield @"_0" # stateOutRef
       -- Validate next state
-      guardC
+      pguardC
         "newStakeLogic (mintHead): next pool state does not point to new \
         \ entry"
         $ nextEntryKey `pointsTo` newEntryF.key
@@ -509,22 +511,24 @@ newStakeLogic txInfoF paramsF spentInputF datum holderPkh stakeAmt mintAct = do
           currentEntryKey <-
             pletC $ pfromData $ pfield @"_0" # currentEntryKey'
           -- Validate order of entries
-          guardC
+          pguardC
             "newStakeLogic (mintInBetween): new entry's key should be \
             \strictly less than current entry"
             $ pfromData newEntryF.key #< currentEntryKey
           -- The new entry should point to the current entry
-          guardC
+          pguardC
             "newStakeLogic (mintInBetween): new entry should point to \
             \current entry"
             $ newEntryF.next `pointsTo` currentEntryKey
+          pure punit
         -- This is the first stake of the pool
         PDNothing _ -> unTermCont $ do
           -- The new entry should *not* point to anything
-          guardC
+          pguardC
             "newStakeLogic (mintInBetween): new entry should not point to \
             \anything"
             $ pointsNowhere newEntryF.next
+          pure punit
     PMintInBetween outRefs -> unTermCont $ do
       ---- FETCH DATUMS ----
       entriesRefsF <-
@@ -550,7 +554,7 @@ newStakeLogic txInfoF paramsF spentInputF datum holderPkh stakeAmt mintAct = do
             "newStakeLogic (mintEnd): the previous \
             \ entry does not point to another entry"
       ---- BUSINESS LOGIC ----
-      guardC "newStakeLogic: update failed because pool state is not open" $
+      pguardC "newStakeLogic: update failed because pool state is not open" $
         toPBool # prevEntryF.open
           #&& toPBool # newEntryF.open
       -- Validate initialization of new entry
@@ -559,28 +563,29 @@ newStakeLogic txInfoF paramsF spentInputF datum holderPkh stakeAmt mintAct = do
       equalEntriesGuard prevEntryF prevEntryUpdatedF
       ---- INDUCTIVE CONDITIONS ----
       -- Validate that previousEntry is a list entry and matches redeemer
-      guardC "newStakeLogic (mintEnd): spent input is not an entry" $
+      pguardC "newStakeLogic (mintEnd): spent input is not an entry" $
         hasListNft paramsF.assocListCs spentInputResolvedF.value
-      guardC
+      pguardC
         "newStakeLogic (mintEnd): spent input is not the same as input in \
         \ redeemer"
         $ spentInputF.outRef #== entriesRefsF.previousEntry
       -- Previous entry should now point to the new entry
-      guardC
+      pguardC
         "newStakeLogic (mintEnd): the previous entry should point to the \
         \new entry"
         $ prevEntryUpdatedF.next `pointsTo` newEntryF.key
       -- And new entry should point to the current entry
-      guardC
+      pguardC
         "newStakeLogic (mintEnd): the new entry should point to the \
         \current entry"
         $ newEntryF.next `pointsTo` currEntryKey
       -- Validate entries' order
-      guardC
+      pguardC
         "newStakeLogic (mintEnd): failed to validate order in previous, \
         \current and new entry"
         $ pfromData prevEntryF.key #< newEntryF.key
           #&& newEntryF.key #< currEntryKey
+      pure punit
     PMintEnd listEndOutRef' -> unTermCont $ do
       ---- FETCH DATUMS ----
       listEndOutRef <- pletC $ pfield @"_0" # listEndOutRef'
@@ -598,7 +603,7 @@ newStakeLogic txInfoF paramsF spentInputF datum holderPkh stakeAmt mintAct = do
       newEntryF <-
         getOutputEntry poolAddr newEntryTok txInfoData txInfoF.outputs
       ---- BUSINESS LOGIC ----
-      guardC "newStakeLogic: update failed because pool state is not open" $
+      pguardC "newStakeLogic: update failed because pool state is not open" $
         toPBool # endEntryF.open
           #&& toPBool # newEntryF.open
       -- Validate initialization of new entry
@@ -607,28 +612,29 @@ newStakeLogic txInfoF paramsF spentInputF datum holderPkh stakeAmt mintAct = do
       equalEntriesGuard endEntryF endEntryUpdated
       ---- INDUCTIVE CONDITIONS ----
       -- Validate that endEntry is a list entry and matches redeemer
-      guardC "newStakeLogic (mintEnd): spent input is not an entry" $
+      pguardC "newStakeLogic (mintEnd): spent input is not an entry" $
         hasListNft paramsF.assocListCs spentInputResolvedF.value
-      guardC
+      pguardC
         "newStakeLogic (mintEnd): spent input is not the same as input in \
         \redeemer"
         $ spentInputF.outRef #== listEndOutRef
       -- End entry should point nowhere
-      guardC "newStakeLogic (mintEnd): end should point nowhere" $
+      pguardC "newStakeLogic (mintEnd): end should point nowhere" $
         pointsNowhere endEntryF.next
       -- Updated end entry (no longer end) should point to new entry
-      guardC
+      pguardC
         "newStakeLogic (mintEnd): updated end should point to new end \
         \entry"
         $ endEntryUpdated.next `pointsTo` newEntryF.key
       -- New entry (new end) should point nowhere
-      guardC "newStakeLogic (mintEnd): new end entry should not point anywhere" $
+      pguardC "newStakeLogic (mintEnd): new end entry should not point anywhere" $
         pointsNowhere newEntryF.next
       -- Validate entries' order
-      guardC
+      pguardC
         "newStakeLogic (mintEnd): new entry's key should come after end \
         \entry"
         $ pfromData endEntryUpdated.key #< pfromData newEntryF.key
+      pure punit
 
 withdrawActLogic ::
   forall (s :: S).
@@ -652,7 +658,7 @@ withdrawActLogic txInfoF paramsF purpose datum withdrawActParamsF period = do
       =<< getInput purpose txInfoF.inputs
   spentInputResolvedF <- tcont . pletFields @'["value"] $ spentInputF.resolved
   -- Validate holder's signature
-  guardC "withdrawActLogic: tx not exclusively signed by the stake-holder" $
+  pguardC "withdrawActLogic: tx not exclusively signed by the stake-holder" $
     signedOnlyBy txInfoF.signatories withdrawActParamsF.pubKeyHash
   -- Get amount staked from output
   withdrawnAmt <-
@@ -675,18 +681,19 @@ withdrawActLogic txInfoF paramsF purpose datum withdrawActParamsF period = do
       -- We validate the entry when consuming it
       entryCheck :: Term s PTxOutRef -> Term s PUnit
       entryCheck entryOutRef = unTermCont $ do
-        guardC
+        pguardC
           "withdrawActLogic: spent entry is not an entry (no List \
           \NFT)"
           $ hasListNft paramsF.assocListCs spentInputResolvedF.value
-        guardC
+        pguardC
           "withdrawActLogic: spent entry does not match redeemer \
           \TxOutRef"
           $ pdata entryOutRef #== spentInputF.outRef
-        guardC "withdrawActLogic: entry does not belong to user" $
+        pguardC "withdrawActLogic: entry does not belong to user" $
           hasEntryToken
             spentInputResolvedF.value
             (paramsF.assocListCs, entryTn)
+        pure punit
   -- Check business and inductive conditions depending on redeemer
   pure . pmatch (pfromData withdrawActParamsF.burningAction) $ \case
     PBurnHead outRefs' -> unTermCont $ do
@@ -733,19 +740,19 @@ withdrawActLogic txInfoF paramsF purpose datum withdrawActParamsF period = do
       txInfoDataF <- pletC $ getField @"data" txInfoF
       entryF <- getInputEntry entryOutRef txInfoDataF txInfoF.inputs
       -- Burning action only valid if pool is closed
-      guardC "withdrawActLogic: Pool is not closed" $
+      pguardC "withdrawActLogic: Pool is not closed" $
         pnot # (toPBool # entryF.open)
       -- Validate period
-      guardC "withdrawActLogic: wrong period for PWithdrawAct redeemer" $
+      pguardC "withdrawActLogic: wrong period for PWithdrawAct redeemer" $
         period #== depositWithdrawPeriod
           #|| period #== adminUpdatePeriod
           #|| period #== bondingPeriod
       ---- BUSINESS LOGIC ----
       -- Validate that entry key matches the key in state UTxO
-      guardC "withdrawActLogic: consumed entry key does not match user's pkh" $
+      pguardC "withdrawActLogic: consumed entry key does not match user's pkh" $
         entryF.key #== holderKey
       -- Validate withdrawn amount
-      guardC
+      pguardC
         "withdrawActLogic: withdrawn amount does not match stake and \
         \rewards"
         $ withdrawnAmt
@@ -795,30 +802,31 @@ withdrawHeadActLogic spentInputF withdrawnAmt datum txInfoF paramsF period state
     headEntryF <- getInputEntry headEntryOutRef txInfoDataF txInfoF.inputs
     ---- BUSINESS LOGIC ----
     -- Burning action only valid if pool is open
-    guardC "withdrawHeadActLogic: Pool is not open" $ toPBool # headEntryF.open
+    pguardC "withdrawHeadActLogic: Pool is not open" $ toPBool # headEntryF.open
     -- Validate that entry key matches the key in state UTxO
-    guardC "withdrawHeadActLogic: consumed entry key does not match user's pkh" $
+    pguardC "withdrawHeadActLogic: consumed entry key does not match user's pkh" $
       headEntryF.key #== entryKey
     -- Validate withdrawn amount
     withdrawRewardsGuard period withdrawnAmt paramsF.interest headEntryF
     ---- INDUCTIVE CONDITIONS ----
     -- Validate that spentOutRef is the state UTXO and matches redeemer
-    guardC "withdrawHeadActLogic: spent input is not the state UTXO" $
+    pguardC "withdrawHeadActLogic: spent input is not the state UTXO" $
       spentInputResolvedF.value
         `hasStateToken` (paramsF.nftCs, pconstant unbondedStakingTokenName)
-    guardC "withdrawHeadActLogic: spent input does not match redeemer input" $
+    pguardC "withdrawHeadActLogic: spent input does not match redeemer input" $
       spentInputF.outRef #== pdata stateOutRef
     -- Validate that consumed entry is head of the list
-    guardC "withdrawHeadActLogic: spent entry is not head of the list" $
+    pguardC "withdrawHeadActLogic: spent entry is not head of the list" $
       entryKey #== headEntryF.key
     -- Validate next state
-    guardC
+    pguardC
       "withdrawHeadActLogic: next pool state does not point to same \
       \location as burned entry"
       $ pdata nextEntryKey #== headEntryF.next
-    guardC
+    pguardC
       "withdrawHeadActLogic: next pool state cannot close pool"
       $ pdata nextEntryOpen #== headEntryF.open
+    pure punit
 
 withdrawOtherActLogic ::
   forall (s :: S).
@@ -857,20 +865,20 @@ withdrawOtherActLogic spentInputF withdrawnAmt datum txInfoF paramsF period burn
     burnEntryF <- getInputEntry burnEntryOutRef txInfoData txInfoF.inputs
     ---- BUSINESS LOGIC ----
     -- Burning action only valid if pool is open
-    guardC "withdrawHeadActLogic: Pool is not open" $ toPBool # burnEntryF.open
+    pguardC "withdrawHeadActLogic: Pool is not open" $ toPBool # burnEntryF.open
     -- Validate withdrawn amount
     withdrawRewardsGuard period withdrawnAmt paramsF.interest burnEntryF
     ---- INDUCTIVE CONDITIONS ----
     -- Validate that spentOutRef is the previous entry and matches redeemer
-    guardC "withdrawOtherActLogic: spent input is not an entry" $
+    pguardC "withdrawOtherActLogic: spent input is not an entry" $
       hasListNft paramsF.assocListCs spentInputResolvedF.value
     -- Validate that burn entry key matches the key in previous entry
-    guardC
+    pguardC
       "withdrawOtherActLogic: consumed entry key does not match previous \
       \entry's key"
       $ prevEntryF.next `pointsTo` burnEntryF.key
     -- Validate updated entry
-    guardC
+    pguardC
       "withdrawOtherActLogic: updated previous entry does not point to same \
       \location as burned entry"
       $ prevEntryUpdatedF.next #== pdata burnEntryF.next
@@ -886,7 +894,7 @@ closeActLogic ::
   Term s PUnit
 closeActLogic txInfoF paramsF purpose inputStakingDatum = unTermCont $ do
   -- We check that the transaction was signed by the pool operator
-  guardC "closeActLogic: transaction not signed by admin" $
+  pguardC "closeActLogic: transaction not signed by admin" $
     signedBy txInfoF.signatories paramsF.admin
 
   -- We get the input's address
@@ -922,11 +930,12 @@ closeActLogic txInfoF paramsF purpose inputStakingDatum = unTermCont $ do
           <=< getContinuingOutputWithNFT poolAddr stateTok
           $ txInfoF.outputs
       ---- BUSINESS LOGIC ----
-      guardC "closeActLogic: update failed because of list head change" $
+      pguardC "closeActLogic: update failed because of list head change" $
         pdata stateHeadKey #== pdata newStateHeadKey
-      guardC
+      pguardC
         "closeActLogic: update failed because the pool state is not closed"
         $ pnot # (toPBool # newOpenState)
+      pure punit
     PEntryDatum oldEntryRecord -> unTermCont $ do
       ---- FETCH DATUMS ----
       -- Retrieve fields from oldEntry
@@ -938,10 +947,10 @@ closeActLogic txInfoF paramsF purpose inputStakingDatum = unTermCont $ do
       newEntryF <-
         getOutputEntry poolAddr entryTok txInfoDataF txInfoF.outputs
       ---- BUSINESS LOGIC ----
-      guardC
+      pguardC
         "closeActLogic: update failed because pool is not open"
         $ toPBool # oldEntryF.open
-      guardC
+      pguardC
         "closeActLogic: update failed because entry field 'key' is changed"
         $ oldEntryF.key #== newEntryF.key
       let rewards =
@@ -951,15 +960,16 @@ closeActLogic txInfoF paramsF purpose inputStakingDatum = unTermCont $ do
               oldEntryF.deposited
               oldEntryF.newDeposit
               oldEntryF.totalDeposited
-      guardC
+      pguardC
         "closeActLogic: update failed because entry field 'rewards' \
         \is not updatedRewards"
         $ newEntryF.rewards
           #== toNatRatio (pCeil # rewards)
-      guardC
+      pguardC
         "closeActLogic: update failed because entry field 'open' \
         \is not false"
         $ pnot # (toPBool # newEntryF.open)
+      pure punit
     PAssetDatum _ ->
       pconstant ()
 
@@ -1029,22 +1039,23 @@ newEntryGuard ::
   Term s PByteString ->
   TermCont s (Term s PUnit)
 newEntryGuard paramsF newEntryF stakeAmt stakeHolderKey = do
-  guardC
+  pguardC
     "newEntryGuard: incorrect init. of newDeposit and deposit fields \
     \in first stake"
     $ newEntryF.newDeposit #== stakeAmt
       #&& newEntryF.deposited #== stakeAmt
-  guardC "newEntryGuard: new entry does not have the stakeholder's key" $
+  pguardC "newEntryGuard: new entry does not have the stakeholder's key" $
     newEntryF.key #== stakeHolderKey
-  guardC "newEntryGuard: new entry's stake not within stake bounds" $
+  pguardC "newEntryGuard: new entry's stake not within stake bounds" $
     pfromData paramsF.minStake #<= newEntryF.deposited
       #&& pfromData newEntryF.deposited #<= paramsF.maxStake
-  guardC
+  pguardC
     "newEntryGuard: new entry's rewards, totalRewards, and totalDeposited \
     \fields not initialized to zero"
     $ newEntryF.rewards #== ratZero
       #&& newEntryF.totalRewards #== natZero
       #&& newEntryF.totalDeposited #== natZero
+  pure punit
 
 -- This function validates that two entries' fields are the same (with the
 -- exception of fields related to the associative list)
@@ -1053,8 +1064,8 @@ equalEntriesGuard ::
   PEntryHRec s ->
   PEntryHRec s ->
   TermCont s (Term s PUnit)
-equalEntriesGuard e1 e2 =
-  guardC "equalEntriesGuard: some fields in the given entries are not equal" $
+equalEntriesGuard e1 e2 = do
+  pguardC "equalEntriesGuard: some fields in the given entries are not equal" $
     e1.key #== e2.key
       #&& e1.deposited #== e2.deposited
       #&& e1.newDeposit #== e2.newDeposit
@@ -1062,6 +1073,7 @@ equalEntriesGuard e1 e2 =
       #&& e1.totalRewards #== e2.totalRewards
       #&& e1.totalDeposited #== e2.totalDeposited
       #&& e1.open #== e2.open
+  pure punit
 
 getKey ::
   forall (s :: S).
@@ -1095,7 +1107,7 @@ withdrawRewardsGuard period amount interest entryF =
           (depositWithdrawGuardWithRewards amount entryF)
     BondingPeriod -> unTermCont $ do
       -- Calculate maximum withdrawal amount
-      guardC
+      pguardC
         "withdrawRewardsGuard: totalDeposited is zero"
         $ natZero #< entryF.totalDeposited
       let flhs =
@@ -1112,10 +1124,11 @@ withdrawRewardsGuard period amount interest entryF =
           rhs = mkNatRatioUnsafe (pto f) (pto rhsDenominator')
           bondingRewards = roundDown $ entryF.rewards #+ rhs
       -- Validate amount is within bounds
-      guardC
+      pguardC
         "withdrawRewardsGuard: reward withdrawal amount not within bounds"
         $ entryF.deposited #<= amount
           #&& amount #<= entryF.deposited #+ bondingRewards
+      pure punit
     _ -> ptraceError "withdrawRewardsGuard: invalid withdraw period"
   where
     depositWithdrawGuardNoRewards ::
@@ -1124,10 +1137,11 @@ withdrawRewardsGuard period amount interest entryF =
       PEntryHRec s ->
       Term s PUnit
     depositWithdrawGuardNoRewards amount entryF = unTermCont $ do
-      guardC
+      pguardC
         "withdrawRewardsGuard: reward withdrawal amount not within bounds"
         $ entryF.deposited #<= amount
           #&& amount #<= entryF.deposited
+      pure punit
     depositWithdrawGuardWithRewards ::
       forall (s :: S).
       Term s PNatural ->
@@ -1142,10 +1156,11 @@ withdrawRewardsGuard period amount interest entryF =
                 entryF.deposited
                 entryF.newDeposit
                 entryF.totalDeposited
-      guardC
+      pguardC
         "withdrawRewardsGuard: reward withdrawal amount not within bounds"
         $ entryF.deposited #<= amount
           #&& amount #<= entryF.deposited #+ rewards
+      pure punit
 
 calculateRewards ::
   forall (s :: S).
@@ -1157,7 +1172,7 @@ calculateRewards ::
   Term s PNatRatio
 calculateRewards rewards totalRewards deposited newDeposit totalDeposited =
   unTermCont $ do
-    guardC
+    pguardC
       "calculateRewards: totalDeposited is zero"
       $ natZero #< totalDeposited
     let lhs = mkNatRatioUnsafe (pto totalRewards) (pto totalDeposited)

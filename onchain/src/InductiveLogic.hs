@@ -30,7 +30,7 @@ import Plutarch.Api.V1 (
 
 import Utils (
   allWith,
-  guardC,
+  pguardC,
   oneOf,
   oneWith,
   pconst,
@@ -150,8 +150,9 @@ consumesEntriesGuard prevEntry currEntry inputs listNftCs = do
               )
           )
           pfalse
-  guardC "consumesEntriesGuard: number of entries is not two" $
+  pguardC "consumesEntriesGuard: number of entries is not two" $
     plength # entries #== 2
+  pure punit
 
 -- | Fails if entry is not present in inputs or it does not have the list token
 consumesEntryGuard ::
@@ -188,7 +189,8 @@ doesNotConsumeBondedAssetGuard datum = do
   result <- pure . pmatch datum $ \case
     BS.PAssetDatum _ -> ptrue
     _ -> pfalse
-  guardC "doesNotConsumeBondedAssetGuard: tx consumes asset utxo" result
+  pguardC "doesNotConsumeBondedAssetGuard: tx consumes asset utxo" result
+  pure punit
 
 doesNotConsumeUnbondedAssetGuard ::
   forall (s :: S).
@@ -198,7 +200,8 @@ doesNotConsumeUnbondedAssetGuard datum = do
   result <- pure . pmatch datum $ \case
     US.PAssetDatum _ -> ptrue
     _ -> pfalse
-  guardC "doesNotConsumeUnbondedAssetGuard: tx consumes asset utxo" result
+  pguardC "doesNotConsumeUnbondedAssetGuard: tx consumes asset utxo" result
+  pure punit
 
 -- | Auxiliary function for building predicates on PTxInInfo's
 inputPredicate ::
