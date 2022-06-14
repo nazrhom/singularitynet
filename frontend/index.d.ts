@@ -23,7 +23,7 @@ export function callCloseBondedPool(
   Promise<void>
 
 export function callUserStakeBondedPool(
-  config: ContractConfig, args: BondedPoolArgs
+  config: ContractConfig, args: BondedPoolArgs, amount: bigint
 ):
   Promise<void>
 

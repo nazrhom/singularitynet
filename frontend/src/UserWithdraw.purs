@@ -44,7 +44,7 @@ import Contract.TxConstraints
   , mustPayToScript
   , mustSpendScriptOutput
   )
-import Contract.Utxos (UtxoM(..), utxosAt)
+import Contract.Utxos (UtxoM(UtxoM), utxosAt)
 import Contract.Value (Value, mkTokenName, singleton)
 import Data.Array (catMaybes, head)
 import Data.BigInt (BigInt)

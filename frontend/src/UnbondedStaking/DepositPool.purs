@@ -136,7 +136,7 @@ depositUnbondedPoolContract
       let
         assocList = mkOnchainAssocList assocListCs unbondedPoolUtxos
       updateList <- traverse (mkEntryUpdateList params valHash) assocList
-      -- Concatinate constraints/lookups
+      -- Concatenate constraints/lookups
       let
         constraintList = fst <$> updateList
         lookupList = snd <$> updateList
