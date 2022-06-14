@@ -148,6 +148,7 @@ depositBondedPoolContract
             <> ScriptLookups.unspentOutputs (unwrap adminUtxos)
             <> ScriptLookups.unspentOutputs (unwrap bondedPoolUtxos)
             <> mconcat assocListLookups
+
       -- Build transaction
       unattachedBalancedTx <-
         liftedE $ ScriptLookups.mkUnbalancedTx lookups constraints
@@ -177,15 +178,13 @@ depositBondedPoolContract
 -- | Calculates user rewards
 calculateRewards
   :: Rational -- interest
-  -> BigInt -- newDeposit
   -> BigInt -- deposited
   -> Contract () Rational
-calculateRewards interest newDeposit deposited = do
+calculateRewards interest deposited = do
   when (deposited == zero) $
     throwContractError "calculateRewards: totalDeposited is zero"
   let
-    oldDeposited = deposited - newDeposit
-    recentRewards = interest * mkRatUnsafe (oldDeposited % one)
+    recentRewards = interest * mkRatUnsafe (deposited % one)
   when (recentRewards < zero) $ throwContractError
     "calculateRewards: invalid rewards amount"
   pure recentRewards
@@ -222,7 +221,6 @@ mkEntryUpdateList
       calculatedRewards <-
         calculateRewards
           interest
-          e.newDeposit
           e.deposited
       -- Get the token name for the user by hashing
       assocListTn <-
@@ -243,7 +241,7 @@ mkEntryUpdateList
               , rewards = newRewards
               }
           }
-        valRedeemer = Redeemer $ toData $ AdminAct
+        valRedeemer = Redeemer $ toData AdminAct
         -- Build asset datum and value types
         assetDatum = Datum $ toData AssetDatum
         assetParams = unwrap bondedAssetClass
