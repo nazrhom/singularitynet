@@ -43,8 +43,9 @@ import Contract.TxConstraints
   , mustSpendScriptOutput
   )
 import Contract.Utxos (utxosAt)
-import Contract.Value (mkTokenName, singleton)
+import Contract.Value (flattenNonAdaAssets, mkTokenName, singleton)
 import Control.Applicative (unless)
+import Data.Array (head)
 import Data.BigInt (BigInt)
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkBondedPoolValidator)
@@ -222,11 +223,12 @@ mkEntryUpdateList
         calculateRewards
           interest
           e.deposited
-      -- Get the token name for the user by hashing
-      assocListTn <-
-        liftContractM
-          "mkEntryUpdateList: Could not create token name for user"
-          $ mkTokenName e.key
+      let entryValues = flattenNonAdaAssets (unwrap txOut).amount
+      when (length entryValues /= 1)
+        $ throwContractError "mkEntryUpdateList: length of Entry value /= 1"
+      _ /\ assocListTn /\ _ <- liftContractM "mkEntryUpdateList: Couldn't get\
+        \ old Entry value head"
+        $ head entryValues
       -- Update the entry datum
       let
         recentRewards = roundUp calculatedRewards
