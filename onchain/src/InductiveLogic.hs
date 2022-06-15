@@ -30,7 +30,6 @@ import Plutarch.Api.V1 (
 
 import Utils (
   allWith,
-  pguardC,
   oneOf,
   oneWith,
   pconst,
@@ -38,6 +37,7 @@ import Utils (
   pfalse,
   pfind,
   pflip,
+  pguardC,
   pneq,
   ptrue,
   punit,

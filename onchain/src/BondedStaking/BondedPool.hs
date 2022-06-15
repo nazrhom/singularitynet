@@ -79,13 +79,13 @@ import Utils (
   getOutputSignedBy,
   getTokenCount,
   getTokenName,
-  pguardC,
   oneWith,
   parseStakingDatum,
   pconst,
   peq,
   pfalse,
   pfind,
+  pguardC,
   pletC,
   pnestedIf,
   ptrue,
@@ -224,7 +224,7 @@ adminActLogic ::
   PBondedPoolParamsHRec s ->
   Term s PUnit
 adminActLogic _ _ = unTermCont $ do
--- adminActLogic txInfo params = unTermCont $ do
+  -- adminActLogic txInfo params = unTermCont $ do
   -- -- We check that the transaction was signed by the pool operator
   -- pguardC "transaction not signed by admin" $
   --   signedBy txInfo.signatories params.admin
@@ -778,7 +778,7 @@ closeActLogic ::
   Term s PBondedPoolParams ->
   Term s PUnit
 closeActLogic _ _ = unTermCont $ do
--- closeActLogic txInfo params = unTermCont $ do
+  -- closeActLogic txInfo params = unTermCont $ do
   -- -- Retrieve fields from parameters
   -- txInfoF <-
   --   tcont $

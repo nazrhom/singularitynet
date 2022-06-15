@@ -33,11 +33,11 @@ import Plutarch.Crypto (pblake2b_256)
 import Utils (
   getCs,
   getOnlySignatory,
-  pguardC,
   oneOf,
   oneWith,
   peq,
   pflip,
+  pguardC,
   pletC,
   porList,
   ptryFromUndata,
