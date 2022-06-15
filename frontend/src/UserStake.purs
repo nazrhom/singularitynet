@@ -94,6 +94,7 @@ userStakeBondedPoolContract
   userUtxos <-
     liftedM "userStakeBondedPoolContract: Cannot get user Utxos"
       $ utxosAt userAddr
+  logInfo_ "userStakeBondedPoolContract: User Address" userAddr
   -- Get the bonded pool validator and hash
   validator <- liftedE' "userStakeBondedPoolContract: Cannot create validator"
     $ mkBondedPoolValidator params
@@ -171,13 +172,15 @@ userStakeBondedPoolContract
           { maybeEntryName: Just hashedUserPkh
           }
         -- The new Entry
-        entryDatum = Datum $ toData $ Entry
-          { key: hashedUserPkh
-          , newDeposit: amtBigInt
-          , deposited: amtBigInt
-          , staked: zero
-          , rewards: zero
-          , next: Nothing -- There are no other elements in the list
+        entryDatum = Datum $ toData $ EntryDatum
+          { entry: Entry
+              { key: hashedUserPkh
+              , newDeposit: amtBigInt
+              , deposited: amtBigInt
+              , staked: zero
+              , rewards: zero
+              , next: Nothing -- There are no other elements in the list
+              }
           }
 
       bondedStateDatumLookup <-
@@ -243,13 +246,15 @@ userStakeBondedPoolContract
               { maybeEntryName: Just hashedUserPkh -- points to new head
               }
             -- The new Entry
-            entryDatum = Datum $ toData $ Entry
-              { key: hashedUserPkh
-              , newDeposit: amtBigInt
-              , deposited: amtBigInt
-              , staked: zero
-              , rewards: zero
-              , next: Just key -- points to the previous head.
+            entryDatum = Datum $ toData $ EntryDatum
+              { entry: Entry
+                  { key: hashedUserPkh
+                  , newDeposit: amtBigInt
+                  , deposited: amtBigInt
+                  , staked: zero
+                  , rewards: zero
+                  , next: Just key -- points to the previous head.
+                  }
               }
 
           bondedStateDatumLookup <-
@@ -455,13 +460,15 @@ userStakeBondedPoolContract
                 -- Minting a new Entry
                 mintRedeemer = Redeemer $ toData $ ListInsert ma
 
-                entryDatum = Datum $ toData $ Entry
-                  { key: hashedUserPkh
-                  , newDeposit: amtBigInt
-                  , deposited: amtBigInt
-                  , staked: zero
-                  , rewards: zero
-                  , next: secondKey -- points to original second key
+                entryDatum = Datum $ toData $ EntryDatum
+                  { entry: Entry
+                      { key: hashedUserPkh
+                      , newDeposit: amtBigInt
+                      , deposited: amtBigInt
+                      , staked: zero
+                      , rewards: zero
+                      , next: secondKey -- points to original second key
+                      }
                   }
 
               entryDatumLookup <-

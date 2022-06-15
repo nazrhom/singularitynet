@@ -43,9 +43,8 @@ import Plutarch.Builtin (pforgetData)
 import Plutarch.Unsafe (punsafeCoerce)
 
 import PNatural (
-  PNatRatio,
   PNatural,
-  PNonNegative ((#*), (#+)),
+  PNonNegative ((#+)),
   natZero,
   ratZero,
   roundDown,
@@ -56,7 +55,7 @@ import PTypes (
   PAssetClass,
   PBurningAction (PBurnHead, PBurnOther, PBurnSingle),
   PMintingAction (PMintEnd, PMintHead, PMintInBetween),
-  PPeriod (BondingPeriod, ClosingPeriod),
+  PPeriod (ClosingPeriod),
   PTxInInfoFields,
   PTxInInfoHRec,
   PTxInfoFields,
@@ -151,7 +150,7 @@ pbondedPoolValidator = phoistAcyclic $
         PAdminAct _ -> unTermCont $ do
           -- guardC "pbondedPoolValidator: wrong period for PAdminAct redeemer" $
           --  getBondedPeriod # txInfoF.validRange # params #== bondingPeriod
-          pure $ adminActLogic txInfoF paramsF ctxF.purpose dat
+          pure $ adminActLogic txInfoF paramsF
         PStakeAct act -> unTermCont $ do
           -- guardC "pbondedPoolValidator: wrong period for PStakeAct \
           -- \redeemer" $
@@ -195,7 +194,7 @@ pbondedPoolValidator = phoistAcyclic $
       Term s PCurrencySymbol ->
       Term s PBool
     isBurningEntry val cs =
-      oneWith # (peq # cs) # (pconst ptrue) # (peq # (-1)) # val
+      oneWith # (peq # cs) # pconst ptrue # (peq # (-1)) # val
 
 -- Untyped version to be serialised. This version is responsible for verifying
 -- that the parameters (pool params, datum and redeemer) have the proper types.
@@ -223,120 +222,12 @@ adminActLogic ::
   forall (s :: S).
   PTxInfoHRec s ->
   PBondedPoolParamsHRec s ->
-  Term s PScriptPurpose ->
-  Term s PBondedStakingDatum ->
   Term s PUnit
-adminActLogic txInfo params purpose inputStakingDatum = unTermCont $ do
+adminActLogic txInfo params = unTermCont $ do
   -- We check that the transaction was signed by the pool operator
   guardC "transaction not signed by admin" $
     signedBy txInfo.signatories params.admin
-  -- We get the input's address
-  input <-
-    tcont . pletFields @'["outRef", "resolved"]
-      =<< getInput purpose txInfo.inputs
-  inputResolved <-
-    tcont . pletFields @["address", "value", "datumHash"] $ input.resolved
-  let poolAddr :: Term s PAddress
-      poolAddr = inputResolved.address
-  -- We get the txinfo data field for convenience
-  let txInfoData :: Term s (PBuiltinList (PAsData (PTuple PDatumHash PDatum)))
-      txInfoData = getField @"data" txInfo
-  -- We make sure that the input's Datum is updated correctly for each Datum
-  -- constructor
-  pure . pmatch inputStakingDatum $ \case
-    PStateDatum state' -> unTermCont $ do
-      ---- FETCH DATUMS ----
-      let stateCs = params.nftCs
-          stateTn = pconstant bondedStakingTokenName
-          stateTok = passetClass # stateCs # stateTn
-      -- Get current state
-      stateHeadKey <-
-        (\s -> pure (pfromData s._0))
-          <=< tcont . pletFields @'["_0"]
-          $ state'
-      -- We retrieve the continuing output's datum
-      newStateHeadKey <-
-        getStateData
-          <=< parseStakingDatum
-          <=< flip getDatum txInfoData
-          <=< getDatumHash
-          <=< getContinuingOutputWithNFT poolAddr stateTok
-          $ txInfo.outputs
-      ---- BUSINESS LOGIC ----
-      guardC "adminActLogic: admin update should not update list head" $
-        pdata stateHeadKey #== pdata newStateHeadKey
-    PEntryDatum entry' -> unTermCont $ do
-      ---- FETCH DATUMS ----
-      -- Retrieve fields from entry
-      entry <- tcont . pletFields @PEntryFields $ pfield @"_0" # entry'
-      -- We get the entry' asset class
-      entryTok <- pletC $ getTokenName params.assocListCs inputResolved.value
-      -- Get updated entry
-      newEntry <- getOutputEntry poolAddr entryTok txInfoData txInfo.outputs
-      ---- BUSINESS LOGIC ----
-      pure $
-        pif
-          (nat entry.newDeposit #== natZero)
-          (noNewDepositLogic entry newEntry)
-          (newDepositLogic entry newEntry)
-    PAssetDatum _ ->
-      ptraceError
-        "adminActLogic: update failed because a wrong \
-        \datum constructor was provided"
-  where
-    __isBondingPeriod :: Term s PPeriod -> Term s PBool
-    __isBondingPeriod period = pmatch period $ \case
-      BondingPeriod -> pconstant True
-      _ -> pconstant False
-    newDepositLogic ::
-      PEntryHRec s -> PEntryHRec s -> Term s PUnit
-    newDepositLogic entry newEntry = unTermCont $ do
-      guardC "adminActLogic: changed invalid fields in cycle with new deposit" $
-        newEntry.key #== entry.key
-          #&& newEntry.deposited #== entry.deposited
-          #&& newEntry.next #== entry.next
-      guardC
-        "adminActLogic: newDeposit was not set to zero in cycle with new\
-        \ deposit"
-        $ nat newEntry.newDeposit #== natZero
-      guardC
-        "adminActLogic: pool operator cannot reduce rewards or staked \
-        \amount"
-        $ nat entry.staked #<= nat newEntry.staked
-          #&& pfromData entry.rewards #<= pfromData newEntry.rewards
-      guardC
-        "adminActLogic: failure when updating rewards in cycle with new \
-        \deposit"
-        $ newEntry.rewards
-          #== updatedRewards entry.rewards params.interest newEntry.staked
-    noNewDepositLogic ::
-      PEntryHRec s -> PEntryHRec s -> Term s PUnit
-    noNewDepositLogic entry newEntry = unTermCont $ do
-      guardC
-        "adminActLogic: changed invalid fields in cycle with no new \
-        \deposit"
-        $ newEntry.key #== entry.key
-          #&& newEntry.deposited #== entry.deposited
-          #&& newEntry.staked #== entry.staked
-          #&& newEntry.next #== entry.next
-      guardC
-        "adminActLogic: failure when updating rewards in cycle with no \
-        \new deposit"
-        $ newEntry.rewards
-          #== updatedRewards entry.rewards params.interest newEntry.staked
-    -- Convenient conversion function
-    nat :: Term s (PAsData PNatural) -> Term s PNatural
-    nat = pfromData
-    -- Calculate interests and update rewards
-    updatedRewards ::
-      Term s PNatRatio -> Term s PNatRatio -> Term s PNatural -> Term s PNatRatio
-    updatedRewards rewards interest stake =
-      updateRewards' # rewards # interest # stake
-    updateRewards' ::
-      Term s (PNatRatio :--> PNatRatio :--> PNatural :--> PNatRatio)
-    updateRewards' = phoistAcyclic $
-      plam $ \rewards interest stake ->
-        interest #* (toNatRatio stake #+ rewards)
+  pure punit
 
 stakeActLogic ::
   forall (s :: S).
@@ -370,15 +261,13 @@ stakeActLogic txInfo params purpose datum act =
       natZero #<= stakeAmt
     -- Get asset output of the transaction (new locked stake)
     assetOutput <-
-      (tcont . pletFields @'["value"])
-        =<< fmap
-          fst
-          ( getCoWithDatum
-              poolAddr
-              isAssetDatum
-              txInfo.outputs
-              $ getField @"data" txInfo
-          )
+      (tcont . pletFields @'["value"] . fst)
+        =<< ( getCoWithDatum
+                poolAddr
+                isAssetDatum
+                txInfo.outputs
+                $ getField @"data" txInfo
+            )
     -- Check that the correct amount of the assetclass is locked
     bondedAsset <-
       tcont . pletFields @'["currencySymbol", "tokenName"] $
@@ -568,7 +457,8 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
         prevEntryUpdated <-
           getOutputEntry poolAddr prevEntryTok txInfoData txInfo.outputs
         -- Get datum for new list entry
-        newEntry <- getOutputEntry poolAddr newEntryTok txInfoData txInfo.outputs
+        newEntry <-
+          getOutputEntry poolAddr newEntryTok txInfoData txInfo.outputs
         -- Get the current entry's key
         currEntryKey <- pure . pmatch prevEntry.next $ \case
           PDJust key -> pfield @"_0" # key
@@ -619,7 +509,8 @@ newStakeLogic txInfo params spentInput datum holderPkh stakeAmt mintAct =
         endEntryUpdated <-
           getOutputEntry poolAddr endEntryTok txInfoData txInfo.outputs
         -- Get datum for new list entry
-        newEntry <- getOutputEntry poolAddr newEntryTok txInfoData txInfo.outputs
+        newEntry <-
+          getOutputEntry poolAddr newEntryTok txInfoData txInfo.outputs
         ---- BUSINESS LOGIC ----
         -- Validate initialization of new entry
         newEntryGuard params newEntry stakeAmt stakeHolderKey
@@ -668,7 +559,7 @@ withdrawActLogic
   datum
   act = do
     -- Construct some useful values for later
-    holderKey <- pure $ pblake2b_256 # pto (pfromData act.pubKeyHash)
+    let holderKey = pblake2b_256 # pto (pfromData act.pubKeyHash)
     entryTn <-
       pletC . pcon . PTokenName $ holderKey
     -- Get the input being spent
