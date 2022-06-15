@@ -39,7 +39,7 @@ unbondedStakingTokenName = mkTokenName =<< byteArrayFromAscii
 
 -- Defined as fixed rate for one cycle in APY
 bondedInterest :: Maybe Rational
-bondedInterest = toRational <$> fromNaturals (nat 1) (nat 100)
+bondedInterest = toRational <$> fromNaturals (nat 10) (nat 100)
 
 -- Defined as fixed rate for one time increment in APY
 unbondedInterest :: Maybe Rational
