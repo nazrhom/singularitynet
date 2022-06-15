@@ -187,8 +187,8 @@ doesNotConsumeBondedAssetGuard ::
   TermCont s (Term s PUnit)
 doesNotConsumeBondedAssetGuard datum = do
   result <- pure . pmatch datum $ \case
-    BS.PAssetDatum _ -> ptrue
-    _ -> pfalse
+    BS.PAssetDatum _ -> pfalse
+    _ -> ptrue
   pguardC "doesNotConsumeBondedAssetGuard: tx consumes asset utxo" result
   pure punit
 
@@ -198,8 +198,8 @@ doesNotConsumeUnbondedAssetGuard ::
   TermCont s (Term s PUnit)
 doesNotConsumeUnbondedAssetGuard datum = do
   result <- pure . pmatch datum $ \case
-    US.PAssetDatum _ -> ptrue
-    _ -> pfalse
+    US.PAssetDatum _ -> pfalse
+    _ -> ptrue
   pguardC "doesNotConsumeUnbondedAssetGuard: tx consumes asset utxo" result
   pure punit
 

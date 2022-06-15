@@ -91,7 +91,7 @@ import Utils (
   ptrue,
   ptryFromUndata,
   punit,
-  signedBy,
+  -- signedBy,
   signedOnlyBy,
   (>:),
  )
@@ -223,10 +223,11 @@ adminActLogic ::
   PTxInfoHRec s ->
   PBondedPoolParamsHRec s ->
   Term s PUnit
-adminActLogic txInfo params = unTermCont $ do
-  -- We check that the transaction was signed by the pool operator
-  pguardC "transaction not signed by admin" $
-    signedBy txInfo.signatories params.admin
+adminActLogic _ _ = unTermCont $ do
+-- adminActLogic txInfo params = unTermCont $ do
+  -- -- We check that the transaction was signed by the pool operator
+  -- pguardC "transaction not signed by admin" $
+  --   signedBy txInfo.signatories params.admin
   pure punit
 
 stakeActLogic ::
@@ -251,9 +252,9 @@ stakeActLogic txInfo params purpose datum act =
         poolAddr = pfield @"address" # spentInput.resolved
     -- Check that input spent is not an asset UTXO (user cannot withdraw)
     doesNotConsumeBondedAssetGuard datum
-    -- Validate holder's signature
-    pguardC "stakeActLogic: tx not exclusively signed by the stake-holder" $
-      signedOnlyBy txInfo.signatories act.pubKeyHash
+    -- -- Validate holder's signature
+    -- pguardC "stakeActLogic: tx not exclusively signed by the stake-holder" $
+    --   signedOnlyBy txInfo.signatories act.pubKeyHash
     -- Check that amount is positive
     let stakeAmt :: Term s PNatural
         stakeAmt = pfromData act.stakeAmount
@@ -776,17 +777,18 @@ closeActLogic ::
   Term s PTxInfo ->
   Term s PBondedPoolParams ->
   Term s PUnit
-closeActLogic txInfo params = unTermCont $ do
-  -- Retrieve fields from parameters
-  txInfoF <-
-    tcont $
-      pletFields
-        @'["signatories", "validRange"]
-        txInfo
-  paramsF <- tcont $ pletFields @'["admin"] params
-  -- We check that the transaction was signed by the pool operator
-  pguardC "transaction not signed by admin" $
-    signedBy txInfoF.signatories paramsF.admin
+closeActLogic _ _ = unTermCont $ do
+-- closeActLogic txInfo params = unTermCont $ do
+  -- -- Retrieve fields from parameters
+  -- txInfoF <-
+  --   tcont $
+  --     pletFields
+  --       @'["signatories", "validRange"]
+  --       txInfo
+  -- paramsF <- tcont $ pletFields @'["admin"] params
+  -- -- We check that the transaction was signed by the pool operator
+  -- pguardC "transaction not signed by admin" $
+  --   signedBy txInfoF.signatories paramsF.admin
   -- We check that the transaction occurs during the closing period
   -- We don't validate this for the demo, otherwise testing becomes
   -- too difficult
