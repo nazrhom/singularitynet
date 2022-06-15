@@ -107,8 +107,6 @@ bondedCallContractExample1 = launchAff_ do
   -- Admin close
   Promise.toAffE $ callCloseBondedPool adminCfg bondedParams
 
-
-
 -- Hardcoded to pass persistent parameters onto subsequent calls.
 testBondedPoolArgs :: Maybe BondedPoolArgs
 testBondedPoolArgs = do
