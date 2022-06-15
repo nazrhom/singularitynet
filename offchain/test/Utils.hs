@@ -19,8 +19,8 @@ import Test.Plutip.Contract ( initAda, TestWallets )
 import Plutus.Contract qualified as Contract
 import Plutus.Contract (Contract, EmptySchema)
 import Cardano.Prelude (Text, listToMaybe)
-import Ledger (PaymentPubKeyHash (PaymentPubKeyHash), ChainIndexTxOut, PubKeyHash (PubKeyHash), Datum (Datum), TxOut, Redeemer)
-import Ledger qualified as Ledger
+import Ledger (PaymentPubKeyHash (PaymentPubKeyHash), ChainIndexTxOut, PubKeyHash (PubKeyHash), Datum (Datum), TxOut)
+import Ledger qualified
 import Ledger.Constraints qualified as Constraints
 import Plutus.V1.Ledger.Api (Address, BuiltinByteString, TxOutRef, Script, Value, TxOut (TxOut), BuiltinData, FromData, toData, TokenName (TokenName))
 import Data.Map (Map)
@@ -39,10 +39,13 @@ import PlutusTx qualified
 import Data.Void (Void)
 import Ledger.Scripts (applyArguments)
 import Data.Ratio ((%))
-import SingularityNet.Natural (NatRatio(NatRatio), Natural (Natural))
+import SingularityNet.Natural (NatRatio(NatRatio), Natural (Natural), toPOSIXTime)
 import Plutus.V1.Ledger.Value (valueOf)
-import Control.Monad (unless)
+import Control.Monad (unless, when)
 import Data.Text (pack)
+import Plutus.V1.Ledger.Api (POSIXTimeRange)
+import Plutus.V1.Ledger.Api (POSIXTime)
+import Plutus.V1.Ledger.Interval (interval)
 
 -- The first UTxO is used for initializing the pool
 testAdminWallet :: TestWallets
@@ -203,7 +206,13 @@ userHeadStake
     bpp@BondedPoolParams {..}
     TBondedPool {..}
     stakeAmt@(Natural stakeAmtNat) = do
-        (PaymentPubKeyHash userPkh, userKey, userUtxos) <- getUserData userPPkh 
+        (PaymentPubKeyHash userPkh, userKey, userUtxos) <- getUserData userPPkh
+        -- Calculate time range of the transaction and wait the appropriate time
+        currTime <- Contract.currentTime
+        (rangeStart, rangeEnd) <- getStakingTime bpp
+        let timeRange :: POSIXTimeRange
+            timeRange = interval rangeStart rangeEnd
+        Contract.awaitTime $ if currTime < rangeStart then rangeStart else 0
         -- Get pool utxos
         let valHash = Ledger.validatorHash validator
             poolAddr = Ledger.scriptAddress validator
@@ -266,6 +275,7 @@ userHeadStake
                     <> Constraints.mustPayToOtherScript valHash assetDatum stakeVal
                     <> Constraints.mustBeSignedBy userPPkh
                     <> Constraints.mustSpendScriptOutput tbpTxOutRef valRedeemer
+                    <> Constraints.mustValidateIn timeRange
 
             -- Submit and await transaction
             tx <- Contract.submitTxConstraintsWith lookups constraints
@@ -414,7 +424,27 @@ initPool
                 (scriptCurrencySymbol $ listPolicy bondedPoolScripts)
                 initialParams
         in (bondedPoolScripts, bondedPoolParams)
-        
+
+getStakingTime :: BondedPoolParams -> Contract String EmptySchema Text (POSIXTime, POSIXTime)
+getStakingTime bpp@BondedPoolParams{..} = do
+    currTime <- Contract.currentTime
+    -- Contract.throwError $ pack $ "TIME': " <> show currTime <> "\n" <> show bpp
+    -- Throw error if staking is impossible
+    when (currTime > end) $
+        Contract.throwError "getStakingTime: pool already closed"
+    when (currTime > end - userLength) $
+        Contract.throwError "getStakingTime: pool in withdrawing only period"
+    -- Get timerange in which the staking should be performed
+    let cycleLength :: POSIXTime
+        cycleLength = bondingLength + userLength
+        possibleRanges :: [(POSIXTime, POSIXTime)]
+        possibleRanges = filter (\r -> snd r > currTime) $
+            [(start + n * cycleLength, start + n * cycleLength + userLength - 1)
+                | n <- [0 .. toPOSIXTime iterations - 1]]
+    case possibleRanges of
+        (s, e) : _ -> pure (s, e)
+        _ -> Contract.throwError "getStakingTime: no more staking periods available"
+
 logInfo :: Show a => String -> a -> Contract w s e ()
 logInfo msg a = Contract.logInfo (msg <> ": " <> show a)
 

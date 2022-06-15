@@ -1,25 +1,11 @@
-{-# LANGUAGE RecordWildCards #-}
 module SpecUserStake(specUserStake) where
 
-import Data.Map (Map)
-import Data.Map qualified as Map
-import Data.Text (Text)
-import Data.Void (Void)
+import Data.Text (Text, pack)
 
 import Plutus.V1.Ledger.Api (
-  MintingPolicy (MintingPolicy),
-  Script,
-  TxOutRef,
-  singleton, BuiltinByteString, PubKeyHash (PubKeyHash)
+  POSIXTime,
  )
-import Plutus.V1.Ledger.Scripts (
-  applyArguments,
- )
-import PlutusTx (toData)
 
-import Ledger.Address (Address, PaymentPubKeyHash)
-import Ledger.Constraints qualified as Constraints
-import Ledger.Tx qualified as Tx
 import Plutus.Contract (
   Contract,
   EmptySchema,
@@ -43,8 +29,8 @@ import PlutusTx.Builtins (blake2b_256)
 
 import Utils(testAdminWallet, testUserWallet, createBondedPool, testInitialBondedParams, userHeadStake, testUserStake)
 import SingularityNet.Types (BondedPoolParams)
-import Types (InitialBondedPoolParams, BondedPoolScripts, TBondedPool (TBondedPool))
-import SingularityNet.Natural (Natural)
+import Types (InitialBondedPoolParams (initStart, initEnd, initIterations, initBondingLength, initUserLength), BondedPoolScripts, TBondedPool (TBondedPool))
+import SingularityNet.Natural (Natural (Natural))
 
 specUserStake :: BondedPoolScripts -> TestTree
 specUserStake scripts = 
@@ -63,6 +49,18 @@ userStakeContract ::
     [PaymentPubKeyHash] ->
     Contract String EmptySchema Text ()
 userStakeContract bps stakeAmt pkhs  = do
-    (bpts, bpp, bondedPool) <- createBondedPool bps testInitialBondedParams 
+    -- Set up pool parameters
+    currTime <- Contract.currentTime
+    let userLength :: POSIXTime
+        userLength = 180
+        initialBondedParams :: InitialBondedPoolParams
+        initialBondedParams = testInitialBondedParams {
+            initStart = 80_000 + currTime,
+            initEnd = 80_000 + currTime + 7 * userLength,
+            initUserLength = userLength,
+            initBondingLength = userLength,
+            initIterations = Natural 1
+        }
+    (bpts, bpp, bondedPool) <- createBondedPool bps initialBondedParams
     _ <- userHeadStake pkhs bpts bpp bondedPool stakeAmt
     pure ()
