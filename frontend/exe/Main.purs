@@ -98,6 +98,7 @@ main = launchAff_ do
 -- main :: Effect Unit
 -- main =
 -- bondedCallContractCreatePoolExample1
+-- After running the above contract, update `testBondedPoolArgs` accordingly.
 -- bondedCallContractUserStakeExample1
 -- bondedCallContractAdminDepositExample1
 -- bondedCallContractAdminCloseExample1

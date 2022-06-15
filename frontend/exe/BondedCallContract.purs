@@ -73,17 +73,6 @@ testInitialBondedArgs = do
     , bondedAssetClass
     }
 
--- Hardcoded to pass persistent parameters onto subsequent calls.
-testBondedPoolArgs :: Maybe BondedPoolArgs
-testBondedPoolArgs = do
-  iba <- testInitialBondedArgs
-  let
-    admin = "7df2b92eabfe7ee15d5bd05daf11572f3fcae3b7026851ab5d9d28e6"
-    assocListCs = "c355f15087c2a3358c197bac069370fa8dee57c07604b6862378165b"
-    nftCs = "7dbfb68c955a679825e39c50a4c495aca22c3c2a2888836d6c5e32ca"
-  pure $ merge iba
-    { "admin": admin, "assocListCs": assocListCs, "nftCs": nftCs }
-
 -- Bonded example: admin deposit, user head stake, admin deposit and admin close.
 -- This doesn't seem to work, instead, we need to break down the example into
 -- separate effects. See `bondedCallContractCreatePoolExample1`
@@ -104,7 +93,7 @@ bondedCallContractExample1 = launchAff_ do
   bondedParams <- Promise.toAffE $ callCreateBondedPool adminCfg iba
   log "SWITCH WALLETS NOW - CHANGE TO USER 1"
   delay $ wrap $ Int.toNumber 100_00
-  -- User 1 deposits
+  -- User 1 stakes
   userCfg <- Promise.toAffE $ buildContractConfig defaultSdkConfig
   userStake <- liftM (error "bondedCallContractExample1: Cannot create BigInt")
     $ BigInt.fromString "10"
@@ -118,8 +107,25 @@ bondedCallContractExample1 = launchAff_ do
   -- Admin close
   Promise.toAffE $ callCloseBondedPool adminCfg bondedParams
 
+
+
+-- Hardcoded to pass persistent parameters onto subsequent calls.
+testBondedPoolArgs :: Maybe BondedPoolArgs
+testBondedPoolArgs = do
+  iba <- testInitialBondedArgs
+  -- ****UPDATE THESE PARAMETERS IN ACCORDANCE TO WHAT IS LOGGED AFTER****
+  -- bondedCallContractCreatePoolExample1
+  let
+    admin = "7df2b92eabfe7ee15d5bd05daf11572f3fcae3b7026851ab5d9d28e6"
+    assocListCs = "c355f15087c2a3358c197bac069370fa8dee57c07604b6862378165b"
+    nftCs = "7dbfb68c955a679825e39c50a4c495aca22c3c2a2888836d6c5e32ca"
+  pure $ merge iba
+    { "admin": admin, "assocListCs": assocListCs, "nftCs": nftCs }
+
 -- These examples work when called separately. An example can be found inside
--- `exe/Main.purs`
+-- `exe/Main.purs`. Please update `testBondedPoolArgs` after running this
+-- contract before resuming with next contracts.
+-- Bonded pool creation:
 bondedCallContractCreatePoolExample1 :: Effect Unit
 bondedCallContractCreatePoolExample1 = launchAff_ do
   adminCfg <- Promise.toAffE $ buildContractConfig defaultSdkConfig
@@ -138,6 +144,7 @@ bondedCallContractCreatePoolExample1 = launchAff_ do
   log $ "nftCs: " <> show bondedParams.nftCs
   log "SWITCH WALLETS NOW - CHANGE TO USER 1"
 
+-- Bonded user stake
 bondedCallContractUserStakeExample1 :: Effect Unit
 bondedCallContractUserStakeExample1 = launchAff_ do
   userCfg <- Promise.toAffE $ buildContractConfig defaultSdkConfig
@@ -154,9 +161,11 @@ bondedCallContractUserStakeExample1 = launchAff_ do
         \ get bonded pool parameters"
     )
     testBondedPoolArgs
+  -- User 1 stake
   Promise.toAffE $ callUserStakeBondedPool userCfg bondedParams userStake
   log "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
 
+-- Bonded admin deposit (rewards)
 bondedCallContractAdminDepositExample1 :: Effect Unit
 bondedCallContractAdminDepositExample1 = launchAff_ do
   adminCfg <- Promise.toAffE $ buildContractConfig defaultSdkConfig
@@ -170,6 +179,7 @@ bondedCallContractAdminDepositExample1 = launchAff_ do
   Promise.toAffE $ callDepositBondedPool adminCfg bondedParams
   log "DON'T SWITCH WALLETS - STAY AS ADMIN"
 
+-- Bonded admin pool close
 bondedCallContractAdminCloseExample1 :: Effect Unit
 bondedCallContractAdminCloseExample1 = launchAff_ do
   adminCfg <- Promise.toAffE $ buildContractConfig defaultSdkConfig
