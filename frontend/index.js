@@ -21,3 +21,8 @@ exports.callCloseBondedPool = async (config, args) => {
   const contracts = await frontend;
   return contracts.callCloseBondedPool(config)(args)();
 };
+
+exports.callUserStakeBondedPool = async (config, args, amount) => {
+  const contracts = await frontend;
+  return contracts.callUserStakeBondedPool(config)(args)(amount)();
+};

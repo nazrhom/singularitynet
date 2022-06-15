@@ -1,9 +1,10 @@
 module CallContract
   ( SdkConfig
-  , callClosePool
+  , buildContractConfig
+  , callCloseBondedPool
   , callCreateBondedPool
   , callDepositBondedPool
-  , buildContractConfig
+  , callUserStakeBondedPool
   ) where
 
 import Contract.Prelude
@@ -53,6 +54,7 @@ import Serialization.Hash (ed25519KeyHashFromBytes, ed25519KeyHashToBytes)
 import Types (BondedPoolParams(BondedPoolParams), InitialBondedParams)
 import Types.CborBytes (cborBytesToHex)
 import Types.RawBytes (hexToRawBytes, rawBytesToHex)
+import UserStake (userStakeBondedPoolContract)
 
 -- | Configuation needed to call contracts from JS.
 type SdkConfig =
@@ -147,7 +149,7 @@ buildContractConfig cfg = Promise.fromAff $ do
       $ UInt.fromNumber' port
 
 callCreateBondedPool
-  :: (ContractConfig ())
+  :: ContractConfig ()
   -> InitialBondedArgs
   -> Effect (Promise BondedPoolArgs)
 callCreateBondedPool cfg iba = Promise.fromAff do
@@ -156,16 +158,24 @@ callCreateBondedPool cfg iba = Promise.fromAff do
   pure $ toBondedPoolArgs bpp
 
 callDepositBondedPool
-  :: (ContractConfig ()) -> BondedPoolArgs -> Effect (Promise Unit)
+  :: ContractConfig () -> BondedPoolArgs -> Effect (Promise Unit)
 callDepositBondedPool = callWithBondedPoolArgs depositBondedPoolContract
 
-callClosePool
-  :: (ContractConfig ()) -> BondedPoolArgs -> Effect (Promise Unit)
-callClosePool = callWithBondedPoolArgs closeBondedPoolContract
+callCloseBondedPool
+  :: ContractConfig () -> BondedPoolArgs -> Effect (Promise Unit)
+callCloseBondedPool = callWithBondedPoolArgs closeBondedPoolContract
+
+callUserStakeBondedPool
+  :: ContractConfig () -> BondedPoolArgs -> BigInt -> Effect (Promise Unit)
+callUserStakeBondedPool cfg bpa bi = Promise.fromAff $ runContract cfg do
+  bpp <- liftEither $ fromBondedPoolArgs bpa
+  nat <- liftM (error "callUserStakeBondedPool: Invalid natural number")
+    $ fromBigInt bi
+  userStakeBondedPoolContract bpp nat
 
 callWithBondedPoolArgs
   :: (BondedPoolParams -> Contract () Unit)
-  -> (ContractConfig ())
+  -> ContractConfig ()
   -> BondedPoolArgs
   -> Effect (Promise Unit)
 callWithBondedPoolArgs contract cfg bpa = Promise.fromAff
