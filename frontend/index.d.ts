@@ -27,6 +27,11 @@ export function callUserStakeBondedPool(
 ):
   Promise<void>
 
+export function callUserWithdrawBondedPool(
+  config: ContractConfig, args: BondedPoolArgs
+):
+  Promise<void>
+
 export type SdkConfig = {
   serverHost: string; // e.g. "localhost"
   serverPort: number; // uint

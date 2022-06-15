@@ -2,11 +2,10 @@ module Main (main) where
 
 import Contract.Prelude
 
--- import CallContract
+-- import BondedCallContract
 --   ( bondedCallContractAdminCloseExample1
 --   , bondedCallContractAdminDepositExample1
 --   , bondedCallContractCreatePoolExample1
---   , bondedCallContractExample1
 --   , bondedCallContractUserStakeExample1
 --   )
 import ClosePool (closeBondedPoolContract)
@@ -63,6 +62,8 @@ import UserStake (userStakeBondedPoolContract)
 -- liftAff $ delay $ wrap $ toNumber 80_000
 -- closeUnbondedPoolContract unbondedParams
 
+-- Bonded: admin create pool, user stake, admin deposit (rewards), admin close
+-- using PureScript (non SDK)
 main :: Effect Unit
 main = launchAff_ do
   adminCfg <- mkConfig
@@ -91,7 +92,9 @@ main = launchAff_ do
   -- Admin closes pool
   runContract_ adminCfg $ closeBondedPoolContract bondedParams
 
--- Run each one at a time:
+-- Bonded: admin create pool, user stake, admin deposit (rewards), admin close
+-- using PureScript (SDK)
+-- Run *one* at a time:
 -- main :: Effect Unit
 -- main =
 -- bondedCallContractCreatePoolExample1
