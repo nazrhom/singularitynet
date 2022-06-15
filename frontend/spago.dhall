@@ -20,6 +20,7 @@ You can edit this file as you like.
   , "maybe"
   , "ordered-collections"
   , "prelude"
+  , "record"
   , "text-encoding"
   , "uint"
   ]
