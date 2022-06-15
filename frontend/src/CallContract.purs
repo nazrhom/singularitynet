@@ -1,10 +1,13 @@
 module CallContract
-  ( SdkConfig
+  ( BondedPoolArgs
+  , InitialBondedArgs
+  , SdkConfig
   , buildContractConfig
   , callCloseBondedPool
   , callCreateBondedPool
   , callDepositBondedPool
   , callUserStakeBondedPool
+  , callUserWithdrawBondedPool
   ) where
 
 import Contract.Prelude
@@ -55,6 +58,7 @@ import Types (BondedPoolParams(BondedPoolParams), InitialBondedParams)
 import Types.CborBytes (cborBytesToHex)
 import Types.RawBytes (hexToRawBytes, rawBytesToHex)
 import UserStake (userStakeBondedPoolContract)
+import UserWithdraw (userWithdrawBondedPoolContract)
 
 -- | Configuation needed to call contracts from JS.
 type SdkConfig =
@@ -172,6 +176,11 @@ callUserStakeBondedPool cfg bpa bi = Promise.fromAff $ runContract cfg do
   nat <- liftM (error "callUserStakeBondedPool: Invalid natural number")
     $ fromBigInt bi
   userStakeBondedPoolContract bpp nat
+
+callUserWithdrawBondedPool
+  :: ContractConfig () -> BondedPoolArgs -> Effect (Promise Unit)
+callUserWithdrawBondedPool =
+  callWithBondedPoolArgs userWithdrawBondedPoolContract
 
 callWithBondedPoolArgs
   :: (BondedPoolParams -> Contract () Unit)

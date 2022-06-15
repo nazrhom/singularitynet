@@ -2,6 +2,12 @@ module Main (main) where
 
 import Contract.Prelude
 
+-- import BondedCallContract
+--   ( bondedCallContractAdminCloseExample1
+--   , bondedCallContractAdminDepositExample1
+--   , bondedCallContractCreatePoolExample1
+--   , bondedCallContractUserStakeExample1
+--   )
 import ClosePool (closeBondedPoolContract)
 import Contract.Address (NetworkId(TestnetId))
 import Contract.Monad
@@ -56,6 +62,8 @@ import UserStake (userStakeBondedPoolContract)
 -- liftAff $ delay $ wrap $ toNumber 80_000
 -- closeUnbondedPoolContract unbondedParams
 
+-- Bonded: admin create pool, user stake, admin deposit (rewards), admin close
+-- using PureScript (non SDK)
 main :: Effect Unit
 main = launchAff_ do
   adminCfg <- mkConfig
@@ -83,6 +91,17 @@ main = launchAff_ do
     liftAff $ delay $ wrap $ toNumber 100_000
   -- Admin closes pool
   runContract_ adminCfg $ closeBondedPoolContract bondedParams
+
+-- Bonded: admin create pool, user stake, admin deposit (rewards), admin close
+-- using PureScript (SDK)
+-- Run *one* at a time:
+-- main :: Effect Unit
+-- main =
+-- bondedCallContractCreatePoolExample1
+-- After running the above contract, update `testBondedPoolArgs` accordingly.
+-- bondedCallContractUserStakeExample1
+-- bondedCallContractAdminDepositExample1
+-- bondedCallContractAdminCloseExample1
 
 mkConfig :: Aff (ContractConfig ())
 mkConfig = do
