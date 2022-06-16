@@ -30,7 +30,7 @@ import PlutusTx.Builtins (blake2b_256)
 import Utils(testAdminWallet, testUserWallet, createBondedPool, testInitialBondedParams, userHeadStake, testUserStake)
 import SingularityNet.Types (BondedPoolParams)
 import Types (InitialBondedPoolParams (initStart, initEnd, initIterations, initBondingLength, initUserLength), BondedPoolScripts, TBondedPool (TBondedPool))
-import SingularityNet.Natural (Natural (Natural))
+import SingularityNet.Natural (Natural (Natural), toPOSIXTime)
 
 specUserStake :: BondedPoolScripts -> TestTree
 specUserStake scripts = 
@@ -51,16 +51,30 @@ userStakeContract ::
 userStakeContract bps stakeAmt pkhs  = do
     -- Set up pool parameters
     currTime <- Contract.currentTime
-    let userLength :: POSIXTime
-        userLength = 180
+    let -- We give some time for the first transaction to run. `awaitTxConfirmed` waits for
+        -- 8 blocks (if everything works correctly)
+        creationDelay :: POSIXTime
+        creationDelay = 80_000 + currTime
+        -- We let the users stake/withdraw for 20 seconds (unwise to make it smaller than this)
+        userLength :: POSIXTime
+        userLength = 20_000
+        -- Same time for the operator to deposit
+        bondingLength :: POSIXTime
+        bondingLength = userLength
+        cycleLength :: POSIXTime
+        cycleLength = userLength + bondingLength
+        iterations :: Natural
+        iterations = Natural 1
         initialBondedParams :: InitialBondedPoolParams
         initialBondedParams = testInitialBondedParams {
-            initStart = 80_000 + currTime,
-            initEnd = 80_000 + currTime + 7 * userLength,
+            initStart = creationDelay,
+            -- One extra userLength for the final withdrawing period
+            initEnd = creationDelay + toPOSIXTime iterations * cycleLength + userLength,
             initUserLength = userLength,
-            initBondingLength = userLength,
-            initIterations = Natural 1
+            initBondingLength = bondingLength,
+            initIterations = iterations
         }
     (bpts, bpp, bondedPool) <- createBondedPool bps initialBondedParams
     _ <- userHeadStake pkhs bpts bpp bondedPool stakeAmt
     pure ()
+

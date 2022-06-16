@@ -46,6 +46,8 @@ import Data.Text (pack)
 import Plutus.V1.Ledger.Api (POSIXTimeRange)
 import Plutus.V1.Ledger.Api (POSIXTime)
 import Plutus.V1.Ledger.Interval (interval)
+import Control.Monad (void)
+import Ledger.TimeSlot (slotToPOSIXTimeRange)
 
 -- The first UTxO is used for initializing the pool
 testAdminWallet :: TestWallets
@@ -207,12 +209,14 @@ userHeadStake
     TBondedPool {..}
     stakeAmt@(Natural stakeAmtNat) = do
         (PaymentPubKeyHash userPkh, userKey, userUtxos) <- getUserData userPPkh
-        -- Calculate time range of the transaction and wait the appropriate time
-        currTime <- Contract.currentTime
-        (rangeStart, rangeEnd) <- getStakingTime bpp
+        -- Calculate time range of the transaction and wait the appropriate time if necessary
+        (currTime, rangeStart, rangeEnd) <- getStakingTime bpp
         let timeRange :: POSIXTimeRange
             timeRange = interval rangeStart rangeEnd
-        Contract.awaitTime $ if currTime < rangeStart then rangeStart else 0
+        when (currTime < rangeStart) $
+            void $ Contract.awaitTime rangeStart
+        when (currTime > rangeEnd) $
+            void $ Contract.throwError "userHeadStake: timeRange missed"
         -- Get pool utxos
         let valHash = Ledger.validatorHash validator
             poolAddr = Ledger.scriptAddress validator
@@ -425,10 +429,9 @@ initPool
                 initialParams
         in (bondedPoolScripts, bondedPoolParams)
 
-getStakingTime :: BondedPoolParams -> Contract String EmptySchema Text (POSIXTime, POSIXTime)
+getStakingTime :: BondedPoolParams -> Contract String EmptySchema Text (POSIXTime, POSIXTime, POSIXTime)
 getStakingTime bpp@BondedPoolParams{..} = do
     currTime <- Contract.currentTime
-    -- Contract.throwError $ pack $ "TIME': " <> show currTime <> "\n" <> show bpp
     -- Throw error if staking is impossible
     when (currTime > end) $
         Contract.throwError "getStakingTime: pool already closed"
@@ -439,11 +442,30 @@ getStakingTime bpp@BondedPoolParams{..} = do
         cycleLength = bondingLength + userLength
         possibleRanges :: [(POSIXTime, POSIXTime)]
         possibleRanges = filter (\r -> snd r > currTime) $
-            [(start + n * cycleLength, start + n * cycleLength + userLength - 1)
-                | n <- [0 .. toPOSIXTime iterations - 1]]
+            [(start + n * cycleLength, start + n * cycleLength + userLength - 1000)
+                | n <- [0 .. toPOSIXTime iterations]]
     case possibleRanges of
-        (s, e) : _ -> pure (s, e)
+        (s, e) : _ -> pure (currTime, s, e)
         _ -> Contract.throwError "getStakingTime: no more staking periods available"
+
+getBondingTime :: BondedPoolParams -> Contract String EmptySchema Text (POSIXTime, POSIXTime, POSIXTime)
+getBondingTime bpp@BondedPoolParams{..} = do
+    currTime <- Contract.currentTime
+    -- Throw error if bonding is impossible
+    when (currTime > end) $
+        Contract.throwError "getBondingTime: pool already closed"
+    when (currTime > end - userLength) $
+        Contract.throwError "getBondingTime: pool in withdrawing only period"
+    -- Get timerange in which the staking should be performed
+    let cycleLength :: POSIXTime
+        cycleLength = bondingLength + userLength
+        possibleRanges :: [(POSIXTime, POSIXTime)]
+        possibleRanges = filter (\r -> snd r > currTime) $
+            [(start + n * cycleLength + userLength, start + (n+1) * cycleLength - 1000)
+                | n <- [0 .. toPOSIXTime iterations]]
+    case possibleRanges of
+        (s, e) : _ -> pure (currTime, s, e)
+        _ -> Contract.throwError "getBondingTime: no more bonding periods available"
 
 logInfo :: Show a => String -> a -> Contract w s e ()
 logInfo msg a = Contract.logInfo (msg <> ": " <> show a)
