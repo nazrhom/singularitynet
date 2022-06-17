@@ -15,6 +15,7 @@ You can edit this file as you like.
   , "cardano-transaction-lib"
   , "console"
   , "control"
+  , "either"
   , "exceptions"
   , "integers"
   , "maybe"
@@ -22,6 +23,7 @@ You can edit this file as you like.
   , "prelude"
   , "record"
   , "text-encoding"
+  , "transformers"
   , "uint"
   ]
 , packages = ./packages.dhall

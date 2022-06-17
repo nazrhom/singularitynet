@@ -3,7 +3,8 @@ module UnbondedStaking.DepositPool (depositUnbondedPoolContract) where
 import Contract.Prelude
 
 import Contract.Address
-  ( AddressWithNetworkTag(AddressWithNetworkTag)
+  ( Address
+  , AddressWithNetworkTag(AddressWithNetworkTag)
   , getNetworkId
   , getWalletAddress
   , ownPaymentPubKeyHash
@@ -18,7 +19,7 @@ import Contract.Monad
   , logInfo'
   , throwContractError
   )
-import Contract.Numeric.Natural (toBigInt)
+import Contract.Numeric.Natural (Natural, toBigInt)
 import Contract.Numeric.Rational (Rational, (%))
 import Contract.PlutusData
   ( PlutusData
@@ -46,7 +47,10 @@ import Contract.TxConstraints
 import Contract.Utxos (utxosAt)
 import Contract.Value (mkTokenName, singleton)
 import Control.Applicative (unless)
+import Control.Monad.Error.Class (try)
+import Data.Array as Array
 import Data.BigInt (BigInt)
+import Data.Either (fromRight, isLeft)
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Settings (unbondedStakingTokenName)
@@ -62,13 +66,30 @@ import UnbondedStaking.Types
 import Utils
   ( getUtxoWithNFT
   , mkOnchainAssocList
+  , logInfo_
   , mkRatUnsafe
   , roundUp
-  , logInfo_
+  , splitByLength
+  , toIntUnsafe
   )
 
 -- Deposits a certain amount in the pool
-depositUnbondedPoolContract :: UnbondedPoolParams -> Contract () Unit
+-- todo: document parameters (batch size 0 = no batching), empty list = all pool's utxo
+depositUnbondedPoolContract
+  :: UnbondedPoolParams
+  -> Natural
+  -> Array
+      ( Tuple
+        (TxConstraints Unit Unit)
+        (ScriptLookups.ScriptLookups PlutusData)
+      )
+  -> Contract ()
+      ( Array
+        ( Tuple
+          (TxConstraints Unit Unit)
+          (ScriptLookups.ScriptLookups PlutusData)
+        )
+      )
 depositUnbondedPoolContract
   params@
     ( UnbondedPoolParams
@@ -76,7 +97,9 @@ depositUnbondedPoolContract
         , nftCs
         , assocListCs
         }
-    ) = do
+    )
+  batchSize
+  depositList = do
   -- Fetch information related to the pool
   -- Get network ID and check admin's PKH
   networkId <- getNetworkId
@@ -89,10 +112,6 @@ depositUnbondedPoolContract
   AddressWithNetworkTag { address: adminAddr } <-
     liftedM "depositUnbondedPoolContract: Cannot get wallet Address"
       getWalletAddress
-  -- Get utxos at the wallet address
-  adminUtxos <-
-    liftedM "depositUnbondedPoolContract: Cannot get user Utxos" $
-      utxosAt adminAddr
   -- Get the unbonded pool validator and hash
   validator <- liftedE' "depositUnbondedPoolContract: Cannot create validator"
     $ mkUnbondedPoolValidator params
@@ -135,41 +154,28 @@ depositUnbondedPoolContract
         \StateDatum { maybeEntryName: Just ..., open: true }"
       let
         assocList = mkOnchainAssocList assocListCs unbondedPoolUtxos
-      updateList <- traverse (mkEntryUpdateList params valHash) assocList
-      -- Concatenate constraints/lookups
-      let
-        constraintList = fst <$> updateList
-        lookupList = snd <$> updateList
-
         constraints :: TxConstraints Unit Unit
-        constraints =
-          mustBeSignedBy admin
-            <> mconcat (mconcat constraintList)
-
+        constraints = mustBeSignedBy admin
         lookups :: ScriptLookups.ScriptLookups PlutusData
         lookups =
           ScriptLookups.validator validator
-            <> ScriptLookups.unspentOutputs (unwrap adminUtxos)
             <> ScriptLookups.unspentOutputs (unwrap unbondedPoolUtxos)
-            <> mconcat lookupList
-      -- Build transaction
-      unattachedBalancedTx <-
-        liftedE $ ScriptLookups.mkUnbalancedTx lookups constraints
-      logInfo_
-        "depositUnbondedPoolContract: unAttachedUnbalancedTx"
-        unattachedBalancedTx
-      BalancedSignedTransaction { signedTxCbor } <-
-        liftedM
-          "depositUnbondedPoolContract: Cannot balance, reindex redeemers, /\
-          \attach datums redeemers and sign"
-          $ balanceAndSignTx unattachedBalancedTx
-      -- Submit transaction using Cbor-hex encoded `ByteArray`
-      transactionHash <- submit signedTxCbor
-      logInfo_
-        "depositUnbondedPoolContract: Transaction successfully submitted with \
-        \hash"
-        $ byteArrayToHex
-        $ unwrap transactionHash
+      updateList <-
+        if null depositList then
+          traverse (mkEntryUpdateList params valHash) assocList
+        else
+          pure depositList
+      -- Submit transaction with possible batching
+      failedDeposits <- if batchSize == zero then
+        submitTransaction adminAddr constraints lookups updateList
+      else do
+        let updateBatches = splitByLength (toIntUnsafe batchSize) updateList
+        failedDeposits' <- traverse
+          (submitTransaction adminAddr constraints lookups) updateBatches
+        pure $ mconcat failedDeposits'
+      logInfo_ "depositUnbondedPoolContract: Finished updating pool entries. \
+        \Entries with failed updates" failedDeposits
+      pure failedDeposits
     -- Other error cases:
     StateDatum { maybeEntryName: Nothing, open: true } ->
       throwContractError
@@ -181,7 +187,62 @@ depositUnbondedPoolContract
     _ ->
       throwContractError "depositUnbondedPoolContract: Datum incorrect type"
 
-  logInfo' "depositUnbondedPoolContract: Finished updating pool entries"
+-- | Submits a transaction with the given list of constraints/lookups
+submitTransaction
+  :: Address
+  -> TxConstraints Unit Unit
+  -> ScriptLookups.ScriptLookups PlutusData
+  -> Array
+      ( Tuple
+        (TxConstraints Unit Unit)
+        (ScriptLookups.ScriptLookups PlutusData)
+      )
+  -> Contract ()
+      ( Array
+        ( Tuple
+          (TxConstraints Unit Unit)
+          (ScriptLookups.ScriptLookups PlutusData)
+        )
+      )
+submitTransaction adminAddr baseConstraints baseLookups updateList = do
+  -- Update admin utxos after every transaction
+  adminUtxos <-
+    liftedM "depositUnbondedPoolContract: Cannot get user Utxos" $
+      utxosAt adminAddr
+  -- Concatenate constraints/lookups
+  let
+    constraintList = fst <$> updateList
+    lookupList = snd <$> updateList
+    constraints = baseConstraints <> mconcat constraintList
+    lookups =
+      baseLookups
+      <> ScriptLookups.unspentOutputs (unwrap adminUtxos)
+      <> mconcat lookupList
+  result <- try do
+    -- Build transaction
+    unattachedBalancedTx <-
+      liftedE $ ScriptLookups.mkUnbalancedTx lookups constraints
+    logInfo_
+      "depositBondedPoolContract: unAttachedUnbalancedTx"
+      unattachedBalancedTx
+    BalancedSignedTransaction { signedTxCbor } <-
+      liftedM
+        "depositBondedPoolContract: Cannot balance, reindex redeemers, /\
+        \attach datums redeemers and sign"
+        $ balanceAndSignTx unattachedBalancedTx
+    -- Submit transaction using Cbor-hex encoded `ByteArray`
+    transactionHash <- submit signedTxCbor
+    logInfo_
+      "depositBondedPoolContract: Transaction successfully submitted with /\
+      \hash"
+      $ byteArrayToHex
+      $ unwrap transactionHash
+  case result of
+    Left e -> do
+      logInfo_ "depositUnbondedPoolContract:" e
+      pure $ Array.singleton $ constraints /\ lookups
+    Right _ ->
+      pure []
 
 -- | Calculates user awards according to spec formula
 calculateRewards
@@ -192,16 +253,17 @@ calculateRewards
   -> BigInt
   -> Contract () Rational
 calculateRewards rewards totalRewards deposited newDeposit totalDeposited = do
-  when (totalDeposited == zero) $
-    throwContractError "calculateRewards: totalDeposited is zero"
-  let
-    lhs = mkRatUnsafe $ totalRewards % totalDeposited
-    rhs = rewards + mkRatUnsafe (deposited % one)
-    rhs' = rhs - mkRatUnsafe (newDeposit % one)
-    f = rhs' * lhs
-  when (f < zero) $ throwContractError
-    "calculateRewards: invalid rewards amount"
-  pure $ rewards + f
+  pure $ rewards
+  -- when (totalDeposited == zero) $
+  --   throwContractError "calculateRewards: totalDeposited is zero"
+  -- let
+  --   lhs = mkRatUnsafe $ totalRewards % totalDeposited
+  --   rhs = rewards + mkRatUnsafe (deposited % one)
+  --   rhs' = rhs - mkRatUnsafe (newDeposit % one)
+  --   f = rhs' * lhs
+  -- when (f < zero) $ throwContractError
+  --   "calculateRewards: invalid rewards amount"
+  -- pure $ rewards + f
 
 -- | Creates a constraint and lookups list for updating each user entry
 mkEntryUpdateList
@@ -209,7 +271,7 @@ mkEntryUpdateList
   -> ValidatorHash
   -> (ByteArray /\ TransactionInput /\ TransactionOutput)
   -> Contract ()
-       ( Tuple (Array (TxConstraints Unit Unit))
+       ( Tuple (TxConstraints Unit Unit)
            (ScriptLookups.ScriptLookups PlutusData)
        )
 mkEntryUpdateList
@@ -279,12 +341,13 @@ mkEntryUpdateList
         entryValue = singleton assocListCs assocListTn one
 
         -- Build constraints and lookups
-        constraints :: Array (TxConstraints Unit Unit)
+        constraints :: TxConstraints Unit Unit
         constraints =
-          [ mustPayToScript valHash assetDatum depositValue
-          , mustPayToScript valHash entryDatum entryValue
-          , mustSpendScriptOutput txIn valRedeemer
-          ]
+          mconcat
+            [ mustPayToScript valHash assetDatum depositValue
+            , mustPayToScript valHash entryDatum entryValue
+            , mustSpendScriptOutput txIn valRedeemer
+            ]
       entryDatumLookup <-
         liftContractM
           "mkEntryUpdateList: Could not create state datum lookup"
