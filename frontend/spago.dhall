@@ -15,7 +15,6 @@ You can edit this file as you like.
   , "cardano-transaction-lib"
   , "console"
   , "control"
-  , "either"
   , "exceptions"
   , "integers"
   , "maybe"
