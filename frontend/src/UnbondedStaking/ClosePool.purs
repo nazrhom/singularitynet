@@ -143,7 +143,7 @@ closeUnbondedPoolContract
         liftContractM
           "closeUnbondedPoolContract: Could not create state datum lookup"
           $ ScriptLookups.datum stateDatum
-      -- Concatinate constraints/lookups
+      -- Concatenate constraints/lookups
       let
         constraintList = fst <$> updateList
         lookupList = snd <$> updateList

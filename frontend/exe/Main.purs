@@ -2,7 +2,13 @@ module Main (main) where
 
 import Contract.Prelude
 
--- import ClosePool (closeBondedPoolContract)
+-- import BondedCallContract
+--   ( bondedCallContractAdminCloseExample1
+--   , bondedCallContractAdminDepositExample1
+--   , bondedCallContractCreatePoolExample1
+--   , bondedCallContractUserStakeExample1
+--   )
+import ClosePool (closeBondedPoolContract)
 import Contract.Address (NetworkId(TestnetId))
 import Contract.Monad
   ( ContractConfig
@@ -22,7 +28,7 @@ import Contract.Numeric.Natural (fromString) as Natural
 import Contract.Wallet (mkNamiWalletAff)
 import CreatePool (createBondedPoolContract)
 import Data.Int (toNumber)
--- import DepositPool (depositBondedPoolContract)
+import DepositPool (depositBondedPoolContract)
 import Effect.Aff (delay)
 import Effect.Exception (error)
 import Settings (testInitBondedParams)
@@ -56,20 +62,46 @@ import UserStake (userStakeBondedPoolContract)
 -- liftAff $ delay $ wrap $ toNumber 80_000
 -- closeUnbondedPoolContract unbondedParams
 
+-- Bonded: admin create pool, user stake, admin deposit (rewards), admin close
+-- using PureScript (non SDK)
 main :: Effect Unit
 main = launchAff_ do
   adminCfg <- mkConfig
+  -- Admin create pool
   bondedParams <-
     runContract adminCfg do
+      logInfo' "STARTING AS ADMIN"
       initParams <- liftContractM "main: Cannot initiate bonded parameters"
         testInitBondedParams
       bondedParams <- createBondedPoolContract initParams
-      logInfo' "SWITCH WALLETS NOW TO CHANGE USERS"
+      logInfo' "SWITCH WALLETS NOW - CHANGE TO USER 1"
       liftAff $ delay $ wrap $ toNumber 80_000
       pure bondedParams
+  -- User 1 deposits
   userCfg <- mkConfig
-  userStake <- liftM (error "Cannot create Natural") $ Natural.fromString "5"
-  runContract_ userCfg $ userStakeBondedPoolContract bondedParams userStake
+  userStake <- liftM (error "Cannot create Natural") $ Natural.fromString "10"
+  runContract_ userCfg do
+    userStakeBondedPoolContract bondedParams userStake
+    logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
+    liftAff $ delay $ wrap $ toNumber 100_000
+  -- Admin deposits to pool
+  runContract_ adminCfg do
+    depositBondedPoolContract bondedParams
+    logInfo' "DON'T SWITCH WALLETS - STAY AS ADMIN"
+    liftAff $ delay $ wrap $ toNumber 100_000
+  -- Admin closes pool
+  runContract_ adminCfg $ closeBondedPoolContract bondedParams
+
+-- Bonded: admin create pool, user stake, admin deposit (rewards), admin close
+-- using PureScript (SDK)
+-- Run *one* at a time:
+-- main :: Effect Unit
+-- main =
+-- bondedCallContractCreatePoolExample1
+-- After running the above contract, update `testBondedPoolArgs` accordingly.
+-- bondedCallContractUserStakeExample1
+-- bondedCallContractAdminDepositExample1
+-- bondedCallContractAdminCloseExample1
 
 mkConfig :: Aff (ContractConfig ())
 mkConfig = do
