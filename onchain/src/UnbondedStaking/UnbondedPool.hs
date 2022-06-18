@@ -109,7 +109,7 @@ import Utils (
   ptrue,
   ptryFromUndata,
   punit,
-  -- signedBy,
+  signedBy,
   signedOnlyBy,
   toPBool,
   (>:),
@@ -234,9 +234,9 @@ adminActLogic ::
      ] ->
   Term s PUnit
 adminActLogic txInfoF paramsF purpose datum adminActParamsF = unTermCont $ do
-  -- -- We check that the transaction was signed by the pool operator
-  -- pguardC "adminActLogic: transaction not signed by admin" $
-  --   signedBy txInfoF.signatories paramsF.admin
+  -- We check that the transaction was signed by the pool operator
+  pguardC "adminActLogic: transaction not signed by admin" $
+    signedBy txInfoF.signatories paramsF.admin
   -- We get the input's address
   inputF <-
     tcont . pletFields @'["outRef", "resolved"]
@@ -322,9 +322,9 @@ stakeActLogic txInfoF paramsF purpose datum stakeActParamsF = unTermCont $ do
       poolAddr = pfield @"address" # spentInput.resolved
   -- Check that input spent is not an asset UTXO (user cannot withdraw)
   doesNotConsumeUnbondedAssetGuard datum
-  -- -- Validate holder's signature
-  -- pguardC "stakeActLogic: tx not exclusively signed by the stake-holder" $
-  --   signedOnlyBy txInfoF.signatories stakeActParamsF.pubKeyHash
+  -- Validate holder's signature
+  pguardC "stakeActLogic: tx not exclusively signed by the stake-holder" $
+    signedOnlyBy txInfoF.signatories stakeActParamsF.pubKeyHash
   -- Check that amount is positive
   let stakeAmt :: Term s PNatural
       stakeAmt = pfromData stakeActParamsF.stakeAmount
@@ -893,9 +893,9 @@ closeActLogic ::
   Term s PUnbondedStakingDatum ->
   Term s PUnit
 closeActLogic txInfoF paramsF purpose inputStakingDatum = unTermCont $ do
-  -- -- We check that the transaction was signed by the pool operator
-  -- pguardC "closeActLogic: transaction not signed by admin" $
-  --   signedBy txInfoF.signatories paramsF.admin
+  -- We check that the transaction was signed by the pool operator
+  pguardC "closeActLogic: transaction not signed by admin" $
+    signedBy txInfoF.signatories paramsF.admin
   -- We get the input's address
   inputF <-
     tcont . pletFields @'["outRef", "resolved"]
