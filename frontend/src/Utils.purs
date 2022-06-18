@@ -356,15 +356,16 @@ findRemoveOtherElem assocList hashedKey = do
     /\ { firstOutput: txOutputL, secondOutput: txOutputH }
     /\ { firstKey: bytesL, secondKey: bytesH }
 
-  -- | Utility function for splitting an array into equal length sub-arrays
-  -- | (with remainder array length <= size)
+-- | Utility function for splitting an array into equal length sub-arrays
+-- | (with remainder array length <= size)
 splitByLength :: forall a. Int -> Array a -> Array (Array a)
 splitByLength size array
   | size == 0 || null array = []
   | otherwise =
       let
-        sublistCount = if (length array) `mod` size == 0
-          then ((length array) `div` size) - 1
+        sublistCount =
+          if (length array) `mod` size == 0 then ((length array) `div` size) - 1
           else (length array) `div` size
-      in map (\i -> slice (i * size) ((i * size) + size) array) $
-        0 .. sublistCount
+      in
+        map (\i -> slice (i * size) ((i * size) + size) array) $
+          0 .. sublistCount
