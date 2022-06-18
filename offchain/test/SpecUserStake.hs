@@ -27,7 +27,7 @@ import Ledger.Constraints.TxConstraints (TxConstraints)
 import SingularityNet.Settings (bondedStakingTokenName)
 import PlutusTx.Builtins (blake2b_256)
 
-import Utils(testAdminWallet, testUserWallet, createBondedPool, testInitialBondedParams, userHeadStake, testUserStake)
+import Utils(testAdminWallet, testUserWallet, createBondedPool, testInitialBondedParams, userHeadStake, testUserStake, currentRoundedTime)
 import SingularityNet.Types (BondedPoolParams)
 import Types (InitialBondedPoolParams (initStart, initEnd, initIterations, initBondingLength, initUserLength), BondedPoolScripts, TBondedPool (TBondedPool))
 import SingularityNet.Natural (Natural (Natural), toPOSIXTime)
@@ -50,11 +50,11 @@ userStakeContract ::
     Contract String EmptySchema Text ()
 userStakeContract bps stakeAmt pkhs  = do
     -- Set up pool parameters
-    currTime <- Contract.currentTime
+    currApproxTime <- currentRoundedTime
     let -- We give some time for the first transaction to run. `awaitTxConfirmed` waits for
         -- 8 blocks (if everything works correctly)
         creationDelay :: POSIXTime
-        creationDelay = 80_000 + currTime
+        creationDelay = 80_000 + currApproxTime
         -- We let the users stake/withdraw for 20 seconds (unwise to make it smaller than this)
         userLength :: POSIXTime
         userLength = 20_000
@@ -75,6 +75,7 @@ userStakeContract bps stakeAmt pkhs  = do
             initIterations = iterations
         }
     (bpts, bpp, bondedPool) <- createBondedPool bps initialBondedParams
+    Contract.throwError $ pack $ "BondedPoolParams: " <> show bpp
     _ <- userHeadStake pkhs bpts bpp bondedPool stakeAmt
     pure ()
 

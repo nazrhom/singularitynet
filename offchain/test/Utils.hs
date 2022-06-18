@@ -12,6 +12,7 @@ module Utils (
     , getOwnData
     , getFirstUtxo
     , mkBondedPoolParams
+    , currentRoundedTime
     , logInfo
     , logInfo'
 ) where
@@ -210,9 +211,11 @@ userHeadStake
     stakeAmt@(Natural stakeAmtNat) = do
         (PaymentPubKeyHash userPkh, userKey, userUtxos) <- getUserData userPPkh
         -- Calculate time range of the transaction and wait the appropriate time if necessary
-        (currTime, rangeStart, rangeEnd) <- getStakingTime bpp
+        currTime <- Contract.currentTime
+        info@(_currApproxTime, rangeStart, rangeEnd) <- getStakingTime bpp
         let timeRange :: POSIXTimeRange
             timeRange = interval rangeStart rangeEnd
+        -- Contract.throwError $ pack $ "timeRange: " <> show timeRange <> " " <> show info
         when (currTime < rangeStart) $
             void $ Contract.awaitTime rangeStart
         when (currTime > rangeEnd) $
@@ -431,7 +434,8 @@ initPool
 
 getStakingTime :: BondedPoolParams -> Contract String EmptySchema Text (POSIXTime, POSIXTime, POSIXTime)
 getStakingTime bpp@BondedPoolParams{..} = do
-    currTime <- Contract.currentTime
+    -- Get time and round it up to the nearest second
+    currTime <- currentRoundedTime
     -- Throw error if staking is impossible
     when (currTime > end) $
         Contract.throwError "getStakingTime: pool already closed"
@@ -450,7 +454,7 @@ getStakingTime bpp@BondedPoolParams{..} = do
 
 getBondingTime :: BondedPoolParams -> Contract String EmptySchema Text (POSIXTime, POSIXTime, POSIXTime)
 getBondingTime bpp@BondedPoolParams{..} = do
-    currTime <- Contract.currentTime
+    currTime <- currentRoundedTime
     -- Throw error if bonding is impossible
     when (currTime > end) $
         Contract.throwError "getBondingTime: pool already closed"
@@ -466,6 +470,12 @@ getBondingTime bpp@BondedPoolParams{..} = do
     case possibleRanges of
         (s, e) : _ -> pure (currTime, s, e)
         _ -> Contract.throwError "getBondingTime: no more bonding periods available"
+
+-- Returns the ceiling of the current time in seconds
+currentRoundedTime :: Contract String EmptySchema Text POSIXTime
+currentRoundedTime = do
+    currTime <- Contract.currentTime
+    pure $ ceiling (fromIntegral @POSIXTime @Double currTime / 1000) * 1000
 
 logInfo :: Show a => String -> a -> Contract w s e ()
 logInfo msg a = Contract.logInfo (msg <> ": " <> show a)
