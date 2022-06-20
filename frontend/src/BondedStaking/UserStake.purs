@@ -2,45 +2,15 @@ module UserStake (userStakeBondedPoolContract) where
 
 import Contract.Prelude hiding (length)
 
-import Contract.Address
-  ( AddressWithNetworkTag(AddressWithNetworkTag)
-  , getNetworkId
-  , getWalletAddress
-  , ownPaymentPubKeyHash
-  , scriptHashAddress
-  )
-import Contract.Monad
-  ( Contract
-  , liftContractM
-  , liftedE
-  , liftedE'
-  , liftedM
-  , logInfo'
-  , throwContractError
-  )
+import Contract.Address (AddressWithNetworkTag(AddressWithNetworkTag), getNetworkId, getWalletAddress, ownPaymentPubKeyHash, scriptHashAddress)
+import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM, logInfo', throwContractError)
 import Contract.Numeric.Natural (Natural, toBigInt)
-import Contract.PlutusData
-  ( PlutusData
-  , Datum(Datum)
-  , fromData
-  , getDatumByHash
-  , toData
-  )
+import Contract.PlutusData (PlutusData, Datum(Datum), fromData, getDatumByHash, toData)
 import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
-import Contract.Transaction
-  ( BalancedSignedTransaction(BalancedSignedTransaction)
-  , balanceAndSignTx
-  , submit
-  )
-import Contract.TxConstraints
-  ( TxConstraints
-  , mustBeSignedBy
-  , mustMintValueWithRedeemer
-  , mustPayToScript
-  , mustSpendScriptOutput
-  )
+import Contract.Transaction (BalancedSignedTransaction(BalancedSignedTransaction), balanceAndSignTx, submit)
+import Contract.TxConstraints (TxConstraints, mustBeSignedBy, mustMintValueWithRedeemer, mustPayToScript, mustSpendScriptOutput, mustValidateIn)
 import Contract.Utxos (utxosAt)
 import Contract.Value (mkTokenName, singleton)
 import Control.Applicative (unless)
@@ -49,23 +19,9 @@ import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
-import Types
-  ( BondedStakingAction(StakeAct)
-  , BondedStakingDatum(AssetDatum, EntryDatum, StateDatum)
-  , BondedPoolParams(BondedPoolParams)
-  , Entry(Entry)
-  , ListAction(ListInsert)
-  , MintingAction(MintHead)
-  , StakingType(Bonded)
-  )
+import Types (BondedStakingAction(StakeAct), BondedStakingDatum(AssetDatum, EntryDatum, StateDatum), BondedPoolParams(BondedPoolParams), Entry(Entry), ListAction(ListInsert), MintingAction(MintHead), StakingType(Bonded))
 import Types.Redeemer (Redeemer(Redeemer))
-import Utils
-  ( findInsertUpdateElem
-  , getUtxoWithNFT
-  , hashPkh
-  , mkOnchainAssocList
-  , logInfo_
-  )
+import Utils (findInsertUpdateElem, getStakingTime, getUtxoWithNFT, hashPkh, logInfo_, mkOnchainAssocList)
 
 -- Deposits a certain amount in the pool
 userStakeBondedPoolContract :: BondedPoolParams -> Natural -> Contract () Unit
@@ -146,6 +102,12 @@ userStakeBondedPoolContract
       "userStakeBondedPoolContract: Could not create token name for user`"
       $ mkTokenName hashedUserPkh
   let entryValue = singleton assocListCs assocListTn one
+
+  -- Get the staking range to use
+  logInfo' "userStakeBondedPoolContract: Getting staking range..."
+  {currTime, range} <- getStakingTime params
+  logInfo_ "Current time: " $ show currTime
+  logInfo_ "TX Range" range
 
   constraints /\ lookup <- case bondedStakingDatum of
     StateDatum { maybeEntryName: Nothing } -> do
@@ -537,6 +499,7 @@ userStakeBondedPoolContract
                 , middleConstraints
                 , lastConstraints
                 , mustBeSignedBy userPkh
+                , mustValidateIn range
                 ]
             /\
               mconcat
