@@ -70,8 +70,8 @@ testInitBondedParams = do
     { iterations: nat 3
     , start: big 1000
     , end: big 2000
-    , userLength: big 100
-    , bondingLength: big 4
+    , userLength: big 3600
+    , bondingLength: big 3600
     , interest
     , minStake: nat 1
     , maxStake: nat 10_000
