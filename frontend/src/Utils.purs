@@ -346,12 +346,14 @@ getStakingTime (BondedPoolParams bpp) = do
         -- Range from 0 to bpp.iterations
         n <- bigIntRange $ toBigInt bpp.iterations
         -- Calculate start and end of the range
-        let range@(_ /\ end) = (bpp.start + n * cycleLength) /\ (bpp.start + n * cycleLength + bpp.userLength - big 1000)
+        let range@(start /\ end) = (bpp.start + n * cycleLength) /\ (bpp.start + n * cycleLength + bpp.userLength - big 1000)
         -- Discard range if end < currTime
         guard $ currTime' <= end
+        -- Discard range if currTime < start
+        guard $ currTime' >= start
         pure range
   -- Return first range
-  start /\ end <- liftContractM "getStakingTime: no more staking periods available" $
+  start /\ end <- liftContractM "getStakingTime: this is not a staking period" $
     head possibleRanges
   pure { currTime, range: interval (POSIXTime start) (POSIXTime end) }
 
@@ -374,12 +376,14 @@ getBondingTime (BondedPoolParams bpp) = do
         -- Range from 0 to bpp.iterations
         n <- bigIntRange $ toBigInt bpp.iterations
         -- Calculate start and end of the range
-        let range@(_ /\ end) = (bpp.start + n * cycleLength + bpp.userLength) /\ (bpp.start + (n + one) * cycleLength + bpp.userLength - big 1000)
+        let range@(start /\ end) = (bpp.start + n * cycleLength + bpp.userLength) /\ (bpp.start + (n + one) * cycleLength + bpp.userLength - big 1000)
         -- Discard range if end < currTime
         guard $ currTime' <= end
+        -- Discard range if currTime < start
+        guard $ currTime' >= start
         pure range
   -- Return first range
-  start /\ end <- liftContractM "getBondingTime: no more bonding periods available" $
+  start /\ end <- liftContractM "getBondingTime: this is not a bonding period" $
     head possibleRanges
   pure { currTime, range: interval (POSIXTime start) (POSIXTime end) }
 
