@@ -23,6 +23,10 @@ You can edit this file as you like.
   , "record"
   , "text-encoding"
   , "uint"
+  , "datetime"
+  , "math"
+  , "now"
+  , "unfoldable"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "exe/**/*.purs", "test/**/*.purs" ]
