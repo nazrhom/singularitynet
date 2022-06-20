@@ -68,10 +68,10 @@ testInitBondedParams = do
   tokenName <- agixTn
   pure $ InitialBondedParams
     { iterations: nat 3
-    , start: big 1000
-    , end: big 2000
-    , userLength: big 3600
-    , bondingLength: big 3600
+    , start: big 1000   -- dummy value
+    , end: big 2000     -- dummy value
+    , userLength: big 3_600_000
+    , bondingLength: big 3_600_000
     , interest
     , minStake: nat 1
     , maxStake: nat 10_000
