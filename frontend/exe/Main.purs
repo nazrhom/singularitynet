@@ -2,28 +2,9 @@ module Main (main) where
 
 import Contract.Prelude
 
--- import BondedCallContract
---   ( bondedCallContractAdminCloseExample1
---   , bondedCallContractAdminDepositExample1
---   , bondedCallContractCreatePoolExample1
---   , bondedCallContractUserStakeExample1
---   )
 import ClosePool (closeBondedPoolContract)
 import Contract.Address (NetworkId(TestnetId))
-import Contract.Monad
-  ( ContractConfig
-  , ConfigParams(ConfigParams)
-  , LogLevel(Info)
-  , defaultDatumCacheWsConfig
-  , defaultOgmiosWsConfig
-  , defaultServerConfig
-  , launchAff_
-  , liftContractM
-  , logInfo'
-  , mkContractConfig
-  , runContract
-  , runContract_
-  )
+import Contract.Monad (ContractConfig, ConfigParams(ConfigParams), LogLevel(Info), defaultDatumCacheWsConfig, defaultOgmiosWsConfig, defaultServerConfig, launchAff_, liftContractM, logInfo', mkContractConfig, runContract, runContract_)
 import Contract.Numeric.Natural (fromString) as Natural
 import Contract.Wallet (mkNamiWalletAff)
 import CreatePool (createBondedPoolContract)
@@ -32,7 +13,11 @@ import DepositPool (depositBondedPoolContract)
 import Effect.Aff (delay)
 import Effect.Exception (error)
 import Settings (testInitBondedParams)
+import Types (InitialBondedParams(..))
+import Types.Interval (POSIXTime(..))
+import Types.Natural (toBigInt)
 import UserStake (userStakeBondedPoolContract)
+import Utils (big, currentRoundedTime, logInfo_)
 
 -- import Settings (testInitUnbondedParams)
 -- import UnbondedStaking.CloseUnbondedPool (closeUnbondedPoolContract)
@@ -73,9 +58,21 @@ main = launchAff_ do
       logInfo' "STARTING AS ADMIN"
       initParams <- liftContractM "main: Cannot initiate bonded parameters"
         testInitBondedParams
-      bondedParams <- createBondedPoolContract initParams
+      -- We get the current time and set up the pool to start 80 seconds from now
+      POSIXTime currTime <- currentRoundedTime
+      logInfo_ "Pool creation time" currTime
+      let ibp = unwrap initParams
+          poolDelay = 80_000
+          ibpWithTime :: InitialBondedParams
+          ibpWithTime = InitialBondedParams $ ibp {
+            start = currTime + big poolDelay,
+            end = currTime + big poolDelay + toBigInt ibp.iterations * (ibp.userLength + ibp.bondingLength) + ibp.userLength
+          }
+      bondedParams <- createBondedPoolContract ibpWithTime
+      logInfo_ "Pool parameters" bondedParams
       logInfo' "SWITCH WALLETS NOW - CHANGE TO USER 1"
-      liftAff $ delay $ wrap $ toNumber 80_000
+      -- We give 30 seconds of margin for the user and admin to sign the transactions
+      liftAff $ delay $ wrap $ toNumber $ poolDelay + 30_000
       pure bondedParams
   -- User 1 deposits
   userCfg <- mkConfig
@@ -83,14 +80,16 @@ main = launchAff_ do
   runContract_ userCfg do
     userStakeBondedPoolContract bondedParams userStake
     logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
-    liftAff $ delay $ wrap $ toNumber 100_000
+    -- Wait until bonding period
+    liftAff $ delay $ wrap $ toNumber $ 180_000
   -- Admin deposits to pool
   runContract_ adminCfg do
     depositBondedPoolContract bondedParams
-    logInfo' "DON'T SWITCH WALLETS - STAY AS ADMIN"
-    liftAff $ delay $ wrap $ toNumber 100_000
+    logInfo' "END"
+    --logInfo' "DON'T SWITCH WALLETS - STAY AS ADMIN"
+    --liftAff $ delay $ wrap $ toNumber 100_000
   -- Admin closes pool
-  runContract_ adminCfg $ closeBondedPoolContract bondedParams
+  -- runContract_ adminCfg $ closeBondedPoolContract bondedParams
 
 -- Bonded: admin create pool, user stake, admin deposit (rewards), admin close
 -- using PureScript (SDK)
