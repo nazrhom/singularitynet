@@ -376,7 +376,7 @@ getBondingTime (BondedPoolParams bpp) = do
         -- Range from 0 to bpp.iterations
         n <- bigIntRange $ toBigInt bpp.iterations
         -- Calculate start and end of the range
-        let range@(start /\ end) = (bpp.start + n * cycleLength + bpp.userLength) /\ (bpp.start + (n + one) * cycleLength + bpp.userLength - big 1000)
+        let range@(start /\ end) = (bpp.start + n * cycleLength + bpp.userLength) /\ (bpp.start + (n + one) * cycleLength - big 1000)
         -- Discard range if end < currTime
         guard $ currTime' <= end
         -- Discard range if currTime < start
