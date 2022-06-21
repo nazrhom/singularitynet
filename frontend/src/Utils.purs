@@ -349,8 +349,10 @@ getStakingTime (BondedPoolParams bpp) = do
         let range@(start /\ end) = (bpp.start + n * cycleLength) /\ (bpp.start + n * cycleLength + bpp.userLength - big 1000)
         -- Discard range if end < currTime
         guard $ currTime' <= end
-        -- Discard range if currTime < start
-        guard $ currTime' >= start
+        -- NOTE: We don't discard these ranges yet because it's easier to debug when CTL submits
+        -- the TX and fails loudly
+        ---- Discard range if currTime < start
+        --guard $ currTime' >= start
         pure range
   -- Return first range
   start /\ end <- liftContractM "getStakingTime: this is not a staking period" $
@@ -380,7 +382,7 @@ getBondingTime (BondedPoolParams bpp) = do
         -- Discard range if end < currTime
         guard $ currTime' <= end
         -- Discard range if currTime < start
-        guard $ currTime' >= start
+        -- guard $ currTime' >= start
         pure range
   -- Return first range
   start /\ end <- liftContractM "getBondingTime: this is not a bonding period" $
