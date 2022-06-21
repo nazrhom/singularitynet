@@ -67,11 +67,11 @@ testInitBondedParams = do
   currencySymbol <- agixCs
   tokenName <- agixTn
   pure $ InitialBondedParams
-    { iterations: nat 3
+    { iterations: nat 1
     , start: big 1000   -- dummy value
     , end: big 2000     -- dummy value
-    , userLength: big 3_600_000
-    , bondingLength: big 3_600_000
+    , userLength: big 180_000 -- We use 3 minutes to make testing manageable
+    , bondingLength: big 180_000
     , interest
     , minStake: nat 1
     , maxStake: nat 10_000
