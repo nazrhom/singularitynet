@@ -391,9 +391,9 @@ getBondingTime (BondedPoolParams bpp) = do
 bigIntRange :: BigInt -> Array BigInt
 bigIntRange lim =
   unfoldr
-  (\acc -> if acc > lim
+  (\acc -> if acc >= lim
             then Nothing
-            else Just $ (acc+one) /\ (acc+one))
+            else Just $ acc /\ (acc+one))
   zero
 
 -- Get time rounded to the closest integer (ceiling) in seconds
