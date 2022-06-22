@@ -2,6 +2,7 @@ module DepositPool (depositBondedPoolContract) where
 
 import Contract.Prelude
 
+import BondedStaking.TimeUtils (getBondingTime)
 import Contract.Address (AddressWithNetworkTag(AddressWithNetworkTag), getNetworkId, getWalletAddress, ownPaymentPubKeyHash, scriptHashAddress)
 import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM, logInfo', throwContractError)
 import Contract.Numeric.Rational ((%), Rational)
@@ -20,7 +21,7 @@ import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
 import Types (BondedStakingAction(AdminAct), BondedStakingDatum(AssetDatum, EntryDatum, StateDatum), BondedPoolParams(BondedPoolParams), Entry(Entry))
 import Types.Redeemer (Redeemer(Redeemer))
-import Utils (getBondingTime, getUtxoWithNFT, logInfo_, mkOnchainAssocList, mkRatUnsafe, roundUp)
+import Utils (getUtxoWithNFT, logInfo_, mkOnchainAssocList, mkRatUnsafe, roundUp)
 
 -- Deposits a certain amount in the pool
 depositBondedPoolContract :: BondedPoolParams -> Contract () Unit
@@ -81,7 +82,7 @@ depositBondedPoolContract
     liftContractM
       "depositBondedPoolContract: Cannot extract NFT State datum"
       $ fromData (unwrap poolDatum)
-  -- Get the staking range to use
+  -- Get the bonding range to use
   logInfo' "depositBondedPoolContract: Getting bonding range..."
   {currTime, range} <- getBondingTime params
   logInfo_ "Current time: " $ show currTime

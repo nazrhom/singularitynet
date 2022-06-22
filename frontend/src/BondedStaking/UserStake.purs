@@ -2,6 +2,7 @@ module UserStake (userStakeBondedPoolContract) where
 
 import Contract.Prelude hiding (length)
 
+import BondedStaking.TimeUtils (getStakingTime)
 import Contract.Address (AddressWithNetworkTag(AddressWithNetworkTag), getNetworkId, getWalletAddress, ownPaymentPubKeyHash, scriptHashAddress)
 import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM, logInfo', throwContractError)
 import Contract.Numeric.Natural (Natural, toBigInt)
@@ -21,7 +22,7 @@ import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
 import Types (BondedStakingAction(StakeAct), BondedStakingDatum(AssetDatum, EntryDatum, StateDatum), BondedPoolParams(BondedPoolParams), Entry(Entry), ListAction(ListInsert), MintingAction(MintHead), StakingType(Bonded))
 import Types.Redeemer (Redeemer(Redeemer))
-import Utils (findInsertUpdateElem, getStakingTime, getUtxoWithNFT, hashPkh, logInfo_, mkOnchainAssocList)
+import Utils (findInsertUpdateElem, getUtxoWithNFT, hashPkh, logInfo_, mkOnchainAssocList)
 
 -- Deposits a certain amount in the pool
 userStakeBondedPoolContract :: BondedPoolParams -> Natural -> Contract () Unit

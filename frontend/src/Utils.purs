@@ -15,18 +15,17 @@ module Utils
   , nat
   , roundDown
   , roundUp
-  , getStakingTime
-  , getBondingTime
   , currentTime
   , currentRoundedTime
+  , bigIntRange
   ) where
 
 import Contract.Prelude hiding (length)
 
 import Contract.Address (PaymentPubKeyHash)
 import Contract.Hashing (blake2b256Hash)
-import Contract.Monad (Contract, liftContractM, logInfo, tag, throwContractError)
-import Contract.Numeric.Natural (Natural, fromBigInt', toBigInt)
+import Contract.Monad (Contract, liftContractM, logInfo, tag)
+import Contract.Numeric.Natural (Natural, fromBigInt')
 import Contract.Numeric.Rational (Rational, numerator, denominator)
 import Contract.Prim.ByteArray (ByteArray, hexToByteArray)
 import Contract.Scripts (PlutusScript)
@@ -50,7 +49,7 @@ import Effect.Now (now)
 import Math (ceil)
 import Serialization.Hash (ed25519KeyHashToBytes)
 import Types (AssetClass(AssetClass), BondedPoolParams(BondedPoolParams), InitialBondedParams(InitialBondedParams), MintingAction(MintEnd, MintInBetween))
-import Types.Interval (POSIXTime(..), POSIXTimeRange, interval)
+import Types.Interval (POSIXTime(..))
 import Types.Redeemer (Redeemer)
 import UnbondedStaking.Types (UnbondedPoolParams(UnbondedPoolParams), InitialUnbondedParams(InitialUnbondedParams))
 
@@ -327,67 +326,6 @@ findRemoveOtherElem assocList hashedKey = do
     /\ { firstOutput: txOutputL, secondOutput: txOutputH }
     /\ { firstKey: bytesL, secondKey: bytesH }
 
-getStakingTime :: forall (r :: Row Type) .
-  BondedPoolParams ->
-  Contract r {currTime :: POSIXTime, range :: POSIXTimeRange}
-getStakingTime (BondedPoolParams bpp) = do
-  -- Get time and round it up to the nearest second
-  currTime@(POSIXTime currTime') <- currentRoundedTime
-  -- Throw error if staking is impossible
-  when (currTime' > bpp.end) $
-    throwContractError "getStakingTime: pool already closed"
-  when (currTime' > bpp.end - bpp.userLength) $
-    throwContractError "getStakingTime: pool in withdrawing only period"
-  -- Get timerange in which the staking should be done
-  let cycleLength :: BigInt
-      cycleLength = bpp.bondingLength + bpp.userLength
-      possibleRanges :: Array (BigInt /\ BigInt)
-      possibleRanges = do
-        -- Range from 0 to bpp.iterations
-        n <- bigIntRange $ toBigInt bpp.iterations
-        -- Calculate start and end of the range
-        let range@(start /\ end) = (bpp.start + n * cycleLength) /\ (bpp.start + n * cycleLength + bpp.userLength - big 1000)
-        -- Discard range if end < currTime
-        guard $ currTime' <= end
-        -- NOTE: We don't discard these ranges yet because it's easier to debug when CTL submits
-        -- the TX and fails loudly
-        ---- Discard range if currTime < start
-        --guard $ currTime' >= start
-        pure range
-  -- Return first range
-  start /\ end <- liftContractM "getStakingTime: this is not a staking period" $
-    head possibleRanges
-  pure { currTime, range: interval (POSIXTime start) (POSIXTime end) }
-
-getBondingTime :: forall (r :: Row Type) .
-  BondedPoolParams ->
-  Contract r {currTime :: POSIXTime, range :: POSIXTimeRange}
-getBondingTime (BondedPoolParams bpp) = do
-  -- Get time and round it up to the nearest second
-  currTime@(POSIXTime currTime') <- currentRoundedTime
-  -- Throw error if staking is impossible
-  when (currTime' > bpp.end) $
-    throwContractError "getBondingTime: pool already closed"
-  when (currTime' > bpp.end - bpp.userLength) $
-    throwContractError "getBondingTime: pool in withdrawing only period"
-  -- Get timerange in which the staking should be done
-  let cycleLength :: BigInt
-      cycleLength = bpp.bondingLength + bpp.userLength
-      possibleRanges :: Array (BigInt /\ BigInt)
-      possibleRanges = do
-        -- Range from 0 to bpp.iterations
-        n <- bigIntRange $ toBigInt bpp.iterations
-        -- Calculate start and end of the range
-        let range@(start /\ end) = (bpp.start + n * cycleLength + bpp.userLength) /\ (bpp.start + (n + one) * cycleLength - big 1000)
-        -- Discard range if end < currTime
-        guard $ currTime' <= end
-        -- Discard range if currTime < start
-        -- guard $ currTime' >= start
-        pure range
-  -- Return first range
-  start /\ end <- liftContractM "getBondingTime: this is not a bonding period" $
-    head possibleRanges
-  pure { currTime, range: interval (POSIXTime start) (POSIXTime end) }
 
 -- Produce a range from zero to the given bigInt (inclusive)
 bigIntRange :: BigInt -> Array BigInt
