@@ -1,10 +1,10 @@
 module SdkApi
   ( SdkConfig
   , SdkServerConfig
+  , buildContractConfig
   -- Bonded
   , BondedPoolArgs
   , InitialBondedArgs
-  , buildContractConfig
   , callCloseBondedPool
   , callCreateBondedPool
   , callDepositBondedPool
@@ -13,6 +13,11 @@ module SdkApi
   -- Unbonded
   , UnbondedPoolArgs
   , InitialUnbondedArgs
+  , callCloseUnbondedPool
+  , callCreateUnbondedPool
+  , callDepositUnbondedPool
+  , callUserStakeUnbondedPool
+  , callUserWithdrawUnbondedPool
   ) where
 
 import Contract.Prelude
@@ -129,13 +134,13 @@ buildContractConfig cfg = Promise.fromAff $ do
   logLevel <- liftM (errorWithContext "invalid `LogLevel`")
     $ fromSdkLogLevel cfg.logLevel
   mkContractConfig $ wrap
-    { ogmiosConfig: undefined
-    , datumCacheConfig: undefined
-    , ctlServerConfig: undefined
-    , logLevel: logLevel
+    { ogmiosConfig
+    , datumCacheConfig
+    , ctlServerConfig
+    , logLevel
     , networkId
-    , extraConfig: {}
     , wallet
+    , extraConfig: {}
     }
   where
   errorWithContext :: String -> Error
