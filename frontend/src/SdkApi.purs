@@ -71,6 +71,11 @@ import UnbondedStaking.Types
   ( UnbondedPoolParams(UnbondedPoolParams)
   , InitialUnbondedParams
   )
+import UnbondedStaking.ClosePool (closeUnbondedPoolContract)
+import UnbondedStaking.CreatePool (createUnbondedPoolContract)
+import UnbondedStaking.DepositPool (depositUnbondedPoolContract)
+import UnbondedStaking.UserStake (userStakeUnbondedPoolContract)
+import UnbondedStaking.UserWithdraw (userWithdrawUnbondedPoolContract)
 import UserStake (userStakeBondedPoolContract)
 import UserWithdraw (userWithdrawBondedPoolContract)
 
@@ -137,6 +142,18 @@ buildContractConfig cfg = Promise.fromAff $ do
     liftM (error $ "buildContractConfig: Invalid " <> name <> " port number")
       $ UInt.fromNumber' port
 
+callWithArgs
+  :: forall (a :: Type) (b :: Type)
+   . (a -> Either Error b)
+  -> (b -> Contract () Unit)
+  -> ContractConfig ()
+  -> a
+  -> Effect (Promise Unit)
+callWithArgs f contract cfg args = Promise.fromAff
+  $ runContract cfg
+  <<< contract
+  =<< liftEither (f args)
+
 toSdkAssetClass :: AssetClass -> Tuple String String
 toSdkAssetClass (AssetClass ac) =
   byteArrayToHex (getCurrencySymbol ac.currencySymbol)
@@ -152,8 +169,7 @@ toSdkCurrencySymbol :: CurrencySymbol -> String
 toSdkCurrencySymbol = byteArrayToHex <<< getCurrencySymbol
 
 fromSdkNat :: String -> String -> BigInt -> Either Error Natural
-fromSdkNat context name bint =
-  note (error msg) $ fromBigInt bint
+fromSdkNat context name bint = note (error msg) $ fromBigInt bint
   where
   msg :: String
   msg = context <> ": Could not convert " <> name <> " to `Natural`"
@@ -167,8 +183,7 @@ fromSdkAssetClass context (currencySymbol /\ tokenName) = map wrap
 fromSdkTokenName :: String -> String -> Either Error TokenName
 fromSdkTokenName context tokenName = note (errorWithMsg context "`TokenName`")
   $ mkTokenName
-  =<<
-    byteArrayFromAscii tokenName
+  =<< byteArrayFromAscii tokenName
 
 fromSdkCurrencySymbol :: String -> String -> Either Error CurrencySymbol
 fromSdkCurrencySymbol context currencySymbol =
@@ -185,9 +200,10 @@ fromSdkInterest context (numerator /\ denominator) = do
   msg = context <> ": invalid `Rational`"
 
 fromSdkAdmin :: String -> String -> Either Error PaymentPubKeyHash
-fromSdkAdmin context admin =
-  note (error msg) $ wrap <<< wrap <$>
-    (ed25519KeyHashFromBytes =<< hexToRawBytes admin)
+fromSdkAdmin context admin = note (error msg)
+  $ wrap
+  <<< wrap
+  <$> (ed25519KeyHashFromBytes =<< hexToRawBytes admin)
   where
   msg :: String
   msg = context <> ": invalid admin"
@@ -261,10 +277,8 @@ callWithBondedPoolArgs
   -> ContractConfig ()
   -> BondedPoolArgs
   -> Effect (Promise Unit)
-callWithBondedPoolArgs contract cfg bpa = Promise.fromAff
-  $ runContract cfg
-  <<< contract
-  =<< liftEither (fromBondedPoolArgs bpa)
+callWithBondedPoolArgs contract cfg = callWithArgs fromBondedPoolArgs contract
+  cfg
 
 fromInitialBondedArgs
   :: InitialBondedArgs -> Either Error InitialBondedParams
@@ -371,6 +385,45 @@ type InitialUnbondedArgs =
   , unbondedAssetClass ::
       Tuple String String -- AssetClass ~ Tuple CBORCurrencySymbol ASCIITokenName
   }
+
+callCreateUnbondedPool
+  :: ContractConfig ()
+  -> InitialUnbondedArgs
+  -> Effect (Promise UnbondedPoolArgs)
+callCreateUnbondedPool cfg iba = Promise.fromAff do
+  iup <- liftEither $ fromInitialUnbondedArgs iba
+  upp <- runContract cfg $ createUnbondedPoolContract iup
+  pure $ toUnbondedPoolArgs upp
+
+callDepositUnbondedPool
+  :: ContractConfig () -> UnbondedPoolArgs -> Effect (Promise Unit)
+callDepositUnbondedPool = callWithUnbondedPoolArgs depositUnbondedPoolContract
+
+callCloseUnbondedPool
+  :: ContractConfig () -> UnbondedPoolArgs -> Effect (Promise Unit)
+callCloseUnbondedPool = callWithUnbondedPoolArgs closeUnbondedPoolContract
+
+callUserStakeUnbondedPool
+  :: ContractConfig () -> UnbondedPoolArgs -> BigInt -> Effect (Promise Unit)
+callUserStakeUnbondedPool cfg upa bi = Promise.fromAff $ runContract cfg do
+  upp <- liftEither $ fromUnbondedPoolArgs upa
+  nat <- liftM (error "callUserStakeUnbondedPool: Invalid natural number")
+    $ fromBigInt bi
+  userStakeUnbondedPoolContract upp nat
+
+callUserWithdrawUnbondedPool
+  :: ContractConfig () -> UnbondedPoolArgs -> Effect (Promise Unit)
+callUserWithdrawUnbondedPool =
+  callWithUnbondedPoolArgs userWithdrawUnbondedPoolContract
+
+callWithUnbondedPoolArgs
+  :: (UnbondedPoolParams -> Contract () Unit)
+  -> ContractConfig ()
+  -> UnbondedPoolArgs
+  -> Effect (Promise Unit)
+callWithUnbondedPoolArgs contract cfg = callWithArgs fromUnbondedPoolArgs
+  contract
+  cfg
 
 toUnbondedPoolArgs :: UnbondedPoolParams -> UnbondedPoolArgs
 toUnbondedPoolArgs (UnbondedPoolParams upp) =
