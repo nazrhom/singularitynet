@@ -1,17 +1,22 @@
 module CallContract
-  ( BondedPoolArgs
+  ( SdkConfig
+  -- Bonded
+  , BondedPoolArgs
   , InitialBondedArgs
-  , SdkConfig
   , buildContractConfig
   , callCloseBondedPool
   , callCreateBondedPool
   , callDepositBondedPool
   , callUserStakeBondedPool
   , callUserWithdrawBondedPool
+  -- Unbonded
+  , UnbondedPoolArgs
+  , InitialUnbondedArgs
   ) where
 
 import Contract.Prelude
 
+import Contract.Address (PaymentPubKeyHash)
 import Contract.Monad
   ( Contract
   , ContractConfig
@@ -27,7 +32,7 @@ import Contract.Monad
   )
 import Contract.Numeric.NatRatio (fromNaturals, toRational)
 import Contract.Numeric.Natural (Natural, fromBigInt, toBigInt)
-import Contract.Numeric.Rational (denominator, numerator)
+import Contract.Numeric.Rational (Rational, denominator, numerator)
 import Contract.Prim.ByteArray
   ( byteArrayFromAscii
   , byteArrayToHex
@@ -35,6 +40,7 @@ import Contract.Prim.ByteArray
   )
 import Contract.Value
   ( CurrencySymbol
+  , TokenName
   , getCurrencySymbol
   , getTokenName
   , mkCurrencySymbol
@@ -54,9 +60,17 @@ import Effect.Aff (error)
 import Effect.Exception (Error)
 import Serialization.Address (intToNetworkId)
 import Serialization.Hash (ed25519KeyHashFromBytes, ed25519KeyHashToBytes)
-import Types (BondedPoolParams(BondedPoolParams), InitialBondedParams)
+import Types
+  ( AssetClass(AssetClass)
+  , BondedPoolParams(BondedPoolParams)
+  , InitialBondedParams
+  )
 import Types.CborBytes (cborBytesToHex)
 import Types.RawBytes (hexToRawBytes, rawBytesToHex)
+import UnbondedStaking.Types
+  ( UnbondedPoolParams(UnbondedPoolParams)
+  , InitialUnbondedParams
+  )
 import UserStake (userStakeBondedPoolContract)
 import UserWithdraw (userWithdrawBondedPoolContract)
 
@@ -73,35 +87,6 @@ type SdkConfig =
   , datumCacheSecure :: Boolean
   , networkId :: Number -- converts to Int
   , logLevel :: String -- "Trace", "Debug", "Info", "Warn", "Error"
-  }
-
-type InitialBondedArgs =
-  { iterations :: BigInt -- Natural
-  , start :: BigInt -- like POSIXTime
-  , end :: BigInt -- like POSIXTime
-  , userLength :: BigInt -- like POSIXTime
-  , bondingLength :: BigInt -- like POSIXTime
-  , interest :: Tuple BigInt BigInt -- Rational
-  , minStake :: BigInt -- Natural
-  , maxStake :: BigInt -- Natural
-  , bondedAssetClass ::
-      Tuple String String -- AssetClass ~ Tuple CBORCurrencySymbol ASCIITokenName
-  }
-
-type BondedPoolArgs =
-  { iterations :: BigInt -- Natural
-  , start :: BigInt -- like POSIXTime
-  , end :: BigInt -- like POSIXTime
-  , userLength :: BigInt -- like POSIXTime
-  , bondingLength :: BigInt -- like POSIXTime
-  , interest :: Tuple BigInt BigInt -- Rational
-  , minStake :: BigInt -- Natural
-  , maxStake :: BigInt -- Natural
-  , bondedAssetClass ::
-      Tuple String String -- AssetClass ~ Tuple CBORCurrencySymbol ASCIITokenName
-  , admin :: String -- PaymentPubKeyHash
-  , nftCs :: String -- CurrencySymbol
-  , assocListCs :: String -- CurrencySymbol
   }
 
 fromLogLevelStr :: String -> Maybe LogLevel
@@ -152,6 +137,95 @@ buildContractConfig cfg = Promise.fromAff $ do
     liftM (error $ "buildContractConfig: Invalid " <> name <> " port number")
       $ UInt.fromNumber' port
 
+toSdkAssetClass :: AssetClass -> Tuple String String
+toSdkAssetClass (AssetClass ac) =
+  byteArrayToHex (getCurrencySymbol ac.currencySymbol)
+    /\ cborBytesToHex (getTokenName ac.tokenName)
+
+toSdkInterest :: Rational -> Tuple BigInt BigInt
+toSdkInterest i = numerator i /\ denominator i
+
+toSdkAdmin :: PaymentPubKeyHash -> String
+toSdkAdmin = rawBytesToHex <<< ed25519KeyHashToBytes <<< unwrap <<< unwrap
+
+toSdkCurrencySymbol :: CurrencySymbol -> String
+toSdkCurrencySymbol = byteArrayToHex <<< getCurrencySymbol
+
+fromSdkNat :: String -> String -> BigInt -> Either Error Natural
+fromSdkNat context name bint =
+  note (error msg) $ fromBigInt bint
+  where
+  msg :: String
+  msg = context <> ": Could not convert " <> name <> " to `Natural`"
+
+fromSdkAssetClass :: String -> String /\ String -> Either Error AssetClass
+fromSdkAssetClass context (currencySymbol /\ tokenName) = map wrap
+  $ { currencySymbol: _, tokenName: _ }
+  <$> fromSdkCurrencySymbol context currencySymbol
+  <*> fromSdkTokenName context tokenName
+
+fromSdkTokenName :: String -> String -> Either Error TokenName
+fromSdkTokenName context tokenName = note (errorWithMsg context "`TokenName`")
+  $ mkTokenName
+  =<<
+    byteArrayFromAscii tokenName
+
+fromSdkCurrencySymbol :: String -> String -> Either Error CurrencySymbol
+fromSdkCurrencySymbol context currencySymbol =
+  note (errorWithMsg context "`CurrencySymbol`") $ mkCurrencySymbol =<<
+    hexToByteArray currencySymbol
+
+fromSdkInterest :: String -> BigInt /\ BigInt -> Either Error Rational
+fromSdkInterest context (numerator /\ denominator) = do
+  interestNum <- fromSdkNat context "interest numerator" numerator
+  interestDen <- fromSdkNat context "interest denominator" denominator
+  note (error msg) $ toRational <$> fromNaturals interestNum interestDen
+  where
+  msg :: String
+  msg = context <> ": invalid `Rational`"
+
+fromSdkAdmin :: String -> String -> Either Error PaymentPubKeyHash
+fromSdkAdmin context admin =
+  note (error msg) $ wrap <<< wrap <$>
+    (ed25519KeyHashFromBytes =<< hexToRawBytes admin)
+  where
+  msg :: String
+  msg = context <> ": invalid admin"
+
+errorWithMsg :: String -> String -> Error
+errorWithMsg context name = error $ context <> ": invalid " <> name
+
+--Bonded------------------------------------------------------------------------
+
+type BondedPoolArgs =
+  { iterations :: BigInt -- Natural
+  , start :: BigInt -- like POSIXTime
+  , end :: BigInt -- like POSIXTime
+  , userLength :: BigInt -- like POSIXTime
+  , bondingLength :: BigInt -- like POSIXTime
+  , interest :: Tuple BigInt BigInt -- Rational
+  , minStake :: BigInt -- Natural
+  , maxStake :: BigInt -- Natural
+  , bondedAssetClass ::
+      Tuple String String -- AssetClass ~ Tuple CBORCurrencySymbol ASCIITokenName
+  , admin :: String -- PaymentPubKeyHash
+  , nftCs :: String -- CurrencySymbol
+  , assocListCs :: String -- CurrencySymbol
+  }
+
+type InitialBondedArgs =
+  { iterations :: BigInt -- Natural
+  , start :: BigInt -- like POSIXTime
+  , end :: BigInt -- like POSIXTime
+  , userLength :: BigInt -- like POSIXTime
+  , bondingLength :: BigInt -- like POSIXTime
+  , interest :: Tuple BigInt BigInt -- Rational
+  , minStake :: BigInt -- Natural
+  , maxStake :: BigInt -- Natural
+  , bondedAssetClass ::
+      Tuple String String -- AssetClass ~ Tuple CBORCurrencySymbol ASCIITokenName
+  }
+
 callCreateBondedPool
   :: ContractConfig ()
   -> InitialBondedArgs
@@ -195,19 +269,11 @@ callWithBondedPoolArgs contract cfg bpa = Promise.fromAff
 fromInitialBondedArgs
   :: InitialBondedArgs -> Either Error InitialBondedParams
 fromInitialBondedArgs iba = do
-  iterations <- toNat "iteration" iba.iterations
-  interestNum <- toNat "interest numerator" $ fst iba.interest
-  interestDen <- toNat "interest denominator" $ snd iba.interest
-  interest <- note (error "fromInitialBondedArgs: Invalid Rational")
-    (toRational <$> fromNaturals interestNum interestDen)
-  minStake <- toNat "minStake" iba.minStake
-  maxStake <- toNat "maxStake" iba.maxStake
-  currencySymbol <- note (error "fromInitialBondedArgs: Invalid CS")
-    $ mkCurrencySymbol
-    =<< hexToByteArray (fst iba.bondedAssetClass)
-  tokenName <- note (error "fromInitialBondedArgs: Invalid TN")
-    $ mkTokenName
-    =<< byteArrayFromAscii (snd iba.bondedAssetClass)
+  iterations <- fromSdkNat' "iteration" iba.iterations
+  interest <- fromSdkInterest context iba.interest
+  minStake <- fromSdkNat' "minStake" iba.minStake
+  maxStake <- fromSdkNat' "maxStake" iba.maxStake
+  bondedAssetClass <- fromSdkAssetClass context iba.bondedAssetClass
   pure $ wrap
     { iterations
     , start: iba.start
@@ -217,59 +283,41 @@ fromInitialBondedArgs iba = do
     , interest
     , minStake
     , maxStake
-    , bondedAssetClass: wrap { currencySymbol, tokenName }
+    , bondedAssetClass
     }
   where
-  toNat :: String -> BigInt -> Either Error Natural
-  toNat name bint =
-    note
-      ( error
-          $
-            "fromInitialBondedArgs: Could not convert "
-          <> name
-          <> " to Natural"
-      ) $ fromBigInt bint
+  fromSdkNat' :: String -> BigInt -> Either Error Natural
+  fromSdkNat' name = fromSdkNat context name
+
+  context :: String
+  context = "fromInitialBondedArgs"
 
 toBondedPoolArgs :: BondedPoolParams -> BondedPoolArgs
-toBondedPoolArgs (BondedPoolParams bpp@{ interest: i, bondedAssetClass: bas' }) =
-  let
-    bas = unwrap bas'
-  in
-    { iterations: toBigInt bpp.iterations
-    , start: bpp.start
-    , end: bpp.end
-    , userLength: bpp.userLength
-    , bondingLength: bpp.bondingLength
-    , interest: numerator i /\ denominator i
-    , minStake: toBigInt bpp.minStake
-    , maxStake: toBigInt bpp.maxStake
-    , bondedAssetClass:
-        byteArrayToHex (getCurrencySymbol bas.currencySymbol)
-          /\ cborBytesToHex (getTokenName bas.tokenName)
-    , admin: rawBytesToHex $ ed25519KeyHashToBytes $ unwrap $ unwrap bpp.admin
-    , nftCs: byteArrayToHex $ getCurrencySymbol bpp.nftCs
-    , assocListCs: byteArrayToHex $ getCurrencySymbol bpp.assocListCs
-    }
+toBondedPoolArgs (BondedPoolParams bpp) =
+  { iterations: toBigInt bpp.iterations
+  , start: bpp.start
+  , end: bpp.end
+  , userLength: bpp.userLength
+  , bondingLength: bpp.bondingLength
+  , interest: toSdkInterest bpp.interest
+  , minStake: toBigInt bpp.minStake
+  , maxStake: toBigInt bpp.maxStake
+  , bondedAssetClass: toSdkAssetClass bpp.bondedAssetClass
+  , admin: toSdkAdmin bpp.admin
+  , nftCs: toSdkCurrencySymbol bpp.nftCs
+  , assocListCs: toSdkCurrencySymbol bpp.assocListCs
+  }
 
 fromBondedPoolArgs :: BondedPoolArgs -> Either Error BondedPoolParams
 fromBondedPoolArgs bpa = do
-  iterations <- toNat "iteration" bpa.iterations
-  interestNum <- toNat "interest numerator" $ fst bpa.interest
-  interestDen <- toNat "interest denominator" $ snd bpa.interest
-  interest <- note (error "fromBondedPoolArgs: Invalid Rational")
-    (toRational <$> fromNaturals interestNum interestDen)
-  minStake <- toNat "minStake" bpa.minStake
-  maxStake <- toNat "maxStake" bpa.maxStake
-  admin <- note (error $ "fromBondedPoolArgs: Invalid admin: " <> bpa.admin)
-    $ wrap
-    <<< wrap
-    <$> (ed25519KeyHashFromBytes =<< hexToRawBytes bpa.admin)
-  currencySymbol <- toCs $ fst bpa.bondedAssetClass
-  tokenName <- note (error "fromBondedPoolArgs: Invalid TN")
-    $ mkTokenName
-    =<< byteArrayFromAscii (snd bpa.bondedAssetClass)
-  nftCs <- toCs bpa.nftCs
-  assocListCs <- toCs bpa.assocListCs
+  iterations <- fromSdkNat' "iterations" bpa.iterations
+  interest <- fromSdkInterest context bpa.interest
+  minStake <- fromSdkNat' "minStake" bpa.minStake
+  maxStake <- fromSdkNat' "maxStake" bpa.maxStake
+  admin <- fromSdkAdmin context bpa.admin
+  bondedAssetClass <- fromSdkAssetClass context bpa.bondedAssetClass
+  nftCs <- fromSdkCurrencySymbol context bpa.nftCs
+  assocListCs <- fromSdkCurrencySymbol context bpa.assocListCs
   pure $ wrap
     { iterations
     , start: bpa.start
@@ -280,22 +328,107 @@ fromBondedPoolArgs bpa = do
     , minStake
     , maxStake
     , admin
-    , bondedAssetClass: wrap { currencySymbol, tokenName }
+    , bondedAssetClass
     , nftCs
     , assocListCs
     }
   where
-  toNat :: String -> BigInt -> Either Error Natural
-  toNat name bint =
-    note
-      ( error
-          $
-            "fromBondedPoolArgs: Could not convert "
-          <> name
-          <> " to Natural"
-      ) $ fromBigInt bint
+  fromSdkNat' :: String -> BigInt -> Either Error Natural
+  fromSdkNat' name = fromSdkNat context name
 
-  toCs :: String -> Either Error CurrencySymbol
-  toCs str = note (error "fromBondedPoolArgs: Invalid CS")
-    $ mkCurrencySymbol
-    =<< hexToByteArray str
+  context :: String
+  context = "fromBondedPoolArgs"
+
+--Unbonded----------------------------------------------------------------------
+
+type UnbondedPoolArgs =
+  { start :: BigInt -- like POSIXTime
+  , userLength :: BigInt -- like POSIXTime
+  , adminLength :: BigInt -- like POSIXTime
+  , bondingLength :: BigInt -- like POSIXTime
+  , interestLength :: BigInt -- like POSIXTime
+  , increments :: BigInt -- Natural
+  , interest :: Tuple BigInt BigInt -- Rational
+  , minStake :: BigInt -- Natural
+  , maxStake :: BigInt -- Natural
+  , admin :: String -- PaymentPubKeyHash
+  , unbondedAssetClass ::
+      Tuple String String -- AssetClass ~ Tuple CBORCurrencySymbol ASCIITokenName
+  , nftCs :: String -- CurrencySymbol
+  , assocListCs :: String -- CurrencySymbol
+  }
+
+toUnbondedPoolArgs :: UnbondedPoolParams -> UnbondedPoolArgs
+toUnbondedPoolArgs (UnbondedPoolParams upp) =
+  { start: upp.start
+  , userLength: upp.userLength
+  , adminLength: upp.adminLength
+  , bondingLength: upp.bondingLength
+  , interestLength: upp.interestLength
+  , increments: toBigInt upp.increments
+  , interest: toSdkInterest upp.interest
+  , minStake: toBigInt upp.minStake
+  , maxStake: toBigInt upp.maxStake
+  , admin: toSdkAdmin upp.admin
+  , unbondedAssetClass: toSdkAssetClass upp.unbondedAssetClass
+  , nftCs: toSdkCurrencySymbol upp.nftCs
+  , assocListCs: toSdkCurrencySymbol upp.assocListCs
+  }
+
+fromUnbondedPoolArgs :: UnbondedPoolArgs -> Either Error UnbondedPoolParams
+fromUnbondedPoolArgs upa = do
+  interest <- fromSdkInterest context upa.interest
+  minStake <- fromSdkNat' "minStake" upa.minStake
+  maxStake <- fromSdkNat' "maxStake" upa.maxStake
+  increments <- fromSdkNat' "increments" upa.increments
+  admin <- fromSdkAdmin context upa.admin
+  unbondedAssetClass <- fromSdkAssetClass context upa.unbondedAssetClass
+  nftCs <- fromSdkCurrencySymbol context upa.nftCs
+  assocListCs <- fromSdkCurrencySymbol context upa.assocListCs
+  pure $ wrap
+    { start: upa.start
+    , userLength: upa.userLength
+    , adminLength: upa.adminLength
+    , bondingLength: upa.bondingLength
+    , interestLength: upa.interestLength
+    , increments
+    , interest
+    , minStake
+    , maxStake
+    , admin
+    , unbondedAssetClass
+    , nftCs
+    , assocListCs
+    }
+  where
+  fromSdkNat' :: String -> BigInt -> Either Error Natural
+  fromSdkNat' name = fromSdkNat context name
+
+  context :: String
+  context = "fromUnbondedPoolArgs"
+
+type InitialUnbondedArgs =
+  { start :: BigInt -- like POSIXTime
+  , userLength :: BigInt -- like POSIXTime
+  , adminLength :: BigInt -- like POSIXTime
+  , bondingLength :: BigInt -- like POSIXTime
+  , increments :: BigInt -- Natural
+  , interest :: Tuple BigInt BigInt -- Rational
+  , minStake :: BigInt -- Natural
+  , maxStake :: BigInt -- Natural
+  , unbondedAssetClass ::
+      Tuple String String -- AssetClass ~ Tuple CBORCurrencySymbol ASCIITokenName
+  }
+
+-- newtype InitialUnbondedParams = InitialUnbondedParams
+--   { start :: BigInt
+--   , userLength :: BigInt
+--   , adminLength :: BigInt
+--   , bondingLength :: BigInt
+--   , interestLength :: BigInt
+--   , increments :: Natural
+--   , interest :: Rational
+--   , minStake :: Natural
+--   , maxStake :: Natural
+--   , unbondedAssetClass :: AssetClass
+--   }
