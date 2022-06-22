@@ -17,64 +17,38 @@ module Utils
   , roundUp
   , splitByLength
   , toIntUnsafe
+  , submitTransaction
   ) where
 
 import Contract.Prelude hiding (length)
 
 import Contract.Address (PaymentPubKeyHash)
 import Contract.Hashing (blake2b256Hash)
-import Contract.Monad (Contract, logInfo, tag)
+import Contract.Monad (Contract, liftedE, liftedM, logInfo, tag)
 import Contract.Numeric.Natural (Natural, fromBigInt', toBigInt)
 import Contract.Numeric.Rational (Rational, numerator, denominator)
-import Contract.Prim.ByteArray (ByteArray, hexToByteArray)
+import Contract.Prim.ByteArray (ByteArray, byteArrayToHex, hexToByteArray)
+import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (PlutusScript)
-import Contract.Transaction
-  ( TransactionInput
-  , TransactionOutput(TransactionOutput)
-  )
-import Contract.TxConstraints
-  ( TxConstraints
-  , mustSpendScriptOutput
-  )
+import Contract.Transaction (BalancedSignedTransaction(..), TransactionInput, TransactionOutput(TransactionOutput), balanceAndSignTx, submit)
+import Contract.TxConstraints (TxConstraints, mustSpendScriptOutput)
 import Contract.Utxos (UtxoM(UtxoM))
-import Contract.Value
-  ( CurrencySymbol
-  , TokenName
-  , flattenNonAdaAssets
-  , getTokenName
-  , valueOf
-  )
+import Contract.Value (CurrencySymbol, TokenName, flattenNonAdaAssets, getTokenName, valueOf)
 import Control.Alternative (guard)
+import Control.Monad.Error.Class (try)
 import Data.Argonaut.Core (Json, caseJsonObject)
 import Data.Argonaut.Decode.Combinators (getField) as Json
 import Data.Argonaut.Decode.Error (JsonDecodeError(TypeMismatch))
-import Data.Array
-  ( filter
-  , head
-  , last
-  , length
-  , partition
-  , mapMaybe
-  , slice
-  , sortBy
-  , (..)
-  )
+import Data.Array (filter, head, last, length, partition, mapMaybe, slice, sortBy, (..))
 import Data.Array as Array
 import Data.BigInt (BigInt, fromInt, quot, rem, toInt)
 import Data.Map (Map, toUnfoldable)
 import Data.Map as Map
 import Serialization.Hash (ed25519KeyHashToBytes)
-import Types
-  ( AssetClass(AssetClass)
-  , BondedPoolParams(BondedPoolParams)
-  , InitialBondedParams(InitialBondedParams)
-  , MintingAction(MintEnd, MintInBetween)
-  )
+import Types (AssetClass(AssetClass), BondedPoolParams(BondedPoolParams), InitialBondedParams(InitialBondedParams), MintingAction(MintEnd, MintInBetween))
+import Types.PlutusData (PlutusData)
 import Types.Redeemer (Redeemer)
-import UnbondedStaking.Types
-  ( UnbondedPoolParams(UnbondedPoolParams)
-  , InitialUnbondedParams(InitialUnbondedParams)
-  )
+import UnbondedStaking.Types (UnbondedPoolParams(UnbondedPoolParams), InitialUnbondedParams(InitialUnbondedParams))
 
 -- | Helper to decode the local inputs such as unapplied minting policy and
 -- typed validator
@@ -369,3 +343,51 @@ splitByLength size array
       in
         map (\i -> slice (i * size) ((i * size) + size) array) $
           0 .. sublistCount
+
+-- | Submits a transaction with the given list of constraints/lookups
+submitTransaction
+  :: TxConstraints Unit Unit
+  -> ScriptLookups.ScriptLookups PlutusData
+  -> Array
+       ( Tuple
+           (TxConstraints Unit Unit)
+           (ScriptLookups.ScriptLookups PlutusData)
+       )
+  -> Contract ()
+       ( Array
+           ( Tuple
+               (TxConstraints Unit Unit)
+               (ScriptLookups.ScriptLookups PlutusData)
+           )
+       )
+submitTransaction baseConstraints baseLookups updateList = do
+  let
+    constraintList = fst <$> updateList
+    lookupList = snd <$> updateList
+    constraints = baseConstraints <> mconcat constraintList
+    lookups = baseLookups <> mconcat lookupList
+  result <- try do
+    -- Build transaction
+    unattachedBalancedTx <-
+      liftedE $ ScriptLookups.mkUnbalancedTx lookups constraints
+    logInfo_
+      "submitTransaction: unAttachedUnbalancedTx"
+      unattachedBalancedTx
+    BalancedSignedTransaction { signedTxCbor } <-
+      liftedM
+        "submitTransaction: Cannot balance, reindex redeemers, /\
+        \attach datums redeemers and sign"
+        $ balanceAndSignTx unattachedBalancedTx
+    -- Submit transaction using Cbor-hex encoded `ByteArray`
+    transactionHash <- submit signedTxCbor
+    logInfo_
+      "submitTransaction: Transaction successfully submitted with /\
+      \hash"
+      $ byteArrayToHex
+      $ unwrap transactionHash
+  case result of
+    Left e -> do
+      logInfo_ "depositUnbondedPoolContract:" e
+      pure $ Array.singleton $ constraints /\ lookups
+    Right _ ->
+      pure []
