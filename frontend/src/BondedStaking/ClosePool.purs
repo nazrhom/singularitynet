@@ -2,51 +2,21 @@ module ClosePool (closeBondedPoolContract) where
 
 import Contract.Prelude
 
-import Contract.Address
-  ( getNetworkId
-  , ownPaymentPubKeyHash
-  , scriptHashAddress
-  )
-import Contract.Monad
-  ( Contract
-  , liftContractM
-  , liftedE
-  , liftedE'
-  , liftedM
-  , throwContractError
-  )
-import Contract.PlutusData
-  ( Datum(Datum)
-  , PlutusData
-  , Redeemer(Redeemer)
-  , fromData
-  , getDatumByHash
-  , toData
-  )
+import BondedStaking.TimeUtils (getClosingTime)
+import Contract.Address (getNetworkId, ownPaymentPubKeyHash, scriptHashAddress)
+import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM, logInfo', throwContractError)
+import Contract.PlutusData (Datum(Datum), PlutusData, Redeemer(Redeemer), fromData, getDatumByHash, toData)
 import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
-import Contract.Transaction
-  ( BalancedSignedTransaction(BalancedSignedTransaction)
-  , balanceAndSignTx
-  , submit
-  )
-import Contract.TxConstraints
-  ( TxConstraints
-  , mustBeSignedBy
-  , mustIncludeDatum
-  , mustSpendScriptOutput
-  )
+import Contract.Transaction (BalancedSignedTransaction(BalancedSignedTransaction), balanceAndSignTx, submit)
+import Contract.TxConstraints (TxConstraints, mustBeSignedBy, mustIncludeDatum, mustSpendScriptOutput, mustValidateIn)
 import Contract.Utxos (utxosAt)
 import Data.Map (toUnfoldable)
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
-import Types
-  ( BondedPoolParams(BondedPoolParams)
-  , BondedStakingAction(CloseAct)
-  , BondedStakingDatum
-  )
+import Types (BondedPoolParams(BondedPoolParams), BondedStakingAction(CloseAct), BondedStakingDatum)
 import Utils (logInfo_, getUtxoWithNFT)
 
 closeBondedPoolContract :: BondedPoolParams -> Contract () Unit
@@ -97,6 +67,13 @@ closeBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
     liftContractM
       "closeBondedPoolContract: Could not create state datum lookup"
       $ ScriptLookups.datum bondedStateDatum
+
+  -- Get the withdrawing range to use
+  logInfo' "userWithdrawBondedPoolContract: Getting withdrawing range..."
+  { currTime, range: txRange } <- getClosingTime params
+  logInfo_ "Current time: " $ show currTime
+  logInfo_ "TX Range" txRange
+
   -- We build the transaction
   let
     redeemer = Redeemer $ toData CloseAct
@@ -117,6 +94,7 @@ closeBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
         (toUnfoldable $ unwrap bondedPoolUtxos :: Array _)
         <> mustBeSignedBy admin
         <> mustIncludeDatum bondedStateDatum
+        <> mustValidateIn txRange
   unattachedBalancedTx <-
     liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
   BalancedSignedTransaction { signedTxCbor } <-

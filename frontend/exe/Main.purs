@@ -7,7 +7,7 @@ import Contract.Address (NetworkId(TestnetId))
 import Contract.Monad (ContractConfig, ConfigParams(ConfigParams), LogLevel(Info), defaultDatumCacheWsConfig, defaultOgmiosWsConfig, defaultServerConfig, launchAff_, liftContractM, logInfo', mkContractConfig, runContract, runContract_)
 import Contract.Wallet (mkNamiWalletAff)
 import CreatePool (createBondedPoolContract)
---import ClosePool(closeBondedPoolContract)
+import ClosePool(closeBondedPoolContract)
 import Data.BigInt as BigInt
 import Data.Int as Int
 import DepositPool (depositBondedPoolContract)
@@ -53,7 +53,7 @@ import Utils (logInfo_)
 main :: Effect Unit
 main = launchAff_ do
   adminCfg <- mkConfig
-  ---- Admin create pool ----
+  ---- Admin creates pool ----
   bondedParams@(BondedPoolParams bpp) <-
     runContract adminCfg do
       logInfo' "STARTING AS ADMIN"
@@ -90,11 +90,12 @@ main = launchAff_ do
   runContract_ userCfg do
     userWithdrawBondedPoolContract bondedParams 
     logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
-    logInfo' "END"
     -- Wait until closing period
-    -- liftAff $ delay $ wrap $ BigInt.toNumber bpp.userLength
+    liftAff $ delay $ wrap $ BigInt.toNumber bpp.userLength
   -- Admin closes pool
-  -- runContract_ adminCfg $ closeBondedPoolContract bondedParams
+  runContract_ adminCfg do
+    closeBondedPoolContract bondedParams
+    logInfo' "END"
 
 -- Bonded: admin create pool, user stake, admin deposit (rewards), admin close
 -- using PureScript (SDK)
