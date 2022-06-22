@@ -3,20 +3,21 @@ module Main (main) where
 import Contract.Prelude
 
 import BondedStaking.TimeUtils (startPoolFromNow)
---import ClosePool (closeBondedPoolContract)
 import Contract.Address (NetworkId(TestnetId))
 import Contract.Monad (ContractConfig, ConfigParams(ConfigParams), LogLevel(Info), defaultDatumCacheWsConfig, defaultOgmiosWsConfig, defaultServerConfig, launchAff_, liftContractM, logInfo', mkContractConfig, runContract, runContract_)
 import Contract.Wallet (mkNamiWalletAff)
 import CreatePool (createBondedPoolContract)
+--import ClosePool(closeBondedPoolContract)
 import Data.BigInt as BigInt
 import Data.Int as Int
-import Types.Natural as Natural
 import DepositPool (depositBondedPoolContract)
 import Effect.Aff (delay)
 import Effect.Exception (error)
 import Settings (testInitBondedParams)
 import Types (BondedPoolParams(..))
+import Types.Natural as Natural
 import UserStake (userStakeBondedPoolContract)
+import UserWithdraw (userWithdrawBondedPoolContract)
 import Utils (logInfo_)
 
 -- import Settings (testInitUnbondedParams)
@@ -52,7 +53,7 @@ import Utils (logInfo_)
 main :: Effect Unit
 main = launchAff_ do
   adminCfg <- mkConfig
-  -- Admin create pool
+  ---- Admin create pool ----
   bondedParams@(BondedPoolParams bpp) <-
     runContract adminCfg do
       logInfo' "STARTING AS ADMIN"
@@ -68,22 +69,30 @@ main = launchAff_ do
       bondedParams <- createBondedPoolContract initParams'
       logInfo_ "Pool parameters" bondedParams
       logInfo' "SWITCH WALLETS NOW - CHANGE TO USER 1"
-      -- We give 30 seconds of margin for the user and admin to sign the transactions
+      -- We give 30 seconds of margin for the users and admin to sign the transactions
       liftAff $ delay $ wrap $ Int.toNumber $ startDelayInt + 30_000
       pure bondedParams
-  -- User 1 deposits
+  ---- User 1 deposits ----
   userCfg <- mkConfig
   userStake <- liftM (error "main: Cannot create userStake from String") $ Natural.fromString "10"
   runContract_ userCfg do
     userStakeBondedPoolContract bondedParams userStake
     logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
     -- Wait until bonding period
-    liftAff $ delay $ wrap $ BigInt.toNumber $ bpp.userLength
-  -- Admin deposits to pool
+    liftAff $ delay $ wrap $ BigInt.toNumber bpp.userLength
+  ---- Admin deposits to pool ----
   runContract_ adminCfg do
     depositBondedPoolContract bondedParams
     logInfo' "SWITCH WALLETS NOW - CHANGE TO USER 1"
-    liftAff $ delay $ wrap $ Int.toNumber 100_000
+    -- Wait until withdrawing period
+    liftAff $ delay $ wrap $ BigInt.toNumber bpp.bondingLength
+  ---- User 1 withdraws ----
+  runContract_ userCfg do
+    userWithdrawBondedPoolContract bondedParams 
+    logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
+    logInfo' "END"
+    -- Wait until closing period
+    -- liftAff $ delay $ wrap $ BigInt.toNumber bpp.userLength
   -- Admin closes pool
   -- runContract_ adminCfg $ closeBondedPoolContract bondedParams
 
