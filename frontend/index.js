@@ -39,8 +39,8 @@ exports.BondedPool = class BondedPool {
 exports.createUnbondedPool = async (sdkConfig, intialArgs) => {
   const contracts = await frontend;
   const config = await contracts.buildContractConfig(sdkConfig)();
-  const bondedArgs = await callCreateUnbondedPool(config)(initialArgs)();
-  return new UnbondedPool(config, bondedArgs);
+  const unbondedArgs = await callCreateUnbondedPool(config)(initialArgs)();
+  return new UnbondedPool(config, unbondedArgs);
 };
 
 exports.UnbondedPool = class UnbondedPool {
