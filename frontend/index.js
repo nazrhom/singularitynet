@@ -38,3 +38,37 @@ exports.BondedPool = class BondedPool {
     return contracts.callUserWithdrawBondedPool(this.config)(this.args)();
   }
 };
+
+exports.UnbondedPool = class UnbondedPool {
+  constructor(config, args) {
+    this.config = config;
+    this.args = args;
+  }
+
+  async create() {
+    const contracts = await frontend;
+    return contracts.callCreateUnbondedPool(this.config)(args)();
+  }
+
+  async deposit() {
+    const contracts = await frontend;
+    return contracts.callDepositUnbondedPool(this.config)(this.args)();
+  }
+
+  async close() {
+    const contracts = await frontend;
+    return contracts.callCloseUnbondedPool(this.config)(this.args)();
+  }
+
+  async userStake(amount) {
+    const contracts = await frontend;
+    return contracts.callUserStakeUnbondedPool(this.config)(this.args)(
+      amount
+    )();
+  }
+
+  async userWithdraw() {
+    const contracts = await frontend;
+    return contracts.callUserWithdrawUnbondedPool(this.config)(this.args)();
+  }
+};
