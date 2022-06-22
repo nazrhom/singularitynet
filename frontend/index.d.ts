@@ -5,32 +5,20 @@
 declare const cfg: unique symbol;
 export type ContractConfig = typeof cfg;
 
-export function buildContractConfig(config: SdkConfig): Promise<ContractConfig>
+export declare function buildContractConfig(
+  config: SdkConfig
+): Promise<ContractConfig>;
 
-export function createBondedPool(
-  config: ContractConfig, args: InitialBondedArgs
-):
-  Promise<BondedPoolArgs>
+export declare class BondedPoolContracts {
+  readonly config: ContractConfig;
+  readonly args: BondedPoolArgs;
 
-export function depositBondedPool(
-  config: ContractConfig, args: BondedPoolArgs
-):
-  Promise<void>
-
-export function closeBondedPool(
-  config: ContractConfig, args: BondedPoolArgs
-):
-  Promise<void>
-
-export function userStakeBondedPool(
-  config: ContractConfig, args: BondedPoolArgs, amount: bigint
-):
-  Promise<void>
-
-export function userWithdrawBondedPool(
-  config: ContractConfig, args: BondedPoolArgs
-):
-  Promise<void>
+  create(): Promise<BondedPoolArgs>;
+  deposit(): Promise<void>;
+  close(): Promise<void>;
+  userStake(amount: bigint): Promise<void>;
+  userWithdraw(): Promise<void>;
+}
 
 export type LogLevel = "Trace" | "Debug" | "Info" | "Warn" | "Error"
 

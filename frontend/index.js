@@ -7,27 +7,34 @@ exports.buildContractConfig = async (sdkConfig) => {
   return contracts.buildContractConfig(sdkConfig)();
 };
 
-exports.createBondedPool = async (config, args) => {
-  const contracts = await frontend;
-  return contracts.callCreateBondedPool(config)(args)();
-};
+exports.BondedPool = class BondedPool {
+  constructor(config, args) {
+    this.config = config;
+    this.args = args;
+  }
 
-exports.depositBondedPool = async (config, args) => {
-  const contracts = await frontend;
-  return contracts.callDepositBondedPool(config)(args)();
-};
+  async create() {
+    const contracts = await frontend;
+    return contracts.callCreateBondedPool(this.config)(args)();
+  }
 
-exports.closeBondedPool = async (config, args) => {
-  const contracts = await frontend;
-  return contracts.callCloseBondedPool(config)(args)();
-};
+  async deposit() {
+    const contracts = await frontend;
+    return contracts.callDepositBondedPool(this.config)(this.args)();
+  }
 
-exports.userStakeBondedPool = async (config, args, amount) => {
-  const contracts = await frontend;
-  return contracts.callUserStakeBondedPool(config)(args)(amount)();
-};
+  async close() {
+    const contracts = await frontend;
+    return contracts.callCloseBondedPool(this.config)(this.args)();
+  }
 
-exports.userWithdrawBondedPool = async (config, args) => {
-  const contracts = await frontend;
-  return contracts.callUserWithdrawBondedPool(config)(args)();
+  async userStake(amount) {
+    const contracts = await frontend;
+    return contracts.callUserStakeBondedPool(this.config)(this.args)(amount)();
+  }
+
+  async userWithdraw() {
+    const contracts = await frontend;
+    return contracts.callUserWithdrawBondedPool(this.config)(this.args)();
+  }
 };
