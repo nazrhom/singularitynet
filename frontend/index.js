@@ -7,27 +7,27 @@ exports.buildContractConfig = async (sdkConfig) => {
   return contracts.buildContractConfig(sdkConfig)();
 };
 
-exports.callCreateBondedPool = async (config, args) => {
+exports.createBondedPool = async (config, args) => {
   const contracts = await frontend;
   return contracts.callCreateBondedPool(config)(args)();
 };
 
-exports.callDepositBondedPool = async (config, args) => {
+exports.depositBondedPool = async (config, args) => {
   const contracts = await frontend;
   return contracts.callDepositBondedPool(config)(args)();
 };
 
-exports.callCloseBondedPool = async (config, args) => {
+exports.closeBondedPool = async (config, args) => {
   const contracts = await frontend;
   return contracts.callCloseBondedPool(config)(args)();
 };
 
-exports.callUserStakeBondedPool = async (config, args, amount) => {
+exports.userStakeBondedPool = async (config, args, amount) => {
   const contracts = await frontend;
   return contracts.callUserStakeBondedPool(config)(args)(amount)();
 };
 
-exports.callUserStakeBondedPool = async (config, args) => {
+exports.userWithdrawBondedPool = async (config, args) => {
   const contracts = await frontend;
-  return contracts.callUserStakeBondedPool(config)(args)();
+  return contracts.callUserWithdrawBondedPool(config)(args)();
 };

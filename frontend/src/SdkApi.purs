@@ -1,5 +1,6 @@
 module SdkApi
   ( SdkConfig
+  , SdkServerConfig
   -- Bonded
   , BondedPoolArgs
   , InitialBondedArgs
@@ -81,21 +82,21 @@ import UserWithdraw (userWithdrawBondedPoolContract)
 
 -- | Configuation needed to call contracts from JS.
 type SdkConfig =
-  { serverHost :: String
-  , serverPort :: Number -- converts to UInt
-  , serverSecure :: Boolean
-  , ogmiosHost :: String
-  , ogmiosPort :: Number -- converts to UInt
-  , ogmiosSecure :: Boolean
-  , datumCacheHost :: String
-  , datumCachePort :: Number -- converts to UInt
-  , datumCacheSecure :: Boolean
+  { ctlServerConfig :: SdkServerConfig
+  , ogmiosConfig :: SdkServerConfig
+  , datumCacheConfig :: SdkServerConfig
   , networkId :: Number -- converts to Int
   , logLevel :: String -- "Trace", "Debug", "Info", "Warn", "Error"
   }
 
-fromLogLevelStr :: String -> Maybe LogLevel
-fromLogLevelStr = case _ of
+type SdkServerConfig =
+  { host :: String
+  , port :: Number -- converts to UInt
+  , secure :: Boolean
+  }
+
+fromSdkLogLevel :: String -> Maybe LogLevel
+fromSdkLogLevel = case _ of
   "Trace" -> pure Trace
   "Debug" -> pure Debug
   "Info" -> pure Info -- default
@@ -103,44 +104,42 @@ fromLogLevelStr = case _ of
   "Error" -> pure Error
   _ -> Nothing
 
+fromSdkServerConfig
+  :: String
+  -> SdkServerConfig
+  -> Either Error { port :: UInt, host :: String, secure :: Boolean }
+fromSdkServerConfig serviceName conf@{ host, secure } = do
+  port <-
+    note (error $ "invalid " <> serviceName <> " port number")
+      $ UInt.fromNumber' conf.port
+  pure { port, host, secure }
+
 buildContractConfig :: SdkConfig -> Effect (Promise (ContractConfig ()))
 buildContractConfig cfg = Promise.fromAff $ do
-  serverPort <- convertPort "server" cfg.serverPort
-  ogmiosPort <- convertPort "ogmios" cfg.ogmiosPort
-  datumCachePort <- convertPort "datum cache" cfg.datumCachePort
-  networkIdInt <- liftM (error "buildContractConfig: Invalid network id Int")
+  ctlServerConfig <- liftEither $ fromSdkServerConfig "ctl-server"
+    cfg.ctlServerConfig
+  ogmiosConfig <- liftEither $ fromSdkServerConfig "ogmios" cfg.ogmiosConfig
+  datumCacheConfig <- liftEither $ fromSdkServerConfig "ogmios-datum-cache"
+    cfg.datumCacheConfig
+  networkIdInt <- liftM (errorWithContext "invalid `NetworkId`")
     $ Int.fromNumber cfg.networkId
-  networkId <- liftM (error "buildContractConfig: Invalid network id")
+  networkId <- liftM (errorWithContext "invalid `NetworkId`")
     $ intToNetworkId networkIdInt
   wallet <- Just <$> mkNamiWalletAff
-  logLevel <- liftM (error "buildContractConfig: Invalid LogLevel")
-    $ fromLogLevelStr cfg.logLevel
+  logLevel <- liftM (errorWithContext "invalid `LogLevel`")
+    $ fromSdkLogLevel cfg.logLevel
   mkContractConfig $ wrap
-    { ogmiosConfig:
-        { port: ogmiosPort
-        , host: cfg.ogmiosHost
-        , secure: cfg.ogmiosSecure
-        }
-    , datumCacheConfig:
-        { port: datumCachePort
-        , host: cfg.datumCacheHost
-        , secure: cfg.datumCacheSecure
-        }
-    , ctlServerConfig:
-        { port: serverPort
-        , host: cfg.serverHost
-        , secure: cfg.serverSecure
-        }
-    , networkId
+    { ogmiosConfig: undefined
+    , datumCacheConfig: undefined
+    , ctlServerConfig: undefined
     , logLevel: logLevel
+    , networkId
     , extraConfig: {}
     , wallet
     }
   where
-  convertPort :: String -> Number -> Aff UInt
-  convertPort name port =
-    liftM (error $ "buildContractConfig: Invalid " <> name <> " port number")
-      $ UInt.fromNumber' port
+  errorWithContext :: String -> Error
+  errorWithContext msg = error $ "buildContractConfig: " <> msg
 
 callWithArgs
   :: forall (a :: Type) (b :: Type)

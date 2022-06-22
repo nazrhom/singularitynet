@@ -7,43 +7,47 @@ export type ContractConfig = typeof cfg;
 
 export function buildContractConfig(config: SdkConfig): Promise<ContractConfig>
 
-export function callCreateBondedPool(
+export function createBondedPool(
   config: ContractConfig, args: InitialBondedArgs
 ):
   Promise<BondedPoolArgs>
 
-export function callDepositBondedPool(
+export function depositBondedPool(
   config: ContractConfig, args: BondedPoolArgs
 ):
   Promise<void>
 
-export function callCloseBondedPool(
+export function closeBondedPool(
   config: ContractConfig, args: BondedPoolArgs
 ):
   Promise<void>
 
-export function callUserStakeBondedPool(
+export function userStakeBondedPool(
   config: ContractConfig, args: BondedPoolArgs, amount: bigint
 ):
   Promise<void>
 
-export function callUserWithdrawBondedPool(
+export function userWithdrawBondedPool(
   config: ContractConfig, args: BondedPoolArgs
 ):
   Promise<void>
 
+export type LogLevel = "Trace" | "Debug" | "Info" | "Warn" | "Error"
+
+export type NetworkId = 1 | 2
+
+export type SdkServerConfig = {
+  host: string; // e.g. "localhost"
+  port: number; // uint
+  secure: boolean;
+};
+
 export type SdkConfig = {
-  serverHost: string; // e.g. "localhost"
-  serverPort: number; // uint
-  serverSecure: boolean;
-  ogmiosHost: string; // e.g. "localhost"
-  ogmiosPort: number; // uint
-  ogmiosSecure: boolean;
-  datumCacheHost: string; // e.g. "localhost"
-  datumCachePort: number; // uint
-  datumCacheSecure: boolean;
-  networkId: number; // int
-  logLevel: string; // "Trace", "Debug", "Info", "Warn", "Error"
+  ctlServerConfig: SdkServerConfig;
+  ogmiosServerConfig: SdkServerConfig;
+  datumCacheConfig: SdkServerConfig;
+  networkId: NetworkId; // int
+  logLevel: LogLevel;
 };
 
 export type InitialBondedArgs = {

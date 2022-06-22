@@ -29,17 +29,23 @@ import Record (merge)
 ------------------------ Used for Testing SDK ----------------------------------
 defaultSdkConfig :: SdkConfig
 defaultSdkConfig =
-  { serverHost: "localhost"
-  , serverPort: 8081.0 -- converts to UInt
-  , serverSecure: false
-  , ogmiosHost: "localhost"
-  , ogmiosPort: 1337.0 -- converts to UInt
-  , ogmiosSecure: false
-  , datumCacheHost: "localhost"
-  , datumCachePort: 9999.0 -- converts to UInt
-  , datumCacheSecure: false
-  , networkId: zero -- converts to Int
-  , logLevel: "Info" -- "Trace", "Debug", "Info", "Warn", "Error"
+  { ctlServerConfig:
+      { host: "localhost"
+      , port: 8081.0
+      , secure: false
+      }
+  , ogmiosConfig:
+      { host: "localhost"
+      , port: 1337.0
+      , secure: false
+      }
+  , datumCacheConfig:
+      { host: "localhost"
+      , port: 9999.0
+      , secure: false
+      }
+  , networkId: zero
+  , logLevel: "Info"
   }
 
 -- Hardcoded initial parameters for testing.
