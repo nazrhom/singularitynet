@@ -85,9 +85,9 @@ main = launchAff_ do
   runContract_ adminCfg do
     depositBatchSize <-
       liftM (error "Cannot create Natural") $ Natural.fromString "1"
-    failedDeposits <-
+    void $
       depositBondedPoolContract bondedParams depositBatchSize []
-        ( \failedDeposits' -> do
+        ( \_ -> do
             logInfo'
               "main: Waiting to submit next Tx batch. DON'T SWITCH WALLETS \
               \ - STAY AS ADMIN"
@@ -98,8 +98,8 @@ main = launchAff_ do
   runContract_ adminCfg do
     closeBatchSize <-
       liftM (error "Cannot create Natural") $ Natural.fromString "10"
-    failedDeposits <- closeBondedPoolContract bondedParams closeBatchSize []
-      ( \failedDeposits' -> do
+    void $ closeBondedPoolContract bondedParams closeBatchSize []
+      ( \_ -> do
           logInfo'
             "main: Waiting to submit next Tx batch. DON'T SWITCH WALLETS \
             \- STAY AS ADMIN"

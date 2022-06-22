@@ -85,7 +85,7 @@ closeBondedPoolContract
   tokenName <- liftContractM
     "closeBondedPoolContract: Cannot create TokenName"
     bondedStakingTokenName
-  poolTxInput /\ poolTxOutput <-
+  poolTxInput /\ _ <-
     liftContractM "closeBondedPoolContract: Cannot get state utxo"
       $ getUtxoWithNFT bondedPoolUtxos nftCs tokenName
   logInfo_ "closeBondedPoolContract: Pool's UTXO" poolTxInput
