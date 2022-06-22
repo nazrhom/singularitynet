@@ -43,6 +43,7 @@ import Contract.TxConstraints
   , mustPayToPubKeyAddress
   , mustPayToScript
   , mustSpendScriptOutput
+  , mustValidateIn
   )
 import Contract.Utxos (UtxoM(UtxoM), utxosAt)
 import Contract.Value (Value, mkTokenName, singleton)
@@ -66,6 +67,7 @@ import UnbondedStaking.Types
   , UnbondedStakingAction(WithdrawAct)
   , UnbondedStakingDatum(AssetDatum, EntryDatum, StateDatum)
   )
+import UnbondedStaking.Utils (getBondingTime)
 import Utils
   ( findRemoveOtherElem
   , getAssetsToConsume
@@ -150,6 +152,11 @@ userWithdrawUnbondedPoolContract
     liftContractM
       "userWithdrawUnbondedPoolContract: Could not create token name for user`"
       $ mkTokenName hashedUserPkh
+  -- Get the staking range to use
+  logInfo' "userWithdrawUnbondedPoolContract: Getting user range..."
+  {currTime, range} <- getBondingTime params
+  logInfo_ "Current time: " $ show currTime
+  logInfo_ "TX Range" range
   -- Build useful values for later
   let
     stateTokenValue = singleton nftCs tokenName one
@@ -256,6 +263,7 @@ userWithdrawUnbondedPoolContract
                 , mustPayToScript valHash assetDatum changeValue
                 , mustPayToPubKeyAddress userPkh userStakingPubKeyHash
                     withdrawnVal
+                , mustValidateIn range
                 ]
 
             lookup :: ScriptLookups.ScriptLookups PlutusData
@@ -361,6 +369,7 @@ userWithdrawUnbondedPoolContract
                 , mustPayToScript valHash assetDatum changeValue
                 , mustPayToPubKeyAddress userPkh userStakingPubKeyHash
                     withdrawnVal
+                , mustValidateIn range
                 ]
 
             lookup :: ScriptLookups.ScriptLookups PlutusData

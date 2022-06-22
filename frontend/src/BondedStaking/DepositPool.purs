@@ -20,7 +20,7 @@ import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
 import Types (BondedStakingAction(AdminAct), BondedStakingDatum(AssetDatum, EntryDatum, StateDatum), BondedPoolParams(BondedPoolParams), Entry(Entry))
 import Types.Redeemer (Redeemer(Redeemer))
-import Utils (getBondingTime, getUtxoWithNFT, logInfo_, mkOnchainAssocList, mkRatUnsafe, roundUp)
+import Utils (getBondingTime, getUtxoWithNFT, logInfo_, mkOnchainAssocList, mkRatUnsafe, roundUp, big)
 
 -- Deposits a certain amount in the pool
 depositBondedPoolContract :: BondedPoolParams -> Contract () Unit
@@ -150,7 +150,7 @@ calculateRewards interest deposited = do
   when (deposited == zero) $
     throwContractError "calculateRewards: totalDeposited is zero"
   let
-    recentRewards = interest * mkRatUnsafe (deposited % one)
+    recentRewards = interest * mkRatUnsafe ((deposited + big 100_000_000) % one)
   when (recentRewards < zero) $ throwContractError
     "calculateRewards: invalid rewards amount"
   pure recentRewards

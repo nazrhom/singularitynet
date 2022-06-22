@@ -40,6 +40,7 @@ import Contract.TxConstraints
   , mustMintValueWithRedeemer
   , mustPayToScript
   , mustSpendScriptOutput
+  , mustValidateIn
   )
 import Contract.Utxos (utxosAt)
 import Contract.Value (mkTokenName, singleton)
@@ -61,6 +62,7 @@ import UnbondedStaking.Types
   , UnbondedStakingDatum(AssetDatum, EntryDatum, StateDatum)
   , UnbondedPoolParams(UnbondedPoolParams)
   )
+import UnbondedStaking.Utils (getUserTime)
 import Utils
   ( findInsertUpdateElem
   , getUtxoWithNFT
@@ -140,7 +142,6 @@ userStakeUnbondedPoolContract
     assetCs = assetParams.currencySymbol
     assetTn = assetParams.tokenName
     stakeValue = singleton assetCs assetTn amtBigInt
-
   -- Get the minting policy and currency symbol from the list NFT:
   listPolicy <- liftedE $ mkListNFTPolicy Unbonded nftCs
   -- Get the token name for the user by hashing
@@ -149,7 +150,11 @@ userStakeUnbondedPoolContract
       "userStakeUnbondedPoolContract: Could not create token name for user`"
       $ mkTokenName hashedUserPkh
   let entryValue = singleton assocListCs assocListTn one
-
+  -- Get the staking range to use
+  logInfo' "userStakeUnbondedPoolContract: Getting user time range..."
+  {currTime, range} <- getUserTime params
+  logInfo_ "Current time: " $ show currTime
+  logInfo_ "TX Range" range
   constraints /\ lookup <- case unbondedStakingDatum of
     StateDatum { maybeEntryName: Nothing, open: true } -> do
       logInfo'
@@ -207,6 +212,7 @@ userStakeUnbondedPoolContract
             , mustPayToScript valHash entryDatum entryValue
             , mustBeSignedBy userPkh
             , mustSpendScriptOutput poolTxInput valRedeemer
+            , mustValidateIn range
             ]
 
         lookup :: ScriptLookups.ScriptLookups PlutusData
@@ -284,6 +290,7 @@ userStakeUnbondedPoolContract
                 , mustPayToScript valHash entryDatum entryValue
                 , mustBeSignedBy userPkh
                 , mustSpendScriptOutput poolTxInput valRedeemer
+                , mustValidateIn range
                 ]
 
             lookup :: ScriptLookups.ScriptLookups PlutusData
@@ -363,6 +370,7 @@ userStakeUnbondedPoolContract
                 , mustPayToScript valHash entryDatum entryValue
                 , mustBeSignedBy userPkh
                 , mustSpendScriptOutput txIn valRedeemer
+                , mustValidateIn range
                 ]
 
             lookup :: ScriptLookups.ScriptLookups PlutusData

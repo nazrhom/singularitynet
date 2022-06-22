@@ -11,7 +11,6 @@ module Utils
   , mkBondedPoolParams
   , mkOnchainAssocList
   , mkRatUnsafe
-  , mkUnbondedPoolParams
   , nat
   , roundDown
   , roundUp
@@ -52,7 +51,6 @@ import Serialization.Hash (ed25519KeyHashToBytes)
 import Types (AssetClass(AssetClass), BondedPoolParams(BondedPoolParams), InitialBondedParams(InitialBondedParams), MintingAction(MintEnd, MintInBetween))
 import Types.Interval (POSIXTime(..), POSIXTimeRange, interval)
 import Types.Redeemer (Redeemer)
-import UnbondedStaking.Types (UnbondedPoolParams(UnbondedPoolParams), InitialUnbondedParams(InitialUnbondedParams))
 
 -- | Helper to decode the local inputs such as unapplied minting policy and
 -- typed validator
@@ -184,31 +182,6 @@ mkBondedPoolParams admin nftCs assocListCs (InitialBondedParams ibp) = do
     , maxStake: ibp.maxStake
     , admin
     , bondedAssetClass: ibp.bondedAssetClass
-    , nftCs
-    , assocListCs
-    }
-
--- Creates the `UnbondedPoolParams` from the `InitialUnbondedParams` and
--- runtime parameters from the user.
-mkUnbondedPoolParams
-  :: PaymentPubKeyHash
-  -> CurrencySymbol
-  -> CurrencySymbol
-  -> InitialUnbondedParams
-  -> UnbondedPoolParams
-mkUnbondedPoolParams admin nftCs assocListCs (InitialUnbondedParams iup) = do
-  UnbondedPoolParams
-    { start: iup.start
-    , userLength: iup.userLength
-    , adminLength: iup.adminLength
-    , bondingLength: iup.bondingLength
-    , interestLength: iup.interestLength
-    , increments: iup.increments
-    , interest: iup.interest
-    , minStake: iup.minStake
-    , maxStake: iup.maxStake
-    , admin
-    , unbondedAssetClass: iup.unbondedAssetClass
     , nftCs
     , assocListCs
     }

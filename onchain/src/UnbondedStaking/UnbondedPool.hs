@@ -152,25 +152,17 @@ punbondedPoolValidator = phoistAcyclic $
     -- corresponding logic
     pure $
       pmatch act $ \case
-        PAdminAct dataRecord -> unTermCont $ do
-          -- guardC "punbondedPoolValidator: wrong period for PAdminAct \
-          --   \redeemer" $
-          --   getUnbondedPeriod # txInfoF.validRange # params #==
-          --     adminUpdatePeriod
-          adminActParamsF <-
-            tcont $ pletFields @["totalRewards", "totalDeposited"] dataRecord
-          pure $
-            adminActLogic
-              txInfoF
-              paramsF
-              ctxF.purpose
-              dat
-              adminActParamsF
+        PAdminAct _ -> unTermCont $ do
+          guardC "punbondedPoolValidator: wrong period for PAdminAct \
+            \redeemer" $
+            getUnbondedPeriod # txInfoF.validRange # params #==
+              adminUpdatePeriod
+          pure $ adminLogic txInfoF paramsF
         PStakeAct dataRecord -> unTermCont $ do
-          -- guardC "punbondedPoolValidator: wrong period for PStakeAct \
-          --   \redeemer" $
-          --   getUnbondedPeriod # txInfoF.validRange # params #==
-          --     depositWithdrawPeriod
+          guardC "punbondedPoolValidator: wrong period for PStakeAct \
+            \redeemer" $
+            getUnbondedPeriod # txInfoF.validRange # params #==
+              depositWithdrawPeriod
           stakeActParamsF <-
             tcont $
               pletFields
@@ -196,11 +188,11 @@ punbondedPoolValidator = phoistAcyclic $
             withdrawActParamsF
             period
         PCloseAct _ -> unTermCont $ do
-          -- guardC "punbondedPoolValidator: wrong period for PCloseAct \
-          --   \redeemer" $
-          --   getUnbondedPeriod # txInfoF.validRange # params #==
-          --     adminUpdatePeriod
-          pure $ closeActLogic txInfoF paramsF ctxF.purpose dat
+          guardC "punbondedPoolValidator: wrong period for PCloseAct \
+            \redeemer" $
+            getUnbondedPeriod # txInfoF.validRange # params #==
+              adminUpdatePeriod
+          pure $ adminLogic txInfoF paramsF
 
 -- Untyped version to be serialised. This version is responsible for verifying
 -- that the parameters (pool params, datum and redeemer) have the proper types.
@@ -222,83 +214,16 @@ punbondedPoolValidatorUntyped = plam $ \pparams dat act ctx ->
     # unTermCont (ptryFromUndata act)
     # punsafeCoerce ctx
 
-adminActLogic ::
+adminLogic ::
   forall (s :: S).
   PTxInfoHRec s ->
   PUnbondedPoolParamsHRec s ->
-  Term s PScriptPurpose ->
-  Term s PUnbondedStakingDatum ->
-  HRec
-    '[ HField s "totalRewards" PNatural
-     , HField s "totalDeposited" PNatural
-     ] ->
   Term s PUnit
-adminActLogic txInfoF paramsF purpose datum adminActParamsF = unTermCont $ do
+adminLogic txInfoF paramsF = unTermCont $ do
   -- We check that the transaction was signed by the pool operator
-  guardC "adminActLogic: transaction not signed by admin" $
+  guardC "adminLogic: transaction not signed by admin" $
     signedBy txInfoF.signatories paramsF.admin
-  -- We get the input's address
-  inputF <-
-    tcont . pletFields @'["outRef", "resolved"]
-      =<< getInput purpose txInfoF.inputs
-  inputResolvedF <-
-    tcont . pletFields @["address", "value", "datumHash"] $ inputF.resolved
-  let poolAddr :: Term s PAddress
-      poolAddr = inputResolvedF.address
-      txInfoDataF :: Term s (PBuiltinList (PAsData (PTuple PDatumHash PDatum)))
-      txInfoDataF = getField @"data" txInfoF
-  -- We make sure that the input's Datum is updated correctly for each Datum
-  -- constructor
-  pure . pmatch datum $ \case
-    PStateDatum _ ->
-      ptraceError
-        "adminActLogic: update failed because a wrong \
-        \datum constructor was provided"
-    PEntryDatum oldEntryRecord -> unTermCont $ do
-      ---- FETCH DATUMS ----
-      -- Retrieve fields from oldEntry
-      oldEntry <- pletC $ pfield @"_0" # oldEntryRecord
-      oldEntryF <- tcont $ pletFields @PEntryFields $ oldEntry
-      -- Get updated entry
-      entryTok <- pletC $ getTokenName paramsF.assocListCs inputResolvedF.value
-      newEntryF <- getOutputEntry poolAddr entryTok txInfoDataF txInfoF.outputs
-      ---- BUSINESS LOGIC ----
-      guardC
-        "adminActLogic: update failed because pool is not open"
-        $ toPBool # oldEntryF.open
-      guardC "adminActLogic: some fields in the given entries are not equal" $
-        oldEntryF.key #== newEntryF.key
-          #&& oldEntryF.deposited #== newEntryF.deposited
-          #&& oldEntryF.open #== newEntryF.open
-          #&& oldEntryF.next #== newEntryF.next
-      guardC
-        "adminActLogic: update failed because entry field 'newDeposit' \
-        \is not zero"
-        $ newEntryF.newDeposit #== natZero
-      let rewards =
-            calculateRewards
-              oldEntryF.rewards
-              oldEntryF.totalRewards
-              oldEntryF.deposited
-              oldEntryF.newDeposit
-              oldEntryF.totalDeposited
-      guardC
-        "adminActLogic: update failed because entry field 'rewards' \
-        \is not updatedRewards"
-        $ newEntryF.rewards
-          #== toNatRatio (pCeil # rewards)
-      guardC
-        "adminActLogic: update failed because entry field 'totalRewards' \
-        \is not newTotalRewards"
-        $ newEntryF.totalRewards #== adminActParamsF.totalRewards
-      guardC
-        "adminActLogic: update failed because entry field \
-        \'totalDeposited' is not newTotalDeposited"
-        $ newEntryF.totalDeposited #== adminActParamsF.totalDeposited
-    PAssetDatum _ ->
-      ptraceError
-        "adminActLogic: update failed because a wrong \
-        \datum constructor was provided"
+  pure punit
 
 stakeActLogic ::
   forall (s :: S).
@@ -876,92 +801,6 @@ withdrawOtherActLogic spentInputF withdrawnAmt datum txInfoF paramsF period burn
       $ prevEntryUpdatedF.next #== pdata burnEntryF.next
     -- Validate other fields of updated entry (they should stay the same)
     equalEntriesGuard prevEntryUpdatedF prevEntryF
-
-closeActLogic ::
-  forall (s :: S).
-  PTxInfoHRec s ->
-  PUnbondedPoolParamsHRec s ->
-  Term s PScriptPurpose ->
-  Term s PUnbondedStakingDatum ->
-  Term s PUnit
-closeActLogic txInfoF paramsF purpose inputStakingDatum = unTermCont $ do
-  -- We check that the transaction was signed by the pool operator
-  guardC "closeActLogic: transaction not signed by admin" $
-    signedBy txInfoF.signatories paramsF.admin
-
-  -- We get the input's address
-  inputF <-
-    tcont . pletFields @'["outRef", "resolved"]
-      =<< getInput purpose txInfoF.inputs
-  inputResolvedF <-
-    tcont . pletFields @["address", "value", "datumHash"] $ inputF.resolved
-  let poolAddr :: Term s PAddress
-      poolAddr = inputResolvedF.address
-      txInfoDataF :: Term s (PBuiltinList (PAsData (PTuple PDatumHash PDatum)))
-      txInfoDataF = getField @"data" txInfoF
-
-  -- We make sure that the input's Datum is updated correctly for each Datum
-  -- constructor
-  pure . pmatch inputStakingDatum $ \case
-    PStateDatum oldStateRecord -> unTermCont $ do
-      ---- FETCH DATUMS ----
-      let stateCs = paramsF.nftCs
-          stateTn = pconstant unbondedStakingTokenName
-          stateTok = passetClass # stateCs # stateTn
-      -- Get current state
-      (stateHeadKey, _stateSize) <-
-        (\s -> pure (pfromData s._0, pfromData s._1))
-          <=< tcont . pletFields @'["_0", "_1"]
-          $ oldStateRecord
-      -- We retrieve the continuing output's datum
-      (newStateHeadKey, newOpenState) <-
-        getStateData
-          <=< parseStakingDatum
-          <=< flip getDatum txInfoDataF
-          <=< getDatumHash
-          <=< getContinuingOutputWithNFT poolAddr stateTok
-          $ txInfoF.outputs
-      ---- BUSINESS LOGIC ----
-      guardC "closeActLogic: update failed because of list head change" $
-        pdata stateHeadKey #== pdata newStateHeadKey
-      guardC
-        "closeActLogic: update failed because the pool state is not closed"
-        $ pnot # (toPBool # newOpenState)
-    PEntryDatum oldEntryRecord -> unTermCont $ do
-      ---- FETCH DATUMS ----
-      -- Retrieve fields from oldEntry
-      oldEntry <- pletC $ pfield @"_0" # oldEntryRecord
-      oldEntryF <- tcont $ pletFields @PEntryFields oldEntry
-      -- Get updated entry
-      entryTok <-
-        pletC $ getTokenName paramsF.assocListCs inputResolvedF.value
-      newEntryF <-
-        getOutputEntry poolAddr entryTok txInfoDataF txInfoF.outputs
-      ---- BUSINESS LOGIC ----
-      guardC
-        "closeActLogic: update failed because pool is not open"
-        $ toPBool # oldEntryF.open
-      guardC
-        "closeActLogic: update failed because entry field 'key' is changed"
-        $ oldEntryF.key #== newEntryF.key
-      let rewards =
-            calculateRewards
-              oldEntryF.rewards
-              oldEntryF.totalRewards
-              oldEntryF.deposited
-              oldEntryF.newDeposit
-              oldEntryF.totalDeposited
-      guardC
-        "closeActLogic: update failed because entry field 'rewards' \
-        \is not updatedRewards"
-        $ newEntryF.rewards
-          #== toNatRatio (pCeil # rewards)
-      guardC
-        "closeActLogic: update failed because entry field 'open' \
-        \is not false"
-        $ pnot # (toPBool # newEntryF.open)
-    PAssetDatum _ ->
-      pconstant ()
 
 -- Helper functions for the different logics
 

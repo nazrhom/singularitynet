@@ -43,6 +43,7 @@ import Contract.TxConstraints
   , mustIncludeDatum
   , mustPayToScript
   , mustSpendScriptOutput
+  , mustValidateIn
   )
 import Contract.Utxos (utxosAt)
 import Contract.Value (mkTokenName, singleton)
@@ -58,6 +59,7 @@ import UnbondedStaking.Types
   , UnbondedStakingAction(CloseAct)
   , UnbondedStakingDatum(AssetDatum, EntryDatum, StateDatum)
   )
+import UnbondedStaking.Utils (getAdminTime)
 import Utils
   ( getUtxoWithNFT
   , mkOnchainAssocList
@@ -124,6 +126,11 @@ closeUnbondedPoolContract
     liftContractM
       "closeUnbondedPoolContract: Cannot extract NFT State datum"
       $ fromData (unwrap poolDatum)
+  -- Get the bonding range to use
+  logInfo' "closeUnbondedPoolContract: Getting admin range..."
+  {currTime, range} <- getAdminTime params
+  logInfo_ "Current time: " $ show currTime
+  logInfo_ "TX Range" range
   -- Update the association list
   constraints /\ lookups <- case unbondedStakingDatum of
     -- Non-empty user list
@@ -154,6 +161,7 @@ closeUnbondedPoolContract
             <> mustIncludeDatum poolDatum
             <> mustPayToScript valHash stateDatum stateTokenValue
             <> mconcat (mconcat constraintList)
+            <> mustValidateIn range
 
         lookups :: ScriptLookups.ScriptLookups PlutusData
         lookups =
@@ -192,6 +200,7 @@ closeUnbondedPoolContract
             <> mustBeSignedBy admin
             <> mustIncludeDatum poolDatum
             <> mustPayToScript valHash stateDatum stateTokenValue
+            <> mustValidateIn range
 
         lookups :: ScriptLookups.ScriptLookups PlutusData
         lookups = mconcat
@@ -235,16 +244,18 @@ calculateRewards
   -> BigInt
   -> Contract () Rational
 calculateRewards rewards totalRewards deposited newDeposit totalDeposited = do
-  when (totalDeposited == zero) $ throwContractError
-    "calculateRewards: totalDeposited is zero"
-  let
-    lhs = mkRatUnsafe $ totalRewards % totalDeposited
-    rhs = rewards + mkRatUnsafe (deposited % one)
-    rhs' = rhs - mkRatUnsafe (newDeposit % one)
-    f = rhs' * lhs
-  when (f < zero) $ throwContractError
-    "calculateRewards: invalid rewards amount"
-  pure $ rewards + f
+  -- New users will have zero total deposited for the first cycle
+  if totalDeposited == zero then
+    pure zero
+  else do
+    let
+      lhs = mkRatUnsafe $ totalRewards % totalDeposited
+      rhs = rewards + mkRatUnsafe (deposited % one)
+      rhs' = rhs - mkRatUnsafe (newDeposit % one)
+      f = rhs' * lhs
+    when (f < zero) $ throwContractError
+      "calculateRewards: invalid rewards amount"
+    pure $ rewards + f
 
 -- | Creates a constraint and lookups list for updating each user entry
 mkEntryUpdateList
