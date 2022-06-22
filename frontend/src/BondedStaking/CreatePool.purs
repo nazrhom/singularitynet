@@ -19,10 +19,8 @@ import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Scripts.StateNFT (mkStateNFTPolicy)
 import Settings (bondedStakingTokenName)
-import Types (BondedPoolParams, BondedStakingDatum(StateDatum), InitialBondedParams(..), StakingType(Bonded))
-import Types.Interval (POSIXTime(..))
-import Types.Natural (toBigInt)
-import Utils (currentRoundedTime, logInfo_, mkBondedPoolParams)
+import Types (BondedPoolParams, BondedStakingDatum(StateDatum), InitialBondedParams, StakingType(Bonded))
+import Utils (logInfo_, mkBondedPoolParams)
 
 -- Sets up pool configuration, mints the state NFT and deposits
 -- in the pool validator's address
@@ -61,16 +59,8 @@ createBondedPoolContract ibp = do
   tokenName <-
     liftContractM "createBondedPoolContract: Cannot create TokenName"
       bondedStakingTokenName
-  -- We get the current time and set up the pool to start immediately
-  POSIXTime currTime <- currentRoundedTime
-  let ibp' = unwrap ibp
-      ibpWithTime :: InitialBondedParams
-      ibpWithTime = InitialBondedParams $ ibp' {
-        start = currTime,
-        end = currTime + toBigInt ibp'.iterations * (ibp'.userLength + ibp'.bondingLength) + ibp'.userLength
-      }
   -- We define the parameters of the pool
-  let params = mkBondedPoolParams adminPkh stateNftCs assocListCs ibpWithTime
+  let params = mkBondedPoolParams adminPkh stateNftCs assocListCs ibp
   -- Get the bonding validator and hash
   validator <-
     liftedE' "createBondedPoolContract: Cannot create validator"
