@@ -101,8 +101,8 @@ userWithdrawBondedPoolContract
       "userWithdrawBondedPoolContract: Could not create token name for user`"
       $ mkTokenName hashedUserPkh
 
-  -- Get the staking range to use
-  logInfo' "userWithdrawBondedPoolContract: Getting staking range..."
+  -- Get the withdrawing range to use
+  logInfo' "userWithdrawBondedPoolContract: Getting withdrawing range..."
   { currTime, range: txRange } <- getWithdrawingTime params
   logInfo_ "Current time: " $ show currTime
   logInfo_ "TX Range" txRange

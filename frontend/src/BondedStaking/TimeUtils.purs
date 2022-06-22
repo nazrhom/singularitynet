@@ -2,6 +2,7 @@ module BondedStaking.TimeUtils
   ( getBondingTime
   , getStakingTime
   , getWithdrawingTime
+  , getClosingTime
   , startPoolFromNow
   , startPoolNow
   )
@@ -14,9 +15,9 @@ import Contract.Numeric.Natural (toBigInt)
 import Control.Alternative (guard)
 import Data.Array (head)
 import Data.BigInt (BigInt)
-import Types.Natural (Natural)
 import Types (BondedPoolParams(BondedPoolParams), InitialBondedParams(..))
-import Types.Interval (POSIXTime(..), POSIXTimeRange, interval)
+import Types.Interval (POSIXTime(..), POSIXTimeRange, from, interval)
+import Types.Natural (Natural)
 import Utils (big, bigIntRange, currentRoundedTime)
 
 -- | Get the time-range that includes the current (approximate) time and the
@@ -98,9 +99,9 @@ getWithdrawingTime :: forall (r :: Row Type) .
 getWithdrawingTime (BondedPoolParams bpp) = do
   -- Get time and round it up to the nearest second
   currTime@(POSIXTime currTime') <- currentRoundedTime
-  -- Throw error if depositing is impossible
+  -- Throw error if withdrawing is impossible
   when (currTime' > bpp.end) $
-    throwContractError "getBondingTime: pool already closed"
+    throwContractError "getWithdrawingTime: pool already closed"
   -- If currTime is inside withdrawing-only period, return it. Otherwise,
   -- check all the staking periods
   if (currTime' > bpp.end - bpp.userLength)
@@ -125,6 +126,21 @@ getWithdrawingTime (BondedPoolParams bpp) = do
             head possibleRanges
         pure { currTime, range: interval (POSIXTime start) (POSIXTime end) }
 
+-- | Get the time-range that includes the current (approximate) time and the
+-- | pool accepts as the valid closing period. If there is no such range,
+-- | throw an error.
+getClosingTime :: forall (r :: Row Type) .
+  BondedPoolParams ->
+  Contract r {currTime :: POSIXTime, range :: POSIXTimeRange}
+getClosingTime (BondedPoolParams bpp) = do
+  -- Get time and round it up to the nearest second
+  currTime@(POSIXTime currTime') <- currentRoundedTime
+  -- Throw error if the pool can't close yet
+  when (currTime' < bpp.end) $
+    throwContractError "getClosingTime: pool can't close yet"
+  -- Otherwise, return range from bpp.end to infinity
+  pure { currTime , range: from $ POSIXTime bpp.end }
+
 -- | Substitute the `start` and `end` field of the initial pool parameters to
 -- | make the pool start `delay` seconds from the current time. Return the
 -- | updated pool parameters and the current time approximate time.
@@ -140,6 +156,10 @@ startPoolFromNow delay (InitialBondedParams ibp) = do
         }
     pure $ ibp' /\ POSIXTime currTime
 
+-- | Substitute the `start` and `end` field of the initial pool parameters to
+-- | make the pool start immediately (as specified by the value of
+-- | `currentRoundedTime`). Return the updated pool parameters and the
+-- | current time approximate time.
 startPoolNow :: forall (r :: Row Type) . InitialBondedParams -> Contract r (InitialBondedParams /\ POSIXTime)
 startPoolNow (InitialBondedParams ibp) = do
     POSIXTime currTime <- currentRoundedTime
