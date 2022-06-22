@@ -2,12 +2,15 @@ module Main (main) where
 
 import Contract.Prelude
 
+import BondedStaking.TimeUtils (startPoolFromNow)
 import ClosePool (closeBondedPoolContract)
 import Contract.Address (NetworkId(TestnetId))
 import Contract.Monad (ContractConfig, ConfigParams(ConfigParams), LogLevel(Info), defaultDatumCacheWsConfig, defaultOgmiosWsConfig, defaultServerConfig, launchAff_, liftContractM, logInfo', mkContractConfig, runContract, runContract_)
+import Contract.Numeric.Natural (fromBigInt, fromString, toBigInt)
 import Contract.Numeric.Natural (fromString) as Natural
 import Contract.Wallet (mkNamiWalletAff)
 import CreatePool (createBondedPoolContract)
+import Data.BigInt (fromInt)
 import Data.Int (toNumber)
 import DepositPool (depositBondedPoolContract)
 import Effect.Aff (delay)
@@ -59,24 +62,21 @@ main = launchAff_ do
       initParams <- liftContractM "main: Cannot initiate bonded parameters"
         testInitBondedParams
       -- We get the current time and set up the pool to start 80 seconds from now
-      POSIXTime currTime <- currentRoundedTime
+      let startDelayInt :: Int
+          startDelayInt = 80_000
+      startDelay <- liftContractM "main: Cannot create startDelay from Int" $
+        fromBigInt $ fromInt startDelayInt
+      initParams' /\ currTime <- startPoolFromNow startDelay initParams
       logInfo_ "Pool creation time" currTime
-      let ibp = unwrap initParams
-          poolDelay = 80_000
-          ibpWithTime :: InitialBondedParams
-          ibpWithTime = InitialBondedParams $ ibp {
-            start = currTime + big poolDelay,
-            end = currTime + big poolDelay + toBigInt ibp.iterations * (ibp.userLength + ibp.bondingLength) + ibp.userLength
-          }
-      bondedParams <- createBondedPoolContract ibpWithTime
+      bondedParams <- createBondedPoolContract initParams'
       logInfo_ "Pool parameters" bondedParams
       logInfo' "SWITCH WALLETS NOW - CHANGE TO USER 1"
       -- We give 30 seconds of margin for the user and admin to sign the transactions
-      liftAff $ delay $ wrap $ toNumber $ poolDelay + 30_000
+      liftAff $ delay $ wrap $ toNumber $ startDelayInt + 30_000
       pure bondedParams
   -- User 1 deposits
   userCfg <- mkConfig
-  userStake <- liftM (error "Cannot create Natural") $ Natural.fromString "10"
+  userStake <- liftM (error "main: Cannot create userStake from String") $ Natural.fromString "10"
   runContract_ userCfg do
     userStakeBondedPoolContract bondedParams userStake
     logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"

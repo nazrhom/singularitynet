@@ -1,4 +1,11 @@
-module BondedStaking.TimeUtils where
+module BondedStaking.TimeUtils
+  ( getBondingTime
+  , getStakingTime
+  , getWithdrawingTime
+  , startPoolFromNow
+  , startPoolNow
+  )
+  where
 
 import Contract.Prelude
 
@@ -7,9 +14,10 @@ import Contract.Numeric.Natural (toBigInt)
 import Control.Alternative (guard)
 import Data.Array (head)
 import Data.BigInt (BigInt)
-import Types (BondedPoolParams(BondedPoolParams))
+import Types.Natural (Natural)
+import Types (BondedPoolParams(BondedPoolParams), InitialBondedParams(..))
 import Types.Interval (POSIXTime(..), POSIXTimeRange, interval)
-import Utils(big, bigIntRange, currentRoundedTime)
+import Utils (big, bigIntRange, currentRoundedTime)
 
 -- | Get the time-range that includes the current (approximate) time and the
 -- | pool accepts as a valid staking period. If there is no such range,
@@ -116,3 +124,28 @@ getWithdrawingTime (BondedPoolParams bpp) = do
         start /\ end <- liftContractM "getBondingTime: this is not a bonding period" $
             head possibleRanges
         pure { currTime, range: interval (POSIXTime start) (POSIXTime end) }
+
+-- | Substitute the `start` and `end` field of the initial pool parameters to
+-- | make the pool start `delay` seconds from the current time. Return the
+-- | updated pool parameters and the current time approximate time.
+-- NOTE: We should add another intermediate type between `InitialBondedParams`
+-- and `BondedPoolParams` that reflects the addition of the pool start and
+-- end times
+startPoolFromNow :: forall (r :: Row Type) . Natural -> InitialBondedParams -> Contract r (InitialBondedParams /\ POSIXTime)
+startPoolFromNow delay (InitialBondedParams ibp) = do
+    POSIXTime currTime <- currentRoundedTime
+    let ibp' = InitialBondedParams $ ibp {
+            start = currTime + toBigInt delay,
+            end = currTime + toBigInt delay + toBigInt ibp.iterations * (ibp.userLength + ibp.bondingLength) + ibp.userLength
+        }
+    pure $ ibp' /\ POSIXTime currTime
+
+startPoolNow :: forall (r :: Row Type) . InitialBondedParams -> Contract r (InitialBondedParams /\ POSIXTime)
+startPoolNow (InitialBondedParams ibp) = do
+    POSIXTime currTime <- currentRoundedTime
+    let ibp' = InitialBondedParams $ ibp {
+            start = currTime,
+            end = currTime + toBigInt ibp.iterations * (ibp.userLength + ibp.bondingLength) + ibp.userLength
+        }
+    pure $ ibp' /\ POSIXTime currTime
+    
