@@ -358,6 +358,20 @@ type UnbondedPoolArgs =
   , assocListCs :: String -- CurrencySymbol
   }
 
+type InitialUnbondedArgs =
+  { start :: BigInt -- like POSIXTime
+  , userLength :: BigInt -- like POSIXTime
+  , adminLength :: BigInt -- like POSIXTime
+  , interestLength :: BigInt -- like POSIXTime
+  , bondingLength :: BigInt -- like POSIXTime
+  , increments :: BigInt -- Natural
+  , interest :: Tuple BigInt BigInt -- Rational
+  , minStake :: BigInt -- Natural
+  , maxStake :: BigInt -- Natural
+  , unbondedAssetClass ::
+      Tuple String String -- AssetClass ~ Tuple CBORCurrencySymbol ASCIITokenName
+  }
+
 toUnbondedPoolArgs :: UnbondedPoolParams -> UnbondedPoolArgs
 toUnbondedPoolArgs (UnbondedPoolParams upp) =
   { start: upp.start
@@ -407,28 +421,29 @@ fromUnbondedPoolArgs upa = do
   context :: String
   context = "fromUnbondedPoolArgs"
 
-type InitialUnbondedArgs =
-  { start :: BigInt -- like POSIXTime
-  , userLength :: BigInt -- like POSIXTime
-  , adminLength :: BigInt -- like POSIXTime
-  , bondingLength :: BigInt -- like POSIXTime
-  , increments :: BigInt -- Natural
-  , interest :: Tuple BigInt BigInt -- Rational
-  , minStake :: BigInt -- Natural
-  , maxStake :: BigInt -- Natural
-  , unbondedAssetClass ::
-      Tuple String String -- AssetClass ~ Tuple CBORCurrencySymbol ASCIITokenName
-  }
+fromInitialUnbondedArgs
+  :: InitialUnbondedArgs -> Either Error InitialUnbondedParams
+fromInitialUnbondedArgs iba = do
+  interest <- fromSdkInterest context iba.interest
+  increments <- fromSdkNat' "increments" iba.increments
+  minStake <- fromSdkNat' "minStake" iba.minStake
+  maxStake <- fromSdkNat' "maxStake" iba.maxStake
+  unbondedAssetClass <- fromSdkAssetClass context iba.unbondedAssetClass
+  pure $ wrap
+    { start: iba.start
+    , userLength: iba.userLength
+    , adminLength: iba.adminLength
+    , bondingLength: iba.bondingLength
+    , interestLength: iba.interestLength
+    , interest
+    , increments
+    , minStake
+    , maxStake
+    , unbondedAssetClass
+    }
+  where
+  fromSdkNat' :: String -> BigInt -> Either Error Natural
+  fromSdkNat' name = fromSdkNat context name
 
--- newtype InitialUnbondedParams = InitialUnbondedParams
---   { start :: BigInt
---   , userLength :: BigInt
---   , adminLength :: BigInt
---   , bondingLength :: BigInt
---   , interestLength :: BigInt
---   , increments :: Natural
---   , interest :: Rational
---   , minStake :: Natural
---   , maxStake :: Natural
---   , unbondedAssetClass :: AssetClass
---   }
+  context :: String
+  context = "fromInitialUnbondedArgs"
