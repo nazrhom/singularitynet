@@ -3,24 +3,21 @@ module Main (main) where
 import Contract.Prelude
 
 import BondedStaking.TimeUtils (startPoolFromNow)
-import ClosePool (closeBondedPoolContract)
+--import ClosePool (closeBondedPoolContract)
 import Contract.Address (NetworkId(TestnetId))
 import Contract.Monad (ContractConfig, ConfigParams(ConfigParams), LogLevel(Info), defaultDatumCacheWsConfig, defaultOgmiosWsConfig, defaultServerConfig, launchAff_, liftContractM, logInfo', mkContractConfig, runContract, runContract_)
-import Contract.Numeric.Natural (fromBigInt, fromString, toBigInt)
-import Contract.Numeric.Natural (fromString) as Natural
 import Contract.Wallet (mkNamiWalletAff)
 import CreatePool (createBondedPoolContract)
-import Data.BigInt (fromInt)
-import Data.Int (toNumber)
+import Data.BigInt as BigInt
+import Data.Int as Int
+import Types.Natural as Natural
 import DepositPool (depositBondedPoolContract)
 import Effect.Aff (delay)
 import Effect.Exception (error)
 import Settings (testInitBondedParams)
-import Types (InitialBondedParams(..))
-import Types.Interval (POSIXTime(..))
-import Types.Natural (toBigInt)
+import Types (BondedPoolParams(..))
 import UserStake (userStakeBondedPoolContract)
-import Utils (big, currentRoundedTime, logInfo_)
+import Utils (logInfo_)
 
 -- import Settings (testInitUnbondedParams)
 -- import UnbondedStaking.CloseUnbondedPool (closeUnbondedPoolContract)
@@ -56,7 +53,7 @@ main :: Effect Unit
 main = launchAff_ do
   adminCfg <- mkConfig
   -- Admin create pool
-  bondedParams <-
+  bondedParams@(BondedPoolParams bpp) <-
     runContract adminCfg do
       logInfo' "STARTING AS ADMIN"
       initParams <- liftContractM "main: Cannot initiate bonded parameters"
@@ -65,14 +62,14 @@ main = launchAff_ do
       let startDelayInt :: Int
           startDelayInt = 80_000
       startDelay <- liftContractM "main: Cannot create startDelay from Int" $
-        fromBigInt $ fromInt startDelayInt
+        Natural.fromBigInt $ BigInt.fromInt startDelayInt
       initParams' /\ currTime <- startPoolFromNow startDelay initParams
       logInfo_ "Pool creation time" currTime
       bondedParams <- createBondedPoolContract initParams'
       logInfo_ "Pool parameters" bondedParams
       logInfo' "SWITCH WALLETS NOW - CHANGE TO USER 1"
       -- We give 30 seconds of margin for the user and admin to sign the transactions
-      liftAff $ delay $ wrap $ toNumber $ startDelayInt + 30_000
+      liftAff $ delay $ wrap $ Int.toNumber $ startDelayInt + 30_000
       pure bondedParams
   -- User 1 deposits
   userCfg <- mkConfig
@@ -81,13 +78,12 @@ main = launchAff_ do
     userStakeBondedPoolContract bondedParams userStake
     logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
     -- Wait until bonding period
-    liftAff $ delay $ wrap $ toNumber $ 180_000
+    liftAff $ delay $ wrap $ BigInt.toNumber $ bpp.userLength
   -- Admin deposits to pool
   runContract_ adminCfg do
     depositBondedPoolContract bondedParams
-    logInfo' "END"
-    --logInfo' "DON'T SWITCH WALLETS - STAY AS ADMIN"
-    --liftAff $ delay $ wrap $ toNumber 100_000
+    logInfo' "SWITCH WALLETS NOW - CHANGE TO USER 1"
+    liftAff $ delay $ wrap $ Int.toNumber 100_000
   -- Admin closes pool
   -- runContract_ adminCfg $ closeBondedPoolContract bondedParams
 
