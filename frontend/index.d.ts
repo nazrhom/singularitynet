@@ -1,8 +1,7 @@
-export declare class PoolContracts<T> {
+export declare class Pool<T> {
   readonly config: ContractConfig;
   readonly args: T;
 
-  create(): Promise<BondedPoolArgs>;
   deposit(): Promise<void>;
   close(): Promise<void>;
   userStake(amount: bigint): Promise<void>;
@@ -34,14 +33,13 @@ export type SdkConfig = {
   logLevel: LogLevel;
 };
 
-export declare function buildContractConfig(
-  config: SdkConfig
-): Promise<ContractConfig>;
-
 // Bonded pool
 
-export declare class BondedPoolContracts
-  extends PoolContracts<BondedPoolArgs> {}
+export declare class BondedPool extends Pool<BondedPoolArgs> {}
+
+export declare function createBondedPool(
+  config: SdkConfig, initialArgs: InitialBondedArgs
+): Promise<BondedPool>;
 
 export type BondedPoolArgs = {
   iterations: bigint; // Natural
@@ -71,8 +69,11 @@ export type InitialBondedArgs = {
 };
 
 // Unbonded pool
-export declare class UnbondedPoolContracts
-  extends PoolContracts<BondedPoolArgs> {}
+export declare class UnbondedPool extends Pool<BondedPoolArgs> {}
+
+export declare function createUnbondedPool(
+  config: SdkConfig, initialArgs: InitialUnbondedArgs
+): Promise<UnbondedPool>;
 
 export type UnbondedPoolArgs = {
   start: bigint; // like POSIXTime so positive

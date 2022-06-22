@@ -2,20 +2,17 @@
 
 const frontend = import("./output.js");
 
-exports.buildContractConfig = async (sdkConfig) => {
+exports.createBondedPool = async (sdkConfig, intialArgs) => {
   const contracts = await frontend;
-  return contracts.buildContractConfig(sdkConfig)();
+  const config = await contracts.buildContractConfig(sdkConfig)();
+  const bondedArgs = await callCreateBondedPool(config)(initialArgs)();
+  return new BondedPool(config, bondedArgs);
 };
 
 exports.BondedPool = class BondedPool {
   constructor(config, args) {
     this.config = config;
     this.args = args;
-  }
-
-  async create() {
-    const contracts = await frontend;
-    return contracts.callCreateBondedPool(this.config)(args)();
   }
 
   async deposit() {
@@ -39,15 +36,17 @@ exports.BondedPool = class BondedPool {
   }
 };
 
+exports.createUnbondedPool = async (sdkConfig, intialArgs) => {
+  const contracts = await frontend;
+  const config = await contracts.buildContractConfig(sdkConfig)();
+  const bondedArgs = await callCreateUnbondedPool(config)(initialArgs)();
+  return new UnbondedPool(config, bondedArgs);
+};
+
 exports.UnbondedPool = class UnbondedPool {
   constructor(config, args) {
     this.config = config;
     this.args = args;
-  }
-
-  async create() {
-    const contracts = await frontend;
-    return contracts.callCreateUnbondedPool(this.config)(args)();
   }
 
   async deposit() {
