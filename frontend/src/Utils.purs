@@ -30,25 +30,55 @@ import Contract.Numeric.Rational (Rational, numerator, denominator)
 import Contract.Prim.ByteArray (ByteArray, byteArrayToHex, hexToByteArray)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (PlutusScript)
-import Contract.Transaction (BalancedSignedTransaction(..), TransactionInput, TransactionOutput(TransactionOutput), balanceAndSignTx, submit)
+import Contract.Transaction
+  ( BalancedSignedTransaction(..)
+  , TransactionInput
+  , TransactionOutput(TransactionOutput)
+  , balanceAndSignTx
+  , submit
+  )
 import Contract.TxConstraints (TxConstraints, mustSpendScriptOutput)
 import Contract.Utxos (UtxoM(UtxoM))
-import Contract.Value (CurrencySymbol, TokenName, flattenNonAdaAssets, getTokenName, valueOf)
+import Contract.Value
+  ( CurrencySymbol
+  , TokenName
+  , flattenNonAdaAssets
+  , getTokenName
+  , valueOf
+  )
 import Control.Alternative (guard)
 import Control.Monad.Error.Class (try)
 import Data.Argonaut.Core (Json, caseJsonObject)
 import Data.Argonaut.Decode.Combinators (getField) as Json
 import Data.Argonaut.Decode.Error (JsonDecodeError(TypeMismatch))
-import Data.Array (filter, head, last, length, partition, mapMaybe, slice, sortBy, (..))
+import Data.Array
+  ( filter
+  , head
+  , last
+  , length
+  , partition
+  , mapMaybe
+  , slice
+  , sortBy
+  , (..)
+  )
 import Data.Array as Array
 import Data.BigInt (BigInt, fromInt, quot, rem, toInt)
 import Data.Map (Map, toUnfoldable)
 import Data.Map as Map
 import Serialization.Hash (ed25519KeyHashToBytes)
-import Types (AssetClass(AssetClass), BondedPoolParams(BondedPoolParams), InitialBondedParams(InitialBondedParams), MintingAction(MintEnd, MintInBetween))
+import Types
+  ( AssetClass(AssetClass)
+  , BondedPoolParams(BondedPoolParams)
+  , InitialBondedParams(InitialBondedParams)
+  , MintingAction(MintEnd, MintInBetween)
+  )
 import Types.PlutusData (PlutusData)
 import Types.Redeemer (Redeemer)
-import UnbondedStaking.Types (UnbondedPoolParams(UnbondedPoolParams), InitialUnbondedParams(InitialUnbondedParams))
+import UnbondedStaking.Types
+  ( UnbondedPoolParams(UnbondedPoolParams)
+  , InitialUnbondedParams(InitialUnbondedParams)
+  )
 
 -- | Helper to decode the local inputs such as unapplied minting policy and
 -- typed validator

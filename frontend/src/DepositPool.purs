@@ -2,15 +2,39 @@ module DepositPool (depositBondedPoolContract) where
 
 import Contract.Prelude
 
-import Contract.Address (AddressWithNetworkTag(AddressWithNetworkTag), getNetworkId, getWalletAddress, ownPaymentPubKeyHash, scriptHashAddress)
-import Contract.Monad (Contract, liftContractM, liftedE', liftedM, logInfo', throwContractError)
+import Contract.Address
+  ( AddressWithNetworkTag(AddressWithNetworkTag)
+  , getNetworkId
+  , getWalletAddress
+  , ownPaymentPubKeyHash
+  , scriptHashAddress
+  )
+import Contract.Monad
+  ( Contract
+  , liftContractM
+  , liftedE'
+  , liftedM
+  , logInfo'
+  , throwContractError
+  )
 import Contract.Numeric.Rational (Rational, (%))
-import Contract.PlutusData (Datum(Datum), PlutusData, fromData, getDatumByHash, toData)
+import Contract.PlutusData
+  ( Datum(Datum)
+  , PlutusData
+  , fromData
+  , getDatumByHash
+  , toData
+  )
 import Contract.Prim.ByteArray (ByteArray)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
 import Contract.Transaction (TransactionInput, TransactionOutput)
-import Contract.TxConstraints (TxConstraints, mustBeSignedBy, mustPayToScript, mustSpendScriptOutput)
+import Contract.TxConstraints
+  ( TxConstraints
+  , mustBeSignedBy
+  , mustPayToScript
+  , mustSpendScriptOutput
+  )
 import Contract.Utxos (utxosAt)
 import Contract.Value (mkTokenName, singleton)
 import Control.Applicative (unless)
@@ -18,19 +42,46 @@ import Data.BigInt (BigInt)
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
-import Types (BondedPoolParams(BondedPoolParams), BondedStakingAction(AdminAct), BondedStakingDatum(AssetDatum, EntryDatum, StateDatum), Entry(Entry))
+import Types
+  ( BondedPoolParams(BondedPoolParams)
+  , BondedStakingAction(AdminAct)
+  , BondedStakingDatum(AssetDatum, EntryDatum, StateDatum)
+  , Entry(Entry)
+  )
 import Types.Natural (Natural)
 import Types.Redeemer (Redeemer(Redeemer))
 import Types.Scripts (ValidatorHash)
-import Utils (getUtxoWithNFT, logInfo_, mkOnchainAssocList, mkRatUnsafe, roundUp, splitByLength, submitTransaction, toIntUnsafe)
+import Utils
+  ( getUtxoWithNFT
+  , logInfo_
+  , mkOnchainAssocList
+  , mkRatUnsafe
+  , roundUp
+  , splitByLength
+  , submitTransaction
+  , toIntUnsafe
+  )
 
 -- Deposits a certain amount in the pool
-depositBondedPoolContract ::
-  BondedPoolParams ->
-  Natural ->
-  Array (Tuple (TxConstraints Unit Unit) (ScriptLookups.ScriptLookups PlutusData)) ->
-  ( Array (Tuple (TxConstraints Unit Unit) (ScriptLookups.ScriptLookups PlutusData)) -> Contract () Unit) ->
-  Contract () ( Array ( Tuple (TxConstraints Unit Unit) (ScriptLookups.ScriptLookups PlutusData)))
+depositBondedPoolContract
+  :: BondedPoolParams
+  -> Natural
+  -> Array
+       ( Tuple (TxConstraints Unit Unit)
+           (ScriptLookups.ScriptLookups PlutusData)
+       )
+  -> ( Array
+         ( Tuple (TxConstraints Unit Unit)
+             (ScriptLookups.ScriptLookups PlutusData)
+         )
+       -> Contract () Unit
+     )
+  -> Contract ()
+       ( Array
+           ( Tuple (TxConstraints Unit Unit)
+               (ScriptLookups.ScriptLookups PlutusData)
+           )
+       )
 depositBondedPoolContract
   params@
     ( BondedPoolParams
@@ -101,6 +152,7 @@ depositBondedPoolContract
         \StateDatum { maybeEntryName: Just ... }"
       let
         assocList = mkOnchainAssocList assocListCs bondedPoolUtxos
+
         -- Concatenate constraints/lookups
         constraints :: TxConstraints Unit Unit
         constraints = mustBeSignedBy admin
@@ -111,9 +163,10 @@ depositBondedPoolContract
             <> ScriptLookups.unspentOutputs (unwrap adminUtxos)
             <> ScriptLookups.unspentOutputs (unwrap bondedPoolUtxos)
 
-      -- Use depositList as updateList if not null, otherwise update stakes of all users
-      updateList <- if not (null depositList)
-        then pure depositList
+      -- Use depositList as updateList if not null, otherwise update stakes
+      -- of all users
+      updateList <-
+        if not (null depositList) then pure depositList
         else traverse (mkEntryUpdateList params valHash) assocList
       -- Submit transaction with possible batching
       failedDeposits <-
@@ -122,17 +175,19 @@ depositBondedPoolContract
           batchFinishCallback failedDeposits'
           pure failedDeposits'
         else
-          let updateBatches = splitByLength (toIntUnsafe batchSize) updateList
-          in mconcat <$> for updateBatches \txBatch -> do
-            failedDeposits' <- submitTransaction constraints lookups txBatch
-            batchFinishCallback failedDeposits'
-            pure failedDeposits'
+          let
+            updateBatches = splitByLength (toIntUnsafe batchSize) updateList
+          in
+            mconcat <$> for updateBatches \txBatch -> do
+              failedDeposits' <- submitTransaction constraints lookups txBatch
+              batchFinishCallback failedDeposits'
+              pure failedDeposits'
       logInfo_
         "depositBondedPoolContract: Finished updating pool entries. /\
         \Entries with failed updates"
         failedDeposits
       pure failedDeposits
-  -- Other error cases:
+    -- Other error cases:
     StateDatum { maybeEntryName: Nothing } ->
       throwContractError
         "depositBondedPoolContract: There are no users in the pool to deposit \
