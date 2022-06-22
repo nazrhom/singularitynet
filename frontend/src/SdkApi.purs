@@ -1,4 +1,4 @@
-module CallContract
+module SdkApi
   ( SdkConfig
   -- Bonded
   , BondedPoolArgs

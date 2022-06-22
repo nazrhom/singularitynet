@@ -1,4 +1,4 @@
-module BondedCallContract
+module BondedApiExample
   ( bondedCallContractAdminCloseExample1
   , bondedCallContractAdminDepositExample1
   , bondedCallContractCreatePoolExample1
@@ -8,7 +8,7 @@ module BondedCallContract
 
 import Contract.Prelude
 
-import CallContract
+import SdkApi
   ( BondedPoolArgs
   , InitialBondedArgs
   , SdkConfig
