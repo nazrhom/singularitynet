@@ -44,19 +44,6 @@ import UserStake (userStakeBondedPoolContract)
 -- import UnbondedStaking.UserStake (userStakeUnbondedPoolContract)
 -- import Utils (logInfo_)
 
--- main :: Effect Unit
--- main = launchAff_ $ do
---   cfg <- mkConfig
---   runContract_ cfg $ do
---     initParams <- liftContractM "main: Cannot initiate bonded parameters"
---       testInitBondedParams
---     bondedParams <- createBondedPoolContract initParams
---     -- sleep in order to wait for tx
---     liftAff $ delay $ wrap $ toNumber 80_000
---     depositBondedPoolContract bondedParams
---     liftAff $ delay $ wrap $ toNumber 80_000
---     closeBondedPoolContract bondedParams
-
 -- -- Unbonded test
 -- initParams <- liftContractM "main: Cannot initiate unbonded parameters"
 --   testInitUnbondedParams
@@ -82,20 +69,41 @@ main = launchAff_ do
       logInfo' "SWITCH WALLETS NOW - CHANGE TO USER 1"
       liftAff $ delay $ wrap $ toNumber 80_000
       pure bondedParams
-  -- User 1 deposits
   userCfg <- mkConfig
   userStake <- liftM (error "Cannot create Natural") $ Natural.fromString "10"
+  -- User 1 deposits
   runContract_ userCfg do
     userStakeBondedPoolContract bondedParams userStake
     logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
     liftAff $ delay $ wrap $ toNumber 100_000
+  -- -- User 2 deposits
+  -- runContract_ userCfg do
+  --   userStakeBondedPoolContract bondedParams userStake
+  --   logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
+  --   liftAff $ delay $ wrap $ toNumber 100_000
   -- Admin deposits to pool
   runContract_ adminCfg do
-    depositBondedPoolContract bondedParams
-    logInfo' "DON'T SWITCH WALLETS - STAY AS ADMIN"
-    liftAff $ delay $ wrap $ toNumber 100_000
+    depositBatchSize <-
+      liftM (error "Cannot create Natural") $ Natural.fromString "1"
+    failedDeposits <-
+      depositBondedPoolContract bondedParams depositBatchSize []
+      (\failedDeposits' -> do
+        logInfo' "main: Waiting to submit next Tx batch. DON'T SWITCH WALLETS \
+                  \ - STAY AS ADMIN"
+        liftAff $ delay $ wrap $ toNumber 100_000
+      )
+    logInfo' "main: Closing pool..."
   -- Admin closes pool
-  runContract_ adminCfg $ closeBondedPoolContract bondedParams
+  runContract_ adminCfg do
+    closeBatchSize <-
+      liftM (error "Cannot create Natural") $ Natural.fromString "10"
+    failedDeposits <- closeBondedPoolContract bondedParams closeBatchSize []
+      (\failedDeposits' -> do
+        logInfo' "main: Waiting to submit next Tx batch. DON'T SWITCH WALLETS \
+                  \- STAY AS ADMIN"
+        liftAff $ delay $ wrap $ toNumber 100_000
+      )
+    logInfo' "main: Pool closed"
 
 -- main :: Effect Unit
 -- main = launchAff_ do

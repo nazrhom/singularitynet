@@ -2,20 +2,22 @@ module ClosePool (closeBondedPoolContract) where
 
 import Contract.Prelude
 
-import AdminUtils (mkEntryUpdateList)
 import Contract.Address (getNetworkId, ownPaymentPubKeyHash, scriptHashAddress)
 import Contract.Monad (Contract, liftContractM, liftedE', liftedM, throwContractError)
-import Contract.PlutusData (Datum(Datum), PlutusData, fromData, getDatumByHash, toData)
+import Contract.PlutusData (PlutusData, toData)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
-import Contract.TxConstraints (TxConstraints, mustBeSignedBy, mustIncludeDatum)
+import Contract.Transaction (TransactionInput, TransactionOutput)
+import Contract.TxConstraints (TxConstraints, mustBeSignedBy, mustSpendScriptOutput)
 import Contract.Utxos (utxosAt)
+import Data.Map (toUnfoldable)
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
-import Types (BondedPoolParams(BondedPoolParams), BondedStakingDatum)
+import Types (BondedPoolParams(BondedPoolParams), BondedStakingAction(CloseAct))
 import Types.Natural (Natural)
-import Utils (getUtxoWithNFT, logInfo_, mkOnchainAssocList, splitByLength, submitTransaction, toIntUnsafe)
+import Types.Redeemer (Redeemer(Redeemer))
+import Utils (getUtxoWithNFT, logInfo_, splitByLength, submitTransaction, toIntUnsafe)
 
 closeBondedPoolContract ::
   BondedPoolParams ->
@@ -58,62 +60,45 @@ closeBondedPoolContract
     liftContractM "closeBondedPoolContract: Cannot get state utxo"
       $ getUtxoWithNFT bondedPoolUtxos nftCs tokenName
   logInfo_ "closeBondedPoolContract: Pool's UTXO" poolTxInput
-  poolDatumHash <-
-    liftContractM
-      "closeBondedPoolContract: Could not get Pool UTXO's Datum Hash"
-      (unwrap poolTxOutput).dataHash
-  logInfo_ "closeBondedPoolContract: Pool's UTXO DatumHash" poolDatumHash
-  poolDatum <- liftedM "closeBondedPoolContract: Cannot get datum"
-    $ getDatumByHash poolDatumHash
-  bondedStakingDatum :: BondedStakingDatum <-
-    liftContractM
-      "closeBondedPoolContract: Cannot extract NFT State datum"
-      $ fromData (unwrap poolDatum)
-  let bondedStateDatum = Datum $ toData bondedStakingDatum
-  bondedStateDatumLookup <-
-    liftContractM
-      "closeBondedPoolContract: Could not create state datum lookup"
-      $ ScriptLookups.datum bondedStateDatum
   -- We build the transaction
   let
     lookups :: ScriptLookups.ScriptLookups PlutusData
     lookups = mconcat
       [ ScriptLookups.validator validator
       , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
-      , bondedStateDatumLookup
       ]
-
-    -- Seems suspect, not sure if typed constraints are working as expected
     constraints :: TxConstraints Unit Unit
     constraints =
-      -- Spend all UTXOs to return to Admin:
-      --foldMap
-      --  (flip mustSpendScriptOutput redeemer <<< fst)
-      --  (toUnfoldable $ unwrap bondedPoolUtxos :: Array _)
       mustBeSignedBy admin
-        <> mustIncludeDatum bondedStateDatum
-
-    assocList = mkOnchainAssocList nftCs bondedPoolUtxos
-
-  -- Use depositList as updateList if not null, otherwise update stakes of all users
-  updateList <- if not (null closeList)
+  -- Use closeList as spendList if not null, otherwise spend all remaining
+  -- utxos at validator
+  spendList <- if not (null closeList)
     then pure closeList
-    else traverse (mkEntryUpdateList params valHash) assocList
+    else do
+      let utxoList = toUnfoldable <<< unwrap $ bondedPoolUtxos
+      pure $ createUtxoConstraint <$> utxoList
   -- Submit transaction with possible batching
   failedDeposits <-
     if batchSize == zero then do
-      failedDeposits' <- submitTransaction constraints lookups updateList
+      failedDeposits' <- submitTransaction constraints lookups spendList
       batchFinishCallback failedDeposits'
       pure failedDeposits'
     else
-      let updateBatches = splitByLength (toIntUnsafe batchSize) updateList
+      let updateBatches = splitByLength (toIntUnsafe batchSize) spendList
       in mconcat <$> for updateBatches \txBatch -> do
-        failedDeposits' <- submitTransaction constraints lookups txBatch 
+        failedDeposits' <- submitTransaction constraints lookups txBatch
         batchFinishCallback failedDeposits'
         pure failedDeposits'
   logInfo_
-    "depositBondedPoolContract: Finished updating pool entries. /\
+    "closeBondedPoolContract: Finished updating pool entries. /\
     \Entries with failed updates"
     failedDeposits
 
   pure failedDeposits
+
+createUtxoConstraint
+  :: Tuple TransactionInput TransactionOutput
+  -> Tuple (TxConstraints Unit Unit) (ScriptLookups.ScriptLookups PlutusData)
+createUtxoConstraint (input /\ _) = do
+  let valRedeemer = Redeemer $ toData CloseAct
+  (mustSpendScriptOutput input valRedeemer) /\ mempty
