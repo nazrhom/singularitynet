@@ -81,8 +81,7 @@ userWithdrawBondedPoolContract :: BondedPoolParams -> Contract () Unit
 userWithdrawBondedPoolContract
   params@
     ( BondedPoolParams
-        {
-        bondedAssetClass
+        { bondedAssetClass
         , nftCs
         , assocListCs
         }
@@ -210,27 +209,29 @@ userWithdrawBondedPoolContract
             rewardsRounded = numerator rewards / denominator rewards
 
             withdrawnAmt :: BigInt
-            withdrawnAmt = oldHeadEntry.deposited + rewardsRounded
+            withdrawnAmt = oldHeadEntry.deposited
 
             withdrawnVal :: Value
             withdrawnVal = singleton assetCs assetTn withdrawnAmt
-            -- Calculate assets to consume and change that needs to be returned
-            -- to the pool
 
-          consumedAssetUtxos /\ withdrawChange <-
-            liftContractM
-              "userWithdrawBondedPoolContract: Cannot get asset \
-              \UTxOs to consume" $
-              getAssetsToConsume bondedAssetClass withdrawnAmt bondedAssetUtxos
           logInfo_ "rewards" rewards
           logInfo_ "rewardsRounded" rewardsRounded
           logInfo_ "withdrawnAmt" withdrawnAmt
           logInfo_ "withdrawnVal" withdrawnVal
           logInfo_ "rewards" rewards
+
+          -- Calculate assets to consume and change that needs to be returned
+          -- to the pool
+          consumedAssetUtxos /\ withdrawChange <-
+            liftContractM
+              "userWithdrawBondedPoolContract: Cannot get asset \
+              \UTxOs to consume" $
+              getAssetsToConsume bondedAssetClass withdrawnAmt bondedAssetUtxos
+
           logInfo_ "withdrawChange" withdrawChange
           logInfo_ "consumedAssetUtxos" consumedAssetUtxos
 
-          let 
+          let
 
             changeValue :: Value
             changeValue =
@@ -326,8 +327,8 @@ userWithdrawBondedPoolContract
             withdrawnVal :: Value
             withdrawnVal = singleton assetCs assetTn withdrawnAmt
 
-            -- Calculate assets to consume and change that needs to be returned
-            -- to the pool
+          -- Calculate assets to consume and change that needs to be returned
+          -- to the pool
           consumedAssetUtxos /\ totalSpentAmt <-
             liftContractM
               "userWithdrawBondedPoolContract: Cannot get asset \
