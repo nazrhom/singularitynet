@@ -82,8 +82,8 @@ userWithdrawBondedPoolContract
   params@
     ( BondedPoolParams
         {
-          -- bondedAssetClass
-          nftCs
+        bondedAssetClass
+        , nftCs
         , assocListCs
         }
     ) = do
@@ -96,11 +96,11 @@ userWithdrawBondedPoolContract
   let hashedUserPkh = hashPkh userPkh
   logInfo_ "userWithdrawBondedPoolContract: User's PaymentPubKeyHash" userPkh
   -- Get own staking hash
-  --userStakingPubKeyHash <-
-  --  liftedM
-  --    "userWithdrawnBondedPoolContract: Cannot get\
-  --    \ user's staking pub key hash" $
-  --    ownStakePubKeyHash
+  userStakingPubKeyHash <-
+    liftedM
+      "userWithdrawnBondedPoolContract: Cannot get\
+      \ user's staking pub key hash" $
+      ownStakePubKeyHash
   -- Get the (Nami) wallet address
   AddressWithNetworkTag { address: userAddr } <-
     liftedM "userWithdrawBondedPoolContract: Cannot get wallet Address"
@@ -163,10 +163,10 @@ userWithdrawBondedPoolContract
     stateTokenValue = singleton nftCs tokenName one
     mintEntryValue = singleton assocListCs assocListTn one
     burnEntryValue = singleton assocListCs assocListTn (-one)
-    --assetParams = unwrap bondedAssetClass
-    --assetCs = assetParams.currencySymbol
-    --assetTn = assetParams.tokenName
-    --assetDatum = Datum $ toData AssetDatum
+    assetParams = unwrap bondedAssetClass
+    assetCs = assetParams.currencySymbol
+    assetTn = assetParams.tokenName
+    assetDatum = Datum $ toData AssetDatum
     assocList = mkOnchainAssocList assocListCs bondedPoolUtxos
   ---- BUILD CONSTRAINTS AND LOOKUPS ----
   constraints /\ lookup <- case headEntry of
@@ -202,33 +202,42 @@ userWithdrawBondedPoolContract
             newHeadKey :: Maybe ByteArray
             newHeadKey = oldHeadEntry.next
 
-          -- Get amount to withdraw
-          --rewards :: Rational
-          --rewards = oldHeadEntry.rewards
+            -- Get amount to withdraw
+            rewards :: Rational
+            rewards = oldHeadEntry.rewards
 
-          --rewardsRounded :: BigInt
-          --rewardsRounded = numerator rewards / denominator rewards
+            rewardsRounded :: BigInt
+            rewardsRounded = numerator rewards / denominator rewards
 
-          --withdrawnAmt :: BigInt
-          --withdrawnAmt = oldHeadEntry.staked + rewardsRounded
+            withdrawnAmt :: BigInt
+            withdrawnAmt = oldHeadEntry.deposited + rewardsRounded
 
-          --withdrawnVal :: Value
-          --withdrawnVal = singleton assetCs assetTn withdrawnAmt
-          -- Calculate assets to consume and change that needs to be returned
-          -- to the pool
-          --consumedAssetUtxos /\ totalSpentAmt <-
-          --  liftContractM
-          --    "userWithdrawBondedPoolContract: Cannot get asset \
-          --    \UTxOs to consume" $
-          --    getAssetsToConsume bondedAssetClass withdrawnAmt bondedAssetUtxos
-          let
-            --changeValue :: Value
-            --changeValue =
-            --  singleton
-            --    (unwrap bondedAssetClass).currencySymbol
-            --    (unwrap bondedAssetClass).tokenName
-            --    $ totalSpentAmt
-            --    - withdrawnAmt
+            withdrawnVal :: Value
+            withdrawnVal = singleton assetCs assetTn withdrawnAmt
+            -- Calculate assets to consume and change that needs to be returned
+            -- to the pool
+
+          consumedAssetUtxos /\ withdrawChange <-
+            liftContractM
+              "userWithdrawBondedPoolContract: Cannot get asset \
+              \UTxOs to consume" $
+              getAssetsToConsume bondedAssetClass withdrawnAmt bondedAssetUtxos
+          logInfo_ "rewards" rewards
+          logInfo_ "rewardsRounded" rewardsRounded
+          logInfo_ "withdrawnAmt" withdrawnAmt
+          logInfo_ "withdrawnVal" withdrawnVal
+          logInfo_ "rewards" rewards
+          logInfo_ "withdrawChange" withdrawChange
+          logInfo_ "consumedAssetUtxos" consumedAssetUtxos
+
+          let 
+
+            changeValue :: Value
+            changeValue =
+              singleton
+                (unwrap bondedAssetClass).currencySymbol
+                (unwrap bondedAssetClass).tokenName
+                withdrawChange
 
             -- Build updated state
             newState :: Datum
@@ -258,12 +267,12 @@ userWithdrawBondedPoolContract
                 [ mustBeSignedBy userPkh
                 , mustSpendScriptOutput poolTxInput valRedeemer
                 , mustSpendScriptOutput entryInput valRedeemer
-                --, mkAssetUtxosConstraints consumedAssetUtxos valRedeemer
+                , mkAssetUtxosConstraints consumedAssetUtxos valRedeemer
                 , mustMintValueWithRedeemer mintRedeemer burnEntryValue
                 , mustPayToScript valHash newState stateTokenValue
-                --, mustPayToScript valHash assetDatum changeValue
-                --, mustPayToPubKeyAddress userPkh userStakingPubKeyHash
-                --    withdrawnVal
+                , mustPayToScript valHash assetDatum changeValue
+                , mustPayToPubKeyAddress userPkh userStakingPubKeyHash
+                    withdrawnVal
                 , mustValidateIn txRange
                 ]
 
@@ -305,33 +314,35 @@ userWithdrawBondedPoolContract
 
           -- Get amount to withdraw
           let
-            --rewards :: Rational
-            --rewards = burnEntry.rewards
+            rewards :: Rational
+            rewards = burnEntry.rewards
 
-            --rewardsRounded :: BigInt
-            --rewardsRounded = numerator rewards / denominator rewards
+            rewardsRounded :: BigInt
+            rewardsRounded = numerator rewards / denominator rewards
 
-            --withdrawnAmt :: BigInt
-            --withdrawnAmt = burnEntry.staked + rewardsRounded
+            withdrawnAmt :: BigInt
+            withdrawnAmt = burnEntry.staked + rewardsRounded
 
-            --withdrawnVal :: Value
-            --withdrawnVal = singleton assetCs assetTn withdrawnAmt
+            withdrawnVal :: Value
+            withdrawnVal = singleton assetCs assetTn withdrawnAmt
 
             -- Calculate assets to consume and change that needs to be returned
             -- to the pool
-            --consumedAssetUtxos /\ totalSpentAmt <-
-            --  liftContractM
-            --    "userWithdrawBondedPoolContract: Cannot get asset \
-            --    \UTxOs to consume" $
-            --    getAssetsToConsume bondedAssetClass withdrawnAmt bondedAssetUtxos
-            -- let
-            --  changeValue :: Value
-            --  changeValue =
-            --    singleton
-            --      (unwrap bondedAssetClass).currencySymbol
-            --      (unwrap bondedAssetClass).tokenName
-            --      $ totalSpentAmt
-            --      - withdrawnAmt
+          consumedAssetUtxos /\ totalSpentAmt <-
+            liftContractM
+              "userWithdrawBondedPoolContract: Cannot get asset \
+              \UTxOs to consume" $
+              getAssetsToConsume bondedAssetClass withdrawnAmt bondedAssetUtxos
+          logInfo_ "consumedAssetUtxos" consumedAssetUtxos
+
+          let
+            changeValue :: Value
+            changeValue =
+              singleton
+                (unwrap bondedAssetClass).currencySymbol
+                (unwrap bondedAssetClass).tokenName
+                $ totalSpentAmt
+                - withdrawnAmt
 
             -- Build updated previous entry and its lookup
             prevEntryUpdated = Datum $ toData $ EntryDatum
@@ -363,12 +374,12 @@ userWithdrawBondedPoolContract
                 [ mustBeSignedBy userPkh
                 , mustSpendScriptOutput firstInput valRedeemer
                 , mustSpendScriptOutput secondInput valRedeemer
-                --, mkAssetUtxosConstraints consumedAssetUtxos valRedeemer
+                , mkAssetUtxosConstraints consumedAssetUtxos valRedeemer
                 , mustMintValueWithRedeemer mintRedeemer burnEntryValue
                 , mustPayToScript valHash prevEntryUpdated mintEntryValue
-                --, mustPayToScript valHash assetDatum changeValue
-                --, mustPayToPubKeyAddress userPkh userStakingPubKeyHash
-                --    withdrawnVal
+                , mustPayToScript valHash assetDatum changeValue
+                , mustPayToPubKeyAddress userPkh userStakingPubKeyHash
+                    withdrawnVal
                 , mustValidateIn txRange
                 ]
 
