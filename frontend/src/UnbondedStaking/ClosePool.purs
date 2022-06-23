@@ -179,6 +179,7 @@ closeUnbondedPoolContract
       let
         constraints :: TxConstraints Unit Unit
         constraints = mustBeSignedBy admin
+
         lookups :: ScriptLookups.ScriptLookups PlutusData
         lookups =
           ScriptLookups.validator validator
@@ -208,11 +209,15 @@ closeUnbondedPoolContract
           updateList' <- traverse (mkEntryUpdateList params valHash) assocList
           let
             redeemer = Redeemer $ toData CloseAct
-            stateDatumConstraintsLookups :: Tuple (TxConstraints Unit Unit) (ScriptLookups.ScriptLookups PlutusData)
+
+            stateDatumConstraintsLookups
+              :: Tuple (TxConstraints Unit Unit)
+                   (ScriptLookups.ScriptLookups PlutusData)
             stateDatumConstraintsLookups =
-              (mustIncludeDatum poolDatum
-              <> mustSpendScriptOutput poolTxInput redeemer)
-              /\ mempty
+              ( mustIncludeDatum poolDatum
+                  <> mustSpendScriptOutput poolTxInput redeemer
+              )
+                /\ mempty
           pure $ stateDatumConstraintsLookups : updateList'
         else
           pure depositList
@@ -239,6 +244,7 @@ closeUnbondedPoolContract
       -- Bulid constraints/lookups
       let
         redeemer = Redeemer $ toData CloseAct
+
         constraints :: TxConstraints Unit Unit
         constraints =
           -- Spend all UTXOs to return to Admin along with state/assets
@@ -247,6 +253,7 @@ closeUnbondedPoolContract
             (toUnfoldable $ unwrap unbondedPoolUtxos :: Array _)
             <> mustBeSignedBy admin
             <> mustIncludeDatum poolDatum
+
         lookups :: ScriptLookups.ScriptLookups PlutusData
         lookups = mconcat
           [ ScriptLookups.validator validator
@@ -254,7 +261,8 @@ closeUnbondedPoolContract
           ]
       failedDeposits <- submitTransaction constraints lookups []
       logInfo_
-        "closeUnbondedPoolContract: Pool closed. Failed updates" failedDeposits
+        "closeUnbondedPoolContract: Pool closed. Failed updates"
+        failedDeposits
       pure failedDeposits
     -- Other error cases:
     StateDatum { maybeEntryName: _, open: false } ->
