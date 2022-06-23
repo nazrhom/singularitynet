@@ -34,15 +34,11 @@ import Effect.Exception (error)
 import Settings (testInitBondedParams)
 import UserStake (userStakeBondedPoolContract)
 
--- import Data.BigInt (fromNumber)
--- import Data.JSDate (getTime, now)
--- import Effect.Class (liftEffect)
 -- import Settings (testInitUnbondedParams)
 -- import UnbondedStaking.ClosePool (closeUnbondedPoolContract)
 -- import UnbondedStaking.CreatePool (createUnbondedPoolContract)
 -- import UnbondedStaking.DepositPool (depositUnbondedPoolContract)
 -- import UnbondedStaking.UserStake (userStakeUnbondedPoolContract)
--- import Utils (logInfo_)
 
 -- main :: Effect Unit
 -- main = launchAff_ $ do
@@ -56,16 +52,6 @@ import UserStake (userStakeBondedPoolContract)
 --     depositBondedPoolContract bondedParams
 --     liftAff $ delay $ wrap $ toNumber 80_000
 --     closeBondedPoolContract bondedParams
-
--- -- Unbonded test
--- initParams <- liftContractM "main: Cannot initiate unbonded parameters"
---   testInitUnbondedParams
--- unbondedParams <- createUnbondedPoolContract initParams
--- -- sleep in order to wait for tx
--- liftAff $ delay $ wrap $ toNumber 80_000
--- depositUnbondedPoolContract unbondedParams
--- liftAff $ delay $ wrap $ toNumber 80_000
--- closeUnbondedPoolContract unbondedParams
 
 -- Bonded: admin create pool, user stake, admin deposit (rewards), admin close
 -- using PureScript (non SDK)
@@ -100,15 +86,12 @@ main = launchAff_ do
 -- main :: Effect Unit
 -- main = launchAff_ do
 --   adminCfg <- mkConfig
---   currDate <- liftEffect now
---   let currTime = fromMaybe zero $ fromNumber $ getTime currDate
 --   -- Admin create pool
 --   unbondedParams <-
 --     runContract adminCfg do
 --       logInfo' "STARTING AS ADMIN"
 --       initParams <- liftContractM "main: Cannot initiate unbonded parameters" $
---         testInitUnbondedParams currTime
---       logInfo_ "main: Pool creation start time" currTime
+--         testInitUnbondedParams
 --       unbondedParams <- createUnbondedPoolContract initParams
 --       logInfo' "SWITCH WALLETS NOW - CHANGE TO USER 1"
 --       liftAff $ delay $ wrap $ toNumber 80_000
@@ -116,7 +99,6 @@ main = launchAff_ do
 --   userCfg <- mkConfig
 --   userStake <-
 --     liftM (error "Cannot create Natural") $ Natural.fromString "5000000"
---   batchSize <- liftM (error "Cannot create Natural") $ Natural.fromString "1"
 --   -- User 1 deposits
 --   runContract_ userCfg do
 --     userStakeUnbondedPoolContract unbondedParams userStake
@@ -129,19 +111,29 @@ main = launchAff_ do
 --   --   liftAff $ delay $ wrap $ toNumber 100_000
 --   -- Admin deposits to pool
 --   runContract_ adminCfg do
---     failedDeposits <- depositUnbondedPoolContract unbondedParams batchSize []
---       (\failedDeposits' -> do
---         logInfo' "main: Waiting to submit next Tx batch. DON'T SWITCH WALLETS - STAY AS ADMIN"
---         liftAff $ delay $ wrap $ toNumber 100_000
---       )
+--     depositBatchSize <-
+--       liftM (error "Cannot create Natural") $ Natural.fromString "1"
+--     void $
+--       depositUnbondedPoolContract unbondedParams depositBatchSize []
+--         ( \_ -> do
+--             logInfo'
+--               "main: Waiting to submit next Tx batch. DON'T SWITCH WALLETS - \
+--               \STAY AS ADMIN"
+--             liftAff $ delay $ wrap $ toNumber 100_000
+--         )
 --     logInfo' "main: Closing pool..."
 --   -- Admin closes pool
 --   runContract_ adminCfg do
---     failedDeposits <- closeUnbondedPoolContract unbondedParams batchSize []
---       (\failedDeposits' -> do
---         logInfo' "main: Waiting to submit next Tx batch. DON'T SWITCH WALLETS - STAY AS ADMIN"
---         liftAff $ delay $ wrap $ toNumber 100_000
---       )
+--     closeBatchSize <-
+--       liftM (error "Cannot create Natural") $ Natural.fromString "10"
+--     void $
+--       closeUnbondedPoolContract unbondedParams closeBatchSize []
+--         ( \_ -> do
+--             logInfo'
+--               "main: Waiting to submit next Tx batch. DON'T SWITCH WALLETS - \
+--               \STAY AS ADMIN"
+--             liftAff $ delay $ wrap $ toNumber 100_000
+--         )
 --     logInfo' "main: Pool closed"
 
 -- Bonded: admin create pool, user stake, admin deposit (rewards), admin close
