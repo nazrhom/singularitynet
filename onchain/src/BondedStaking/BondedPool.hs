@@ -47,8 +47,8 @@ import PNatural (
   PNonNegative ((#+)),
   natZero,
   ratZero,
-  roundDown,
-  toNatRatio,
+  --roundDown,
+  --toNatRatio,
  )
 import PTypes (
   HField,
@@ -694,8 +694,7 @@ withdrawHeadActLogic spentInput withdrawnAmt datum txInfo params stateOutRef hea
     guardC
       "withdrawHeadActLogic: withdrawn amount does not match stake and \
       \rewards"
-      $ withdrawnAmt
-        #== roundDown (toNatRatio headEntry.staked #+ headEntry.rewards)
+      $ withdrawnAmt #== headEntry.deposited
     ---- INDUCTIVE CONDITIONS ----
     -- Validate that spentOutRef is the state UTXO and matches redeemer
     guardC "withdrawHeadActLogic: spent input is not the state UTXO" $
@@ -751,9 +750,8 @@ withdrawOtherActLogic spentInput withdrawnAmt datum txInfo params burnEntryOutRe
     guardC
       "withdrawOtherActLogic: withdrawn amount does not match stake and \
       \rewards"
-      $ withdrawnAmt
-        #== roundDown (toNatRatio burnEntry.staked #+ burnEntry.rewards)
-    ---- INDUCTIVE CONDITIONS ----
+      $ withdrawnAmt #== burnEntry.deposited
+    ----INDUCTIVE CONDITIONS ----
     -- Validate that spentOutRef is the previous entry and matches redeemer
     guardC "withdrawOtherActLogic: spent input is not an entry" $
       hasListNft params.assocListCs spentInputResolved.value
