@@ -428,11 +428,11 @@ getBondedPeriod = phoistAcyclic $
           bonding =
             depositWithdrawal
               { piStartOffset = userLength
-              , piEndOffset = punsafeCoerce $ pto userLength + pto bondingLength
+              , piEndOffset = punsafeCoerce period
               }
-          -- Calculate closing period's start time
-          closeStart :: Term s PPOSIXTime
-          closeStart = punsafeCoerce $ pto end + pto userLength
+          -- Calculate only withdraw's start time
+          onlyWithdrawStart :: Term s PPOSIXTime
+          onlyWithdrawStart = punsafeCoerce $ pto start + pto iterations * pto period
       pure $
         pnestedIf
           [ pintervalTo start `pcontains` txTimeRange
@@ -441,9 +441,9 @@ getBondedPeriod = phoistAcyclic $
               >: depositWithdrawPeriod
           , pperiodicContains # pcon bonding # txTimeRange
               >: bondingPeriod
-          , pinterval end closeStart `pcontains` txTimeRange
+          , pinterval onlyWithdrawStart end `pcontains` txTimeRange
               >: onlyWithdrawPeriod
-          , pintervalFrom closeStart `pcontains` txTimeRange
+          , pintervalFrom end `pcontains` txTimeRange
               >: closingPeriod
           ]
           $ ptraceError
