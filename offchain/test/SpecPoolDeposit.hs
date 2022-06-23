@@ -50,10 +50,10 @@ import SingularityNet.Settings (bondedStakingTokenName)
 import SingularityNet.Natural (Natural (Natural))
 import SingularityNet.Types (BondedPoolParams)
 import Types (BondedPoolScripts, InitialBondedPoolParams, TBondedPool (TBondedPool))
-import Utils (createBondedPool, testAdminWallet, testInitialBondedParams, testUserStake, testAdminDeposit, testUserWallet, userHeadStake, poolDeposit)
+import Utils (createBondedPool, poolDeposit, testAdminDeposit, testAdminWallet, testInitialBondedParams, testUserStake, testUserWallet, userHeadStake)
 
 specPoolDeposit :: BondedPoolScripts -> TestTree
-specPoolDeposit scripts = 
+specPoolDeposit scripts =
   Test.Plutip.LocalCluster.withCluster
     "Bonded Pool Validator - Pool depositing"
     [ assertExecution
@@ -64,13 +64,13 @@ specPoolDeposit scripts =
     ]
 
 poolDepositContract ::
-    BondedPoolScripts ->
-    Natural ->
-    Natural ->
-    [PaymentPubKeyHash] ->
-    Contract String EmptySchema Text ()
-poolDepositContract bps stakeAmt depositAmt pkhs  = do
-    (bpts, bpp, bondedPool) <- createBondedPool bps testInitialBondedParams
-    (bondedPool', entry) <- userHeadStake pkhs bpts bpp bondedPool stakeAmt
-    _ <- poolDeposit bpts bpp bondedPool' [entry] depositAmt
-    pure ()
+  BondedPoolScripts ->
+  Natural ->
+  Natural ->
+  [PaymentPubKeyHash] ->
+  Contract String EmptySchema Text ()
+poolDepositContract bps stakeAmt depositAmt pkhs = do
+  (bpts, bpp, bondedPool) <- createBondedPool bps testInitialBondedParams
+  (bondedPool', entry) <- userHeadStake pkhs bpts bpp bondedPool stakeAmt
+  _ <- poolDeposit bpts bpp bondedPool' [entry] depositAmt
+  pure ()

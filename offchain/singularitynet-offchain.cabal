@@ -30,7 +30,8 @@ common common-lang
     -Wincomplete-record-updates -Wmissing-deriving-strategies
     -Wno-name-shadowing -Wunused-foralls -fprint-explicit-foralls
     -fprint-explicit-kinds -fwarn-missing-import-lists
-    ---Werror
+
+  ---Werror
 
   mixins:
     base hiding (Prelude),
@@ -137,9 +138,10 @@ test-suite singularitynet-offchain-test
   hs-source-dirs: test
 
   -- We can only import modules from Common!
-  other-modules:  SpecStateNFT
-                  , SpecPoolCreate
-                  , SpecPoolDeposit
-                  , SpecUserStake
-                  , Utils
-                  , Types
+  other-modules:
+    SpecPoolCreate
+    SpecPoolDeposit
+    SpecStateNFT
+    SpecUserStake
+    Types
+    Utils

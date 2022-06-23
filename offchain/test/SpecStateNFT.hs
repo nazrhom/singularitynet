@@ -39,7 +39,7 @@ import Ledger.Constraints (ScriptLookups)
 import Ledger.Constraints.TxConstraints (TxConstraints)
 
 import SingularityNet.Settings (bondedStakingTokenName)
-import Utils(getOwnData, testAdminWallet)
+import Utils (getOwnData, testAdminWallet)
 
 specStateNFT :: Script -> TestTree
 specStateNFT policyScript =
@@ -47,7 +47,7 @@ specStateNFT policyScript =
     "State NFT Policy"
     [ assertExecution
         "should validate correct transaction"
-        testAdminWallet 
+        testAdminWallet
         (withContract . const $ nftMint 1)
         [shouldSucceed]
     , assertExecution

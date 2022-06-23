@@ -1,7 +1,8 @@
 {-# LANGUAGE RecordWildCards #-}
-module SpecPoolCreate(
-    specPoolCreate
-    ) where
+
+module SpecPoolCreate (
+  specPoolCreate,
+) where
 
 import Data.Map (Map)
 import Data.Map qualified as Map
@@ -12,7 +13,8 @@ import Plutus.V1.Ledger.Api (
   MintingPolicy (MintingPolicy),
   Script,
   TxOutRef,
-  singleton, Value
+  Value,
+  singleton,
  )
 import Plutus.V1.Ledger.Scripts (
   applyArguments,
@@ -33,7 +35,7 @@ import Test.Plutip.Contract (
   withContract,
  )
 import Test.Plutip.LocalCluster (withCluster)
-import Test.Plutip.Predicate (shouldFail, shouldSucceed, Predicate, yieldSatisfies)
+import Test.Plutip.Predicate (Predicate, shouldFail, shouldSucceed, yieldSatisfies)
 import Test.Tasty (TestTree)
 
 import Ledger (ChainIndexTxOut, scriptCurrencySymbol)
@@ -41,13 +43,13 @@ import Ledger qualified as Ledger
 import Ledger.Constraints (ScriptLookups)
 import Ledger.Constraints.TxConstraints (TxConstraints)
 
-import SingularityNet.Settings (bondedStakingTokenName)
-import Utils(getOwnData, testAdminWallet, createBondedPool, testInitialBondedParams, logInfo', logInfo, getFirstUtxo)
-import Types (BondedPoolScripts, InitialBondedPoolParams, BondedPoolTypedScripts (..))
-import SingularityNet.Types (BondedPoolParams(..), BondedStakingDatum)
-import qualified Data.Text as T
-import Test.Plutip.Contract.Values (valueAt)
+import Data.Text qualified as T
 import Plutus.V1.Ledger.Value (valueOf)
+import SingularityNet.Settings (bondedStakingTokenName)
+import SingularityNet.Types (BondedPoolParams (..), BondedStakingDatum)
+import Test.Plutip.Contract.Values (valueAt)
+import Types (BondedPoolScripts, BondedPoolTypedScripts (..), InitialBondedPoolParams)
+import Utils (createBondedPool, getFirstUtxo, getOwnData, logInfo, logInfo', testAdminWallet, testInitialBondedParams)
 
 specPoolCreate :: BondedPoolScripts -> TestTree
 specPoolCreate scripts =
@@ -55,27 +57,26 @@ specPoolCreate scripts =
     "Pool creation"
     [ assertExecution
         "should create the pool successfully and mint only once"
-        testAdminWallet 
+        testAdminWallet
         (withContract . const $ createPoolContract scripts testInitialBondedParams)
-        [shouldSucceed,
-         shouldMintOnce
+        [ shouldSucceed
+        , shouldMintOnce
         ]
     ]
 
 createPoolContract ::
-    BondedPoolScripts ->
-    InitialBondedPoolParams ->
-    Contract String EmptySchema Text (Value, BondedPoolParams)
+  BondedPoolScripts ->
+  InitialBondedPoolParams ->
+  Contract String EmptySchema Text (Value, BondedPoolParams)
 createPoolContract poolScripts ibpp = do
-    -- Create value
-    (BondedPoolTypedScripts{..}, bpp, _) <- createBondedPool poolScripts ibpp
-    -- Get pool value
-    let poolAddr = Ledger.scriptAddress validator
-    logInfo' "Getting validator UTxO..."
-    val <- valueAt poolAddr
-    pure (val, bpp)
-    
+  -- Create value
+  (BondedPoolTypedScripts {..}, bpp, _) <- createBondedPool poolScripts ibpp
+  -- Get pool value
+  let poolAddr = Ledger.scriptAddress validator
+  logInfo' "Getting validator UTxO..."
+  val <- valueAt poolAddr
+  pure (val, bpp)
+
 shouldMintOnce :: Predicate w e (Value, BondedPoolParams)
-shouldMintOnce = yieldSatisfies "mints once" $ \(val, BondedPoolParams{..}) ->
-    valueOf val nftCs bondedStakingTokenName == 5
-    
+shouldMintOnce = yieldSatisfies "mints once" $ \(val, BondedPoolParams {..}) ->
+  valueOf val nftCs bondedStakingTokenName == 5

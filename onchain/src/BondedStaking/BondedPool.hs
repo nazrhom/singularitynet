@@ -47,8 +47,8 @@ import PNatural (
   PNonNegative ((#+)),
   natZero,
   ratZero,
-  --roundDown,
-  --toNatRatio,
+  -- roundDown,
+  -- toNatRatio,
  )
 import PTypes (
   HField,
@@ -278,53 +278,53 @@ stakeActLogic txInfo params purpose datum act =
         params.bondedAssetClass
 
     guardC "stakeActLogic: amount deposited does not match redeemer's amount" $
-     oneWith # (peq # bondedAsset.currencySymbol)
-       # (peq # bondedAsset.tokenName)
-       # (peq #$ pto $ pfromData act.stakeAmount)
-       # assetOutput.value
+      oneWith # (peq # bondedAsset.currencySymbol)
+        # (peq # bondedAsset.tokenName)
+        # (peq #$ pto $ pfromData act.stakeAmount)
+        # assetOutput.value
 
     pure . pmatch act.maybeMintingAction $ \case
-     -- If some minting action is provided, this is a new stake and inductive
-     -- conditions must be checked
-     PDJust mintAct -> unTermCont $ do
-       -- Check that minted value is a list entry (minting policy is run)
-       guardC "stakeActLogic: failure when checking minted value in minting tx" $
-         hasListNft params.assocListCs txInfo.mint
-       -- Check inductive conditions and business logic
-       newStakeLogic
-         txInfo
-         params
-         spentInput
-         datum
-         act.pubKeyHash
-         act.stakeAmount
-         $ pfield @"_0" # mintAct
-     -- If no minting action is provided, this is a stake update
-     PDNothing _ -> unTermCont $ do
-       -- A list token should *not* be minted
-       guardC
-         "stakeActLogic: failure when checking minted value in non-minting \
-         \ tx"
-         $ pnot #$ hasListNft params.assocListCs txInfo.mint
-       -- Check business logic
-       updateStakeLogic
-         txInfo
-         params
-         spentInput
-         datum
-         act.stakeAmount
-         act.pubKeyHash
-
-    where isAssetDatum :: Term s (PDatum :--> PBool)
-          isAssetDatum = plam $ \dat' -> unTermCont $ do
-            dat <-
-              ptryFromUndata @PBondedStakingDatum
-                . pforgetData
-                . pdata
-                $ dat'
-            pure . pmatch dat $ \case
-              PAssetDatum _ -> ptrue
-              _ -> pfalse
+      -- If some minting action is provided, this is a new stake and inductive
+      -- conditions must be checked
+      PDJust mintAct -> unTermCont $ do
+        -- Check that minted value is a list entry (minting policy is run)
+        guardC "stakeActLogic: failure when checking minted value in minting tx" $
+          hasListNft params.assocListCs txInfo.mint
+        -- Check inductive conditions and business logic
+        newStakeLogic
+          txInfo
+          params
+          spentInput
+          datum
+          act.pubKeyHash
+          act.stakeAmount
+          $ pfield @"_0" # mintAct
+      -- If no minting action is provided, this is a stake update
+      PDNothing _ -> unTermCont $ do
+        -- A list token should *not* be minted
+        guardC
+          "stakeActLogic: failure when checking minted value in non-minting \
+          \ tx"
+          $ pnot #$ hasListNft params.assocListCs txInfo.mint
+        -- Check business logic
+        updateStakeLogic
+          txInfo
+          params
+          spentInput
+          datum
+          act.stakeAmount
+          act.pubKeyHash
+  where
+    isAssetDatum :: Term s (PDatum :--> PBool)
+    isAssetDatum = plam $ \dat' -> unTermCont $ do
+      dat <-
+        ptryFromUndata @PBondedStakingDatum
+          . pforgetData
+          . pdata
+          $ dat'
+      pure . pmatch dat $ \case
+        PAssetDatum _ -> ptrue
+        _ -> pfalse
 
 -- This function validates the update of a an already existing entry in the list
 updateStakeLogic ::
@@ -787,13 +787,13 @@ closeActLogic txInfo params = unTermCont $ do
   -- We check that the transaction occurs during the closing period
   period <- pure $ getBondedPeriod # txInfoF.validRange # params
   guardC "admin deposit not done in closing period" $
-   isClosingPeriod period
+    isClosingPeriod period
   pure punit
   where
     isClosingPeriod :: Term s PPeriod -> Term s PBool
     isClosingPeriod period = pmatch period $ \case
-     ClosingPeriod -> pconstant True
-     _ -> pconstant False
+      ClosingPeriod -> pconstant True
+      _ -> pconstant False
 
 -- Helper functions for the different logics
 
