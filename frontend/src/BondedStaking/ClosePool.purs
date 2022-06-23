@@ -4,19 +4,48 @@ import Contract.Prelude
 
 import BondedStaking.TimeUtils (getClosingTime)
 import Contract.Address (getNetworkId, ownPaymentPubKeyHash, scriptHashAddress)
-import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM, logInfo', throwContractError)
-import Contract.PlutusData (Datum(Datum), PlutusData, Redeemer(Redeemer), fromData, getDatumByHash, toData)
+import Contract.Monad
+  ( Contract
+  , liftContractM
+  , liftedE
+  , liftedE'
+  , liftedM
+  , logInfo'
+  , throwContractError
+  )
+import Contract.PlutusData
+  ( Datum(Datum)
+  , PlutusData
+  , Redeemer(Redeemer)
+  , fromData
+  , getDatumByHash
+  , toData
+  )
 import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
-import Contract.Transaction (BalancedSignedTransaction(BalancedSignedTransaction), balanceAndSignTx, submit)
-import Contract.TxConstraints (TxConstraints, mustBeSignedBy, mustIncludeDatum, mustSpendScriptOutput, mustValidateIn)
+import Contract.Transaction
+  ( BalancedSignedTransaction(BalancedSignedTransaction)
+  , balanceAndSignTx
+  , submit
+  )
+import Contract.TxConstraints
+  ( TxConstraints
+  , mustBeSignedBy
+  , mustIncludeDatum
+  , mustSpendScriptOutput
+  , mustValidateIn
+  )
 import Contract.Utxos (utxosAt)
 import Data.Map (toUnfoldable)
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
-import Types (BondedPoolParams(BondedPoolParams), BondedStakingAction(CloseAct), BondedStakingDatum)
+import Types
+  ( BondedPoolParams(BondedPoolParams)
+  , BondedStakingAction(CloseAct)
+  , BondedStakingDatum
+  )
 import Utils (logInfo_, getUtxoWithNFT)
 
 closeBondedPoolContract :: BondedPoolParams -> Contract () Unit

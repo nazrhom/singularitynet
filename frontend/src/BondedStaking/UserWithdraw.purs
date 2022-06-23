@@ -3,14 +3,49 @@ module UserWithdraw (userWithdrawBondedPoolContract) where
 import Contract.Prelude hiding (length)
 
 import BondedStaking.TimeUtils (getWithdrawingTime)
-import Contract.Address (AddressWithNetworkTag(AddressWithNetworkTag), getNetworkId, getWalletAddress, ownPaymentPubKeyHash, ownStakePubKeyHash, scriptHashAddress)
-import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM, logInfo', throwContractError)
-import Contract.PlutusData (PlutusData, Datum(Datum), fromData, getDatumByHash, toData)
+import Contract.Address
+  ( AddressWithNetworkTag(AddressWithNetworkTag)
+  , getNetworkId
+  , getWalletAddress
+  , ownPaymentPubKeyHash
+  , ownStakePubKeyHash
+  , scriptHashAddress
+  )
+import Contract.Monad
+  ( Contract
+  , liftContractM
+  , liftedE
+  , liftedE'
+  , liftedM
+  , logInfo'
+  , throwContractError
+  )
+import Contract.PlutusData
+  ( PlutusData
+  , Datum(Datum)
+  , fromData
+  , getDatumByHash
+  , toData
+  )
 import Contract.Prim.ByteArray (ByteArray, byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
-import Contract.Transaction (BalancedSignedTransaction(BalancedSignedTransaction), TransactionInput, TransactionOutput, balanceAndSignTx, submit)
-import Contract.TxConstraints (TxConstraints, mustBeSignedBy, mustMintValueWithRedeemer, mustPayToPubKeyAddress, mustPayToScript, mustSpendScriptOutput, mustValidateIn)
+import Contract.Transaction
+  ( BalancedSignedTransaction(BalancedSignedTransaction)
+  , TransactionInput
+  , TransactionOutput
+  , balanceAndSignTx
+  , submit
+  )
+import Contract.TxConstraints
+  ( TxConstraints
+  , mustBeSignedBy
+  , mustMintValueWithRedeemer
+  , mustPayToPubKeyAddress
+  , mustPayToScript
+  , mustSpendScriptOutput
+  , mustValidateIn
+  )
 import Contract.Utxos (UtxoM(UtxoM), utxosAt)
 import Contract.Value (Value, mkTokenName, singleton)
 import Data.Array (catMaybes, head)
@@ -20,10 +55,26 @@ import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
-import Types (BondedPoolParams(BondedPoolParams), BondedStakingAction(WithdrawAct), BondedStakingDatum(AssetDatum, EntryDatum, StateDatum), BurningAction(BurnHead, BurnOther), Entry(Entry), ListAction(ListRemove), StakingType(Bonded))
+import Types
+  ( BondedPoolParams(BondedPoolParams)
+  , BondedStakingAction(WithdrawAct)
+  , BondedStakingDatum(AssetDatum, EntryDatum, StateDatum)
+  , BurningAction(BurnHead, BurnOther)
+  , Entry(Entry)
+  , ListAction(ListRemove)
+  , StakingType(Bonded)
+  )
 import Types.Rational (Rational, denominator, numerator)
 import Types.Redeemer (Redeemer(Redeemer))
-import Utils (findRemoveOtherElem, getAssetsToConsume, mkAssetUtxosConstraints, getUtxoWithNFT, hashPkh, logInfo_, mkOnchainAssocList)
+import Utils
+  ( findRemoveOtherElem
+  , getAssetsToConsume
+  , mkAssetUtxosConstraints
+  , getUtxoWithNFT
+  , hashPkh
+  , logInfo_
+  , mkOnchainAssocList
+  )
 
 -- Deposits a certain amount in the pool
 userWithdrawBondedPoolContract :: BondedPoolParams -> Contract () Unit
@@ -31,8 +82,8 @@ userWithdrawBondedPoolContract
   params@
     ( BondedPoolParams
         {
-        -- bondedAssetClass
-        nftCs
+          -- bondedAssetClass
+          nftCs
         , assocListCs
         }
     ) = do
@@ -151,18 +202,18 @@ userWithdrawBondedPoolContract
             newHeadKey :: Maybe ByteArray
             newHeadKey = oldHeadEntry.next
 
-            -- Get amount to withdraw
-            --rewards :: Rational
-            --rewards = oldHeadEntry.rewards
+          -- Get amount to withdraw
+          --rewards :: Rational
+          --rewards = oldHeadEntry.rewards
 
-            --rewardsRounded :: BigInt
-            --rewardsRounded = numerator rewards / denominator rewards
+          --rewardsRounded :: BigInt
+          --rewardsRounded = numerator rewards / denominator rewards
 
-            --withdrawnAmt :: BigInt
-            --withdrawnAmt = oldHeadEntry.staked + rewardsRounded
+          --withdrawnAmt :: BigInt
+          --withdrawnAmt = oldHeadEntry.staked + rewardsRounded
 
-            --withdrawnVal :: Value
-            --withdrawnVal = singleton assetCs assetTn withdrawnAmt
+          --withdrawnVal :: Value
+          --withdrawnVal = singleton assetCs assetTn withdrawnAmt
           -- Calculate assets to consume and change that needs to be returned
           -- to the pool
           --consumedAssetUtxos /\ totalSpentAmt <-
@@ -266,21 +317,21 @@ userWithdrawBondedPoolContract
             --withdrawnVal :: Value
             --withdrawnVal = singleton assetCs assetTn withdrawnAmt
 
-          -- Calculate assets to consume and change that needs to be returned
-          -- to the pool
-          --consumedAssetUtxos /\ totalSpentAmt <-
-          --  liftContractM
-          --    "userWithdrawBondedPoolContract: Cannot get asset \
-          --    \UTxOs to consume" $
-          --    getAssetsToConsume bondedAssetClass withdrawnAmt bondedAssetUtxos
-          -- let
-          --  changeValue :: Value
-          --  changeValue =
-          --    singleton
-          --      (unwrap bondedAssetClass).currencySymbol
-          --      (unwrap bondedAssetClass).tokenName
-          --      $ totalSpentAmt
-          --      - withdrawnAmt
+            -- Calculate assets to consume and change that needs to be returned
+            -- to the pool
+            --consumedAssetUtxos /\ totalSpentAmt <-
+            --  liftContractM
+            --    "userWithdrawBondedPoolContract: Cannot get asset \
+            --    \UTxOs to consume" $
+            --    getAssetsToConsume bondedAssetClass withdrawnAmt bondedAssetUtxos
+            -- let
+            --  changeValue :: Value
+            --  changeValue =
+            --    singleton
+            --      (unwrap bondedAssetClass).currencySymbol
+            --      (unwrap bondedAssetClass).tokenName
+            --      $ totalSpentAmt
+            --      - withdrawnAmt
 
             -- Build updated previous entry and its lookup
             prevEntryUpdated = Datum $ toData $ EntryDatum

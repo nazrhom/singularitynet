@@ -151,43 +151,43 @@ pbondedPoolValidator = phoistAcyclic $
         PAdminAct _ -> unTermCont $ do
           guardC "pbondedPoolValidator: wrong period for PAdminAct redeemer" $
             getBondedPeriod # txInfoF.validRange # params #== bondingPeriod
-          --pure $ adminActLogic txInfoF paramsF
+          pure $ adminActLogic txInfoF paramsF
         PStakeAct act -> unTermCont $ do
           guardC "pbondedPoolValidator: wrong period for PStakeAct \
           \redeemer" $
            getBondedPeriod # txInfoF.validRange # params
               #== depositWithdrawPeriod
-          --pure
-          --  . pletFields
-          --    @'["stakeAmount", "pubKeyHash", "maybeMintingAction"]
-          --    act
-          --  $ \actF ->
-          --    stakeActLogic
-          --      txInfoF
-          --      paramsF
-          --      ctxF.purpose
-          --      dat
-          --      actF
+          pure
+            . pletFields
+              @'["stakeAmount", "pubKeyHash", "maybeMintingAction"]
+              act
+            $ \actF ->
+              stakeActLogic
+                txInfoF
+                paramsF
+                ctxF.purpose
+                dat
+                actF
         PWithdrawAct act' -> unTermCont $ do
           period <- pletC $ getBondedPeriod # txInfoF.validRange # params
           guardC "pbondedPoolValidator: wrong period for PWithdrawAct \
             \redeemer" $
             period #== depositWithdrawPeriod #|| period #== onlyWithdrawPeriod
-          --guardC
-          --  "pbondedPoolValidator: a token should be burned when using \
-          --  \ PWithdrawAct"
-          --  $ isBurningEntry txInfoF.mint paramsF.assocListCs
-          --act <- tcont . pletFields @'["pubKeyHash", "burningAction"] $ act'
-          --withdrawActLogic
-          --  txInfoF
-          --  paramsF
-          --  ctxF.purpose
-          --  dat
-          --  act
+          guardC
+            "pbondedPoolValidator: a token should be burned when using \
+            \ PWithdrawAct"
+            $ isBurningEntry txInfoF.mint paramsF.assocListCs
+          act <- tcont . pletFields @'["pubKeyHash", "burningAction"] $ act'
+          withdrawActLogic
+            txInfoF
+            paramsF
+            ctxF.purpose
+            dat
+            act
         PCloseAct _ -> unTermCont $ do
           guardC "pbondedPoolValidator: wrong period for PcloseAct redeemer" $
             getBondedPeriod # txInfoF.validRange # params #== closingPeriod
-          --pure $ closeActLogic ctxF.txInfo params
+          pure $ closeActLogic ctxF.txInfo params
   where
     isBurningEntry ::
       forall (s :: S).

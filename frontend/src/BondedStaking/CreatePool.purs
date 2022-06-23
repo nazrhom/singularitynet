@@ -2,14 +2,29 @@ module CreatePool (createBondedPoolContract) where
 
 import Contract.Prelude
 
-import Contract.Address (AddressWithNetworkTag(AddressWithNetworkTag), getNetworkId, getWalletAddress, ownPaymentPubKeyHash, scriptHashAddress)
+import Contract.Address
+  ( AddressWithNetworkTag(AddressWithNetworkTag)
+  , getNetworkId
+  , getWalletAddress
+  , ownPaymentPubKeyHash
+  , scriptHashAddress
+  )
 import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM)
 import Contract.PlutusData (PlutusData, Datum(Datum), toData)
 import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
-import Contract.Transaction (BalancedSignedTransaction(BalancedSignedTransaction), balanceAndSignTx, submit)
-import Contract.TxConstraints (TxConstraints, mustMintValue, mustPayToScript, mustSpendPubKeyOutput)
+import Contract.Transaction
+  ( BalancedSignedTransaction(BalancedSignedTransaction)
+  , balanceAndSignTx
+  , submit
+  )
+import Contract.TxConstraints
+  ( TxConstraints
+  , mustMintValue
+  , mustPayToScript
+  , mustSpendPubKeyOutput
+  )
 import Contract.Utxos (utxosAt)
 import Contract.Value (scriptCurrencySymbol, singleton)
 import Data.Array (head)
@@ -19,7 +34,12 @@ import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Scripts.StateNFT (mkStateNFTPolicy)
 import Settings (bondedStakingTokenName)
-import Types (BondedPoolParams, BondedStakingDatum(StateDatum), InitialBondedParams, StakingType(Bonded))
+import Types
+  ( BondedPoolParams
+  , BondedStakingDatum(StateDatum)
+  , InitialBondedParams
+  , StakingType(Bonded)
+  )
 import Utils (logInfo_, mkBondedPoolParams)
 
 -- Sets up pool configuration, mints the state NFT and deposits

@@ -29,10 +29,19 @@ import Contract.Numeric.Natural (Natural, fromBigInt')
 import Contract.Numeric.Rational (Rational, numerator, denominator)
 import Contract.Prim.ByteArray (ByteArray, hexToByteArray)
 import Contract.Scripts (PlutusScript)
-import Contract.Transaction (TransactionInput, TransactionOutput(TransactionOutput))
+import Contract.Transaction
+  ( TransactionInput
+  , TransactionOutput(TransactionOutput)
+  )
 import Contract.TxConstraints (TxConstraints, mustSpendScriptOutput)
 import Contract.Utxos (UtxoM(UtxoM))
-import Contract.Value (CurrencySymbol, TokenName, flattenNonAdaAssets, getTokenName, valueOf)
+import Contract.Value
+  ( CurrencySymbol
+  , TokenName
+  , flattenNonAdaAssets
+  , getTokenName
+  , valueOf
+  )
 import Control.Alternative (guard)
 import Data.Argonaut.Core (Json, caseJsonObject)
 import Data.Argonaut.Decode.Combinators (getField) as Json
@@ -48,10 +57,18 @@ import Data.Unfoldable (unfoldr)
 import Effect.Now (now)
 import Math (ceil)
 import Serialization.Hash (ed25519KeyHashToBytes)
-import Types (AssetClass(AssetClass), BondedPoolParams(BondedPoolParams), InitialBondedParams(InitialBondedParams), MintingAction(MintEnd, MintInBetween))
+import Types
+  ( AssetClass(AssetClass)
+  , BondedPoolParams(BondedPoolParams)
+  , InitialBondedParams(InitialBondedParams)
+  , MintingAction(MintEnd, MintInBetween)
+  )
 import Types.Interval (POSIXTime(..))
 import Types.Redeemer (Redeemer)
-import UnbondedStaking.Types (UnbondedPoolParams(UnbondedPoolParams), InitialUnbondedParams(InitialUnbondedParams))
+import UnbondedStaking.Types
+  ( UnbondedPoolParams(UnbondedPoolParams)
+  , InitialUnbondedParams(InitialUnbondedParams)
+  )
 
 -- | Helper to decode the local inputs such as unapplied minting policy and
 -- typed validator
@@ -326,26 +343,28 @@ findRemoveOtherElem assocList hashedKey = do
     /\ { firstOutput: txOutputL, secondOutput: txOutputH }
     /\ { firstKey: bytesL, secondKey: bytesH }
 
-
 -- Produce a range from zero to the given bigInt (inclusive)
 bigIntRange :: BigInt -> Array BigInt
 bigIntRange lim =
   unfoldr
-  (\acc -> if acc >= lim
-            then Nothing
-            else Just $ acc /\ (acc+one))
-  zero
+    ( \acc ->
+        if acc >= lim then Nothing
+        else Just $ acc /\ (acc + one)
+    )
+    zero
 
 -- Get time rounded to the closest integer (ceiling) in seconds
-currentRoundedTime :: forall (r :: Row Type) . Contract r POSIXTime
+currentRoundedTime :: forall (r :: Row Type). Contract r POSIXTime
 currentRoundedTime = do
   POSIXTime t <- currentTime
-  t' <- liftContractM "currentRoundedTime: could not convert Number to BigInt" $
-    fromNumber $ ceil (toNumber t / 1000.0) * 1000.0
+  t' <- liftContractM "currentRoundedTime: could not convert Number to BigInt"
+    $ fromNumber
+    $ ceil (toNumber t / 1000.0)
+    * 1000.0
   pure $ POSIXTime t'
 
 -- Get UNIX epoch from system time
-currentTime :: forall (r :: Row Type) . Contract r POSIXTime
+currentTime :: forall (r :: Row Type). Contract r POSIXTime
 currentTime = do
   Milliseconds t <- unInstant <$> liftEffect now
   t' <- liftContractM "currentPOSIXTime: could not convert Number to BigInt" $

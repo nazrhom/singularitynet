@@ -4,10 +4,23 @@ import Contract.Prelude
 
 import BondedStaking.TimeUtils (startPoolFromNow)
 import Contract.Address (NetworkId(TestnetId))
-import Contract.Monad (ContractConfig, ConfigParams(ConfigParams), LogLevel(Info), defaultDatumCacheWsConfig, defaultOgmiosWsConfig, defaultServerConfig, launchAff_, liftContractM, logInfo', mkContractConfig, runContract, runContract_)
+import Contract.Monad
+  ( ContractConfig
+  , ConfigParams(ConfigParams)
+  , LogLevel(Info)
+  , defaultDatumCacheWsConfig
+  , defaultOgmiosWsConfig
+  , defaultServerConfig
+  , launchAff_
+  , liftContractM
+  , logInfo'
+  , mkContractConfig
+  , runContract
+  , runContract_
+  )
 import Contract.Wallet (mkNamiWalletAff)
 import CreatePool (createBondedPoolContract)
-import ClosePool(closeBondedPoolContract)
+import ClosePool (closeBondedPoolContract)
 import Data.BigInt as BigInt
 import Data.Int as Int
 import DepositPool (depositBondedPoolContract)
@@ -60,10 +73,12 @@ main = launchAff_ do
       initParams <- liftContractM "main: Cannot initiate bonded parameters"
         testInitBondedParams
       -- We get the current time and set up the pool to start 80 seconds from now
-      let startDelayInt :: Int
-          startDelayInt = 80_000
-      startDelay <- liftContractM "main: Cannot create startDelay from Int" $
-        Natural.fromBigInt $ BigInt.fromInt startDelayInt
+      let
+        startDelayInt :: Int
+        startDelayInt = 80_000
+      startDelay <- liftContractM "main: Cannot create startDelay from Int"
+        $ Natural.fromBigInt
+        $ BigInt.fromInt startDelayInt
       initParams' /\ currTime <- startPoolFromNow startDelay initParams
       logInfo_ "Pool creation time" currTime
       bondedParams <- createBondedPoolContract initParams'
@@ -74,7 +89,8 @@ main = launchAff_ do
       pure bondedParams
   ---- User 1 deposits ----
   userCfg <- mkConfig
-  userStake <- liftM (error "main: Cannot create userStake from String") $ Natural.fromString "10"
+  userStake <- liftM (error "main: Cannot create userStake from String") $
+    Natural.fromString "10"
   runContract_ userCfg do
     userStakeBondedPoolContract bondedParams userStake
     logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
@@ -88,7 +104,7 @@ main = launchAff_ do
     liftAff $ delay $ wrap $ BigInt.toNumber bpp.bondingLength
   ---- User 1 withdraws ----
   runContract_ userCfg do
-    userWithdrawBondedPoolContract bondedParams 
+    userWithdrawBondedPoolContract bondedParams
     logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
     -- Wait until closing period
     liftAff $ delay $ wrap $ BigInt.toNumber bpp.userLength
