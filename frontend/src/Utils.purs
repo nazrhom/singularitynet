@@ -15,6 +15,8 @@ module Utils
   , nat
   , roundDown
   , roundUp
+  , splitByLength
+  , toIntUnsafe
   ) where
 
 import Contract.Prelude hiding (length)
@@ -22,7 +24,7 @@ import Contract.Prelude hiding (length)
 import Contract.Address (PaymentPubKeyHash)
 import Contract.Hashing (blake2b256Hash)
 import Contract.Monad (Contract, logInfo, tag)
-import Contract.Numeric.Natural (Natural, fromBigInt')
+import Contract.Numeric.Natural (Natural, fromBigInt', toBigInt)
 import Contract.Numeric.Rational (Rational, numerator, denominator)
 import Contract.Prim.ByteArray (ByteArray, hexToByteArray)
 import Contract.Scripts (PlutusScript)
@@ -46,9 +48,19 @@ import Control.Alternative (guard)
 import Data.Argonaut.Core (Json, caseJsonObject)
 import Data.Argonaut.Decode.Combinators (getField) as Json
 import Data.Argonaut.Decode.Error (JsonDecodeError(TypeMismatch))
-import Data.Array (filter, head, last, length, partition, mapMaybe, sortBy)
+import Data.Array
+  ( filter
+  , head
+  , last
+  , length
+  , partition
+  , mapMaybe
+  , slice
+  , sortBy
+  , (..)
+  )
 import Data.Array as Array
-import Data.BigInt (BigInt, fromInt, quot, rem)
+import Data.BigInt (BigInt, fromInt, quot, rem, toInt)
 import Data.Map (Map, toUnfoldable)
 import Data.Map as Map
 import Serialization.Hash (ed25519KeyHashToBytes)
@@ -165,6 +177,10 @@ roundDown r =
 mkRatUnsafe :: Maybe Rational -> Rational
 mkRatUnsafe Nothing = zero
 mkRatUnsafe (Just r) = r
+
+-- | Converts from a contract 'Natural' to an 'Int'
+toIntUnsafe :: Natural -> Int
+toIntUnsafe = fromMaybe 0 <<< toInt <<< toBigInt
 
 logInfo_
   :: forall (r :: Row Type) (a :: Type)
@@ -336,3 +352,17 @@ findRemoveOtherElem assocList hashedKey = do
     $ { firstInput: txInputL, secondInput: txInputH }
     /\ { firstOutput: txOutputL, secondOutput: txOutputH }
     /\ { firstKey: bytesL, secondKey: bytesH }
+
+-- | Utility function for splitting an array into equal length sub-arrays
+-- | (with remainder array length <= size)
+splitByLength :: forall (a :: Type). Int -> Array a -> Array (Array a)
+splitByLength size array
+  | size == 0 || null array = []
+  | otherwise =
+      let
+        sublistCount =
+          if (length array) `mod` size == 0 then ((length array) `div` size) - 1
+          else (length array) `div` size
+      in
+        map (\i -> slice (i * size) ((i * size) + size) array) $
+          0 .. sublistCount
