@@ -34,9 +34,10 @@ import UserWithdraw (userWithdrawBondedPoolContract)
 import Utils (logInfo_)
 
 -- import Settings (testInitUnbondedParams)
--- import UnbondedStaking.CloseUnbondedPool (closeUnbondedPoolContract)
--- import UnbondedStaking.CreateUnbondedPool (createUnbondedPoolContract)
--- import UnbondedStaking.DepositUnbondedPool (depositUnbondedPoolContract)
+-- import UnbondedStaking.ClosePool (closeUnbondedPoolContract)
+-- import UnbondedStaking.CreatePool (createUnbondedPoolContract)
+-- import UnbondedStaking.DepositPool (depositUnbondedPoolContract)
+-- import UnbondedStaking.UserStake (userStakeUnbondedPoolContract)
 
 -- main :: Effect Unit
 -- main = launchAff_ $ do
@@ -50,16 +51,6 @@ import Utils (logInfo_)
 --     depositBondedPoolContract bondedParams
 --     liftAff $ delay $ wrap $ toNumber 80_000
 --     closeBondedPoolContract bondedParams
-
--- -- Unbonded test
--- initParams <- liftContractM "main: Cannot initiate unbonded parameters"
---   testInitUnbondedParams
--- unbondedParams <- createUnbondedPoolContract initParams
--- -- sleep in order to wait for tx
--- liftAff $ delay $ wrap $ toNumber 80_000
--- depositUnbondedPoolContract unbondedParams
--- liftAff $ delay $ wrap $ toNumber 80_000
--- closeUnbondedPoolContract unbondedParams
 
 -- Bonded: admin create pool, user stake, admin deposit (rewards), admin close
 -- using PureScript (non SDK)
@@ -112,6 +103,59 @@ main = launchAff_ do
   runContract_ adminCfg do
     closeBondedPoolContract bondedParams
     logInfo' "END"
+
+-- main :: Effect Unit
+-- main = launchAff_ do
+--   adminCfg <- mkConfig
+--   -- Admin create pool
+--   unbondedParams <-
+--     runContract adminCfg do
+--       logInfo' "STARTING AS ADMIN"
+--       initParams <- liftContractM "main: Cannot initiate unbonded parameters" $
+--         testInitUnbondedParams
+--       unbondedParams <- createUnbondedPoolContract initParams
+--       logInfo' "SWITCH WALLETS NOW - CHANGE TO USER 1"
+--       liftAff $ delay $ wrap $ toNumber 80_000
+--       pure unbondedParams
+--   userCfg <- mkConfig
+--   userStake <-
+--     liftM (error "Cannot create Natural") $ Natural.fromString "5000000"
+--   -- User 1 deposits
+--   runContract_ userCfg do
+--     userStakeUnbondedPoolContract unbondedParams userStake
+--     logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
+--     liftAff $ delay $ wrap $ toNumber 100_000
+--   -- -- User 2 deposits
+--   -- runContract_ userCfg do
+--   --   userStakeUnbondedPoolContract unbondedParams userStake
+--   --   logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
+--   --   liftAff $ delay $ wrap $ toNumber 100_000
+--   -- Admin deposits to pool
+--   runContract_ adminCfg do
+--     depositBatchSize <-
+--       liftM (error "Cannot create Natural") $ Natural.fromString "1"
+--     void $
+--       depositUnbondedPoolContract unbondedParams depositBatchSize []
+--         ( \_ -> do
+--             logInfo'
+--               "main: Waiting to submit next Tx batch. DON'T SWITCH WALLETS - \
+--               \STAY AS ADMIN"
+--             liftAff $ delay $ wrap $ toNumber 100_000
+--         )
+--     logInfo' "main: Closing pool..."
+--   -- Admin closes pool
+--   runContract_ adminCfg do
+--     closeBatchSize <-
+--       liftM (error "Cannot create Natural") $ Natural.fromString "10"
+--     void $
+--       closeUnbondedPoolContract unbondedParams closeBatchSize []
+--         ( \_ -> do
+--             logInfo'
+--               "main: Waiting to submit next Tx batch. DON'T SWITCH WALLETS - \
+--               \STAY AS ADMIN"
+--             liftAff $ delay $ wrap $ toNumber 100_000
+--         )
+--     logInfo' "main: Pool closed"
 
 -- Bonded: admin create pool, user stake, admin deposit (rewards), admin close
 -- using PureScript (SDK)
