@@ -148,7 +148,7 @@ testPoolParams = pconstant params
       BondedPoolParams
         { iterations = Natural 3
         , start = 5000
-        , end = 20_000
+        , end = 23_500
         , userLength = 3500
         , bondingLength = 1500
         , -- We are not testing any of the parameters below
