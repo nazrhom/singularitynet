@@ -201,9 +201,10 @@ depositUnbondedPoolContract
         \Entries with failed updates"
         failedDeposits
       failedDepositsIndicies <-
-        liftContractM "depositUnbondedPoolContract: Failed to create /\
-        \failedDepositsIndicies list" $
-        traverse (\i -> i `elemIndex` updateList) failedDeposits
+        liftContractM
+          "depositUnbondedPoolContract: Failed to create /\
+          \failedDepositsIndicies list" $
+          traverse (\i -> i `elemIndex` updateList) failedDeposits
       pure failedDepositsIndicies
     -- Other error cases:
     StateDatum { maybeEntryName: Nothing, open: true } ->

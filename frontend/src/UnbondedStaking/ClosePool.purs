@@ -155,7 +155,7 @@ closeUnbondedPoolContract
 
         stateDatumConstraintsLookups
           :: Tuple (TxConstraints Unit Unit)
-                (ScriptLookups.ScriptLookups PlutusData)
+               (ScriptLookups.ScriptLookups PlutusData)
         stateDatumConstraintsLookups =
           ( mustIncludeDatum poolDatum
               <> mustSpendScriptOutput poolTxInput redeemer
@@ -216,9 +216,10 @@ closeUnbondedPoolContract
         \pool entries. Entries with failed updates"
         failedDeposits
       failedDepositsIndicies <-
-        liftContractM "closeUnbondedPoolContract: Failed to create /\
-        \failedDepositsIndicies list" $
-        traverse (\i -> i `elemIndex` updateList) failedDeposits
+        liftContractM
+          "closeUnbondedPoolContract: Failed to create /\
+          \failedDepositsIndicies list" $
+          traverse (\i -> i `elemIndex` updateList) failedDeposits
       pure failedDepositsIndicies
     -- Closing pool with no users
     StateDatum { maybeEntryName: Nothing, open: true } -> do
@@ -254,7 +255,7 @@ closeUnbondedPoolContract
         -- user entries. This means the indexing is not needed anymore, and
         -- the caller can just call the ClosePool contract again to spend
         -- the remaining utxos in the pool
-        pure [zero]
+        pure [ zero ]
     -- Other error cases:
     StateDatum { maybeEntryName: _, open: false } ->
       throwContractError

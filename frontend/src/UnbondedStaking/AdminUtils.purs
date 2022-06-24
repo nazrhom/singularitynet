@@ -101,10 +101,10 @@ calculateRewards rewards totalRewards deposited newDeposit totalDeposited = do
 
 txBatchFinishedCallback
   :: Array
-      ( Tuple
-          (TxConstraints Unit Unit)
-          (ScriptLookups.ScriptLookups PlutusData)
-      )
+       ( Tuple
+           (TxConstraints Unit Unit)
+           (ScriptLookups.ScriptLookups PlutusData)
+       )
   -> Contract () Unit
 -- txBatchFinishedCallback failedDeposits = do
 txBatchFinishedCallback _ = do
