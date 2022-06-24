@@ -88,7 +88,7 @@ import UnbondedStaking.UserStake (userStakeUnbondedPoolContract)
 --       logInfo_ "Pool parameters" bondedParams
 --       logInfo' "SWITCH WALLETS NOW - CHANGE TO USER 1"
 --       -- We give 30 seconds of margin for the user and admin to sign the transactions
---       liftAff $ delay $ wrap $ toNumber $ poolDelay + 30_000
+--       liftAff $ delay $ wrap $ Int.toNumber $ poolDelay + 30_000
 --       pure bondedParams
 --   -- User 1 deposits
 --   userCfg <- mkConfig

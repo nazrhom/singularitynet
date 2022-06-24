@@ -2,6 +2,7 @@ module UnbondedStaking.AdminUtils
   ( calculateRewards
   -- , mkEntryUpdateList
   , submitTransaction
+  , txBatchFinishedCallback
   ) where
 
 import Contract.Prelude
@@ -10,6 +11,7 @@ import Contract.Monad
   ( Contract
   , liftedE
   , liftedM
+  , logInfo'
   , throwContractError
   )
 import Contract.Numeric.Rational (Rational, (%))
@@ -25,6 +27,8 @@ import Contract.TxConstraints (TxConstraints)
 import Control.Monad.Error.Class (try)
 import Data.Array as Array
 import Data.BigInt (BigInt)
+import Data.Int as Int
+import Effect.Aff (delay)
 import Utils (logInfo_, mkRatUnsafe)
 
 -- | Submits a transaction with the given list of constraints/lookups
@@ -71,7 +75,7 @@ submitTransaction baseConstraints baseLookups updateList = do
   case result of
     Left e -> do
       logInfo_ "submitTransaction:" e
-      pure $ Array.singleton $ constraints /\ lookups
+      pure updateList
     Right _ ->
       pure []
 
@@ -94,3 +98,18 @@ calculateRewards rewards totalRewards deposited newDeposit totalDeposited = do
   when (f < zero) $ throwContractError
     "calculateRewards: invalid rewards amount"
   pure $ rewards + f
+
+txBatchFinishedCallback
+  :: Array
+       ( Tuple
+           (TxConstraints Unit Unit)
+           (ScriptLookups.ScriptLookups PlutusData)
+       )
+  -> Contract () Unit
+-- txBatchFinishedCallback failedDeposits = do
+txBatchFinishedCallback _ = do
+  logInfo'
+    "txBatchFinishedCallback: Waiting to submit next Tx batch. \
+    \DON'T SWITCH WALLETS - STAY AS ADMIN"
+  liftAff $ delay $ wrap $ Int.toNumber 100_000
+  pure unit
