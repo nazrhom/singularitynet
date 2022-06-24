@@ -2,17 +2,15 @@ module ClosePool (closeBondedPoolContract) where
 
 import Contract.Prelude
 
-import Contract.Address
-  ( getNetworkId
-  , ownPaymentPubKeyHash
-  , scriptHashAddress
-  )
+import BondedStaking.TimeUtils (getClosingTime)
+import Contract.Address (getNetworkId, ownPaymentPubKeyHash, scriptHashAddress)
 import Contract.Monad
   ( Contract
   , liftContractM
   , liftedE
   , liftedE'
   , liftedM
+  , logInfo'
   , throwContractError
   )
 import Contract.PlutusData
@@ -36,6 +34,7 @@ import Contract.TxConstraints
   , mustBeSignedBy
   , mustIncludeDatum
   , mustSpendScriptOutput
+  , mustValidateIn
   )
 import Contract.Utxos (utxosAt)
 import Data.Map (toUnfoldable)
@@ -97,6 +96,13 @@ closeBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
     liftContractM
       "closeBondedPoolContract: Could not create state datum lookup"
       $ ScriptLookups.datum bondedStateDatum
+
+  -- Get the withdrawing range to use
+  logInfo' "userWithdrawBondedPoolContract: Getting withdrawing range..."
+  { currTime, range: txRange } <- getClosingTime params
+  logInfo_ "Current time: " $ show currTime
+  logInfo_ "TX Range" txRange
+
   -- We build the transaction
   let
     redeemer = Redeemer $ toData CloseAct
@@ -117,6 +123,7 @@ closeBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
         (toUnfoldable $ unwrap bondedPoolUtxos :: Array _)
         <> mustBeSignedBy admin
         <> mustIncludeDatum bondedStateDatum
+        <> mustValidateIn txRange
   unattachedBalancedTx <-
     liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
   BalancedSignedTransaction { signedTxCbor } <-

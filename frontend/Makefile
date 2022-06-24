@@ -5,7 +5,7 @@ SHELL := bash
 ps-sources := $(shell fd -epurs)
 bundle = spago bundle-module -m $(1) --to output.js
 ps-bundle = $(call bundle,Main)
-js-bundle = $(call bundle,CallContract)
+js-bundle = $(call bundle,SdkApi)
 build = $(1) && BROWSER_RUNTIME=1 webpack --mode=production --entry $(2)
 
 ps-dev:

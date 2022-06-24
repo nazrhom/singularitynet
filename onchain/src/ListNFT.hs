@@ -33,14 +33,15 @@ import Plutarch.Crypto (pblake2b_256)
 import Utils (
   getCs,
   getOnlySignatory,
-  guardC,
   oneOf,
   oneWith,
   peq,
   pflip,
+  pguardC,
   pletC,
   porList,
   ptryFromUndata,
+  punit,
  )
 
 {-
@@ -179,8 +180,6 @@ listRemoveCheck
           (pfromData outRef)
           inputs
 
--- TODO
-
 -- Build the token name from the signatory's `PPubKeyHash`
 mkEntryTn :: Term s PPubKeyHash -> Term s PTokenName
 mkEntryTn pkh = pcon . PTokenName $ pblake2b_256 # pto pkh
@@ -192,9 +191,10 @@ mintGuard ::
   Term s PTokenName ->
   Term s PValue ->
   TermCont s (Term s PUnit)
-mintGuard listNftCs entryTn mint =
-  guardC "mintGuard: failed when checking minted value" $
+mintGuard listNftCs entryTn mint = do
+  pguardC "mintGuard: failed when checking minted value" $
     oneOf # listNftCs # entryTn # mint
+  pure punit
 
 -- | Fails if the TX does *not* burn the appropriate list oken
 burnGuard ::
@@ -203,9 +203,10 @@ burnGuard ::
   Term s PTokenName ->
   Term s PValue ->
   TermCont s (Term s PUnit)
-burnGuard listNftCs entryTn mint =
-  guardC "mintGuard: failed when checking minted value" $
+burnGuard listNftCs entryTn mint = do
+  pguardC "mintGuard: failed when checking minted value" $
     burnCheck listNftCs entryTn mint
+  pure punit
 
 -- Functions for validating the inputs
 mintHeadGuard ::
@@ -317,14 +318,15 @@ noNftGuard ::
   [Term s PTxOutRef] ->
   Term s (PBuiltinList (PAsData PTxInInfo)) ->
   TermCont s (Term s PUnit)
-noNftGuard stateNftCs listNftCs protectedInputs inputs =
-  guardC
+noNftGuard stateNftCs listNftCs protectedInputs inputs = do
+  pguardC
     "noNftGuard: unallowed input in the transaction contains state or list\
     \ NFT"
     $ pflip pall inputs . inputPredicate $ \outRef val ->
       let equalToSome :: [Term s PTxOutRef] -> Term s PBool
           equalToSome = porList . fmap (\o -> pdata outRef #== pdata o)
        in equalToSome protectedInputs #|| hasNoNft stateNftCs listNftCs val
+  pure punit
 
 -- Check that the token was burnt once
 burnCheck ::

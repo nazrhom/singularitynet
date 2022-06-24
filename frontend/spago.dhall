@@ -22,6 +22,7 @@ You can edit this file as you like.
   , "prelude"
   , "record"
   , "text-encoding"
+  , "transformers"
   , "uint"
   , "datetime"
   , "math"

@@ -12,16 +12,16 @@ module PNatural (
   PNatRatio (..),
   PNonNegative (..),
   mkNatRatioUnsafe,
+  mkNatUnsafe,
   natPow,
+  natOne,
   natZero,
-  pCeil,
   ratZero,
   toNatRatio,
   roundUp,
   roundDown,
 ) where
 
--- import Data.Ratio ((%))
 import GHC.Generics qualified as GHC
 import Generics.SOP (Generic, I (I))
 
@@ -40,7 +40,6 @@ import Plutarch.Lift (
   PLifted,
   PUnsafeLiftDecl,
  )
-import Plutarch.Rational (PRational (PRational), ptruncate)
 import Plutarch.TryFrom (PTryFrom)
 
 {- | `Natural` synonym.
@@ -262,23 +261,11 @@ natZero = pconstant $ Natural 0
 ratZero :: Term s PNatRatio
 ratZero = pconstant . NatRatio $ 0
 
+natOne :: Term s PNatural
+natOne = pconstant $ Natural 1
+
 pletC :: forall (s :: S) (a :: PType). Term s a -> TermCont s (Term s a)
 pletC = tcont . plet
-
-pCeil :: forall (s :: S). Term s (PNatRatio :--> PNatural)
-pCeil =
-  phoistAcyclic $
-    plam $ \x -> unTermCont $ do
-      (numerator, denominator) <- getIntegers x
-      let x' = pcon $ PRational numerator denominator
-          numerator' = pnumerator # x'
-          denominator' = pdenominator # x'
-          truncated = ptruncate # x'
-      pure $
-        pif
-          (pmod # numerator' # denominator' #== 0)
-          (pcon $ PNatural truncated)
-          (pcon $ PNatural (truncated + 1))
 
 natPow :: forall (s :: S). Term s (PNatRatio :--> PNatural :--> PNatRatio)
 natPow = pfix #$ plam pow

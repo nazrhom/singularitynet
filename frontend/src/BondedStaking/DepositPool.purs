@@ -2,15 +2,48 @@ module DepositPool (depositBondedPoolContract) where
 
 import Contract.Prelude
 
-import Contract.Address (AddressWithNetworkTag(AddressWithNetworkTag), getNetworkId, getWalletAddress, ownPaymentPubKeyHash, scriptHashAddress)
-import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM, logInfo', throwContractError)
+import BondedStaking.TimeUtils (getBondingTime)
+import Contract.Address
+  ( AddressWithNetworkTag(AddressWithNetworkTag)
+  , getNetworkId
+  , getWalletAddress
+  , ownPaymentPubKeyHash
+  , scriptHashAddress
+  )
+import Contract.Monad
+  ( Contract
+  , liftContractM
+  , liftedE
+  , liftedE'
+  , liftedM
+  , logInfo'
+  , throwContractError
+  )
 import Contract.Numeric.Rational ((%), Rational)
-import Contract.PlutusData (PlutusData, Datum(Datum), fromData, getDatumByHash, toData)
+import Contract.PlutusData
+  ( PlutusData
+  , Datum(Datum)
+  , fromData
+  , getDatumByHash
+  , toData
+  )
 import Contract.Prim.ByteArray (ByteArray, byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (ValidatorHash, validatorHash)
-import Contract.Transaction (BalancedSignedTransaction(BalancedSignedTransaction), TransactionInput, TransactionOutput, balanceAndSignTx, submit)
-import Contract.TxConstraints (TxConstraints, mustBeSignedBy, mustPayToScript, mustSpendScriptOutput, mustValidateIn)
+import Contract.Transaction
+  ( BalancedSignedTransaction(BalancedSignedTransaction)
+  , TransactionInput
+  , TransactionOutput
+  , balanceAndSignTx
+  , submit
+  )
+import Contract.TxConstraints
+  ( TxConstraints
+  , mustBeSignedBy
+  , mustPayToScript
+  , mustSpendScriptOutput
+  , mustValidateIn
+  )
 import Contract.Utxos (utxosAt)
 import Contract.Value (mkTokenName, singleton)
 import Control.Applicative (unless)
@@ -18,9 +51,20 @@ import Data.BigInt (BigInt)
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
-import Types (BondedStakingAction(AdminAct), BondedStakingDatum(AssetDatum, EntryDatum, StateDatum), BondedPoolParams(BondedPoolParams), Entry(Entry))
+import Types
+  ( BondedStakingAction(AdminAct)
+  , BondedStakingDatum(AssetDatum, EntryDatum, StateDatum)
+  , BondedPoolParams(BondedPoolParams)
+  , Entry(Entry)
+  )
 import Types.Redeemer (Redeemer(Redeemer))
-import Utils (getBondingTime, getUtxoWithNFT, logInfo_, mkOnchainAssocList, mkRatUnsafe, roundUp, big)
+import Utils
+  ( getUtxoWithNFT
+  , logInfo_
+  , mkOnchainAssocList
+  , mkRatUnsafe
+  , roundUp
+  )
 
 -- Deposits a certain amount in the pool
 depositBondedPoolContract :: BondedPoolParams -> Contract () Unit
@@ -81,9 +125,9 @@ depositBondedPoolContract
     liftContractM
       "depositBondedPoolContract: Cannot extract NFT State datum"
       $ fromData (unwrap poolDatum)
-  -- Get the staking range to use
+  -- Get the bonding range to use
   logInfo' "depositBondedPoolContract: Getting bonding range..."
-  {currTime, range} <- getBondingTime params
+  { currTime, range } <- getBondingTime params
   logInfo_ "Current time: " $ show currTime
   logInfo_ "TX Range" range
 
@@ -105,8 +149,8 @@ depositBondedPoolContract
         constraints :: TxConstraints Unit Unit
         constraints =
           mustBeSignedBy admin
-          <> mconcat assocListconstraints
-          <> mustValidateIn range
+            <> mconcat assocListconstraints
+            <> mustValidateIn range
 
         lookups :: ScriptLookups.ScriptLookups PlutusData
         lookups =

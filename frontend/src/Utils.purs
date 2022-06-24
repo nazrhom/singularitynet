@@ -1,5 +1,8 @@
 module Utils
   ( big
+  , bigIntRange
+  , currentRoundedTime
+  , currentTime
   , findInsertUpdateElem
   , findRemoveOtherElem
   , getAssetsToConsume
@@ -14,42 +17,64 @@ module Utils
   , nat
   , roundDown
   , roundUp
-  , getStakingTime
-  , getBondingTime
-  , currentTime
-  , currentRoundedTime
+  , splitByLength
+  , toIntUnsafe
   ) where
 
 import Contract.Prelude hiding (length)
 
 import Contract.Address (PaymentPubKeyHash)
 import Contract.Hashing (blake2b256Hash)
-import Contract.Monad (Contract, liftContractM, logInfo, tag, throwContractError)
+import Contract.Monad (Contract, liftContractM, logInfo, tag)
 import Contract.Numeric.Natural (Natural, fromBigInt', toBigInt)
 import Contract.Numeric.Rational (Rational, numerator, denominator)
 import Contract.Prim.ByteArray (ByteArray, hexToByteArray)
 import Contract.Scripts (PlutusScript)
-import Contract.Transaction (TransactionInput, TransactionOutput(TransactionOutput))
+import Contract.Transaction
+  ( TransactionInput
+  , TransactionOutput(TransactionOutput)
+  )
 import Contract.TxConstraints (TxConstraints, mustSpendScriptOutput)
 import Contract.Utxos (UtxoM(UtxoM))
-import Contract.Value (CurrencySymbol, TokenName, flattenNonAdaAssets, getTokenName, valueOf)
+import Contract.Value
+  ( CurrencySymbol
+  , TokenName
+  , flattenNonAdaAssets
+  , getTokenName
+  , valueOf
+  )
 import Control.Alternative (guard)
 import Data.Argonaut.Core (Json, caseJsonObject)
 import Data.Argonaut.Decode.Combinators (getField) as Json
 import Data.Argonaut.Decode.Error (JsonDecodeError(TypeMismatch))
-import Data.Array (filter, head, last, length, partition, mapMaybe, sortBy)
+import Data.Array
+  ( filter
+  , head
+  , last
+  , length
+  , partition
+  , mapMaybe
+  , slice
+  , sortBy
+  , (..)
+  )
 import Data.Array as Array
-import Data.BigInt (BigInt, fromInt, fromNumber, quot, rem, toNumber)
+import Data.BigInt (BigInt, fromInt, fromNumber, quot, rem, toInt, toNumber)
 import Data.DateTime.Instant (unInstant)
 import Data.Map (Map, toUnfoldable)
 import Data.Map as Map
-import Data.Time.Duration (Milliseconds(..))
+import Data.Time.Duration (Milliseconds(Milliseconds))
 import Data.Unfoldable (unfoldr)
 import Effect.Now (now)
 import Math (ceil)
 import Serialization.Hash (ed25519KeyHashToBytes)
-import Types (AssetClass(AssetClass), BondedPoolParams(BondedPoolParams), InitialBondedParams(InitialBondedParams), MintingAction(MintEnd, MintInBetween))
-import Types.Interval (POSIXTime(..), POSIXTimeRange, interval)
+import Types
+  ( AssetClass(AssetClass)
+  , BondedPoolParams(BondedPoolParams)
+  , InitialBondedParams(InitialBondedParams)
+  , MintingAction(MintEnd, MintInBetween)
+  )
+import Types.Interval (POSIXTime(..))
 import Types.Redeemer (Redeemer)
 
 -- | Helper to decode the local inputs such as unapplied minting policy and
@@ -153,6 +178,10 @@ roundDown r =
 mkRatUnsafe :: Maybe Rational -> Rational
 mkRatUnsafe Nothing = zero
 mkRatUnsafe (Just r) = r
+
+-- | Converts from a contract 'Natural' to an 'Int'
+toIntUnsafe :: Natural -> Int
+toIntUnsafe = fromMaybe 0 <<< toInt <<< toBigInt
 
 logInfo_
   :: forall (r :: Row Type) (a :: Type)
@@ -300,89 +329,44 @@ findRemoveOtherElem assocList hashedKey = do
     /\ { firstOutput: txOutputL, secondOutput: txOutputH }
     /\ { firstKey: bytesL, secondKey: bytesH }
 
-getStakingTime :: forall (r :: Row Type) .
-  BondedPoolParams ->
-  Contract r {currTime :: POSIXTime, range :: POSIXTimeRange}
-getStakingTime (BondedPoolParams bpp) = do
-  -- Get time and round it up to the nearest second
-  currTime@(POSIXTime currTime') <- currentRoundedTime
-  -- Throw error if staking is impossible
-  when (currTime' > bpp.end) $
-    throwContractError "getStakingTime: pool already closed"
-  when (currTime' > bpp.end - bpp.userLength) $
-    throwContractError "getStakingTime: pool in withdrawing only period"
-  -- Get timerange in which the staking should be done
-  let cycleLength :: BigInt
-      cycleLength = bpp.bondingLength + bpp.userLength
-      possibleRanges :: Array (BigInt /\ BigInt)
-      possibleRanges = do
-        -- Range from 0 to bpp.iterations
-        n <- bigIntRange $ toBigInt bpp.iterations
-        -- Calculate start and end of the range
-        let range@(start /\ end) = (bpp.start + n * cycleLength) /\ (bpp.start + n * cycleLength + bpp.userLength - big 1000)
-        -- Discard range if end < currTime
-        guard $ currTime' <= end
-        -- NOTE: We don't discard these ranges yet because it's easier to debug when CTL submits
-        -- the TX and fails loudly
-        ---- Discard range if currTime < start
-        --guard $ currTime' >= start
-        pure range
-  -- Return first range
-  start /\ end <- liftContractM "getStakingTime: this is not a staking period" $
-    head possibleRanges
-  pure { currTime, range: interval (POSIXTime start) (POSIXTime end) }
-
-getBondingTime :: forall (r :: Row Type) .
-  BondedPoolParams ->
-  Contract r {currTime :: POSIXTime, range :: POSIXTimeRange}
-getBondingTime (BondedPoolParams bpp) = do
-  -- Get time and round it up to the nearest second
-  currTime@(POSIXTime currTime') <- currentRoundedTime
-  -- Throw error if staking is impossible
-  when (currTime' > bpp.end) $
-    throwContractError "getBondingTime: pool already closed"
-  when (currTime' > bpp.end - bpp.userLength) $
-    throwContractError "getBondingTime: pool in withdrawing only period"
-  -- Get timerange in which the staking should be done
-  let cycleLength :: BigInt
-      cycleLength = bpp.bondingLength + bpp.userLength
-      possibleRanges :: Array (BigInt /\ BigInt)
-      possibleRanges = do
-        -- Range from 0 to bpp.iterations
-        n <- bigIntRange $ toBigInt bpp.iterations
-        -- Calculate start and end of the range
-        let range@(start /\ end) = (bpp.start + n * cycleLength + bpp.userLength) /\ (bpp.start + (n + one) * cycleLength - big 1000)
-        -- Discard range if end < currTime
-        guard $ currTime' <= end
-        -- Discard range if currTime < start
-        -- guard $ currTime' >= start
-        pure range
-  -- Return first range
-  start /\ end <- liftContractM "getBondingTime: this is not a bonding period" $
-    head possibleRanges
-  pure { currTime, range: interval (POSIXTime start) (POSIXTime end) }
-
 -- Produce a range from zero to the given bigInt (inclusive)
 bigIntRange :: BigInt -> Array BigInt
 bigIntRange lim =
   unfoldr
-  (\acc -> if acc >= lim
-            then Nothing
-            else Just $ acc /\ (acc+one))
-  zero
+    ( \acc ->
+        if acc >= lim then Nothing
+        else Just $ acc /\ (acc + one)
+    )
+    zero
 
 -- Get time rounded to the closest integer (ceiling) in seconds
-currentRoundedTime :: forall (r :: Row Type) . Contract r POSIXTime
+currentRoundedTime :: forall (r :: Row Type). Contract r POSIXTime
 currentRoundedTime = do
   POSIXTime t <- currentTime
-  t' <- liftContractM "currentRoundedTime: could not convert Number to BigInt" $
-    fromNumber $ ceil (toNumber t / 1000.0) * 1000.0
+  t' <- liftContractM "currentRoundedTime: could not convert Number to BigInt"
+    $ fromNumber
+    $ ceil (toNumber t / 1000.0)
+    * 1000.0
   pure $ POSIXTime t'
 
 -- Get UNIX epoch from system time
-currentTime :: forall (r :: Row Type) . Contract r POSIXTime
+currentTime :: forall (r :: Row Type). Contract r POSIXTime
 currentTime = do
   Milliseconds t <- unInstant <$> liftEffect now
   t' <- liftContractM "currentPOSIXTime: could not convert Number to BigInt" $
     fromNumber t
   pure $ POSIXTime t'
+
+-- | Utility function for splitting an array into equal length sub-arrays
+-- | (with remainder array length <= size)
+splitByLength :: forall (a :: Type). Int -> Array a -> Array (Array a)
+splitByLength size array
+  | size == 0 || null array = []
+  | otherwise =
+      let
+        sublistCount =
+          if (length array) `mod` size == 0 then ((length array) `div` size) - 1
+          else (length array) `div` size
+      in
+        map (\i -> slice (i * size) ((i * size) + size) array) $
+          0 .. sublistCount

@@ -32,7 +32,7 @@ module Utils (
   pletDataC,
   pmatchC,
   pconstantC,
-  guardC,
+  pguardC,
   ptryFromData,
   ptryFromUndata,
   getCs,
@@ -651,12 +651,8 @@ pletDataC ::
 pletDataC = pletC . pfromData
 
 -- | Boolean guard for the `TermCont` monad
-guardC ::
-  forall (s :: S).
-  Term s PString ->
-  Term s PBool ->
-  TermCont s (Term s PUnit)
-guardC errMsg cond = pure $ pif cond (pconstant ()) $ ptraceError errMsg
+pguardC :: forall (s :: S). Term s PString -> Term s PBool -> TermCont s ()
+pguardC errMsg cond = tcont $ \f -> pif cond (f ()) $ ptraceError errMsg
 
 -- Functions for working with the `PTryFrom` class
 

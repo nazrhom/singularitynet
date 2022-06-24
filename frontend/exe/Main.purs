@@ -2,22 +2,36 @@ module Main (main) where
 
 import Contract.Prelude
 
-import ClosePool (closeBondedPoolContract)
+import BondedStaking.TimeUtils (startPoolFromNow)
 import Contract.Address (NetworkId(TestnetId))
-import Contract.Monad (ContractConfig, ConfigParams(ConfigParams), LogLevel(Info), defaultDatumCacheWsConfig, defaultOgmiosWsConfig, defaultServerConfig, launchAff_, liftContractM, logInfo', mkContractConfig, runContract, runContract_)
-import Contract.Numeric.Natural (fromString) as Natural
+import Contract.Monad
+  ( ContractConfig
+  , ConfigParams(ConfigParams)
+  , LogLevel(Info)
+  , defaultDatumCacheWsConfig
+  , defaultOgmiosWsConfig
+  , defaultServerConfig
+  , launchAff_
+  , liftContractM
+  , logInfo'
+  , mkContractConfig
+  , runContract
+  , runContract_
+  )
 import Contract.Wallet (mkNamiWalletAff)
 import CreatePool (createBondedPoolContract)
-import Data.Int (toNumber)
+import ClosePool (closeBondedPoolContract)
+import Data.BigInt as BigInt
+import Data.Int as Int
 import DepositPool (depositBondedPoolContract)
 import Effect.Aff (delay)
 import Effect.Exception (error)
 import Settings (testInitBondedParams)
-import Types (InitialBondedParams(..))
-import Types.Interval (POSIXTime(..))
-import Types.Natural (toBigInt)
+import Types (BondedPoolParams(..))
+import Types.Natural as Natural
 import UserStake (userStakeBondedPoolContract)
-import Utils (big, currentRoundedTime, logInfo_)
+import UserWithdraw (userWithdrawBondedPoolContract)
+import Utils (logInfo_)
 
 import Settings (testInitUnbondedParams)
 import UnbondedStaking.ClosePool (closeUnbondedPoolContract)
@@ -116,7 +130,13 @@ main = launchAff_ do
       initParams <- liftContractM "main: Cannot initiate unbonded parameters"
         testInitUnbondedParams
       -- We get the current time and set up the pool to start 80 seconds from now
-      POSIXTime currTime <- currentRoundedTime
+      let
+        startDelayInt :: Int
+        startDelayInt = 80_000
+      startDelay <- liftContractM "main: Cannot create startDelay from Int"
+        $ Natural.fromBigInt
+        $ BigInt.fromInt startDelayInt
+      initParams' /\ currTime <- startPoolFromNow startDelay initParams
       logInfo_ "Pool creation time" currTime
       let iup = unwrap initParams
           poolDelay = 80_000
@@ -137,8 +157,8 @@ main = launchAff_ do
     userStakeUnbondedPoolContract unbondedParams userStake
     logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
     -- Wait until bonding period
-    liftAff $ delay $ wrap $ toNumber $ 180_000
-  -- Admin deposits to pool
+    liftAff $ delay $ wrap $ BigInt.toNumber bpp.userLength
+  ---- Admin deposits to pool ----
   runContract_ adminCfg do
     depositUnbondedPoolContract unbondedParams
     logInfo' "DON'T SWITCH WALLETS - STAY AS ADMIN"

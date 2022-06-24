@@ -1,3 +1,13 @@
+export declare class Pool<T> {
+  readonly config: ContractConfig;
+  readonly args: T;
+
+  deposit(): Promise<void>;
+  close(): Promise<void>;
+  userStake(amount: bigint): Promise<void>;
+  userWithdraw(): Promise<void>;
+}
+
 // This is something of a hack for creating an opaque type without nominal typing,
 // which typescript lacks
 //
@@ -5,58 +15,31 @@
 declare const cfg: unique symbol;
 export type ContractConfig = typeof cfg;
 
-export function buildContractConfig(config: SdkConfig): Promise<ContractConfig>
+export type LogLevel = "Trace" | "Debug" | "Info" | "Warn" | "Error"
 
-export function callCreateBondedPool(
-  config: ContractConfig, args: InitialBondedArgs
-):
-  Promise<BondedPoolArgs>
+export type NetworkId = 1 | 2
 
-export function callDepositBondedPool(
-  config: ContractConfig, args: BondedPoolArgs
-):
-  Promise<void>
-
-export function callCloseBondedPool(
-  config: ContractConfig, args: BondedPoolArgs
-):
-  Promise<void>
-
-export function callUserStakeBondedPool(
-  config: ContractConfig, args: BondedPoolArgs, amount: bigint
-):
-  Promise<void>
-
-export function callUserWithdrawBondedPool(
-  config: ContractConfig, args: BondedPoolArgs
-):
-  Promise<void>
+export type SdkServerConfig = {
+  host: string; // e.g. "localhost"
+  port: number; // uint
+  secure: boolean;
+};
 
 export type SdkConfig = {
-  serverHost: string; // e.g. "localhost"
-  serverPort: number; // uint
-  serverSecure: boolean;
-  ogmiosHost: string; // e.g. "localhost"
-  ogmiosPort: number; // uint
-  ogmiosSecure: boolean;
-  datumCacheHost: string; // e.g. "localhost"
-  datumCachePort: number; // uint
-  datumCacheSecure: boolean;
-  networkId: number; // int
-  logLevel: string; // "Trace", "Debug", "Info", "Warn", "Error"
+  ctlServerConfig: SdkServerConfig;
+  ogmiosServerConfig: SdkServerConfig;
+  datumCacheConfig: SdkServerConfig;
+  networkId: NetworkId; // int
+  logLevel: LogLevel;
 };
 
-export type InitialBondedArgs = {
-  iterations: bigint; // Natural
-  start: bigint; // like POSIXTime so positive
-  end: bigint; // like POSIXTime so positive
-  userLength: bigint; // like POSIXTime so positive
-  bondingLength: bigint; // like POSIXTime so positive
-  interest: [bigint, bigint]; // Rational (positive)
-  minStake: bigint; // Natural
-  maxStake: bigint; // Natural
-  bondedAssetClass: [string, string]; // AssetClass ~ Tuple CBORHexCurrencySymbol TokenName
-};
+// Bonded pool
+
+export declare class BondedPool extends Pool<BondedPoolArgs> {}
+
+export declare function createBondedPool(
+  config: SdkConfig, initialArgs: InitialBondedArgs
+): Promise<BondedPool>;
 
 export type BondedPoolArgs = {
   iterations: bigint; // Natural
@@ -71,4 +54,52 @@ export type BondedPoolArgs = {
   admin: string; // PaymentPubKeyHash
   nftCs: string; // CBORHexCurrencySymbol
   assocListCs: string; // CBORHexCurrencySymbol
+};
+
+export type InitialBondedArgs = {
+  iterations: bigint; // Natural
+  start: bigint; // like POSIXTime so positive
+  end: bigint; // like POSIXTime so positive
+  userLength: bigint; // like POSIXTime so positive
+  bondingLength: bigint; // like POSIXTime so positive
+  interest: [bigint, bigint]; // Rational (positive)
+  minStake: bigint; // Natural
+  maxStake: bigint; // Natural
+  bondedAssetClass: [string, string]; // AssetClass ~ Tuple CBORHexCurrencySymbol TokenName
+};
+
+// Unbonded pool
+export declare class UnbondedPool extends Pool<BondedPoolArgs> {}
+
+export declare function createUnbondedPool(
+  config: SdkConfig, initialArgs: InitialUnbondedArgs
+): Promise<UnbondedPool>;
+
+export type UnbondedPoolArgs = {
+  start: bigint; // like POSIXTime so positive
+  userLength: bigint; // like POSIXTime so positive
+  bondingLength: bigint; // like POSIXTime so positive
+  adminLength: bigint; // like POSIXTime so positive
+  interestLength: bigint; // like POSIXTime so positive
+  increments: bigint; // Natural
+  interest: [bigint, bigint]; // Rational (positive)
+  minStake: bigint; // Natural
+  maxStake: bigint; // Natural
+  unbondedAssetClass: [string, string]; // AssetClass ~ Tuple CBORCurrencySymbol TokenName
+  admin: string; // PaymentPubKeyHash
+  nftCs: string; // CBORHexCurrencySymbol
+  assocListCs: string; // CBORHexCurrencySymbol
+};
+
+export type InitialUnbondedArgs = {
+  start: bigint; // like POSIXTime so positive
+  userLength: bigint; // like POSIXTime so positive
+  adminLength: bigint; // like POSIXTime so positive
+  interestLength: bigint; // like POSIXTime so positive
+  bondingLength: bigint; // like POSIXTime so positive
+  increments: bigint; // Natural
+  interest: [bigint, bigint]; // Rational (positive)
+  minStake: bigint; // Natural
+  maxStake: bigint; // Natural
+  unbondedAssetClass: [string, string]; // AssetClass ~ Tuple CBORHexCurrencySymbol TokenName
 };
