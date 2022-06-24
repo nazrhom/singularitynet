@@ -610,16 +610,14 @@ mkIncrementIntervals = pfix #$ plam listIntervals
       Term s PNatural ->
       Term s PNatural ->
       Term s (PList PPeriodicInterval)
-    listIntervals self period delta maxIncrements increment = unTermCont $ do
+    listIntervals self period delta maxIncrements increment =
       let nextIncrement = increment #- natOne
           currentIncrement = maxIncrements #- increment
-      pure $
-        pmatch nextIncrement $ \case
-          PNothing ->
-            ptraceError
-              "mkIncrementIntervals: invalid increment parameters"
-          PJust nextIncrement' -> unTermCont $ do
-            pure $
+       in pmatch nextIncrement $ \case
+            PNothing ->
+              ptraceError
+                "mkIncrementIntervals: invalid increment parameters"
+            PJust nextIncrement' ->
               pmatch currentIncrement $ \case
                 PNothing ->
                   ptraceError
@@ -687,15 +685,14 @@ getIncrementListIntervalIndex = pfix #$ plam listIndex
       Term s (PList PPeriodicInterval) ->
       Term s PPOSIXTimeRange ->
       Term s PNatural
-    listIndex self index list txRange = unTermCont $ do
-      pure $
-        pmatch list $ \case
-          PSNil ->
-            ptraceError
-              "getIncrementListIntervalIndex: transaction's is not \
-              \inside bonding period"
-          PSCons i is ->
-            pif
-              (pperiodicContains # i # txRange)
-              index
-              (self # (index #+ natOne) # is # txRange)
+    listIndex self index list txRange =
+      pmatch list $ \case
+        PSNil ->
+          ptraceError
+            "getIncrementListIntervalIndex: transaction's is not \
+            \inside bonding period"
+        PSCons i is ->
+          pif
+            (pperiodicContains # i # txRange)
+            index
+            (self # (index #+ natOne) # is # txRange)
