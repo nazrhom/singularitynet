@@ -180,10 +180,7 @@ mkRatUnsafe (Just r) = r
 
 -- | Converts from a contract 'Natural' to an 'Int'
 toIntUnsafe :: Natural -> Int
-toIntUnsafe n =
-  case toInt (toBigInt n) of
-    Nothing -> 0
-    Just x -> x
+toIntUnsafe = fromMaybe 0 <<< toInt <<< toBigInt
 
 logInfo_
   :: forall (r :: Row Type) (a :: Type)
@@ -358,7 +355,7 @@ findRemoveOtherElem assocList hashedKey = do
 
 -- | Utility function for splitting an array into equal length sub-arrays
 -- | (with remainder array length <= size)
-splitByLength :: forall a. Int -> Array a -> Array (Array a)
+splitByLength :: forall (a :: Type). Int -> Array a -> Array (Array a)
 splitByLength size array
   | size == 0 || null array = []
   | otherwise =
