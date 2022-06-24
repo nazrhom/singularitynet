@@ -115,7 +115,7 @@ main = launchAff_ do
 --         testInitUnbondedParams
 --       unbondedParams <- createUnbondedPoolContract initParams
 --       logInfo' "SWITCH WALLETS NOW - CHANGE TO USER 1"
---       liftAff $ delay $ wrap $ toNumber 80_000
+--       liftAff $ delay $ wrap $ Int.toNumber 80_000
 --       pure unbondedParams
 --   userCfg <- mkConfig
 --   userStake <-
@@ -124,37 +124,25 @@ main = launchAff_ do
 --   runContract_ userCfg do
 --     userStakeUnbondedPoolContract unbondedParams userStake
 --     logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
---     liftAff $ delay $ wrap $ toNumber 100_000
+--     liftAff $ delay $ wrap $ Int.toNumber 100_000
 --   -- -- User 2 deposits
 --   -- runContract_ userCfg do
 --   --   userStakeUnbondedPoolContract unbondedParams userStake
 --   --   logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
---   --   liftAff $ delay $ wrap $ toNumber 100_000
+--   --   liftAff $ delay $ wrap $ Int.toNumber 100_000
 --   -- Admin deposits to pool
 --   runContract_ adminCfg do
 --     depositBatchSize <-
 --       liftM (error "Cannot create Natural") $ Natural.fromString "1"
---     void $
---       depositUnbondedPoolContract unbondedParams depositBatchSize []
---         ( \_ -> do
---             logInfo'
---               "main: Waiting to submit next Tx batch. DON'T SWITCH WALLETS - \
---               \STAY AS ADMIN"
---             liftAff $ delay $ wrap $ toNumber 100_000
---         )
+--     void $ depositUnbondedPoolContract unbondedParams depositBatchSize []
+--     -- failedDeposits <- depositUnbondedPoolContract unbondedParams depositBatchSize []
+--     -- void $ depositUnbondedPoolContract unbondedParams depositBatchSize failedDeposits
 --     logInfo' "main: Closing pool..."
 --   -- Admin closes pool
 --   runContract_ adminCfg do
 --     closeBatchSize <-
 --       liftM (error "Cannot create Natural") $ Natural.fromString "10"
---     void $
---       closeUnbondedPoolContract unbondedParams closeBatchSize []
---         ( \_ -> do
---             logInfo'
---               "main: Waiting to submit next Tx batch. DON'T SWITCH WALLETS - \
---               \STAY AS ADMIN"
---             liftAff $ delay $ wrap $ toNumber 100_000
---         )
+--     void $ closeUnbondedPoolContract unbondedParams closeBatchSize []
 --     logInfo' "main: Pool closed"
 
 -- Bonded: admin create pool, user stake, admin deposit (rewards), admin close
