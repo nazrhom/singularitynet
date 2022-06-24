@@ -2,6 +2,7 @@ module UserStake (userStakeBondedPoolContract) where
 
 import Contract.Prelude hiding (length)
 
+import BondedStaking.TimeUtils (getStakingTime)
 import Contract.Address
   ( AddressWithNetworkTag(AddressWithNetworkTag)
   , getNetworkId
@@ -40,6 +41,7 @@ import Contract.TxConstraints
   , mustMintValueWithRedeemer
   , mustPayToScript
   , mustSpendScriptOutput
+  , mustValidateIn
   )
 import Contract.Utxos (utxosAt)
 import Contract.Value (mkTokenName, singleton)
@@ -63,8 +65,8 @@ import Utils
   ( findInsertUpdateElem
   , getUtxoWithNFT
   , hashPkh
-  , mkOnchainAssocList
   , logInfo_
+  , mkOnchainAssocList
   )
 
 -- Deposits a certain amount in the pool
@@ -146,6 +148,12 @@ userStakeBondedPoolContract
       "userStakeBondedPoolContract: Could not create token name for user`"
       $ mkTokenName hashedUserPkh
   let entryValue = singleton assocListCs assocListTn one
+
+  -- Get the staking range to use
+  logInfo' "userStakeBondedPoolContract: Getting staking range..."
+  { currTime, range } <- getStakingTime params
+  logInfo_ "Current time: " $ show currTime
+  logInfo_ "TX Range" range
 
   constraints /\ lookup <- case bondedStakingDatum of
     StateDatum { maybeEntryName: Nothing } -> do
@@ -537,6 +545,7 @@ userStakeBondedPoolContract
                 , middleConstraints
                 , lastConstraints
                 , mustBeSignedBy userPkh
+                , mustValidateIn range
                 ]
             /\
               mconcat

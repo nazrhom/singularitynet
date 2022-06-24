@@ -47,8 +47,8 @@ import PNatural (
   PNonNegative ((#+)),
   natZero,
   ratZero,
-  roundDown,
-  toNatRatio,
+  -- roundDown,
+  -- toNatRatio,
  )
 import PTypes (
   HField,
@@ -151,7 +151,7 @@ pbondedPoolValidator = phoistAcyclic $
       pmatch act $ \case
         PAdminAct _ -> unTermCont $ do
           pguardC "pbondedPoolValidator: wrong period for PAdminAct redeemer" $
-            period #== bondingPeriod
+            getBondedPeriod # txInfoF.validRange # params #== bondingPeriod
           pure $ adminActLogic txInfoF paramsF
         PStakeAct act -> unTermCont $ do
           pguardC
@@ -188,7 +188,7 @@ pbondedPoolValidator = phoistAcyclic $
             act
         PCloseAct _ -> unTermCont $ do
           pguardC "pbondedPoolValidator: wrong period for PcloseAct redeemer" $
-            period #== closingPeriod
+            getBondedPeriod # txInfoF.validRange # params #== closingPeriod
           pure $ closeActLogic ctxF.txInfo params
   where
     isBurningEntry ::
@@ -263,6 +263,7 @@ stakeActLogic txInfo params purpose datum act =
     pguardC "stakeActLogic: stake amount is not positive or within bounds" $
       natZero #<= stakeAmt
     -- Get asset output of the transaction (new locked stake)
+    -- TODO: Fix this line right here
     assetOutput <-
       (tcont . pletFields @'["value"] . fst)
         =<< ( getCoWithDatum
@@ -280,6 +281,7 @@ stakeActLogic txInfo params purpose datum act =
         # (peq # bondedAsset.tokenName)
         # (peq #$ pto $ pfromData act.stakeAmount)
         # assetOutput.value
+
     pure . pmatch act.maybeMintingAction $ \case
       -- If some minting action is provided, this is a new stake and inductive
       -- conditions must be checked
@@ -697,8 +699,7 @@ withdrawHeadActLogic spentInput withdrawnAmt datum txInfo params stateOutRef hea
     pguardC
       "withdrawHeadActLogic: withdrawn amount does not match stake and \
       \rewards"
-      $ withdrawnAmt
-        #== roundDown (toNatRatio headEntry.staked #+ headEntry.rewards)
+      $ withdrawnAmt #== headEntry.deposited
     ---- INDUCTIVE CONDITIONS ----
     -- Validate that spentOutRef is the state UTXO and matches redeemer
     pguardC "withdrawHeadActLogic: spent input is not the state UTXO" $
@@ -755,9 +756,8 @@ withdrawOtherActLogic spentInput withdrawnAmt datum txInfo params burnEntryOutRe
     pguardC
       "withdrawOtherActLogic: withdrawn amount does not match stake and \
       \rewards"
-      $ withdrawnAmt
-        #== roundDown (toNatRatio burnEntry.staked #+ burnEntry.rewards)
-    ---- INDUCTIVE CONDITIONS ----
+      $ withdrawnAmt #== burnEntry.deposited
+    ----INDUCTIVE CONDITIONS ----
     -- Validate that spentOutRef is the previous entry and matches redeemer
     pguardC "withdrawOtherActLogic: spent input is not an entry" $
       hasListNft params.assocListCs spentInputResolved.value
@@ -791,15 +791,13 @@ closeActLogic txInfo params = unTermCont $ do
   pguardC "transaction not signed by admin" $
     signedBy txInfoF.signatories paramsF.admin
   -- We check that the transaction occurs during the closing period
-  -- We don't validate this for the demo, otherwise testing becomes
-  -- too difficult
-  -- period <- pure $ getPeriod # txInfoF.validRange # params
-  -- pguardC "admin deposit not done in closing period" $
-  --  isClosingPeriod period
+  let period = getBondedPeriod # txInfoF.validRange # params
+  pguardC "admin deposit not done in closing period" $
+    isClosingPeriod period
   pure punit
   where
-    _isClosingPeriod :: Term s PPeriod -> Term s PBool
-    _isClosingPeriod period = pmatch period $ \case
+    isClosingPeriod :: Term s PPeriod -> Term s PBool
+    isClosingPeriod period = pmatch period $ \case
       ClosingPeriod -> pconstant True
       _ -> pconstant False
 
