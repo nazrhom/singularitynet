@@ -36,17 +36,19 @@ import Plutarch.DataRepr (HRec)
 import Plutarch.Unsafe (punsafeCoerce)
 
 import PInterval (
+  getUnbondedBondingPeriodIncrement,
   getUnbondedPeriod,
  )
 import PNatural (
   PNatRatio,
   PNatural,
   mkNatRatioUnsafe,
+  natOne,
   natPow,
   natZero,
-  pCeil,
   ratZero,
   roundDown,
+  roundUp,
   toNatRatio,
   (#*),
   (#+),
@@ -68,9 +70,6 @@ import PTypes (
   passetClass,
  )
 
-import SingularityNet.Natural (
-  Natural (Natural),
- )
 import SingularityNet.Settings (unbondedStakingTokenName)
 
 import UnbondedStaking.PTypes (
@@ -148,15 +147,16 @@ punbondedPoolValidator = phoistAcyclic $
     ctxF <- tcont $ pletFields @'["txInfo", "purpose"] ctx
     txInfoF <- tcont $ pletFields @PTxInfoFields ctxF.txInfo
     paramsF <- tcont $ pletFields @PUnbondedPoolParamsFields params
+    let period = getUnbondedPeriod # txInfoF.validRange # params
     -- Match on redeemer, check period and minted value, execute the
     -- corresponding logic
     pure $
       pmatch act $ \case
         PAdminAct dataRecord -> unTermCont $ do
-          -- guardC "punbondedPoolValidator: wrong period for PAdminAct \
-          --   \redeemer" $
-          --   getUnbondedPeriod # txInfoF.validRange # params #==
-          --     adminUpdatePeriod
+          guardC
+            "punbondedPoolValidator: wrong period for PAdminAct \
+            \redeemer"
+            $ period #== adminUpdatePeriod
           adminActParamsF <-
             tcont $ pletFields @["totalRewards", "totalDeposited"] dataRecord
           pure $
@@ -167,10 +167,10 @@ punbondedPoolValidator = phoistAcyclic $
               dat
               adminActParamsF
         PStakeAct dataRecord -> unTermCont $ do
-          -- guardC "punbondedPoolValidator: wrong period for PStakeAct \
-          --   \redeemer" $
-          --   getUnbondedPeriod # txInfoF.validRange # params #==
-          --     depositWithdrawPeriod
+          guardC
+            "punbondedPoolValidator: wrong period for PStakeAct \
+            \redeemer"
+            $ period #== depositWithdrawPeriod
           stakeActParamsF <-
             tcont $
               pletFields
@@ -185,7 +185,6 @@ punbondedPoolValidator = phoistAcyclic $
               stakeActParamsF
         PWithdrawAct dataRecord -> unTermCont $ do
           -- Period validation is done inside of the redeemer action
-          let period = getUnbondedPeriod # txInfoF.validRange # params
           withdrawActParamsF <-
             tcont $ pletFields @["pubKeyHash", "burningAction"] dataRecord
           withdrawActLogic
@@ -196,10 +195,10 @@ punbondedPoolValidator = phoistAcyclic $
             withdrawActParamsF
             period
         PCloseAct _ -> unTermCont $ do
-          -- guardC "punbondedPoolValidator: wrong period for PCloseAct \
-          --   \redeemer" $
-          --   getUnbondedPeriod # txInfoF.validRange # params #==
-          --     adminUpdatePeriod
+          guardC
+            "punbondedPoolValidator: wrong period for PCloseAct \
+            \redeemer"
+            $ period #== adminUpdatePeriod
           pure $ closeActLogic txInfoF paramsF ctxF.purpose dat
 
 -- Untyped version to be serialised. This version is responsible for verifying
@@ -285,8 +284,7 @@ adminActLogic txInfoF paramsF purpose datum adminActParamsF = unTermCont $ do
       guardC
         "adminActLogic: update failed because entry field 'rewards' \
         \is not updatedRewards"
-        $ newEntryF.rewards
-          #== toNatRatio (pCeil # rewards)
+        $ newEntryF.rewards #== (toNatRatio $ roundUp rewards)
       guardC
         "adminActLogic: update failed because entry field 'totalRewards' \
         \is not newTotalRewards"
@@ -800,7 +798,7 @@ withdrawHeadActLogic spentInputF withdrawnAmt datum txInfoF paramsF period state
     guardC "withdrawHeadActLogic: consumed entry key does not match user's pkh" $
       headEntryF.key #== entryKey
     -- Validate withdrawn amount
-    withdrawRewardsGuard period withdrawnAmt paramsF.interest headEntryF
+    withdrawRewardsGuard period withdrawnAmt paramsF txInfoF headEntryF
     ---- INDUCTIVE CONDITIONS ----
     -- Validate that spentOutRef is the state UTXO and matches redeemer
     guardC "withdrawHeadActLogic: spent input is not the state UTXO" $
@@ -859,7 +857,7 @@ withdrawOtherActLogic spentInputF withdrawnAmt datum txInfoF paramsF period burn
     -- Burning action only valid if pool is open
     guardC "withdrawHeadActLogic: Pool is not open" $ toPBool # burnEntryF.open
     -- Validate withdrawn amount
-    withdrawRewardsGuard period withdrawnAmt paramsF.interest burnEntryF
+    withdrawRewardsGuard period withdrawnAmt paramsF txInfoF burnEntryF
     ---- INDUCTIVE CONDITIONS ----
     -- Validate that spentOutRef is the previous entry and matches redeemer
     guardC "withdrawOtherActLogic: spent input is not an entry" $
@@ -954,8 +952,7 @@ closeActLogic txInfoF paramsF purpose inputStakingDatum = unTermCont $ do
       guardC
         "closeActLogic: update failed because entry field 'rewards' \
         \is not updatedRewards"
-        $ newEntryF.rewards
-          #== toNatRatio (pCeil # rewards)
+        $ newEntryF.rewards #== (toNatRatio $ roundUp rewards)
       guardC
         "closeActLogic: update failed because entry field 'open' \
         \is not false"
@@ -1080,10 +1077,11 @@ withdrawRewardsGuard ::
   forall (s :: S).
   Term s PPeriod ->
   Term s PNatural ->
-  Term s PNatRatio ->
+  PUnbondedPoolParamsHRec s ->
+  PTxInfoHRec s ->
   PEntryHRec s ->
   TermCont s (Term s PUnit)
-withdrawRewardsGuard period amount interest entryF =
+withdrawRewardsGuard period amount paramsF txInfoF entryF =
   pure . pmatch period $ \case
     DepositWithdrawPeriod -> unTermCont $ do
       -- User can deposit then withdraw in the first cycle, resulting in
@@ -1104,13 +1102,15 @@ withdrawRewardsGuard period amount interest entryF =
               (pto (entryF.totalDeposited :: Term s PNatural))
           frhs = entryF.rewards #+ (toNatRatio entryF.deposited)
           f = roundDown $ frhs #* flhs
-          natOne = pconstant $ Natural 1
-          rhsDenominator = interest #+ (toNatRatio natOne)
-          -- TODO: Implement POSIX time logic to calculate for k
-          -- (currently hard-coded to 1) (also unify rounding functions)
-          rhsDenominator' = pCeil # (natPow # rhsDenominator # natOne)
+          rhsDenominator = paramsF.interest #+ (toNatRatio natOne)
+          rhsDenominator' =
+            roundUp $
+              natPow
+                # rhsDenominator
+                # (getUnbondedBondingPeriodIncrement txInfoF.validRange paramsF)
           rhs = mkNatRatioUnsafe (pto f) (pto rhsDenominator')
           bondingRewards = roundDown $ entryF.rewards #+ rhs
+
       -- Validate amount is within bounds
       guardC
         "withdrawRewardsGuard: reward withdrawal amount not within bounds"
