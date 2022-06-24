@@ -59,8 +59,7 @@ import Types
   )
 import Types.Redeemer (Redeemer(Redeemer))
 import Utils
-  ( big
-  , getUtxoWithNFT
+  ( getUtxoWithNFT
   , logInfo_
   , mkOnchainAssocList
   , mkRatUnsafe
@@ -195,7 +194,7 @@ calculateRewards interest deposited = do
   when (deposited == zero) $
     throwContractError "calculateRewards: totalDeposited is zero"
   let
-    recentRewards = interest * mkRatUnsafe ((deposited + big 100_000_000) % one)
+    recentRewards = interest * mkRatUnsafe (deposited % one)
   when (recentRewards < zero) $ throwContractError
     "calculateRewards: invalid rewards amount"
   pure recentRewards
