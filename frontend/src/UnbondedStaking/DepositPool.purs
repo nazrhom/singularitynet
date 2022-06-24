@@ -50,18 +50,16 @@ import Settings (unbondedStakingTokenName)
 import Types.Natural (fromBigInt')
 import Types.Redeemer (Redeemer(Redeemer))
 import Types.Scripts (ValidatorHash)
-import UnbondedStaking.AdminUtils
-  ( calculateRewards
-  , submitTransaction
-  , txBatchFinishedCallback
-  )
 import UnbondedStaking.Types
   ( Entry(Entry)
   , UnbondedPoolParams(UnbondedPoolParams)
   , UnbondedStakingAction(AdminAct)
   , UnbondedStakingDatum(AssetDatum, EntryDatum, StateDatum)
   )
-import UnbondedStaking.Utils (getAdminTime)
+import UnbondedStaking.Utils
+  ( calculateRewards
+  , getAdminTime
+  )
 import Utils
   ( getUtxoWithNFT
   , mkOnchainAssocList
@@ -69,7 +67,9 @@ import Utils
   , mkRatUnsafe
   , roundUp
   , splitByLength
+  , submitTransaction
   , toIntUnsafe
+  , txBatchFinishedCallback
   )
 
 -- | Deposits a certain amount in the pool
@@ -160,7 +160,6 @@ depositUnbondedPoolContract
         constraints :: TxConstraints Unit Unit
         constraints =
           mustBeSignedBy admin
-            <> mconcat (mconcat constraintList)
             <> mustValidateIn range
 
         lookups :: ScriptLookups.ScriptLookups PlutusData
@@ -226,30 +225,6 @@ depositUnbondedPoolContract
         "depositUnbondedPoolContract: Cannot deposit to a closed pool"
     _ ->
       throwContractError "depositUnbondedPoolContract: Datum incorrect type"
-
-  logInfo' "depositUnbondedPoolContract: Finished updating pool entries"
-
--- | Calculates user awards according to spec formula
-calculateRewards
-  :: Rational
-  -> BigInt
-  -> BigInt
-  -> BigInt
-  -> BigInt
-  -> Contract () Rational
-calculateRewards rewards totalRewards deposited newDeposit totalDeposited = do
-  -- New users will have zero total deposited for the first cycle
-  if totalDeposited == zero then
-    pure zero
-  else do
-    let
-      lhs = mkRatUnsafe $ totalRewards % totalDeposited
-      rhs = rewards + mkRatUnsafe (deposited % one)
-      rhs' = rhs - mkRatUnsafe (newDeposit % one)
-      f = rhs' * lhs
-    when (f < zero) $ throwContractError
-      "calculateRewards: invalid rewards amount"
-    pure $ rewards + f
 
 -- | Creates a constraint and lookups list for updating each user entry
 mkEntryUpdateList

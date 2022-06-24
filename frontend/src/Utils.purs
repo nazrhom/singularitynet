@@ -18,21 +18,35 @@ module Utils
   , roundDown
   , roundUp
   , splitByLength
+  , submitTransaction
   , toIntUnsafe
+  , txBatchFinishedCallback
   ) where
 
 import Contract.Prelude hiding (length)
 
 import Contract.Address (PaymentPubKeyHash)
 import Contract.Hashing (blake2b256Hash)
-import Contract.Monad (Contract, liftContractM, logInfo, tag)
+import Contract.Monad
+  ( Contract
+  , liftContractM
+  , liftedE
+  , liftedM
+  , logInfo
+  , logInfo'
+  , tag
+  )
 import Contract.Numeric.Natural (Natural, fromBigInt', toBigInt)
 import Contract.Numeric.Rational (Rational, numerator, denominator)
-import Contract.Prim.ByteArray (ByteArray, hexToByteArray)
+import Contract.Prim.ByteArray (ByteArray, byteArrayToHex, hexToByteArray)
+import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (PlutusScript)
 import Contract.Transaction
-  ( TransactionInput
+  ( BalancedSignedTransaction(BalancedSignedTransaction)
+  , TransactionInput
   , TransactionOutput(TransactionOutput)
+  , balanceAndSignTx
+  , submit
   )
 import Contract.TxConstraints (TxConstraints, mustSpendScriptOutput)
 import Contract.Utxos (UtxoM(UtxoM))
@@ -44,6 +58,7 @@ import Contract.Value
   , valueOf
   )
 import Control.Alternative (guard)
+import Control.Monad.Error.Class (try)
 import Data.Argonaut.Core (Json, caseJsonObject)
 import Data.Argonaut.Decode.Combinators (getField) as Json
 import Data.Argonaut.Decode.Error (JsonDecodeError(TypeMismatch))
@@ -61,10 +76,12 @@ import Data.Array
 import Data.Array as Array
 import Data.BigInt (BigInt, fromInt, fromNumber, quot, rem, toInt, toNumber)
 import Data.DateTime.Instant (unInstant)
+import Data.Int as Int
 import Data.Map (Map, toUnfoldable)
 import Data.Map as Map
 import Data.Time.Duration (Milliseconds(Milliseconds))
 import Data.Unfoldable (unfoldr)
+import Effect.Aff (delay)
 import Effect.Now (now)
 import Math (ceil)
 import Serialization.Hash (ed25519KeyHashToBytes)
@@ -74,7 +91,8 @@ import Types
   , InitialBondedParams(InitialBondedParams)
   , MintingAction(MintEnd, MintInBetween)
   )
-import Types.Interval (POSIXTime(..))
+import Types.Interval (POSIXTime(POSIXTime))
+import Types.PlutusData (PlutusData)
 import Types.Redeemer (Redeemer)
 
 -- | Helper to decode the local inputs such as unapplied minting policy and
@@ -370,3 +388,66 @@ splitByLength size array
       in
         map (\i -> slice (i * size) ((i * size) + size) array) $
           0 .. sublistCount
+
+-- | Submits a transaction with the given list of constraints/lookups
+submitTransaction
+  :: TxConstraints Unit Unit
+  -> ScriptLookups.ScriptLookups PlutusData
+  -> Array
+       ( Tuple
+           (TxConstraints Unit Unit)
+           (ScriptLookups.ScriptLookups PlutusData)
+       )
+  -> Contract ()
+       ( Array
+           ( Tuple
+               (TxConstraints Unit Unit)
+               (ScriptLookups.ScriptLookups PlutusData)
+           )
+       )
+submitTransaction baseConstraints baseLookups updateList = do
+  let
+    constraintList = fst <$> updateList
+    lookupList = snd <$> updateList
+    constraints = baseConstraints <> mconcat constraintList
+    lookups = baseLookups <> mconcat lookupList
+  result <- try do
+    -- Build transaction
+    unattachedBalancedTx <-
+      liftedE $ ScriptLookups.mkUnbalancedTx lookups constraints
+    logInfo_
+      "submitTransaction: unAttachedUnbalancedTx"
+      unattachedBalancedTx
+    BalancedSignedTransaction { signedTxCbor } <-
+      liftedM
+        "submitTransaction: Cannot balance, reindex redeemers, /\
+        \attach datums redeemers and sign"
+        $ balanceAndSignTx unattachedBalancedTx
+    -- Submit transaction using Cbor-hex encoded `ByteArray`
+    transactionHash <- submit signedTxCbor
+    logInfo_
+      "submitTransaction: Transaction successfully submitted with /\
+      \hash"
+      $ byteArrayToHex
+      $ unwrap transactionHash
+  case result of
+    Left e -> do
+      logInfo_ "submitTransaction:" e
+      pure updateList
+    Right _ ->
+      pure []
+
+txBatchFinishedCallback
+  :: Array
+       ( Tuple
+           (TxConstraints Unit Unit)
+           (ScriptLookups.ScriptLookups PlutusData)
+       )
+  -> Contract () Unit
+-- txBatchFinishedCallback failedDeposits = do
+txBatchFinishedCallback _ = do
+  logInfo'
+    "txBatchFinishedCallback: Waiting to submit next Tx batch. \
+    \DON'T SWITCH WALLETS - STAY AS ADMIN"
+  liftAff $ delay $ wrap $ Int.toNumber 100_000
+  pure unit

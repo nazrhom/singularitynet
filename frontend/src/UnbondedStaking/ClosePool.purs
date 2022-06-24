@@ -50,18 +50,16 @@ import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Settings (unbondedStakingTokenName)
 import Types.Scripts (ValidatorHash)
-import UnbondedStaking.AdminUtils
-  ( calculateRewards
-  , submitTransaction
-  , txBatchFinishedCallback
-  )
 import UnbondedStaking.Types
   ( Entry(Entry)
   , UnbondedPoolParams(UnbondedPoolParams)
   , UnbondedStakingAction(CloseAct)
   , UnbondedStakingDatum(AssetDatum, EntryDatum, StateDatum)
   )
-import UnbondedStaking.Utils (getAdminTime)
+import UnbondedStaking.Utils
+  ( calculateRewards
+  , getAdminTime
+  )
 import Utils
   ( getUtxoWithNFT
   , mkOnchainAssocList
@@ -69,7 +67,9 @@ import Utils
   , mkRatUnsafe
   , roundUp
   , splitByLength
+  , submitTransaction
   , toIntUnsafe
+  , txBatchFinishedCallback
   )
 
 -- | Closes the unbonded pool and distributes final rewards to users
@@ -173,8 +173,6 @@ closeUnbondedPoolContract
         constraints =
           mustBeSignedBy admin
             <> mustIncludeDatum poolDatum
-            <> mustPayToScript valHash stateDatum stateTokenValue
-            <> mconcat (mconcat constraintList)
             <> mustValidateIn range
 
         lookups :: ScriptLookups.ScriptLookups PlutusData
@@ -250,7 +248,6 @@ closeUnbondedPoolContract
             (toUnfoldable $ unwrap unbondedPoolUtxos :: Array _)
             <> mustBeSignedBy admin
             <> mustIncludeDatum poolDatum
-            <> mustPayToScript valHash stateDatum stateTokenValue
             <> mustValidateIn range
 
         lookups :: ScriptLookups.ScriptLookups PlutusData
@@ -276,28 +273,6 @@ closeUnbondedPoolContract
         "closeUnbondedPoolContract: Pool is already closed"
     _ ->
       throwContractError "closeUnbondedPoolContract: Datum incorrect type"
-
--- | Calculates user awards according to spec formula
-calculateRewards
-  :: Rational
-  -> BigInt
-  -> BigInt
-  -> BigInt
-  -> BigInt
-  -> Contract () Rational
-calculateRewards rewards totalRewards deposited newDeposit totalDeposited = do
-  -- New users will have zero total deposited for the first cycle
-  if totalDeposited == zero then
-    pure zero
-  else do
-    let
-      lhs = mkRatUnsafe $ totalRewards % totalDeposited
-      rhs = rewards + mkRatUnsafe (deposited % one)
-      rhs' = rhs - mkRatUnsafe (newDeposit % one)
-      f = rhs' * lhs
-    when (f < zero) $ throwContractError
-      "calculateRewards: invalid rewards amount"
-    pure $ rewards + f
 
 -- | Creates a constraint and lookups list for updating each user entry
 mkEntryUpdateList

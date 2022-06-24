@@ -1,5 +1,6 @@
 module UnbondedStaking.Utils
-  ( getAdminTime
+  ( calculateRewards
+  , getAdminTime
   , getBondingTime
   , getUserTime
   , mkUnbondedPoolParams
@@ -9,7 +10,8 @@ module UnbondedStaking.Utils
 import Contract.Prelude hiding (length)
 
 import Contract.Address (PaymentPubKeyHash)
-import Contract.Monad (Contract, liftContractM)
+import Contract.Monad (Contract, liftContractM, throwContractError)
+import Contract.Numeric.Rational (Rational, (%))
 import Contract.Value (CurrencySymbol)
 import Data.Array (filter, head, takeWhile, (..))
 import Data.BigInt (BigInt, quot, toInt)
@@ -18,7 +20,7 @@ import UnbondedStaking.Types
   ( UnbondedPoolParams(UnbondedPoolParams)
   , InitialUnbondedParams(InitialUnbondedParams)
   )
-import Utils (big, currentRoundedTime)
+import Utils (big, currentRoundedTime, mkRatUnsafe)
 
 -- | Admin deposit/closing
 getAdminTime
@@ -153,3 +155,25 @@ mkUnbondedPoolParams admin nftCs assocListCs (InitialUnbondedParams iup) = do
     , nftCs
     , assocListCs
     }
+
+-- | Calculates user awards according to spec formula
+calculateRewards
+  :: Rational
+  -> BigInt
+  -> BigInt
+  -> BigInt
+  -> BigInt
+  -> Contract () Rational
+calculateRewards rewards totalRewards deposited newDeposit totalDeposited = do
+  -- New users will have zero total deposited for the first cycle
+  if totalDeposited == zero then
+    pure zero
+  else do
+    let
+      lhs = mkRatUnsafe $ totalRewards % totalDeposited
+      rhs = rewards + mkRatUnsafe (deposited % one)
+      rhs' = rhs - mkRatUnsafe (newDeposit % one)
+      f = rhs' * lhs
+    when (f < zero) $ throwContractError
+      "calculateRewards: invalid rewards amount"
+    pure $ rewards + f
