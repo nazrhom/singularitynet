@@ -30,7 +30,6 @@ import Plutarch.Api.V1 (
 
 import Utils (
   allWith,
-  guardC,
   oneOf,
   oneWith,
   pconst,
@@ -38,6 +37,7 @@ import Utils (
   pfalse,
   pfind,
   pflip,
+  pguardC,
   pneq,
   ptrue,
   punit,
@@ -150,8 +150,9 @@ consumesEntriesGuard prevEntry currEntry inputs listNftCs = do
               )
           )
           pfalse
-  guardC "consumesEntriesGuard: number of entries is not two" $
+  pguardC "consumesEntriesGuard: number of entries is not two" $
     plength # entries #== 2
+  pure punit
 
 -- | Fails if entry is not present in inputs or it does not have the list token
 consumesEntryGuard ::
@@ -186,9 +187,10 @@ doesNotConsumeBondedAssetGuard ::
   TermCont s (Term s PUnit)
 doesNotConsumeBondedAssetGuard datum = do
   result <- pure . pmatch datum $ \case
-    BS.PAssetDatum _ -> ptrue
-    _ -> pfalse
-  guardC "doesNotConsumeBondedAssetGuard: tx consumes asset utxo" result
+    BS.PAssetDatum _ -> pfalse
+    _ -> ptrue
+  pguardC "doesNotConsumeBondedAssetGuard: tx consumes asset utxo" result
+  pure punit
 
 doesNotConsumeUnbondedAssetGuard ::
   forall (s :: S).
@@ -196,9 +198,10 @@ doesNotConsumeUnbondedAssetGuard ::
   TermCont s (Term s PUnit)
 doesNotConsumeUnbondedAssetGuard datum = do
   result <- pure . pmatch datum $ \case
-    US.PAssetDatum _ -> ptrue
-    _ -> pfalse
-  guardC "doesNotConsumeUnbondedAssetGuard: tx consumes asset utxo" result
+    US.PAssetDatum _ -> pfalse
+    _ -> ptrue
+  pguardC "doesNotConsumeUnbondedAssetGuard: tx consumes asset utxo" result
+  pure punit
 
 -- | Auxiliary function for building predicates on PTxInInfo's
 inputPredicate ::

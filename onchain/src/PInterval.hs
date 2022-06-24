@@ -57,8 +57,8 @@ import UnbondedStaking.PTypes (
   PUnbondedPoolParamsHRec,
  )
 import Utils (
-  guardC,
   pfalse,
+  pguardC,
   pletC,
   pletDataC,
   pmatchC,
@@ -567,7 +567,7 @@ getUnbondedBondingPeriodIncrement txTimeRange paramsF = unTermCont $ do
           # increments
           # increments
   -- Verify that we are in the bonding interval
-  guardC
+  pguardC
     "getUnbondedBondingPeriodIncrement: transaction's range is not inside of \
     \bonding period"
     $ pperiodicContains # pcon bonding # txTimeRange
