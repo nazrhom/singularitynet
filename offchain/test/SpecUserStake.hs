@@ -1,39 +1,42 @@
 module SpecUserStake (specUserStake) where
 
+import Data.Functor (void)
 import Data.Text (Text, pack)
 
 import Plutus.V1.Ledger.Api (
   POSIXTime,
  )
 
+import Ledger (PaymentPubKeyHash)
 import Plutus.Contract (
   Contract,
   EmptySchema,
  )
 import Plutus.Contract qualified as Contract
-import Test.Plutip.Contract (
-  TestWallet,
-  TestWallets,
-  assertExecution,
-  initAda,
-  withContract,
-  withContractAs,
- )
-import Test.Plutip.LocalCluster (withCluster)
-import Test.Plutip.Predicate (shouldFail, shouldSucceed)
-import Test.Tasty (TestTree)
-
-import Ledger (ChainIndexTxOut, PaymentPubKeyHash (PaymentPubKeyHash), scriptCurrencySymbol)
-import Ledger qualified as Contract
-import Ledger.Constraints (ScriptLookups)
-import Ledger.Constraints.TxConstraints (TxConstraints)
-import PlutusTx.Builtins (blake2b_256)
-import SingularityNet.Settings (bondedStakingTokenName)
-
 import SingularityNet.Natural (Natural (Natural), toPOSIXTime)
-import SingularityNet.Types (BondedPoolParams)
-import Types (BondedPoolScripts, InitialBondedPoolParams (initBondingLength, initEnd, initIterations, initStart, initUserLength), TBondedPool (TBondedPool))
-import Utils (createBondedPool, currentRoundedTime, testAdminWallet, testInitialBondedParams, testUserStake, testUserWallet, userHeadStake)
+import Test.Plutip.Contract (assertExecution, withContract)
+import Test.Plutip.LocalCluster (withCluster)
+import Test.Plutip.Predicate (shouldSucceed)
+import Test.Tasty (TestTree)
+import Types (
+  BondedPoolScripts,
+  InitialBondedPoolParams (
+    initBondingLength,
+    initEnd,
+    initIterations,
+    initStart,
+    initUserLength
+  ),
+ )
+import Utils (
+  createBondedPool,
+  currentRoundedTime,
+  testAdminWallet,
+  testInitialBondedParams,
+  testUserStake,
+  testUserWallet,
+  userHeadStake,
+ )
 
 specUserStake :: BondedPoolScripts -> TestTree
 specUserStake scripts =
@@ -73,12 +76,12 @@ userStakeContract bps stakeAmt pkhs = do
         testInitialBondedParams
           { initStart = creationDelay
           , -- One extra userLength for the final withdrawing period
-            initEnd = creationDelay + toPOSIXTime iterations * cycleLength + userLength
+            initEnd =
+              creationDelay + toPOSIXTime iterations * cycleLength + userLength
           , initUserLength = userLength
           , initBondingLength = bondingLength
           , initIterations = iterations
           }
   (bpts, bpp, bondedPool) <- createBondedPool bps initialBondedParams
-  Contract.throwError $ pack $ "BondedPoolParams: " <> show bpp
-  _ <- userHeadStake pkhs bpts bpp bondedPool stakeAmt
-  pure ()
+  void $ Contract.throwError $ pack $ "BondedPoolParams: " <> show bpp
+  void $ userHeadStake pkhs bpts bpp bondedPool stakeAmt

@@ -14,8 +14,11 @@ import Contract.Numeric.Natural (toBigInt)
 import Control.Alternative (guard)
 import Data.Array (head)
 import Data.BigInt (BigInt)
-import Types (BondedPoolParams(BondedPoolParams), InitialBondedParams(..))
-import Types.Interval (POSIXTime(..), POSIXTimeRange, from, interval)
+import Types
+  ( BondedPoolParams(BondedPoolParams)
+  , InitialBondedParams(InitialBondedParams)
+  )
+import Types.Interval (POSIXTime(POSIXTime), POSIXTimeRange, from, interval)
 import Types.Natural (Natural)
 import Utils (big, bigIntRange, currentRoundedTime)
 

@@ -7,7 +7,13 @@ module Types (
   TAsset (..),
 ) where
 
-import Plutus.V1.Ledger.Api (MintingPolicy, POSIXTime, Script, TxOutRef, Validator)
+import Plutus.V1.Ledger.Api (
+  MintingPolicy,
+  POSIXTime,
+  Script,
+  TxOutRef,
+  Validator,
+ )
 import SingularityNet.Natural (NatRatio, Natural)
 import SingularityNet.Types (AssetClass, BondedStakingDatum)
 
