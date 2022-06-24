@@ -94,6 +94,7 @@ userStakeBondedPoolContract
   userUtxos <-
     liftedM "userStakeBondedPoolContract: Cannot get user Utxos"
       $ utxosAt userAddr
+  logInfo_ "userStakeBondedPoolContract: User Address" userAddr
   -- Get the bonded pool validator and hash
   validator <- liftedE' "userStakeBondedPoolContract: Cannot create validator"
     $ mkBondedPoolValidator params
