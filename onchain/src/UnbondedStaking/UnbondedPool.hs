@@ -154,15 +154,14 @@ punbondedPoolValidator = phoistAcyclic $
       pmatch act $ \case
         PAdminAct _ -> unTermCont $ do
           -- pguardC "punbondedPoolValidator: wrong period for PAdminAct \
-          --   \redeemer" $
-          --   getUnbondedPeriod # txInfoF.validRange # params #==
-          --     adminUpdatePeriod
+          --   \redeemer"
+          --   $ period #== adminUpdatePeriod
           pure $ adminLogic txInfoF paramsF
         PStakeAct dataRecord -> unTermCont $ do
-          pguardC
-            "punbondedPoolValidator: wrong period for PStakeAct \
-            \redeemer"
-            $ period #== depositWithdrawPeriod
+          -- pguardC
+          --   "punbondedPoolValidator: wrong period for PStakeAct \
+          --   \redeemer"
+          --   $ period #== depositWithdrawPeriod
           stakeActParamsF <-
             tcont $
               pletFields
@@ -188,9 +187,8 @@ punbondedPoolValidator = phoistAcyclic $
             period
         PCloseAct _ -> unTermCont $ do
           -- pguardC "punbondedPoolValidator: wrong period for PCloseAct \
-          --   \redeemer" $
-          --   getUnbondedPeriod # txInfoF.validRange # params #==
-          --     adminUpdatePeriod
+          --   \redeemer"
+          --   $ period #== adminUpdatePeriod
           pure $ adminLogic txInfoF paramsF
 
 -- Untyped version to be serialised. This version is responsible for verifying
