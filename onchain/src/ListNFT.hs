@@ -180,8 +180,6 @@ listRemoveCheck
           (pfromData outRef)
           inputs
 
--- TODO
-
 -- Build the token name from the signatory's `PPubKeyHash`
 mkEntryTn :: Term s PPubKeyHash -> Term s PTokenName
 mkEntryTn pkh = pcon . PTokenName $ pblake2b_256 # pto pkh
