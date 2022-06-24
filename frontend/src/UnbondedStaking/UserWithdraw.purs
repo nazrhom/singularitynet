@@ -213,22 +213,30 @@ userWithdrawUnbondedPoolContract
 
             withdrawnVal :: Value
             withdrawnVal = singleton assetCs assetTn withdrawnAmt
+
+          logInfo_ "rewards" rewards
+          logInfo_ "rewardsRounded" rewardsRounded
+          logInfo_ "withdrawnAmt" withdrawnAmt
+          logInfo_ "withdrawnVal" withdrawnVal
+          logInfo_ "rewards" rewards
+
           -- Calculate assets to consume and change that needs to be returned
           -- to the pool
-          consumedAssetUtxos /\ totalSpentAmt <-
+          consumedAssetUtxos /\ withdrawChange <-
             liftContractM
               "userWithdrawUnbondedPoolContract: Cannot get asset \
               \UTxOs to consume" $
               getAssetsToConsume unbondedAssetClass withdrawnAmt
                 unbondedAssetUtxos
+          logInfo_ "withdrawChange" withdrawChange
+          logInfo_ "consumedAssetUtxos" consumedAssetUtxos
           let
             changeValue :: Value
             changeValue =
               singleton
                 (unwrap unbondedAssetClass).currencySymbol
                 (unwrap unbondedAssetClass).tokenName
-                $ totalSpentAmt
-                - withdrawnAmt
+                withdrawChange
 
             newState :: Datum
             newState = Datum <<< toData $
@@ -320,20 +328,21 @@ userWithdrawUnbondedPoolContract
 
           -- Calculate assets to consume and change that needs to be returned
           -- to the pool
-          consumedAssetUtxos /\ totalSpentAmt <-
+          consumedAssetUtxos /\ withdrawChange <-
             liftContractM
               "userWithdrawUnbondedPoolContract: Cannot get asset \
               \UTxOs to consume" $
               getAssetsToConsume unbondedAssetClass withdrawnAmt
                 unbondedAssetUtxos
+          logInfo_ "withdrawChange" withdrawChange
+          logInfo_ "consumedAssetUtxos" consumedAssetUtxos
           let
             changeValue :: Value
             changeValue =
               singleton
                 (unwrap unbondedAssetClass).currencySymbol
                 (unwrap unbondedAssetClass).tokenName
-                $ totalSpentAmt
-                - withdrawnAmt
+                withdrawChange
             -- Build updated previous entry and its lookup
             prevEntryUpdated = Datum $ toData $ EntryDatum
               { entry: Entry $ prevEntry
