@@ -216,22 +216,22 @@ CTL requires information about each of these runtime dependencies in order to ex
 
 const sdkConfig = { 
   ctlServerConfig: {
-    host: "example.com";
-    port: 443;
-    secure: true;
-  };
+    host: "example.com",
+    port: 443,
+    secure: true,
+  },
   ogmiosServerConfig: {
-    host: "example.com";
-    port: 443;
-    secure: true;
-  };
+    host: "example.com",
+    port: 443,
+    secure: true,
+  },
   datumCacheConfig: {
-    host: "example.com";
-    port: 443;
-    secure: true;
-  };
-  networkId: 1;
-  logLevel: "Error";
+    host: "example.com",
+    port: 443,
+    secure: true,
+  },
+  networkId: 1,
+  logLevel: "Error",
 };
 
 const bondedPoolAdminExample = async () => {

@@ -4,7 +4,7 @@ Nix is required to build the different components for this project and some of i
 
 ## Installation
 
-If you do not have Nix installed, please refer to [the documentation](https://nixos.org/download.html). 
+If you do not have Nix installed, please refer to [the documentation](https://nixos.org/download.html).
 
 **Note**: Nix v2.4 or greater **is required**.
 
