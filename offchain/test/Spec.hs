@@ -3,10 +3,10 @@ module Main (main) where
 import Test.Tasty (defaultMain, testGroup)
 
 import SingularityNetOffchain (loadPlutusScript)
-import SpecUserStake (specUserStake)
 
--- import SpecPoolCreate (specPoolCreate)
 import Types (BondedPoolScripts (BondedPoolScripts, listPolicyScript, statePolicyScript, validatorScript))
+
+import SpecStateNFT (specStateNFT)
 
 main :: IO ()
 main = do
@@ -17,6 +17,5 @@ main = do
   defaultMain $
     testGroup
       "SingularityNet off-chain tests"
-      [ -- specPoolCreate bondedPoolScripts
-        specUserStake bondedPoolScripts
+      [ specStateNFT statePolicyScript
       ]
