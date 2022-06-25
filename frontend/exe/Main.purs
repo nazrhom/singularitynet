@@ -38,7 +38,7 @@ import UnbondedStaking.ClosePool (closeUnbondedPoolContract)
 import UnbondedStaking.CreatePool (createUnbondedPoolContract)
 import UnbondedStaking.DepositPool (depositUnbondedPoolContract)
 import UnbondedStaking.Types
-  ( InitialUnbondedParams (InitialUnbondedParams)
+  ( InitialUnbondedParams(InitialUnbondedParams)
   , UnbondedPoolParams(..)
   )
 import UnbondedStaking.UserStake (userStakeUnbondedPoolContract)

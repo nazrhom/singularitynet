@@ -4,8 +4,7 @@ module UnbondedStaking.Utils
   , getBondingTime
   , getUserTime
   , mkUnbondedPoolParams
-  )
-  where
+  ) where
 
 import Contract.Prelude hiding (length)
 
@@ -26,17 +25,20 @@ import Utils (big, currentRoundedTime, mkRatUnsafe)
 getAdminTime
   :: forall (r :: Row Type)
    . UnbondedPoolParams
-  -> Contract r {currTime :: POSIXTime, range :: POSIXTimeRange}
+  -> Contract r { currTime :: POSIXTime, range :: POSIXTimeRange }
 getAdminTime (UnbondedPoolParams upp) = do
   -- Get time and round it up to the nearest second
   currTime@(POSIXTime currTime') <- currentRoundedTime
   -- Get timerange in which the staking should be done
-  let cycleLength :: BigInt
-      cycleLength = upp.userLength + upp.adminLength + upp.bondingLength
-      adminStart :: BigInt
-      adminStart = upp.start + upp.userLength
-      adminEnd :: BigInt
-      adminEnd = adminStart + upp.adminLength
+  let
+    cycleLength :: BigInt
+    cycleLength = upp.userLength + upp.adminLength + upp.bondingLength
+
+    adminStart :: BigInt
+    adminStart = upp.start + upp.userLength
+
+    adminEnd :: BigInt
+    adminEnd = adminStart + upp.adminLength
   -- Return range
   start /\ end <- liftContractM "getAdminTime: this is not a admin period" $
     isWithinPeriod currTime' cycleLength adminStart adminEnd
@@ -46,17 +48,20 @@ getAdminTime (UnbondedPoolParams upp) = do
 getUserTime
   :: forall (r :: Row Type)
    . UnbondedPoolParams
-  -> Contract r {currTime :: POSIXTime, range :: POSIXTimeRange}
+  -> Contract r { currTime :: POSIXTime, range :: POSIXTimeRange }
 getUserTime (UnbondedPoolParams upp) = do
   -- Get time and round it up to the nearest second
   currTime@(POSIXTime currTime') <- currentRoundedTime
   -- Get timerange in which the staking should be done
-  let cycleLength :: BigInt
-      cycleLength = upp.userLength + upp.adminLength + upp.bondingLength
-      userStart :: BigInt
-      userStart = upp.start
-      userEnd :: BigInt
-      userEnd = userStart + upp.userLength
+  let
+    cycleLength :: BigInt
+    cycleLength = upp.userLength + upp.adminLength + upp.bondingLength
+
+    userStart :: BigInt
+    userStart = upp.start
+
+    userEnd :: BigInt
+    userEnd = userStart + upp.userLength
   -- Return range
   start /\ end <- liftContractM "getUserTime: this is not a user period" $
     isWithinPeriod currTime' cycleLength userStart userEnd
@@ -67,35 +72,42 @@ getUserTime (UnbondedPoolParams upp) = do
 getBondingTime
   :: forall (r :: Row Type)
    . UnbondedPoolParams
-  -> Contract r {currTime :: POSIXTime, range :: POSIXTimeRange}
+  -> Contract r { currTime :: POSIXTime, range :: POSIXTimeRange }
 getBondingTime (UnbondedPoolParams upp) = do
   -- Get time and round it up to the nearest second
   currTime@(POSIXTime currTime') <- currentRoundedTime
   -- Get timerange in which the staking should be done
-  let cycleLength :: BigInt
-      cycleLength = upp.userLength + upp.adminLength + upp.bondingLength
-      userStart :: BigInt
-      userStart = upp.start
-      userEnd :: BigInt
-      userEnd = userStart + upp.userLength
-      bondingStart :: BigInt
-      bondingStart = upp.start + upp.userLength + upp.adminLength
-      bondingEnd :: BigInt
-      bondingEnd = bondingStart + upp.bondingLength
-      -- Period ranges
-      userPeriod = isWithinPeriod currTime' cycleLength userStart userEnd
-      bondingPeriod = isWithinPeriod currTime' cycleLength bondingStart bondingEnd
-      getPeriod
-        :: Maybe (Tuple BigInt BigInt)
-        -> Maybe (Tuple BigInt BigInt)
-        -> Maybe (Tuple BigInt BigInt)
-      getPeriod user bonding = case user /\ bonding of
-        user' /\ Nothing -> user'
-        Nothing /\ bonding' -> bonding'
-        _ /\ _ -> Nothing
+  let
+    cycleLength :: BigInt
+    cycleLength = upp.userLength + upp.adminLength + upp.bondingLength
+
+    userStart :: BigInt
+    userStart = upp.start
+
+    userEnd :: BigInt
+    userEnd = userStart + upp.userLength
+
+    bondingStart :: BigInt
+    bondingStart = upp.start + upp.userLength + upp.adminLength
+
+    bondingEnd :: BigInt
+    bondingEnd = bondingStart + upp.bondingLength
+    -- Period ranges
+    userPeriod = isWithinPeriod currTime' cycleLength userStart userEnd
+    bondingPeriod = isWithinPeriod currTime' cycleLength bondingStart bondingEnd
+
+    getPeriod
+      :: Maybe (Tuple BigInt BigInt)
+      -> Maybe (Tuple BigInt BigInt)
+      -> Maybe (Tuple BigInt BigInt)
+    getPeriod user bonding = case user /\ bonding of
+      user' /\ Nothing -> user'
+      Nothing /\ bonding' -> bonding'
+      _ /\ _ -> Nothing
   -- Return range
-  start /\ end <- liftContractM "getUserTime: this is not a user/bonding period" $
-    getPeriod userPeriod bondingPeriod
+  start /\ end <- liftContractM "getUserTime: this is not a user/bonding period"
+    $
+      getPeriod userPeriod bondingPeriod
   pure { currTime, range: interval (POSIXTime start) (POSIXTime end) }
 
 -- | Returns the current/previous period and the next valid period in the
@@ -108,26 +120,30 @@ isWithinPeriod
   -> BigInt
   -> Maybe (Tuple BigInt BigInt)
 isWithinPeriod currTime cycleLength start end =
-  let currentIteration :: Int
-      currentIteration = fromMaybe 0 $ toInt (start `quot` cycleLength)
-      upperBound :: Int
-      upperBound = 1 + currentIteration
-      possibleRanges :: Array (Tuple BigInt BigInt)
-      possibleRanges =
-        (\i -> (
-          cycleLength * big (i-1) + start)
-          /\ (cycleLength * big (i-1) + end)
-        )
+  let
+    currentIteration :: Int
+    currentIteration = fromMaybe 0 $ toInt (start `quot` cycleLength)
+
+    upperBound :: Int
+    upperBound = 1 + currentIteration
+
+    possibleRanges :: Array (Tuple BigInt BigInt)
+    possibleRanges =
+      ( \i -> (cycleLength * big (i - 1) + start)
+          /\ (cycleLength * big (i - 1) + end)
+      )
         <$> 1 .. upperBound
-      periods :: Array (Tuple BigInt BigInt)
-      periods =
-        takeWhile (\(start' /\ _) -> currTime >= start')
+
+    periods :: Array (Tuple BigInt BigInt)
+    periods =
+      takeWhile (\(start' /\ _) -> currTime >= start')
         possibleRanges
-      currentPeriod :: Array (Tuple BigInt BigInt)
-      currentPeriod =
-        filter
-          (\(start' /\ end') -> start' <= currTime && currTime < end')
-          periods
+
+    currentPeriod :: Array (Tuple BigInt BigInt)
+    currentPeriod =
+      filter
+        (\(start' /\ end') -> start' <= currTime && currTime < end')
+        periods
   in
     if null currentPeriod then Nothing else head currentPeriod
 

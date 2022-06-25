@@ -152,7 +152,7 @@ userStakeUnbondedPoolContract
   let entryValue = singleton assocListCs assocListTn one
   -- Get the staking range to use
   logInfo' "userStakeUnbondedPoolContract: Getting user time range..."
-  {currTime, range} <- getUserTime params
+  { currTime, range } <- getUserTime params
   logInfo_ "Current time: " $ show currTime
   logInfo_ "TX Range" range
   constraints /\ lookup <- case unbondedStakingDatum of

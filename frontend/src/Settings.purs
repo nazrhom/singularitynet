@@ -87,7 +87,7 @@ testInitUnbondedParams = do
   currencySymbol <- agixTn
   tokenName <- ntxTn
   pure $ InitialUnbondedParams
-    { start: big 1000   -- dummy value
+    { start: big 1000 -- dummy value
     , userLength: big 180_000 -- We use 3 minutes to make testing manageable
     , adminLength: big 180_000 -- We use 3 minutes to make testing manageable
     , bondingLength: big 180_000 -- We use 3 minutes to make testing manageable

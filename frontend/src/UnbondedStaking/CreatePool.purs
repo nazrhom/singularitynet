@@ -37,9 +37,9 @@ import Settings (unbondedStakingTokenName)
 import Types (StakingType(Unbonded))
 import Types.Interval (POSIXTime(POSIXTime))
 import UnbondedStaking.Types
-  ( InitialUnbondedParams (InitialUnbondedParams)
+  ( InitialUnbondedParams(InitialUnbondedParams)
   , UnbondedPoolParams
-  , UnbondedStakingDatum (StateDatum)
+  , UnbondedStakingDatum(StateDatum)
   )
 import UnbondedStaking.Utils (mkUnbondedPoolParams)
 import Utils (currentRoundedTime, logInfo_)
@@ -88,10 +88,12 @@ createUnbondedPoolContract iup = do
       unbondedStakingTokenName
   -- We get the current time and set up the pool to start immediately
   POSIXTime currTime <- currentRoundedTime
-  let iup' = unwrap iup
-      iupWithTime :: InitialUnbondedParams
-      iupWithTime = InitialUnbondedParams $ iup' {
-        start = currTime
+  let
+    iup' = unwrap iup
+
+    iupWithTime :: InitialUnbondedParams
+    iupWithTime = InitialUnbondedParams $ iup'
+      { start = currTime
       }
   -- We define the parameters of the pool
   let params = mkUnbondedPoolParams adminPkh stateNftCs assocListCs iupWithTime
