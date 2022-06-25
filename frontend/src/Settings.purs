@@ -71,10 +71,10 @@ testInitBondedParams = do
     , start: big 1000 -- dummy value
     , end: big 2000 -- dummy value
     , userLength: big 180_000 -- We use 3 minutes to make testing manageable
-    , bondingLength: big 240_000
+    , bondingLength: big 180_000
     , interest
     , minStake: nat 1
-    , maxStake: nat 100_000_000
+    , maxStake: nat 10_000
     , bondedAssetClass: AssetClass
         { currencySymbol
         , tokenName
