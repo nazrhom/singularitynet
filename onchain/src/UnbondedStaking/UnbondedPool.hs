@@ -153,7 +153,8 @@ punbondedPoolValidator = phoistAcyclic $
     pure $
       pmatch act $ \case
         PAdminAct _ -> unTermCont $ do
-          pguardC "punbondedPoolValidator: wrong period for PAdminAct \
+          pguardC
+            "punbondedPoolValidator: wrong period for PAdminAct \
             \redeemer"
             $ period #== adminUpdatePeriod
           pure $ adminLogic txInfoF paramsF
@@ -186,7 +187,8 @@ punbondedPoolValidator = phoistAcyclic $
             withdrawActParamsF
             period
         PCloseAct _ -> unTermCont $ do
-          pguardC "punbondedPoolValidator: wrong period for PCloseAct \
+          pguardC
+            "punbondedPoolValidator: wrong period for PCloseAct \
             \redeemer"
             $ period #== adminUpdatePeriod
           pure $ adminLogic txInfoF paramsF

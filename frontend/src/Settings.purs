@@ -64,8 +64,8 @@ ntxTn = mkTokenName =<< byteArrayFromAscii "NTX"
 testInitBondedParams :: Maybe InitialBondedParams
 testInitBondedParams = do
   interest <- bondedInterest
-  -- currencySymbol <- agixCs
-  -- tokenName <- agixTn
+  currencySymbol <- agixCs
+  tokenName <- agixTn
   pure $ InitialBondedParams
     { iterations: nat 1
     , start: big 1000 -- dummy value
@@ -76,19 +76,16 @@ testInitBondedParams = do
     , minStake: nat 1
     , maxStake: nat 100_000_000
     , bondedAssetClass: AssetClass
-        -- { currencySymbol
-        -- , tokenName
-        -- }
-        { currencySymbol: adaSymbol
-        , tokenName: adaToken
+        { currencySymbol
+        , tokenName
         }
     }
 
 testInitUnbondedParams :: Maybe InitialUnbondedParams
 testInitUnbondedParams = do
   interest <- unbondedInterest
-  -- currencySymbol <- agixTn
-  -- tokenName <- ntxTn
+  currencySymbol <- agixTn
+  tokenName <- ntxTn
   pure $ InitialUnbondedParams
     { start: big 1000   -- dummy value
     , userLength: big 180_000 -- We use 3 minutes to make testing manageable
@@ -100,7 +97,7 @@ testInitUnbondedParams = do
     , minStake: nat 1
     , maxStake: nat 100_000_000
     , unbondedAssetClass: AssetClass
-        { currencySymbol: adaSymbol
-        , tokenName: adaToken
+        { currencySymbol
+        , tokenName
         }
     }
