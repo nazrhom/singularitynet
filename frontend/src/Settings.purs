@@ -17,8 +17,8 @@ import Contract.Prim.ByteArray (byteArrayFromAscii, hexToByteArray)
 import Contract.Value
   ( CurrencySymbol
   , TokenName
-  , adaSymbol
-  , adaToken
+  -- , adaSymbol
+  -- , adaToken
   , mkCurrencySymbol
   , mkTokenName
   )
@@ -84,8 +84,8 @@ testInitBondedParams = do
 testInitUnbondedParams :: Maybe InitialUnbondedParams
 testInitUnbondedParams = do
   interest <- unbondedInterest
-  currencySymbol <- agixTn
-  tokenName <- ntxTn
+  currencySymbol <- agixCs
+  tokenName <- agixTn
   pure $ InitialUnbondedParams
     { start: big 1000 -- dummy value
     , userLength: big 180_000 -- We use 3 minutes to make testing manageable
