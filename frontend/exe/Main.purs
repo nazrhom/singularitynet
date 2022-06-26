@@ -88,7 +88,6 @@ main = launchAff_ do
     logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
     -- Wait until bonding period
     liftAff $ delay $ wrap $ BigInt.toNumber bpp.userLength
-    liftAff $ delay $ wrap $ Int.toNumber 80_000
   ---- Admin deposits to pool ----
   runContract_ adminCfg do
     depositBatchSize <-
@@ -104,7 +103,7 @@ main = launchAff_ do
     userWithdrawBondedPoolContract bondedParams
     logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
     -- Wait until closing period
-    liftAff $ delay $ wrap $ BigInt.toNumber bpp.userLength
+    liftAff $ delay $ wrap $ BigInt.toNumber $ bpp.userLength + bpp.bondingLength
   -- Admin closes pool
   runContract_ adminCfg do
     closeBatchSize <-
@@ -114,7 +113,6 @@ main = launchAff_ do
           logInfo'
             "main: Waiting to submit next Tx batch. DON'T SWITCH WALLETS \
             \- STAY AS ADMIN"
-          --liftAff $ delay $ wrap $ Int.toNumber 100_000
           liftAff $ delay $ wrap $ Int.toNumber 80_000
       )
     logInfo' "main: Pool closed"
