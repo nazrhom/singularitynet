@@ -2,6 +2,7 @@ module UserWithdraw (userWithdrawBondedPoolContract) where
 
 import Contract.Prelude hiding (length)
 
+import BondedStaking.TimeUtils (getWithdrawingTime)
 import Contract.Address
   ( AddressWithNetworkTag(AddressWithNetworkTag)
   , getNetworkId
@@ -43,6 +44,7 @@ import Contract.TxConstraints
   , mustPayToPubKeyAddress
   , mustPayToScript
   , mustSpendScriptOutput
+  , mustValidateIn
   )
 import Contract.Utxos (UtxoM(UtxoM), utxosAt)
 import Contract.Value (Value, mkTokenName, singleton)
@@ -148,6 +150,13 @@ userWithdrawBondedPoolContract
     liftContractM
       "userWithdrawBondedPoolContract: Could not create token name for user`"
       $ mkTokenName hashedUserPkh
+
+  -- Get the withdrawing range to use
+  logInfo' "userWithdrawBondedPoolContract: Getting withdrawing range..."
+  { currTime, range: txRange } <- getWithdrawingTime params
+  logInfo_ "Current time: " $ show currTime
+  logInfo_ "TX Range" txRange
+
   -- Build useful values for later
   let
     stateTokenValue = singleton nftCs tokenName one
@@ -200,25 +209,36 @@ userWithdrawBondedPoolContract
             rewardsRounded = numerator rewards / denominator rewards
 
             withdrawnAmt :: BigInt
-            withdrawnAmt = oldHeadEntry.staked + rewardsRounded
+            withdrawnAmt = oldHeadEntry.deposited
 
             withdrawnVal :: Value
             withdrawnVal = singleton assetCs assetTn withdrawnAmt
+
+          logInfo_ "rewards" rewards
+          logInfo_ "rewardsRounded" rewardsRounded
+          logInfo_ "withdrawnAmt" withdrawnAmt
+          logInfo_ "withdrawnVal" withdrawnVal
+          logInfo_ "rewards" rewards
+
           -- Calculate assets to consume and change that needs to be returned
           -- to the pool
-          consumedAssetUtxos /\ totalSpentAmt <-
+          consumedAssetUtxos /\ withdrawChange <-
             liftContractM
               "userWithdrawBondedPoolContract: Cannot get asset \
               \UTxOs to consume" $
               getAssetsToConsume bondedAssetClass withdrawnAmt bondedAssetUtxos
+
+          logInfo_ "withdrawChange" withdrawChange
+          logInfo_ "consumedAssetUtxos" consumedAssetUtxos
+
           let
+
             changeValue :: Value
             changeValue =
               singleton
                 (unwrap bondedAssetClass).currencySymbol
                 (unwrap bondedAssetClass).tokenName
-                $ totalSpentAmt
-                - withdrawnAmt
+                withdrawChange
 
             -- Build updated state
             newState :: Datum
@@ -254,6 +274,7 @@ userWithdrawBondedPoolContract
                 , mustPayToScript valHash assetDatum changeValue
                 , mustPayToPubKeyAddress userPkh userStakingPubKeyHash
                     withdrawnVal
+                , mustValidateIn txRange
                 ]
 
             lookup :: ScriptLookups.ScriptLookups PlutusData
@@ -313,6 +334,8 @@ userWithdrawBondedPoolContract
               "userWithdrawBondedPoolContract: Cannot get asset \
               \UTxOs to consume" $
               getAssetsToConsume bondedAssetClass withdrawnAmt bondedAssetUtxos
+          logInfo_ "consumedAssetUtxos" consumedAssetUtxos
+
           let
             changeValue :: Value
             changeValue =
@@ -358,6 +381,7 @@ userWithdrawBondedPoolContract
                 , mustPayToScript valHash assetDatum changeValue
                 , mustPayToPubKeyAddress userPkh userStakingPubKeyHash
                     withdrawnVal
+                , mustValidateIn txRange
                 ]
 
             lookup :: ScriptLookups.ScriptLookups PlutusData

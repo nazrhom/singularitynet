@@ -72,7 +72,7 @@ import Utils
 -- | users. Otherwise only the users within the constraints/lookups will have
 -- | rewards deposited.
 -- | `callback` is used to run additional logic after a transaction has been
--- | submitted. The fuction must be of the following type signature:
+-- | submitted. The function must be of the following type signature:
 -- |
 -- | ```purescript
 -- | callback :: Array

@@ -19,6 +19,7 @@ import PInterval (
   ),
   getBondedPeriod,
   pinterval,
+  pintervalFrom,
   pperiodicContains,
  )
 import PTypes (
@@ -109,6 +110,8 @@ getBondedPeriodTests =
         getPeriod rangeLastWithdrawalExact `shouldBe` onlyWithdrawPeriod
     , testCase "closing pool range" $
         getPeriod rangeClose `shouldBe` closingPeriod
+    , testCase "invalid closing pool range, open interval" $
+        fails $ getPeriod rangeCloseExact
     ]
 
 ---- Auxiliary functions ----
@@ -148,7 +151,7 @@ testPoolParams = pconstant params
       BondedPoolParams
         { iterations = Natural 3
         , start = 5000
-        , end = 20_000
+        , end = 23_500
         , userLength = 3500
         , bondingLength = 1500
         , -- We are not testing any of the parameters below
@@ -198,6 +201,11 @@ rangeLastWithdrawalExact = mkInterval 20_000 23_500
 -- TX range is in closing period
 rangeClose :: forall (s :: S). Term s (PInterval PPOSIXTime)
 rangeClose = mkInterval 30_000 50_000
+
+-- TX range is exactly the closing period, this does NOT work (open
+-- intervals are not supported by the validator)
+rangeCloseExact :: forall (s :: S). Term s (PInterval PPOSIXTime)
+rangeCloseExact = pintervalFrom $ pconstant 30_000
 
 -- Data for pperiodTests
 

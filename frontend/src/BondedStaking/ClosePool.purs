@@ -2,38 +2,25 @@ module ClosePool (closeBondedPoolContract) where
 
 import Contract.Prelude
 
+import BondedStaking.TimeUtils (getClosingTime)
 import Contract.Address (getNetworkId, ownPaymentPubKeyHash, scriptHashAddress)
-import Contract.Monad
-  ( Contract
-  , liftContractM
-  , liftedE'
-  , liftedM
-  , throwContractError
-  )
-import Contract.PlutusData (PlutusData, toData)
+import Contract.Monad (Contract, liftContractM, liftedE', liftedM, logInfo', throwContractError)
+import Contract.PlutusData (Datum(..), PlutusData, fromData, getDatumByHash, toData)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
 import Contract.Transaction (TransactionInput, TransactionOutput)
-import Contract.TxConstraints
-  ( TxConstraints
-  , mustBeSignedBy
-  , mustSpendScriptOutput
+import Contract.TxConstraints (TxConstraints, mustBeSignedBy, mustIncludeDatum, mustSpendScriptOutput
+  --, mustValidateIn
   )
 import Contract.Utxos (utxosAt)
 import Data.Map (toUnfoldable)
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
-import Types (BondedPoolParams(BondedPoolParams), BondedStakingAction(CloseAct))
+import Types (BondedPoolParams(BondedPoolParams), BondedStakingAction(CloseAct), BondedStakingDatum)
 import Types.Natural (Natural)
 import Types.Redeemer (Redeemer(Redeemer))
-import Utils
-  ( getUtxoWithNFT
-  , logInfo_
-  , splitByLength
-  , submitTransaction
-  , toIntUnsafe
-  )
+import Utils (getUtxoWithNFT, logInfo_, splitByLength, submitTransaction, toIntUnsafe)
 
 closeBondedPoolContract
   :: BondedPoolParams
@@ -85,21 +72,33 @@ closeBondedPoolContract
   tokenName <- liftContractM
     "closeBondedPoolContract: Cannot create TokenName"
     bondedStakingTokenName
-  poolTxInput /\ _ <-
+  poolTxInput /\ poolTxOutput <-
     liftContractM "closeBondedPoolContract: Cannot get state utxo"
       $ getUtxoWithNFT bondedPoolUtxos nftCs tokenName
   logInfo_ "closeBondedPoolContract: Pool's UTXO" poolTxInput
-  -- We build the transaction
-  let
-    lookups :: ScriptLookups.ScriptLookups PlutusData
-    lookups = mconcat
-      [ ScriptLookups.validator validator
-      , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
-      ]
+  poolDatumHash <-
+    liftContractM
+      "closeBondedPoolContract: Could not get Pool UTXO's Datum Hash"
+      (unwrap poolTxOutput).dataHash
+  logInfo_ "closeBondedPoolContract: Pool's UTXO DatumHash" poolDatumHash
+  poolDatum <- liftedM "closeBondedPoolContract: Cannot get datum"
+    $ getDatumByHash poolDatumHash
+  bondedStakingDatum :: BondedStakingDatum <-
+    liftContractM
+      "closeBondedPoolContract: Cannot extract NFT State datum"
+      $ fromData (unwrap poolDatum)
+  let bondedStateDatum = Datum $ toData bondedStakingDatum
+  bondedStateDatumLookup <-
+    liftContractM
+      "closeBondedPoolContract: Could not create state datum lookup"
+      $ ScriptLookups.datum bondedStateDatum
 
-    constraints :: TxConstraints Unit Unit
-    constraints =
-      mustBeSignedBy admin
+  -- Get the withdrawing range to use
+  -- logInfo' "userWithdrawBondedPoolContract: Getting withdrawing range..."
+  -- { currTime, range: txRange } <- getClosingTime params
+  -- logInfo_ "Current time: " $ show currTime
+  -- logInfo_ "TX Range" txRange
+
   -- Use closeList as spendList if not null, otherwise spend all remaining
   -- utxos at validator
   spendList <-
@@ -107,6 +106,22 @@ closeBondedPoolContract
     else do
       let utxoList = toUnfoldable <<< unwrap $ bondedPoolUtxos
       pure $ createUtxoConstraint <$> utxoList
+
+  -- We build the transaction
+  let
+    lookups :: ScriptLookups.ScriptLookups PlutusData
+    lookups = mconcat
+      [ ScriptLookups.validator validator
+      , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
+      , bondedStateDatumLookup
+      ]
+
+    constraints :: TxConstraints Unit Unit
+    constraints =
+      mustBeSignedBy admin
+      <> mustIncludeDatum bondedStateDatum
+      -- <> mustValidateIn txRange
+
   -- Submit transaction with possible batching
   failedDeposits <-
     if batchSize == zero then do
@@ -121,6 +136,7 @@ closeBondedPoolContract
           failedDeposits' <- submitTransaction constraints lookups txBatch
           batchFinishCallback failedDeposits'
           pure failedDeposits'
+
   logInfo_
     "closeBondedPoolContract: Finished updating pool entries. /\
     \Entries with failed updates"

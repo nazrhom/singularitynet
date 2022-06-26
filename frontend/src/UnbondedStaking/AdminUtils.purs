@@ -70,7 +70,7 @@ submitTransaction baseConstraints baseLookups updateList = do
       $ unwrap transactionHash
   case result of
     Left e -> do
-      logInfo_ "depositUnbondedPoolContract:" e
+      logInfo_ "submitTransaction:" e
       pure $ Array.singleton $ constraints /\ lookups
     Right _ ->
       pure []

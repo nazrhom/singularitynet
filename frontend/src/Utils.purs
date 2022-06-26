@@ -1,5 +1,8 @@
 module Utils
   ( big
+  , bigIntRange
+  , currentRoundedTime
+  , currentTime
   , findInsertUpdateElem
   , findRemoveOtherElem
   , getAssetsToConsume
@@ -24,7 +27,7 @@ import Contract.Prelude hiding (length)
 
 import Contract.Address (PaymentPubKeyHash)
 import Contract.Hashing (blake2b256Hash)
-import Contract.Monad (Contract, liftedE, liftedM, logInfo, tag)
+import Contract.Monad (Contract, liftContractM, liftedE, liftedM, logInfo, tag)
 import Contract.Numeric.Natural (Natural, fromBigInt', toBigInt)
 import Contract.Numeric.Rational (Rational, numerator, denominator)
 import Contract.Prim.ByteArray (ByteArray, byteArrayToHex, hexToByteArray)
@@ -63,9 +66,14 @@ import Data.Array
   , (..)
   )
 import Data.Array as Array
-import Data.BigInt (BigInt, fromInt, quot, rem, toInt)
+import Data.BigInt (BigInt, fromInt, fromNumber, quot, rem, toInt, toNumber)
+import Data.DateTime.Instant (unInstant)
 import Data.Map (Map, toUnfoldable)
 import Data.Map as Map
+import Data.Time.Duration (Milliseconds(Milliseconds))
+import Data.Unfoldable (unfoldr)
+import Effect.Now (now)
+import Math (ceil)
 import Serialization.Hash (ed25519KeyHashToBytes)
 import Types
   ( AssetClass(AssetClass)
@@ -74,6 +82,7 @@ import Types
   , MintingAction(MintEnd, MintInBetween)
   )
 import Types.PlutusData (PlutusData)
+import Types.Interval (POSIXTime(..))
 import Types.Redeemer (Redeemer)
 import UnbondedStaking.Types
   ( UnbondedPoolParams(UnbondedPoolParams)
@@ -184,10 +193,7 @@ mkRatUnsafe (Just r) = r
 
 -- | Converts from a contract 'Natural' to an 'Int'
 toIntUnsafe :: Natural -> Int
-toIntUnsafe n =
-  case toInt (toBigInt n) of
-    Nothing -> 0
-    Just x -> x
+toIntUnsafe = fromMaybe 0 <<< toInt <<< toBigInt
 
 logInfo_
   :: forall (r :: Row Type) (a :: Type)
@@ -360,9 +366,37 @@ findRemoveOtherElem assocList hashedKey = do
     /\ { firstOutput: txOutputL, secondOutput: txOutputH }
     /\ { firstKey: bytesL, secondKey: bytesH }
 
+-- Produce a range from zero to the given bigInt (inclusive)
+bigIntRange :: BigInt -> Array BigInt
+bigIntRange lim =
+  unfoldr
+    ( \acc ->
+        if acc >= lim then Nothing
+        else Just $ acc /\ (acc + one)
+    )
+    zero
+
+-- Get time rounded to the closest integer (ceiling) in seconds
+currentRoundedTime :: forall (r :: Row Type). Contract r POSIXTime
+currentRoundedTime = do
+  POSIXTime t <- currentTime
+  t' <- liftContractM "currentRoundedTime: could not convert Number to BigInt"
+    $ fromNumber
+    $ ceil (toNumber t / 1000.0)
+    * 1000.0
+  pure $ POSIXTime t'
+
+-- Get UNIX epoch from system time
+currentTime :: forall (r :: Row Type). Contract r POSIXTime
+currentTime = do
+  Milliseconds t <- unInstant <$> liftEffect now
+  t' <- liftContractM "currentPOSIXTime: could not convert Number to BigInt" $
+    fromNumber t
+  pure $ POSIXTime t'
+
 -- | Utility function for splitting an array into equal length sub-arrays
 -- | (with remainder array length <= size)
-splitByLength :: forall a. Int -> Array a -> Array (Array a)
+splitByLength :: forall (a :: Type). Int -> Array a -> Array (Array a)
 splitByLength size array
   | size == 0 || null array = []
   | otherwise =
@@ -417,7 +451,7 @@ submitTransaction baseConstraints baseLookups updateList = do
       $ unwrap transactionHash
   case result of
     Left e -> do
-      logInfo_ "depositUnbondedPoolContract:" e
+      logInfo_ "submitTransaction:" e
       pure $ Array.singleton $ constraints /\ lookups
     Right _ ->
       pure []

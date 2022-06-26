@@ -12,7 +12,6 @@ import Contract.Address
 import Contract.Monad
   ( Contract
   , liftContractM
-  , liftedE
   , liftedE'
   , liftedM
   , logInfo'
@@ -28,15 +27,12 @@ import Contract.PlutusData
   , getDatumByHash
   , toData
   )
-import Contract.Prim.ByteArray (ByteArray, byteArrayToHex)
+import Contract.Prim.ByteArray (ByteArray)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
 import Contract.Transaction
-  ( BalancedSignedTransaction(BalancedSignedTransaction)
-  , TransactionInput
+  ( TransactionInput
   , TransactionOutput
-  , balanceAndSignTx
-  , submit
   )
 import Contract.TxConstraints
   ( TxConstraints
@@ -47,6 +43,7 @@ import Contract.TxConstraints
   )
 import Contract.Utxos (utxosAt)
 import Contract.Value (mkTokenName, singleton)
+import Data.Array ((:))
 import Data.Map (toUnfoldable)
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
@@ -76,7 +73,7 @@ import Utils
 -- | users. Otherwise only the users within the constraints/lookups will have
 -- | rewards deposited.
 -- | `callback` is used to run additional logic after a transaction has been
--- | submitted. The fuction must be of the following type signature:
+-- | submitted. The function must be of the following type signature:
 -- |
 -- | ```purescript
 -- | callback :: Array
@@ -172,35 +169,22 @@ closeUnbondedPoolContract
   -- Update the association list
   case unbondedStakingDatum of
     -- Non-empty user list
-    StateDatum { maybeEntryName: Just key, open: true } -> do
+    StateDatum { maybeEntryName: Just _, open: true } -> do
       logInfo'
         "closeUnbondedPoolContract: STAKE TYPE - StateDatum is \
         \StateDatum { maybeEntryName: Just ..., open: true }"
       let
         assocList = mkOnchainAssocList assocListCs unbondedPoolUtxos
-        stateTokenValue = singleton nftCs tokenName one
-        stateDatum = Datum $ toData $ StateDatum
-          { maybeEntryName: Just key
-          , open: false
-          }
-      unbondedStateDatumLookup <-
-        liftContractM
-          "closeUnbondedPoolContract: Could not create state datum lookup"
-          $ ScriptLookups.datum stateDatum
       -- Concatenate constraints/lookups
       let
         constraints :: TxConstraints Unit Unit
-        constraints =
-          mustBeSignedBy admin
-            <> mustIncludeDatum poolDatum
-            <> mustPayToScript valHash stateDatum stateTokenValue
+        constraints = mustBeSignedBy admin
 
         lookups :: ScriptLookups.ScriptLookups PlutusData
         lookups =
           ScriptLookups.validator validator
             <> ScriptLookups.unspentOutputs (unwrap adminUtxos)
             <> ScriptLookups.unspentOutputs (unwrap unbondedPoolUtxos)
-            <> unbondedStateDatumLookup
 
         submitTxWithCallback
           :: Array
@@ -221,8 +205,20 @@ closeUnbondedPoolContract
           pure failedDeposits'
       -- Get list of users to deposit rewards too
       updateList <-
-        if null depositList then
-          traverse (mkEntryUpdateList params valHash) assocList
+        if null depositList then do
+          updateList' <- traverse (mkEntryUpdateList params valHash) assocList
+          let
+            redeemer = Redeemer $ toData CloseAct
+
+            stateDatumConstraintsLookups
+              :: Tuple (TxConstraints Unit Unit)
+                   (ScriptLookups.ScriptLookups PlutusData)
+            stateDatumConstraintsLookups =
+              ( mustIncludeDatum poolDatum
+                  <> mustSpendScriptOutput poolTxInput redeemer
+              )
+                /\ mempty
+          pure $ stateDatumConstraintsLookups : updateList'
         else
           pure depositList
       -- Submit transaction with possible batching
@@ -245,20 +241,10 @@ closeUnbondedPoolContract
       logInfo'
         "closeUnbondedPoolContract: STAKE TYPE - StateDatum is \
         \StateDatum { maybeEntryName: Nothing, open: true }"
-      -- Update datum and create redeemer
-      let
-        stateTokenValue = singleton nftCs tokenName one
-        stateDatum = Datum $ toData $ StateDatum
-          { maybeEntryName: Nothing
-          , open: false
-          }
-        redeemer = Redeemer $ toData CloseAct
-      unbondedStateDatumLookup <-
-        liftContractM
-          "closeUnbondedPoolContract: Could not create state datum lookup"
-          $ ScriptLookups.datum stateDatum
       -- Bulid constraints/lookups
       let
+        redeemer = Redeemer $ toData CloseAct
+
         constraints :: TxConstraints Unit Unit
         constraints =
           -- Spend all UTXOs to return to Admin along with state/assets
@@ -267,34 +253,17 @@ closeUnbondedPoolContract
             (toUnfoldable $ unwrap unbondedPoolUtxos :: Array _)
             <> mustBeSignedBy admin
             <> mustIncludeDatum poolDatum
-            <> mustPayToScript valHash stateDatum stateTokenValue
 
         lookups :: ScriptLookups.ScriptLookups PlutusData
         lookups = mconcat
           [ ScriptLookups.validator validator
           , ScriptLookups.unspentOutputs $ unwrap unbondedPoolUtxos
-          , unbondedStateDatumLookup
           ]
-      logInfo' "closeUnbondedPoolContract: Built tx constraints and lookups"
-      -- Build transaction
-      unattachedBalancedTx <-
-        liftedE $ ScriptLookups.mkUnbalancedTx lookups constraints
+      failedDeposits <- submitTransaction constraints lookups []
       logInfo_
-        "closeUnbondedPoolContract: unAttachedUnbalancedTx"
-        unattachedBalancedTx
-      BalancedSignedTransaction { signedTxCbor } <-
-        liftedM
-          "closeUnbondedPoolContract: Cannot balance, reindex redeemers, attach /\
-          \datums redeemers and sign"
-          $ balanceAndSignTx unattachedBalancedTx
-      -- Submit transaction using Cbor-hex encoded `ByteArray`
-      transactionHash <- submit signedTxCbor
-      logInfo_
-        "closeUnbondedPoolContract: Transaction successfully submitted with hash"
-        $ byteArrayToHex
-        $ unwrap transactionHash
-      logInfo' "closeUnbondedPoolContract: Successfully closed pool"
-      pure []
+        "closeUnbondedPoolContract: Pool closed. Failed updates"
+        failedDeposits
+      pure failedDeposits
     -- Other error cases:
     StateDatum { maybeEntryName: _, open: false } ->
       throwContractError

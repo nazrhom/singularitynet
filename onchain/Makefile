@@ -1,16 +1,16 @@
-FRONTEND_SCRIPTS_PATH := ../frontend/src/Scripts
-OFFCHAIN_SCRIPTS_PATH := ../offchain/scripts
+FILTERSCRIPT := sed -n '1d;3d;s/.*\(".*"\).*/\1/;2p'
 
 serialise-scripts:
-	# Generate all scripts
+	# Generate all scripts and print them to screen
 	cabal build\
-	&& cabal exec serialise -- state-policy -o ${FRONTEND_SCRIPTS_PATH}/BondedStateNFT.js\
-	&& cabal exec serialise -- list-policy -o ${FRONTEND_SCRIPTS_PATH}/BondedListNFT.js\
-	&& cabal exec serialise -- validator -o ${FRONTEND_SCRIPTS_PATH}/BondedPoolValidator.js
-	# Copy just the serialised script to offchain, without the JS wrapper
-	for file in ${FRONTEND_SCRIPTS_PATH}/*.js ; do                  \
-		target=${OFFCHAIN_SCRIPTS_PATH}/$$(basename -s .js $${file}).plutus; \
-		sed '1d;3d;s/.*\(".*"\).*/\1/' $${file} > $${target};       \
-	done
+	&& cabal exec serialise -- state-policy -v -o /dev/stdout\
+	&& cabal exec serialise -- list-policy -v -o /dev/stdout\
+	&& cabal exec serialise -- validator -v -o /dev/stdout
+
+serialise-scripts-offchain:
+	cabal build
+	cabal exec serialise -- state-policy -o /dev/stdout | ${FILTERSCRIPT} > ../offchain/scripts/BondedStateNFT.plutus
+	cabal exec serialise -- list-policy -o /dev/stdout | ${FILTERSCRIPT} > ../offchain/scripts/BondedListNFT.plutus
+	cabal exec serialise -- validator -o /dev/stdout | ${FILTERSCRIPT} > ../offchain/scripts/BondedPoolValidator.plutus
 
 .PHONY: serialise-scripts

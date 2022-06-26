@@ -6,6 +6,7 @@ module SingularityNet.Natural (
   NonNegative ((^+), (^*), (^-)),
   Natural (Natural),
   NatRatio (NatRatio),
+  toPOSIXTime
 ) where
 
 {-
@@ -31,12 +32,17 @@ import PlutusTx (
   UnsafeFromData (unsafeFromBuiltinData),
   unstableMakeIsData
  )
+import Plutus.V1.Ledger.Time (POSIXTime)
 
 -- Auxiliary functions
 gt0 :: Integer -> Maybe Natural
 gt0 n
   | n < 0 = Nothing
   | otherwise = Just . Natural $ fromInteger n
+
+
+toPOSIXTime :: Natural -> POSIXTime
+toPOSIXTime (Natural n) = fromIntegral n
 
 {- | A natural datatype that wraps GHC's `Natural`. By using `Natural` instead
  of `Integer` we at least get a warning when using negative literals.
