@@ -8,6 +8,7 @@ import Contract.Address (NetworkId(TestnetId))
 import Contract.Monad (ContractConfig, ConfigParams(ConfigParams), LogLevel(Info), defaultDatumCacheWsConfig, defaultOgmiosWsConfig, defaultServerConfig, launchAff_, liftContractM, logInfo', mkContractConfig, runContract, runContract_)
 import Contract.Wallet (mkNamiWalletAff)
 import CreatePool (createBondedPoolContract)
+import Data.BigInt (BigInt)
 import Data.BigInt as BigInt
 import Data.Int as Int
 import DepositPool (depositBondedPoolContract)
@@ -15,10 +16,11 @@ import Effect.Aff (delay)
 import Effect.Exception (error)
 import Settings (testInitBondedParams)
 import Types (BondedPoolParams(..))
+import Types.Interval (POSIXTime(..))
 import Types.Natural as Natural
 import UserStake (userStakeBondedPoolContract)
 import UserWithdraw (userWithdrawBondedPoolContract)
-import Utils (logInfo_)
+import Utils (currentRoundedTime, logInfo_)
 
 -- import Settings (testInitUnbondedParams)
 -- import UnbondedStaking.ClosePool (closeUnbondedPoolContract)
@@ -91,14 +93,19 @@ main = launchAff_ do
   runContract_ userCfg do
     userWithdrawBondedPoolContract bondedParams
     logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
-    -- Wait until closing period
-    liftAff $ delay $ wrap $ BigInt.toNumber $ bpp.userLength +
-      bpp.bondingLength
+    -- Wait until transaction is processed
+    liftAff $ delay $ wrap $ Int.toNumber 100_000
   -- Admin closes pool
   runContract_ adminCfg do
     closeBatchSize <-
       liftM (error "Cannot create Natural") $ Natural.fromString "10"
-    void $ closeBondedPoolContract bondedParams closeBatchSize [] (BigInt.fromInt 100_000)
+    -- Wait until pool closing time
+    POSIXTime currTime <- currentRoundedTime
+    logInfo_ "currTime" currTime
+    let deltaClose :: BigInt
+        deltaClose = bpp.end - currTime + BigInt.fromInt 2000
+    logInfo_ "deltaClose" deltaClose
+    void $ closeBondedPoolContract bondedParams closeBatchSize [] deltaClose
     logInfo' "main: Pool closed"
 
 -- Unbonded: admin create pool, user stake, admin deposit (rewards),
