@@ -110,7 +110,8 @@ main = launchAff_ do
     userWithdrawBondedPoolContract bondedParams
     logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
     -- Wait until closing period
-    liftAff $ delay $ wrap $ BigInt.toNumber $ bpp.userLength + bpp.bondingLength
+    liftAff $ delay $ wrap $ BigInt.toNumber $ bpp.userLength +
+      bpp.bondingLength
   -- Admin closes pool
   runContract_ adminCfg do
     closeBatchSize <-

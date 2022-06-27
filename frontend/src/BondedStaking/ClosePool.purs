@@ -4,12 +4,29 @@ import Contract.Prelude
 
 import BondedStaking.TimeUtils (getClosingTime)
 import Contract.Address (getNetworkId, ownPaymentPubKeyHash, scriptHashAddress)
-import Contract.Monad (Contract, liftContractM, liftedE', liftedM, logInfo', throwContractError)
-import Contract.PlutusData (Datum(..), PlutusData, fromData, getDatumByHash, toData)
+import Contract.Monad
+  ( Contract
+  , liftContractM
+  , liftedE'
+  , liftedM
+  , logInfo'
+  , throwContractError
+  )
+import Contract.PlutusData
+  ( Datum(..)
+  , PlutusData
+  , fromData
+  , getDatumByHash
+  , toData
+  )
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
 import Contract.Transaction (TransactionInput, TransactionOutput)
-import Contract.TxConstraints (TxConstraints, mustBeSignedBy, mustIncludeDatum, mustSpendScriptOutput
+import Contract.TxConstraints
+  ( TxConstraints
+  , mustBeSignedBy
+  , mustIncludeDatum
+  , mustSpendScriptOutput
   --, mustValidateIn
   )
 import Contract.Utxos (utxosAt)
@@ -17,10 +34,20 @@ import Data.Map (toUnfoldable)
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
-import Types (BondedPoolParams(BondedPoolParams), BondedStakingAction(CloseAct), BondedStakingDatum)
+import Types
+  ( BondedPoolParams(BondedPoolParams)
+  , BondedStakingAction(CloseAct)
+  , BondedStakingDatum
+  )
 import Types.Natural (Natural)
 import Types.Redeemer (Redeemer(Redeemer))
-import Utils (getUtxoWithNFT, logInfo_, splitByLength, submitTransaction, toIntUnsafe)
+import Utils
+  ( getUtxoWithNFT
+  , logInfo_
+  , splitByLength
+  , submitTransaction
+  , toIntUnsafe
+  )
 
 closeBondedPoolContract
   :: BondedPoolParams
@@ -119,8 +146,8 @@ closeBondedPoolContract
     constraints :: TxConstraints Unit Unit
     constraints =
       mustBeSignedBy admin
-      <> mustIncludeDatum bondedStateDatum
-      -- <> mustValidateIn txRange
+        <> mustIncludeDatum bondedStateDatum
+  -- <> mustValidateIn txRange
 
   -- Submit transaction with possible batching
   failedDeposits <-

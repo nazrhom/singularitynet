@@ -20,20 +20,13 @@ module Utils
   , splitByLength
   , submitTransaction
   , toIntUnsafe
-<<<<<<< HEAD
-  , submitTransaction
-=======
   , txBatchFinishedCallback
->>>>>>> staging
   ) where
 
 import Contract.Prelude hiding (length)
 
 import Contract.Address (PaymentPubKeyHash)
 import Contract.Hashing (blake2b256Hash)
-<<<<<<< HEAD
-import Contract.Monad (Contract, liftContractM, liftedE, liftedM, logInfo, tag)
-=======
 import Contract.Monad
   ( Contract
   , liftContractM
@@ -43,18 +36,13 @@ import Contract.Monad
   , logInfo'
   , tag
   )
->>>>>>> staging
 import Contract.Numeric.Natural (Natural, fromBigInt', toBigInt)
 import Contract.Numeric.Rational (Rational, numerator, denominator)
 import Contract.Prim.ByteArray (ByteArray, byteArrayToHex, hexToByteArray)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (PlutusScript)
 import Contract.Transaction
-<<<<<<< HEAD
-  ( BalancedSignedTransaction(..)
-=======
   ( BalancedSignedTransaction(BalancedSignedTransaction)
->>>>>>> staging
   , TransactionInput
   , TransactionOutput(TransactionOutput)
   , balanceAndSignTx
@@ -103,13 +91,8 @@ import Types
   , InitialBondedParams(InitialBondedParams)
   , MintingAction(MintEnd, MintInBetween)
   )
-<<<<<<< HEAD
-import Types.PlutusData (PlutusData)
-import Types.Interval (POSIXTime(..))
-=======
 import Types.Interval (POSIXTime(POSIXTime))
 import Types.PlutusData (PlutusData)
->>>>>>> staging
 import Types.Redeemer (Redeemer)
 
 -- | Helper to decode the local inputs such as unapplied minting policy and
