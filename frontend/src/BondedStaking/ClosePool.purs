@@ -4,75 +4,35 @@ import Contract.Prelude
 
 import BondedStaking.TimeUtils (getClosingTime)
 import Contract.Address (getNetworkId, ownPaymentPubKeyHash, scriptHashAddress)
-import Contract.Monad
-  ( Contract
-  , liftContractM
-  , liftedE'
-  , liftedM
-  , logInfo'
-  , throwContractError
-  )
-import Contract.PlutusData
-  ( Datum(..)
-  , PlutusData
-  , fromData
-  , getDatumByHash
-  , toData
-  )
+import Contract.Monad (Contract, liftContractM, liftedE', liftedM, logInfo', throwContractError)
+import Contract.PlutusData (Datum(..), PlutusData, fromData, getDatumByHash, toData)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
 import Contract.Transaction (TransactionInput, TransactionOutput)
-import Contract.TxConstraints
-  ( TxConstraints
-  , mustBeSignedBy
-  , mustIncludeDatum
-  , mustSpendScriptOutput
-  --, mustValidateIn
-  )
+import Contract.TxConstraints (TxConstraints, mustBeSignedBy, mustIncludeDatum, mustSpendScriptOutput, mustValidateIn)
 import Contract.Utxos (utxosAt)
+import Data.Array (elemIndex, (!!))
 import Data.Map (toUnfoldable)
+import Data.BigInt(BigInt)
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
-import Types
-  ( BondedPoolParams(BondedPoolParams)
-  , BondedStakingAction(CloseAct)
-  , BondedStakingDatum
-  )
+import Types (BondedPoolParams(BondedPoolParams), BondedStakingAction(CloseAct), BondedStakingDatum)
 import Types.Natural (Natural)
 import Types.Redeemer (Redeemer(Redeemer))
-import Utils
-  ( getUtxoWithNFT
-  , logInfo_
-  , splitByLength
-  , submitTransaction
-  , toIntUnsafe
-  )
+import Utils (getUtxoWithNFT, logInfo_, splitByLength, submitTransaction, toIntUnsafe, txBatchFinishedCallback)
 
 closeBondedPoolContract
   :: BondedPoolParams
   -> Natural
-  -> Array
-       ( Tuple (TxConstraints Unit Unit)
-           (ScriptLookups.ScriptLookups PlutusData)
-       )
-  -> ( Array
-         ( Tuple (TxConstraints Unit Unit)
-             (ScriptLookups.ScriptLookups PlutusData)
-         )
-       -> Contract () Unit
-     )
-  -> Contract ()
-       ( Array
-           ( Tuple (TxConstraints Unit Unit)
-               (ScriptLookups.ScriptLookups PlutusData)
-           )
-       )
+  -> Array Int
+  -> BigInt
+  -> Contract () (Array Int)
 closeBondedPoolContract
   params@(BondedPoolParams { admin, nftCs })
   batchSize
   closeList
-  batchFinishCallback = do
+  waitTime = do
   -- Fetch information related to the pool
   -- Get network ID and check admin's PKH
   networkId <- getNetworkId
@@ -126,13 +86,14 @@ closeBondedPoolContract
   logInfo_ "closeBondedPoolContract: Current time: " $ show currTime
   logInfo_ "closeBondedPoolContract: TX Range" txRange
 
-  -- Use closeList as spendList if not null, otherwise spend all remaining
-  -- utxos at validator
+  -- If closeList is null, update all entries in assocList
+  -- Otherwise, just update entries selected by indices in closeList
   spendList <-
-    if not (null closeList) then pure closeList
-    else do
-      let utxoList = toUnfoldable <<< unwrap $ bondedPoolUtxos
-      pure $ createUtxoConstraint <$> utxoList
+    let allConstraints = createUtxoConstraint <$> (toUnfoldable <<< unwrap $ bondedPoolUtxos)
+    in if null closeList
+      then pure allConstraints
+      else liftContractM "depositBondedPoolContract: Failed to create updateList" $
+        traverse ((!!) allConstraints) closeList 
 
   -- We build the transaction
   let
@@ -147,13 +108,13 @@ closeBondedPoolContract
     constraints =
       mustBeSignedBy admin
         <> mustIncludeDatum bondedStateDatum
-  -- <> mustValidateIn txRange
+        <> mustValidateIn txRange
 
   -- Submit transaction with possible batching
   failedDeposits <-
     if batchSize == zero then do
       failedDeposits' <- submitTransaction constraints lookups spendList
-      batchFinishCallback failedDeposits'
+      txBatchFinishedCallback waitTime failedDeposits'
       pure failedDeposits'
     else
       let
@@ -161,15 +122,18 @@ closeBondedPoolContract
       in
         mconcat <$> for updateBatches \txBatch -> do
           failedDeposits' <- submitTransaction constraints lookups txBatch
-          batchFinishCallback failedDeposits'
+          txBatchFinishedCallback waitTime failedDeposits'
           pure failedDeposits'
 
   logInfo_
     "closeBondedPoolContract: Finished updating pool entries. /\
     \Entries with failed updates"
     failedDeposits
-
-  pure failedDeposits
+  -- Return the indices of the failed deposits in the updateList
+  liftContractM
+    "depositUnbondedPoolContract: Failed to create /\
+    \failedDepositsIndicies list" $
+    traverse (flip elemIndex spendList) failedDeposits
 
 createUtxoConstraint
   :: Tuple TransactionInput TransactionOutput

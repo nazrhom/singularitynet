@@ -44,6 +44,7 @@ import Contract.Utxos (utxosAt)
 import Contract.Value (mkTokenName, singleton)
 import Control.Applicative (unless)
 import Data.Array (elemIndex, (!!))
+import Data.BigInt as BigInt
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Settings (unbondedStakingTokenName)
@@ -183,7 +184,7 @@ depositUnbondedPoolContract
                )
         submitTxWithCallback txBatch = do
           failedDeposits' <- submitTransaction constraints lookups txBatch
-          txBatchFinishedCallback failedDeposits'
+          txBatchFinishedCallback (BigInt.fromInt 100_000) failedDeposits'
           pure failedDeposits'
       -- Get list of users to deposit rewards too
       updateList <-
@@ -199,7 +200,7 @@ depositUnbondedPoolContract
       failedDeposits <-
         if batchSize == zero then do
           failedDeposits' <- submitTransaction constraints lookups updateList
-          txBatchFinishedCallback failedDeposits'
+          txBatchFinishedCallback (BigInt.fromInt 100_000) failedDeposits'
           pure failedDeposits'
         else do
           let updateBatches = splitByLength (toIntUnsafe batchSize) updateList

@@ -3,24 +3,11 @@ module Main (main) where
 import Contract.Prelude
 
 import BondedStaking.TimeUtils (startPoolFromNow)
+import ClosePool (closeBondedPoolContract)
 import Contract.Address (NetworkId(TestnetId))
-import Contract.Monad
-  ( ContractConfig
-  , ConfigParams(ConfigParams)
-  , LogLevel(Info)
-  , defaultDatumCacheWsConfig
-  , defaultOgmiosWsConfig
-  , defaultServerConfig
-  , launchAff_
-  , liftContractM
-  , logInfo'
-  , mkContractConfig
-  , runContract
-  , runContract_
-  )
+import Contract.Monad (ContractConfig, ConfigParams(ConfigParams), LogLevel(Info), defaultDatumCacheWsConfig, defaultOgmiosWsConfig, defaultServerConfig, launchAff_, liftContractM, logInfo', mkContractConfig, runContract, runContract_)
 import Contract.Wallet (mkNamiWalletAff)
 import CreatePool (createBondedPoolContract)
-import ClosePool (closeBondedPoolContract)
 import Data.BigInt as BigInt
 import Data.Int as Int
 import DepositPool (depositBondedPoolContract)
@@ -99,12 +86,7 @@ main = launchAff_ do
   runContract_ adminCfg do
     depositBatchSize <-
       liftM (error "Cannot create Natural") $ Natural.fromString "1"
-    void $
-      depositBondedPoolContract bondedParams depositBatchSize []
-        ( \_ -> do
-            logInfo' "SWITCH WALLETS NOW - CHANGE TO USER 1"
-            liftAff $ delay $ wrap $ BigInt.toNumber bpp.bondingLength
-        )
+    depositBondedPoolContract bondedParams depositBatchSize [] bpp.bondingLength
   ---- User 1 withdraws ----
   runContract_ userCfg do
     userWithdrawBondedPoolContract bondedParams
@@ -116,13 +98,7 @@ main = launchAff_ do
   runContract_ adminCfg do
     closeBatchSize <-
       liftM (error "Cannot create Natural") $ Natural.fromString "10"
-    void $ closeBondedPoolContract bondedParams closeBatchSize []
-      ( \_ -> do
-          logInfo'
-            "main: Waiting to submit next Tx batch. DON'T SWITCH WALLETS \
-            \- STAY AS ADMIN"
-          liftAff $ delay $ wrap $ Int.toNumber 80_000
-      )
+    void $ closeBondedPoolContract bondedParams closeBatchSize [] (BigInt.fromInt 100_000)
     logInfo' "main: Pool closed"
 
 -- Unbonded: admin create pool, user stake, admin deposit (rewards),
