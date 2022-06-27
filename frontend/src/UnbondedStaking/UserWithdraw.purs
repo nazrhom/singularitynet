@@ -214,11 +214,12 @@ userWithdrawUnbondedPoolContract
             withdrawnVal :: Value
             withdrawnVal = singleton assetCs assetTn withdrawnAmt
 
-          logInfo_ "rewards" rewards
-          logInfo_ "rewardsRounded" rewardsRounded
-          logInfo_ "withdrawnAmt" withdrawnAmt
-          logInfo_ "withdrawnVal" withdrawnVal
-          logInfo_ "rewards" rewards
+          logInfo_ "userWithdrawUnbondedPoolContract: rewards" rewards
+          logInfo_ "userWithdrawUnbondedPoolContract: rewardsRounded"
+            rewardsRounded
+          logInfo_ "userWithdrawUnbondedPoolContract: withdrawnAmt" withdrawnAmt
+          logInfo_ "userWithdrawUnbondedPoolContract: withdrawnVal" withdrawnVal
+          logInfo_ "userWithdrawUnbondedPoolContract: rewards" rewards
 
           -- Calculate assets to consume and change that needs to be returned
           -- to the pool
@@ -228,8 +229,10 @@ userWithdrawUnbondedPoolContract
               \UTxOs to consume" $
               getAssetsToConsume unbondedAssetClass withdrawnAmt
                 unbondedAssetUtxos
-          logInfo_ "withdrawChange" withdrawChange
-          logInfo_ "consumedAssetUtxos" consumedAssetUtxos
+          logInfo_ "userWithdrawUnbondedPoolContract: withdrawChange"
+            withdrawChange
+          logInfo_ "userWithdrawUnbondedPoolContract: consumedAssetUtxos"
+            consumedAssetUtxos
           let
             changeValue :: Value
             changeValue =
@@ -256,7 +259,8 @@ userWithdrawUnbondedPoolContract
           -- New state lookup
           stateDatumLookup <-
             liftContractM
-              "userWithdrawUnbondedPoolContract: Could not create state datum lookup"
+              "userWithdrawUnbondedPoolContract: Could not create state datum \
+              \lookup"
               $ ScriptLookups.datum newState
           let
             constraints :: TxConstraints Unit Unit
@@ -293,7 +297,8 @@ userWithdrawUnbondedPoolContract
             /\ { firstOutput, secondOutput }
             /\ _ <-
             liftContractM
-              "userWithdrawUnbondedPoolContract: Cannot get position in Assoc. List"
+              "userWithdrawUnbondedPoolContract: Cannot get position in Assoc. \
+              \List"
               $ findRemoveOtherElem assocList hashedUserPkh
 
           -- Get the entry datum of the previous entry
@@ -399,13 +404,14 @@ userWithdrawUnbondedPoolContract
     unattachedBalancedTx
   BalancedSignedTransaction { signedTxCbor } <-
     liftedM
-      "userWithdrawUnbondedPoolContract: Cannot balance, reindex redeemers, attach \
-      \datums redeemers and sign"
+      "userWithdrawUnbondedPoolContract: Cannot balance, reindex redeemers, \
+      \ attach datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
   transactionHash <- submit signedTxCbor
   logInfo_
-    "userWithdrawUnbondedPoolContract: Transaction successfully submitted with hash"
+    "userWithdrawUnbondedPoolContract: Transaction successfully submitted with \
+    \hash"
     $ byteArrayToHex
     $ unwrap transactionHash
 

@@ -450,4 +450,3 @@ txBatchFinishedCallback _ = do
     "txBatchFinishedCallback: Waiting to submit next Tx batch. \
     \DON'T SWITCH WALLETS - STAY AS ADMIN"
   liftAff $ delay $ wrap $ Int.toNumber 100_000
-  pure unit

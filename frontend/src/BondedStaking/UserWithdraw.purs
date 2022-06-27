@@ -214,11 +214,12 @@ userWithdrawBondedPoolContract
             withdrawnVal :: Value
             withdrawnVal = singleton assetCs assetTn withdrawnAmt
 
-          logInfo_ "rewards" rewards
-          logInfo_ "rewardsRounded" rewardsRounded
-          logInfo_ "withdrawnAmt" withdrawnAmt
-          logInfo_ "withdrawnVal" withdrawnVal
-          logInfo_ "rewards" rewards
+          logInfo_ "userWithdrawBondedPoolContract: rewards" rewards
+          logInfo_ "userWithdrawBondedPoolContract: rewardsRounded"
+            rewardsRounded
+          logInfo_ "userWithdrawBondedPoolContract: withdrawnAmt" withdrawnAmt
+          logInfo_ "userWithdrawBondedPoolContract: withdrawnVal" withdrawnVal
+          logInfo_ "userWithdrawBondedPoolContract: rewards" rewards
 
           -- Calculate assets to consume and change that needs to be returned
           -- to the pool
@@ -228,8 +229,10 @@ userWithdrawBondedPoolContract
               \UTxOs to consume" $
               getAssetsToConsume bondedAssetClass withdrawnAmt bondedAssetUtxos
 
-          logInfo_ "withdrawChange" withdrawChange
-          logInfo_ "consumedAssetUtxos" consumedAssetUtxos
+          logInfo_ "userWithdrawBondedPoolContract: withdrawChange"
+            withdrawChange
+          logInfo_ "userWithdrawBondedPoolContract: consumedAssetUtxos"
+            consumedAssetUtxos
 
           let
 
@@ -258,7 +261,8 @@ userWithdrawBondedPoolContract
           -- New state lookup
           stateDatumLookup <-
             liftContractM
-              "userWithdrawBondedPoolContract: Could not create state datum lookup"
+              "userWithdrawBondedPoolContract: Could not create state datum \
+              \lookup"
               $ ScriptLookups.datum newState
 
           let
@@ -296,7 +300,8 @@ userWithdrawBondedPoolContract
             /\ { firstOutput, secondOutput }
             /\ _ <-
             liftContractM
-              "userWithdrawBondedPoolContract: Cannot get position in Assoc. List"
+              "userWithdrawBondedPoolContract: Cannot get position in Assoc. \
+              \List"
               $ findRemoveOtherElem assocList hashedUserPkh
 
           -- Get the entry datum of the previous entry
