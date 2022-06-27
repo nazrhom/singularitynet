@@ -43,6 +43,7 @@ import Contract.TxConstraints
   , mustPayToPubKeyAddress
   , mustPayToScript
   , mustSpendScriptOutput
+  , mustValidateIn
   )
 import Contract.Utxos (UtxoM(UtxoM), utxosAt)
 import Contract.Value (Value, mkTokenName, singleton)
@@ -66,6 +67,7 @@ import UnbondedStaking.Types
   , UnbondedStakingAction(WithdrawAct)
   , UnbondedStakingDatum(AssetDatum, EntryDatum, StateDatum)
   )
+import UnbondedStaking.Utils (getBondingTime)
 import Utils
   ( findRemoveOtherElem
   , getAssetsToConsume
@@ -150,6 +152,11 @@ userWithdrawUnbondedPoolContract
     liftContractM
       "userWithdrawUnbondedPoolContract: Could not create token name for user`"
       $ mkTokenName hashedUserPkh
+  -- Get the staking range to use
+  logInfo' "userWithdrawUnbondedPoolContract: Getting user range..."
+  { currTime, range } <- getBondingTime params
+  logInfo_ "userWithdrawUnbondedPoolContract: Current time: " $ show currTime
+  logInfo_ "userWithdrawUnbondedPoolContract: TX Range" range
   -- Build useful values for later
   let
     stateTokenValue = singleton nftCs tokenName one
@@ -206,22 +213,33 @@ userWithdrawUnbondedPoolContract
 
             withdrawnVal :: Value
             withdrawnVal = singleton assetCs assetTn withdrawnAmt
+
+          logInfo_ "userWithdrawUnbondedPoolContract: rewards" rewards
+          logInfo_ "userWithdrawUnbondedPoolContract: rewardsRounded"
+            rewardsRounded
+          logInfo_ "userWithdrawUnbondedPoolContract: withdrawnAmt" withdrawnAmt
+          logInfo_ "userWithdrawUnbondedPoolContract: withdrawnVal" withdrawnVal
+          logInfo_ "userWithdrawUnbondedPoolContract: rewards" rewards
+
           -- Calculate assets to consume and change that needs to be returned
           -- to the pool
-          consumedAssetUtxos /\ totalSpentAmt <-
+          consumedAssetUtxos /\ withdrawChange <-
             liftContractM
               "userWithdrawUnbondedPoolContract: Cannot get asset \
               \UTxOs to consume" $
               getAssetsToConsume unbondedAssetClass withdrawnAmt
                 unbondedAssetUtxos
+          logInfo_ "userWithdrawUnbondedPoolContract: withdrawChange"
+            withdrawChange
+          logInfo_ "userWithdrawUnbondedPoolContract: consumedAssetUtxos"
+            consumedAssetUtxos
           let
             changeValue :: Value
             changeValue =
               singleton
                 (unwrap unbondedAssetClass).currencySymbol
                 (unwrap unbondedAssetClass).tokenName
-                $ totalSpentAmt
-                - withdrawnAmt
+                withdrawChange
 
             newState :: Datum
             newState = Datum <<< toData $
@@ -241,7 +259,8 @@ userWithdrawUnbondedPoolContract
           -- New state lookup
           stateDatumLookup <-
             liftContractM
-              "userWithdrawUnbondedPoolContract: Could not create state datum lookup"
+              "userWithdrawUnbondedPoolContract: Could not create state datum \
+              \lookup"
               $ ScriptLookups.datum newState
           let
             constraints :: TxConstraints Unit Unit
@@ -256,6 +275,7 @@ userWithdrawUnbondedPoolContract
                 , mustPayToScript valHash assetDatum changeValue
                 , mustPayToPubKeyAddress userPkh userStakingPubKeyHash
                     withdrawnVal
+                , mustValidateIn range
                 ]
 
             lookup :: ScriptLookups.ScriptLookups PlutusData
@@ -277,7 +297,8 @@ userWithdrawUnbondedPoolContract
             /\ { firstOutput, secondOutput }
             /\ _ <-
             liftContractM
-              "userWithdrawUnbondedPoolContract: Cannot get position in Assoc. List"
+              "userWithdrawUnbondedPoolContract: Cannot get position in Assoc. \
+              \List"
               $ findRemoveOtherElem assocList hashedUserPkh
 
           -- Get the entry datum of the previous entry
@@ -312,20 +333,21 @@ userWithdrawUnbondedPoolContract
 
           -- Calculate assets to consume and change that needs to be returned
           -- to the pool
-          consumedAssetUtxos /\ totalSpentAmt <-
+          consumedAssetUtxos /\ withdrawChange <-
             liftContractM
               "userWithdrawUnbondedPoolContract: Cannot get asset \
               \UTxOs to consume" $
               getAssetsToConsume unbondedAssetClass withdrawnAmt
                 unbondedAssetUtxos
+          logInfo_ "withdrawChange" withdrawChange
+          logInfo_ "consumedAssetUtxos" consumedAssetUtxos
           let
             changeValue :: Value
             changeValue =
               singleton
                 (unwrap unbondedAssetClass).currencySymbol
                 (unwrap unbondedAssetClass).tokenName
-                $ totalSpentAmt
-                - withdrawnAmt
+                withdrawChange
             -- Build updated previous entry and its lookup
             prevEntryUpdated = Datum $ toData $ EntryDatum
               { entry: Entry $ prevEntry
@@ -361,6 +383,7 @@ userWithdrawUnbondedPoolContract
                 , mustPayToScript valHash assetDatum changeValue
                 , mustPayToPubKeyAddress userPkh userStakingPubKeyHash
                     withdrawnVal
+                , mustValidateIn range
                 ]
 
             lookup :: ScriptLookups.ScriptLookups PlutusData
@@ -381,13 +404,14 @@ userWithdrawUnbondedPoolContract
     unattachedBalancedTx
   BalancedSignedTransaction { signedTxCbor } <-
     liftedM
-      "userWithdrawUnbondedPoolContract: Cannot balance, reindex redeemers, attach \
-      \datums redeemers and sign"
+      "userWithdrawUnbondedPoolContract: Cannot balance, reindex redeemers, \
+      \ attach datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
   transactionHash <- submit signedTxCbor
   logInfo_
-    "userWithdrawUnbondedPoolContract: Transaction successfully submitted with hash"
+    "userWithdrawUnbondedPoolContract: Transaction successfully submitted with \
+    \hash"
     $ byteArrayToHex
     $ unwrap transactionHash
 

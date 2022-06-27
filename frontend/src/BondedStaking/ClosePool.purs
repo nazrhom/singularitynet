@@ -98,10 +98,10 @@ closeBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
       $ ScriptLookups.datum bondedStateDatum
 
   -- Get the withdrawing range to use
-  logInfo' "userWithdrawBondedPoolContract: Getting withdrawing range..."
+  logInfo' "closeBondedPoolContract: Getting withdrawing range..."
   { currTime, range: txRange } <- getClosingTime params
-  logInfo_ "Current time: " $ show currTime
-  logInfo_ "TX Range" txRange
+  logInfo_ "closeBondedPoolContract: Current time: " $ show currTime
+  logInfo_ "closeBondedPoolContract: TX Range" txRange
 
   -- We build the transaction
   let

@@ -152,8 +152,8 @@ userStakeBondedPoolContract
   -- Get the staking range to use
   logInfo' "userStakeBondedPoolContract: Getting staking range..."
   { currTime, range } <- getStakingTime params
-  logInfo_ "Current time: " $ show currTime
-  logInfo_ "TX Range" range
+  logInfo_ "userStakeBondedPoolContract: Current time: " $ show currTime
+  logInfo_ "userStakeBondedPoolContract: TX Range" range
 
   constraints /\ lookup <- case bondedStakingDatum of
     StateDatum { maybeEntryName: Nothing } -> do

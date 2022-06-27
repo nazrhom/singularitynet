@@ -40,6 +40,7 @@ import Contract.TxConstraints
   , mustIncludeDatum
   , mustPayToScript
   , mustSpendScriptOutput
+  , mustValidateIn
   )
 import Contract.Utxos (utxosAt)
 import Contract.Value (mkTokenName, singleton)
@@ -49,16 +50,15 @@ import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Settings (unbondedStakingTokenName)
 import Types.Scripts (ValidatorHash)
-import UnbondedStaking.AdminUtils
-  ( calculateRewards
-  , submitTransaction
-  , txBatchFinishedCallback
-  )
 import UnbondedStaking.Types
   ( Entry(Entry)
   , UnbondedPoolParams(UnbondedPoolParams)
   , UnbondedStakingAction(CloseAct)
   , UnbondedStakingDatum(AssetDatum, EntryDatum, StateDatum)
+  )
+import UnbondedStaking.Utils
+  ( calculateRewards
+  , getAdminTime
   )
 import Utils
   ( getUtxoWithNFT
@@ -67,7 +67,9 @@ import Utils
   , mkRatUnsafe
   , roundUp
   , splitByLength
+  , submitTransaction
   , toIntUnsafe
+  , txBatchFinishedCallback
   )
 
 -- | Closes the unbonded pool and distributes final rewards to users
@@ -140,6 +142,11 @@ closeUnbondedPoolContract
     liftContractM
       "closeUnbondedPoolContract: Cannot extract NFT State datum"
       $ fromData (unwrap poolDatum)
+  -- Get the bonding range to use
+  logInfo' "closeUnbondedPoolContract: Getting admin range..."
+  { currTime, range } <- getAdminTime params
+  logInfo_ "closeUnbondedPoolContract: Current time: " $ show currTime
+  logInfo_ "closeUnbondedPoolContract: TX Range" range
   -- Update the association list
   case unbondedStakingDatum of
     -- Non-empty user list
@@ -163,7 +170,10 @@ closeUnbondedPoolContract
             /\ mempty
 
         constraints :: TxConstraints Unit Unit
-        constraints = mustBeSignedBy admin
+        constraints =
+          mustBeSignedBy admin
+            <> mustIncludeDatum poolDatum
+            <> mustValidateIn range
 
         lookups :: ScriptLookups.ScriptLookups PlutusData
         lookups =
@@ -238,6 +248,7 @@ closeUnbondedPoolContract
             (toUnfoldable $ unwrap unbondedPoolUtxos :: Array _)
             <> mustBeSignedBy admin
             <> mustIncludeDatum poolDatum
+            <> mustValidateIn range
 
         lookups :: ScriptLookups.ScriptLookups PlutusData
         lookups = mconcat

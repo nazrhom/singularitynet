@@ -38,6 +38,7 @@ import Contract.TxConstraints
   , mustBeSignedBy
   , mustPayToScript
   , mustSpendScriptOutput
+  , mustValidateIn
   )
 import Contract.Utxos (utxosAt)
 import Contract.Value (mkTokenName, singleton)
@@ -49,16 +50,15 @@ import Settings (unbondedStakingTokenName)
 import Types.Natural (fromBigInt')
 import Types.Redeemer (Redeemer(Redeemer))
 import Types.Scripts (ValidatorHash)
-import UnbondedStaking.AdminUtils
-  ( calculateRewards
-  , submitTransaction
-  , txBatchFinishedCallback
-  )
 import UnbondedStaking.Types
   ( Entry(Entry)
   , UnbondedPoolParams(UnbondedPoolParams)
   , UnbondedStakingAction(AdminAct)
   , UnbondedStakingDatum(AssetDatum, EntryDatum, StateDatum)
+  )
+import UnbondedStaking.Utils
+  ( calculateRewards
+  , getAdminTime
   )
 import Utils
   ( getUtxoWithNFT
@@ -67,7 +67,9 @@ import Utils
   , mkRatUnsafe
   , roundUp
   , splitByLength
+  , submitTransaction
   , toIntUnsafe
+  , txBatchFinishedCallback
   )
 
 -- | Deposits a certain amount in the pool
@@ -140,6 +142,11 @@ depositUnbondedPoolContract
     liftContractM
       "depositUnbondedPoolContract: Cannot extract NFT State datum"
       $ fromData (unwrap poolDatum)
+  -- Get the validitiy range to use
+  logInfo' "depositUnbondedPoolContract: Getting admin range..."
+  { currTime, range } <- getAdminTime params
+  logInfo_ "depositUnbondedPoolContract: Current time: " $ show currTime
+  logInfo_ "depositUnbondedPoolContract: TX Range" range
   -- Update the association list
   case unbondedStakingDatum of
     -- Non-empty user list
@@ -151,7 +158,9 @@ depositUnbondedPoolContract
         assocList = mkOnchainAssocList assocListCs unbondedPoolUtxos
 
         constraints :: TxConstraints Unit Unit
-        constraints = mustBeSignedBy admin
+        constraints =
+          mustBeSignedBy admin
+            <> mustValidateIn range
 
         lookups :: ScriptLookups.ScriptLookups PlutusData
         lookups =
