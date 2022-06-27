@@ -147,8 +147,8 @@ depositBondedPoolContract
   -- Get the bonding range to use
   logInfo' "depositBondedPoolContract: Getting bonding range..."
   { currTime, range } <- getBondingTime params
-  logInfo_ "Current time: " $ show currTime
-  logInfo_ "TX Range" range
+  logInfo_ "depositBondedPoolContract: Current time: " $ show currTime
+  logInfo_ "depositBondedPoolContract: TX Range" range
 
   -- Update the association list
   case bondedStakingDatum of

@@ -14,27 +14,47 @@ module Utils
   , mkBondedPoolParams
   , mkOnchainAssocList
   , mkRatUnsafe
-  , mkUnbondedPoolParams
   , nat
   , roundDown
   , roundUp
   , splitByLength
-  , toIntUnsafe
   , submitTransaction
+  , toIntUnsafe
+<<<<<<< HEAD
+  , submitTransaction
+=======
+  , txBatchFinishedCallback
+>>>>>>> staging
   ) where
 
 import Contract.Prelude hiding (length)
 
 import Contract.Address (PaymentPubKeyHash)
 import Contract.Hashing (blake2b256Hash)
+<<<<<<< HEAD
 import Contract.Monad (Contract, liftContractM, liftedE, liftedM, logInfo, tag)
+=======
+import Contract.Monad
+  ( Contract
+  , liftContractM
+  , liftedE
+  , liftedM
+  , logInfo
+  , logInfo'
+  , tag
+  )
+>>>>>>> staging
 import Contract.Numeric.Natural (Natural, fromBigInt', toBigInt)
 import Contract.Numeric.Rational (Rational, numerator, denominator)
 import Contract.Prim.ByteArray (ByteArray, byteArrayToHex, hexToByteArray)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (PlutusScript)
 import Contract.Transaction
+<<<<<<< HEAD
   ( BalancedSignedTransaction(..)
+=======
+  ( BalancedSignedTransaction(BalancedSignedTransaction)
+>>>>>>> staging
   , TransactionInput
   , TransactionOutput(TransactionOutput)
   , balanceAndSignTx
@@ -68,10 +88,12 @@ import Data.Array
 import Data.Array as Array
 import Data.BigInt (BigInt, fromInt, fromNumber, quot, rem, toInt, toNumber)
 import Data.DateTime.Instant (unInstant)
+import Data.Int as Int
 import Data.Map (Map, toUnfoldable)
 import Data.Map as Map
 import Data.Time.Duration (Milliseconds(Milliseconds))
 import Data.Unfoldable (unfoldr)
+import Effect.Aff (delay)
 import Effect.Now (now)
 import Math (ceil)
 import Serialization.Hash (ed25519KeyHashToBytes)
@@ -81,13 +103,14 @@ import Types
   , InitialBondedParams(InitialBondedParams)
   , MintingAction(MintEnd, MintInBetween)
   )
+<<<<<<< HEAD
 import Types.PlutusData (PlutusData)
 import Types.Interval (POSIXTime(..))
+=======
+import Types.Interval (POSIXTime(POSIXTime))
+import Types.PlutusData (PlutusData)
+>>>>>>> staging
 import Types.Redeemer (Redeemer)
-import UnbondedStaking.Types
-  ( UnbondedPoolParams(UnbondedPoolParams)
-  , InitialUnbondedParams(InitialUnbondedParams)
-  )
 
 -- | Helper to decode the local inputs such as unapplied minting policy and
 -- typed validator
@@ -223,31 +246,6 @@ mkBondedPoolParams admin nftCs assocListCs (InitialBondedParams ibp) = do
     , maxStake: ibp.maxStake
     , admin
     , bondedAssetClass: ibp.bondedAssetClass
-    , nftCs
-    , assocListCs
-    }
-
--- Creates the `UnbondedPoolParams` from the `InitialUnbondedParams` and
--- runtime parameters from the user.
-mkUnbondedPoolParams
-  :: PaymentPubKeyHash
-  -> CurrencySymbol
-  -> CurrencySymbol
-  -> InitialUnbondedParams
-  -> UnbondedPoolParams
-mkUnbondedPoolParams admin nftCs assocListCs (InitialUnbondedParams iup) = do
-  UnbondedPoolParams
-    { start: iup.start
-    , userLength: iup.userLength
-    , adminLength: iup.adminLength
-    , bondingLength: iup.bondingLength
-    , interestLength: iup.interestLength
-    , increments: iup.increments
-    , interest: iup.interest
-    , minStake: iup.minStake
-    , maxStake: iup.maxStake
-    , admin
-    , unbondedAssetClass: iup.unbondedAssetClass
     , nftCs
     , assocListCs
     }
@@ -452,6 +450,20 @@ submitTransaction baseConstraints baseLookups updateList = do
   case result of
     Left e -> do
       logInfo_ "submitTransaction:" e
-      pure $ Array.singleton $ constraints /\ lookups
+      pure updateList
     Right _ ->
       pure []
+
+txBatchFinishedCallback
+  :: Array
+       ( Tuple
+           (TxConstraints Unit Unit)
+           (ScriptLookups.ScriptLookups PlutusData)
+       )
+  -> Contract () Unit
+-- txBatchFinishedCallback failedDeposits = do
+txBatchFinishedCallback _ = do
+  logInfo'
+    "txBatchFinishedCallback: Waiting to submit next Tx batch. \
+    \DON'T SWITCH WALLETS - STAY AS ADMIN"
+  liftAff $ delay $ wrap $ Int.toNumber 100_000

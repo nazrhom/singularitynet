@@ -35,12 +35,14 @@ import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Scripts.StateNFT (mkStateNFTPolicy)
 import Settings (unbondedStakingTokenName)
 import Types (StakingType(Unbonded))
+import Types.Interval (POSIXTime(POSIXTime))
 import UnbondedStaking.Types
-  ( InitialUnbondedParams
+  ( InitialUnbondedParams(InitialUnbondedParams)
   , UnbondedPoolParams
   , UnbondedStakingDatum(StateDatum)
   )
-import Utils (logInfo_, mkUnbondedPoolParams)
+import UnbondedStaking.Utils (mkUnbondedPoolParams)
+import Utils (currentRoundedTime, logInfo_)
 
 -- Sets up pool configuration, mints the state NFT and deposits
 -- in the pool validator's address
@@ -66,7 +68,6 @@ createUnbondedPoolContract iup = do
       $ fst
       <$> (head $ toUnfoldable $ unwrap adminUtxos)
   logInfo_ "createUnbondedPoolContract: Admin Utxos" adminUtxos
-
   -- Get the minting policy and currency symbol from the state NFT:
   statePolicy <- liftedE $ mkStateNFTPolicy Unbonded txOutRef
   stateNftCs <-
@@ -81,14 +82,21 @@ createUnbondedPoolContract iup = do
       "createUnbondedPoolContract: Cannot get CurrencySymbol from /\
       \state NFT"
       $ scriptCurrencySymbol listPolicy
-
   -- May want to hardcode this somewhere:
   tokenName <-
     liftContractM "createUnbondedPoolContract: Cannot create TokenName"
       unbondedStakingTokenName
+  -- We get the current time and set up the pool to start immediately
+  POSIXTime currTime <- currentRoundedTime
+  let
+    iup' = unwrap iup
 
+    iupWithTime :: InitialUnbondedParams
+    iupWithTime = InitialUnbondedParams $ iup'
+      { start = currTime
+      }
   -- We define the parameters of the pool
-  let params = mkUnbondedPoolParams adminPkh stateNftCs assocListCs iup
+  let params = mkUnbondedPoolParams adminPkh stateNftCs assocListCs iupWithTime
   -- Get the bonding validator and hash
   validator <- liftedE' "createUnbondedPoolContract: Cannot create validator"
     $ mkUnbondedPoolValidator params

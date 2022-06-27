@@ -400,12 +400,28 @@ callCreateUnbondedPool cfg iba = Promise.fromAff do
   pure $ toUnbondedPoolArgs upp
 
 callDepositUnbondedPool
-  :: ContractConfig () -> UnbondedPoolArgs -> Effect (Promise Unit)
-callDepositUnbondedPool = callWithUnbondedPoolArgs depositUnbondedPoolContract
+  :: ContractConfig ()
+  -> UnbondedPoolArgs
+  -> BigInt
+  -> Array Int
+  -> Effect (Promise (Array Int))
+callDepositUnbondedPool cfg upa bi arr = Promise.fromAff $ runContract cfg do
+  upp <- liftEither $ fromUnbondedPoolArgs upa
+  nat <- liftM (error "callDepositUnbondedPool: Invalid natural number")
+    $ fromBigInt bi
+  depositUnbondedPoolContract upp nat arr
 
 callCloseUnbondedPool
-  :: ContractConfig () -> UnbondedPoolArgs -> Effect (Promise Unit)
-callCloseUnbondedPool = callWithUnbondedPoolArgs closeUnbondedPoolContract
+  :: ContractConfig ()
+  -> UnbondedPoolArgs
+  -> BigInt
+  -> Array Int
+  -> Effect (Promise (Array Int))
+callCloseUnbondedPool cfg upa bi arr = Promise.fromAff $ runContract cfg do
+  upp <- liftEither $ fromUnbondedPoolArgs upa
+  nat <- liftM (error "callCloseUnbondedPool: Invalid natural number")
+    $ fromBigInt bi
+  closeUnbondedPoolContract upp nat arr
 
 callUserStakeUnbondedPool
   :: ContractConfig () -> UnbondedPoolArgs -> BigInt -> Effect (Promise Unit)
