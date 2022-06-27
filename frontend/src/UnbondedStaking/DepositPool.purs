@@ -194,7 +194,7 @@ depositUnbondedPoolContract
             traverse (mkEntryUpdateList params valHash) assocList
           liftContractM
             "depositUnbondedPoolContract: Failed to create updateList'" $
-            traverse (\i -> constraintsLookupsList !! i) depositList
+            traverse ((!!) constraintsLookupsList) depositList
       -- Submit transaction with possible batching
       failedDeposits <-
         if batchSize == zero then do
@@ -213,7 +213,7 @@ depositUnbondedPoolContract
         liftContractM
           "depositUnbondedPoolContract: Failed to create /\
           \failedDepositsIndicies list" $
-          traverse (\i -> i `elemIndex` updateList) failedDeposits
+          traverse (flip elemIndex updateList) failedDeposits
       pure failedDepositsIndicies
     -- Other error cases:
     StateDatum { maybeEntryName: Nothing, open: true } ->
