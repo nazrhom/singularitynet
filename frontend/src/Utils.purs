@@ -1,5 +1,8 @@
 module Utils
   ( big
+  , bigIntRange
+  , currentRoundedTime
+  , currentTime
   , findInsertUpdateElem
   , findRemoveOtherElem
   , getAssetsToConsume
@@ -15,14 +18,16 @@ module Utils
   , nat
   , roundDown
   , roundUp
+  , splitByLength
+  , toIntUnsafe
   ) where
 
 import Contract.Prelude hiding (length)
 
 import Contract.Address (PaymentPubKeyHash)
 import Contract.Hashing (blake2b256Hash)
-import Contract.Monad (Contract, logInfo, tag)
-import Contract.Numeric.Natural (Natural, fromBigInt')
+import Contract.Monad (Contract, liftContractM, logInfo, tag)
+import Contract.Numeric.Natural (Natural, fromBigInt', toBigInt)
 import Contract.Numeric.Rational (Rational, numerator, denominator)
 import Contract.Prim.ByteArray (ByteArray, hexToByteArray)
 import Contract.Scripts (PlutusScript)
@@ -30,10 +35,7 @@ import Contract.Transaction
   ( TransactionInput
   , TransactionOutput(TransactionOutput)
   )
-import Contract.TxConstraints
-  ( TxConstraints
-  , mustSpendScriptOutput
-  )
+import Contract.TxConstraints (TxConstraints, mustSpendScriptOutput)
 import Contract.Utxos (UtxoM(UtxoM))
 import Contract.Value
   ( CurrencySymbol
@@ -46,11 +48,26 @@ import Control.Alternative (guard)
 import Data.Argonaut.Core (Json, caseJsonObject)
 import Data.Argonaut.Decode.Combinators (getField) as Json
 import Data.Argonaut.Decode.Error (JsonDecodeError(TypeMismatch))
-import Data.Array (filter, head, last, length, partition, mapMaybe, sortBy)
+import Data.Array
+  ( filter
+  , head
+  , last
+  , length
+  , partition
+  , mapMaybe
+  , slice
+  , sortBy
+  , (..)
+  )
 import Data.Array as Array
-import Data.BigInt (BigInt, fromInt, quot, rem)
+import Data.BigInt (BigInt, fromInt, fromNumber, quot, rem, toInt, toNumber)
+import Data.DateTime.Instant (unInstant)
 import Data.Map (Map, toUnfoldable)
 import Data.Map as Map
+import Data.Time.Duration (Milliseconds(Milliseconds))
+import Data.Unfoldable (unfoldr)
+import Effect.Now (now)
+import Math (ceil)
 import Serialization.Hash (ed25519KeyHashToBytes)
 import Types
   ( AssetClass(AssetClass)
@@ -58,6 +75,7 @@ import Types
   , InitialBondedParams(InitialBondedParams)
   , MintingAction(MintEnd, MintInBetween)
   )
+import Types.Interval (POSIXTime(..))
 import Types.Redeemer (Redeemer)
 import UnbondedStaking.Types
   ( UnbondedPoolParams(UnbondedPoolParams)
@@ -165,6 +183,10 @@ roundDown r =
 mkRatUnsafe :: Maybe Rational -> Rational
 mkRatUnsafe Nothing = zero
 mkRatUnsafe (Just r) = r
+
+-- | Converts from a contract 'Natural' to an 'Int'
+toIntUnsafe :: Natural -> Int
+toIntUnsafe = fromMaybe 0 <<< toInt <<< toBigInt
 
 logInfo_
   :: forall (r :: Row Type) (a :: Type)
@@ -336,3 +358,45 @@ findRemoveOtherElem assocList hashedKey = do
     $ { firstInput: txInputL, secondInput: txInputH }
     /\ { firstOutput: txOutputL, secondOutput: txOutputH }
     /\ { firstKey: bytesL, secondKey: bytesH }
+
+-- Produce a range from zero to the given bigInt (inclusive)
+bigIntRange :: BigInt -> Array BigInt
+bigIntRange lim =
+  unfoldr
+    ( \acc ->
+        if acc >= lim then Nothing
+        else Just $ acc /\ (acc + one)
+    )
+    zero
+
+-- Get time rounded to the closest integer (ceiling) in seconds
+currentRoundedTime :: forall (r :: Row Type). Contract r POSIXTime
+currentRoundedTime = do
+  POSIXTime t <- currentTime
+  t' <- liftContractM "currentRoundedTime: could not convert Number to BigInt"
+    $ fromNumber
+    $ ceil (toNumber t / 1000.0)
+    * 1000.0
+  pure $ POSIXTime t'
+
+-- Get UNIX epoch from system time
+currentTime :: forall (r :: Row Type). Contract r POSIXTime
+currentTime = do
+  Milliseconds t <- unInstant <$> liftEffect now
+  t' <- liftContractM "currentPOSIXTime: could not convert Number to BigInt" $
+    fromNumber t
+  pure $ POSIXTime t'
+
+-- | Utility function for splitting an array into equal length sub-arrays
+-- | (with remainder array length <= size)
+splitByLength :: forall (a :: Type). Int -> Array a -> Array (Array a)
+splitByLength size array
+  | size == 0 || null array = []
+  | otherwise =
+      let
+        sublistCount =
+          if (length array) `mod` size == 0 then ((length array) `div` size) - 1
+          else (length array) `div` size
+      in
+        map (\i -> slice (i * size) ((i * size) + size) array) $
+          0 .. sublistCount

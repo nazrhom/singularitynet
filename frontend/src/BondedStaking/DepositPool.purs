@@ -2,6 +2,7 @@ module DepositPool (depositBondedPoolContract) where
 
 import Contract.Prelude
 
+import BondedStaking.TimeUtils (getBondingTime)
 import Contract.Address
   ( AddressWithNetworkTag(AddressWithNetworkTag)
   , getNetworkId
@@ -41,6 +42,7 @@ import Contract.TxConstraints
   , mustBeSignedBy
   , mustPayToScript
   , mustSpendScriptOutput
+  , mustValidateIn
   )
 import Contract.Utxos (utxosAt)
 import Contract.Value (mkTokenName, singleton)
@@ -123,6 +125,11 @@ depositBondedPoolContract
     liftContractM
       "depositBondedPoolContract: Cannot extract NFT State datum"
       $ fromData (unwrap poolDatum)
+  -- Get the bonding range to use
+  logInfo' "depositBondedPoolContract: Getting bonding range..."
+  { currTime, range } <- getBondingTime params
+  logInfo_ "Current time: " $ show currTime
+  logInfo_ "TX Range" range
 
   -- Update the association list
   case bondedStakingDatum of
@@ -140,7 +147,10 @@ depositBondedPoolContract
         assocListLookups = snd <$> updateList
 
         constraints :: TxConstraints Unit Unit
-        constraints = mustBeSignedBy admin <> mconcat assocListconstraints
+        constraints =
+          mustBeSignedBy admin
+            <> mconcat assocListconstraints
+            <> mustValidateIn range
 
         lookups :: ScriptLookups.ScriptLookups PlutusData
         lookups =

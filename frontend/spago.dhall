@@ -22,7 +22,12 @@ You can edit this file as you like.
   , "prelude"
   , "record"
   , "text-encoding"
+  , "transformers"
   , "uint"
+  , "datetime"
+  , "math"
+  , "now"
+  , "unfoldable"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "exe/**/*.purs", "test/**/*.purs" ]

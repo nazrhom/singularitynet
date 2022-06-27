@@ -29,7 +29,9 @@ common common-lang
     -Wno-partial-type-signatures -Wmissing-export-lists
     -Wincomplete-record-updates -Wmissing-deriving-strategies
     -Wno-name-shadowing -Wunused-foralls -fprint-explicit-foralls
-    -fprint-explicit-kinds -fwarn-missing-import-lists -Werror
+    -fprint-explicit-kinds -fwarn-missing-import-lists
+
+  ---Werror
 
   mixins:
     base hiding (Prelude),
@@ -136,4 +138,7 @@ test-suite singularitynet-offchain-test
   hs-source-dirs: test
 
   -- We can only import modules from Common!
-  other-modules:  SpecStateNFT
+  other-modules:
+    SpecStateNFT
+    Types
+    Utils
