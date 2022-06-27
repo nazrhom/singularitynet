@@ -121,10 +121,10 @@ closeBondedPoolContract
       $ ScriptLookups.datum bondedStateDatum
 
   -- Get the withdrawing range to use
-  -- logInfo' "closeBondedPoolContract: Getting withdrawing range..."
-  -- { currTime, range: txRange } <- getClosingTime params
-  -- logInfo_ "closeBondedPoolContract: Current time: " $ show currTime
-  -- logInfo_ "closeBondedPoolContract: TX Range" txRange
+  logInfo' "closeBondedPoolContract: Getting withdrawing range..."
+  { currTime, range: txRange } <- getClosingTime params
+  logInfo_ "closeBondedPoolContract: Current time: " $ show currTime
+  logInfo_ "closeBondedPoolContract: TX Range" txRange
 
   -- Use closeList as spendList if not null, otherwise spend all remaining
   -- utxos at validator
