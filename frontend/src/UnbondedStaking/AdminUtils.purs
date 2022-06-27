@@ -25,7 +25,6 @@ import Contract.Transaction
   )
 import Contract.TxConstraints (TxConstraints)
 import Control.Monad.Error.Class (try)
-import Data.Array as Array
 import Data.BigInt (BigInt)
 import Data.Int as Int
 import Effect.Aff (delay)
@@ -112,4 +111,3 @@ txBatchFinishedCallback _ = do
     "txBatchFinishedCallback: Waiting to submit next Tx batch. \
     \DON'T SWITCH WALLETS - STAY AS ADMIN"
   liftAff $ delay $ wrap $ Int.toNumber 100_000
-  pure unit

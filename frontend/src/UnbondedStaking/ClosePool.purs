@@ -199,7 +199,7 @@ closeUnbondedPoolContract
           updateList' <-
             liftContractM
               "closeUnbondedPoolContract: Failed to create updateList'" $
-              traverse (\i -> constraintsLookupsList !! i) depositList
+              traverse ((!!) constraintsLookupsList) depositList
           pure $ stateDatumConstraintsLookups : updateList'
       -- Submit transaction with possible batching
       failedDeposits <-
@@ -219,7 +219,7 @@ closeUnbondedPoolContract
         liftContractM
           "closeUnbondedPoolContract: Failed to create /\
           \failedDepositsIndicies list" $
-          traverse (\i -> i `elemIndex` updateList) failedDeposits
+          traverse (flip elemIndex updateList) failedDeposits
       pure failedDepositsIndicies
     -- Closing pool with no users
     StateDatum { maybeEntryName: Nothing, open: true } -> do
@@ -248,14 +248,15 @@ closeUnbondedPoolContract
       logInfo_
         "closeUnbondedPoolContract: Pool closed. Failed updates"
         failedDeposits
-      if null failedDeposits then
-        pure []
-      else
-        -- After the pool is closed, batching is done by utxo's rather than
-        -- user entries. This means the indexing is not needed anymore, and
-        -- the caller can just call the ClosePool contract again to spend
-        -- the remaining utxos in the pool
-        pure [ zero ]
+      pure
+        if null failedDeposits then
+          []
+        else
+          -- After the pool is closed, batching is done by utxo's rather than
+          -- user entries. This means the indexing is not needed anymore, and
+          -- the caller can just call the ClosePool contract again to spend
+          -- the remaining utxos in the pool
+          [ zero ]
     -- Other error cases:
     StateDatum { maybeEntryName: _, open: false } ->
       throwContractError
