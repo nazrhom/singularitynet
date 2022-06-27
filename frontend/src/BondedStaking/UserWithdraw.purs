@@ -154,8 +154,8 @@ userWithdrawBondedPoolContract
   -- Get the withdrawing range to use
   logInfo' "userWithdrawBondedPoolContract: Getting withdrawing range..."
   { currTime, range: txRange } <- getWithdrawingTime params
-  logInfo_ "Current time: " $ show currTime
-  logInfo_ "TX Range" txRange
+  logInfo_ "userWithdrawBondedPoolContract: Current time: " $ show currTime
+  logInfo_ "userWithdrawBondedPoolContract: TX Range" txRange
 
   -- Build useful values for later
   let

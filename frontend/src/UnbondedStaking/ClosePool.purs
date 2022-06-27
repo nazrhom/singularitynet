@@ -145,8 +145,8 @@ closeUnbondedPoolContract
   -- Get the bonding range to use
   logInfo' "closeUnbondedPoolContract: Getting admin range..."
   { currTime, range } <- getAdminTime params
-  logInfo_ "Current time: " $ show currTime
-  logInfo_ "TX Range" range
+  logInfo_ "closeUnbondedPoolContract: Current time: " $ show currTime
+  logInfo_ "closeUnbondedPoolContract: TX Range" range
   -- Update the association list
   case unbondedStakingDatum of
     -- Non-empty user list

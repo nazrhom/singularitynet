@@ -145,8 +145,8 @@ depositUnbondedPoolContract
   -- Get the validitiy range to use
   logInfo' "depositUnbondedPoolContract: Getting admin range..."
   { currTime, range } <- getAdminTime params
-  logInfo_ "Current time: " $ show currTime
-  logInfo_ "TX Range" range
+  logInfo_ "depositUnbondedPoolContract: Current time: " $ show currTime
+  logInfo_ "depositUnbondedPoolContract: TX Range" range
   -- Update the association list
   case unbondedStakingDatum of
     -- Non-empty user list

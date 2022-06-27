@@ -155,8 +155,8 @@ userWithdrawUnbondedPoolContract
   -- Get the staking range to use
   logInfo' "userWithdrawUnbondedPoolContract: Getting user range..."
   { currTime, range } <- getBondingTime params
-  logInfo_ "Current time: " $ show currTime
-  logInfo_ "TX Range" range
+  logInfo_ "userWithdrawUnbondedPoolContract: Current time: " $ show currTime
+  logInfo_ "userWithdrawUnbondedPoolContract: TX Range" range
   -- Build useful values for later
   let
     stateTokenValue = singleton nftCs tokenName one
