@@ -437,9 +437,8 @@ submitTransaction baseConstraints baseLookups updateList = do
       pure []
 
 txBatchFinishedCallback
-  :: 
-  BigInt ->
-  Array
+  :: BigInt
+  -> Array
        ( Tuple
            (TxConstraints Unit Unit)
            (ScriptLookups.ScriptLookups PlutusData)

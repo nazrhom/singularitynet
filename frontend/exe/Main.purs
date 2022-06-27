@@ -5,7 +5,20 @@ import Contract.Prelude
 import BondedStaking.TimeUtils (startPoolFromNow)
 import ClosePool (closeBondedPoolContract)
 import Contract.Address (NetworkId(TestnetId))
-import Contract.Monad (ContractConfig, ConfigParams(ConfigParams), LogLevel(Info), defaultDatumCacheWsConfig, defaultOgmiosWsConfig, defaultServerConfig, launchAff_, liftContractM, logInfo', mkContractConfig, runContract, runContract_)
+import Contract.Monad
+  ( ContractConfig
+  , ConfigParams(ConfigParams)
+  , LogLevel(Info)
+  , defaultDatumCacheWsConfig
+  , defaultOgmiosWsConfig
+  , defaultServerConfig
+  , launchAff_
+  , liftContractM
+  , logInfo'
+  , mkContractConfig
+  , runContract
+  , runContract_
+  )
 import Contract.Wallet (mkNamiWalletAff)
 import CreatePool (createBondedPoolContract)
 import Data.BigInt (BigInt)
@@ -102,8 +115,9 @@ main = launchAff_ do
     -- Wait until pool closing time
     POSIXTime currTime <- currentRoundedTime
     logInfo_ "currTime" currTime
-    let deltaClose :: BigInt
-        deltaClose = bpp.end - currTime + BigInt.fromInt 2000
+    let
+      deltaClose :: BigInt
+      deltaClose = bpp.end - currTime + BigInt.fromInt 2000
     logInfo_ "deltaClose" deltaClose
     void $ closeBondedPoolContract bondedParams closeBatchSize [] deltaClose
     logInfo' "main: Pool closed"

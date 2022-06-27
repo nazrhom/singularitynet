@@ -3,15 +3,40 @@ module DepositPool (depositBondedPoolContract) where
 import Contract.Prelude
 
 import BondedStaking.TimeUtils (getBondingTime)
-import Contract.Address (AddressWithNetworkTag(AddressWithNetworkTag), getNetworkId, getWalletAddress, ownPaymentPubKeyHash, scriptHashAddress)
-import Contract.Monad (Contract, liftContractM, liftedE', liftedM, logInfo', throwContractError)
+import Contract.Address
+  ( AddressWithNetworkTag(AddressWithNetworkTag)
+  , getNetworkId
+  , getWalletAddress
+  , ownPaymentPubKeyHash
+  , scriptHashAddress
+  )
+import Contract.Monad
+  ( Contract
+  , liftContractM
+  , liftedE'
+  , liftedM
+  , logInfo'
+  , throwContractError
+  )
 import Contract.Numeric.Rational (Rational, (%))
-import Contract.PlutusData (Datum(Datum), PlutusData, fromData, getDatumByHash, toData)
+import Contract.PlutusData
+  ( Datum(Datum)
+  , PlutusData
+  , fromData
+  , getDatumByHash
+  , toData
+  )
 import Contract.Prim.ByteArray (ByteArray)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
 import Contract.Transaction (TransactionInput, TransactionOutput)
-import Contract.TxConstraints (TxConstraints, mustBeSignedBy, mustPayToScript, mustSpendScriptOutput, mustValidateIn)
+import Contract.TxConstraints
+  ( TxConstraints
+  , mustBeSignedBy
+  , mustPayToScript
+  , mustSpendScriptOutput
+  , mustValidateIn
+  )
 import Contract.Utxos (utxosAt)
 import Contract.Value (mkTokenName, singleton)
 import Control.Applicative (unless)
@@ -20,11 +45,26 @@ import Data.BigInt (BigInt)
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
-import Types (BondedPoolParams(BondedPoolParams), BondedStakingAction(AdminAct), BondedStakingDatum(AssetDatum, EntryDatum, StateDatum), Entry(Entry))
+import Types
+  ( BondedPoolParams(BondedPoolParams)
+  , BondedStakingAction(AdminAct)
+  , BondedStakingDatum(AssetDatum, EntryDatum, StateDatum)
+  , Entry(Entry)
+  )
 import Types.Natural (Natural)
 import Types.Redeemer (Redeemer(Redeemer))
 import Types.Scripts (ValidatorHash)
-import Utils (getUtxoWithNFT, logInfo_, mkOnchainAssocList, mkRatUnsafe, roundUp, splitByLength, submitTransaction, toIntUnsafe, txBatchFinishedCallback)
+import Utils
+  ( getUtxoWithNFT
+  , logInfo_
+  , mkOnchainAssocList
+  , mkRatUnsafe
+  , roundUp
+  , splitByLength
+  , submitTransaction
+  , toIntUnsafe
+  , txBatchFinishedCallback
+  )
 
 -- Deposits a certain amount in the pool
 depositBondedPoolContract
@@ -125,10 +165,11 @@ depositBondedPoolContract
       -- Otherwise, just update entries selected by indices in depositList
       updateList <- do
         allConstraints <- traverse (mkEntryUpdateList params valHash) assocList
-        if null depositList
-          then pure allConstraints
-          else liftContractM "depositBondedPoolContract: Failed to create updateList" $
-            traverse ((!!) allConstraints) depositList 
+        if null depositList then pure allConstraints
+        else
+          liftContractM "depositBondedPoolContract: Failed to create updateList"
+            $
+              traverse ((!!) allConstraints) depositList
 
       -- Submit transaction with possible batching
       failedDeposits <-
@@ -153,7 +194,7 @@ depositBondedPoolContract
         "depositUnbondedPoolContract: Failed to create /\
         \failedDepositsIndicies list" $
         traverse (flip elemIndex updateList) failedDeposits
-      
+
     -- Other error cases:
     StateDatum { maybeEntryName: Nothing } ->
       throwContractError

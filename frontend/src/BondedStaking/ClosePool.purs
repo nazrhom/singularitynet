@@ -4,23 +4,53 @@ import Contract.Prelude
 
 import BondedStaking.TimeUtils (getClosingTime)
 import Contract.Address (getNetworkId, ownPaymentPubKeyHash, scriptHashAddress)
-import Contract.Monad (Contract, liftContractM, liftedE', liftedM, logInfo', throwContractError)
-import Contract.PlutusData (Datum(..), PlutusData, fromData, getDatumByHash, toData)
+import Contract.Monad
+  ( Contract
+  , liftContractM
+  , liftedE'
+  , liftedM
+  , logInfo'
+  , throwContractError
+  )
+import Contract.PlutusData
+  ( Datum(..)
+  , PlutusData
+  , fromData
+  , getDatumByHash
+  , toData
+  )
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
 import Contract.Transaction (TransactionInput, TransactionOutput)
-import Contract.TxConstraints (TxConstraints, mustBeSignedBy, mustIncludeDatum, mustSpendScriptOutput, mustValidateIn)
+import Contract.TxConstraints
+  ( TxConstraints
+  , mustBeSignedBy
+  , mustIncludeDatum
+  , mustSpendScriptOutput
+  , mustValidateIn
+  )
 import Contract.Utxos (utxosAt)
 import Data.Array (elemIndex, (!!))
 import Data.Map (toUnfoldable)
-import Data.BigInt(BigInt)
+import Data.BigInt (BigInt)
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
-import Types (BondedPoolParams(BondedPoolParams), BondedStakingAction(CloseAct), BondedStakingDatum)
+import Types
+  ( BondedPoolParams(BondedPoolParams)
+  , BondedStakingAction(CloseAct)
+  , BondedStakingDatum
+  )
 import Types.Natural (Natural)
 import Types.Redeemer (Redeemer(Redeemer))
-import Utils (getUtxoWithNFT, logInfo_, splitByLength, submitTransaction, toIntUnsafe, txBatchFinishedCallback)
+import Utils
+  ( getUtxoWithNFT
+  , logInfo_
+  , splitByLength
+  , submitTransaction
+  , toIntUnsafe
+  , txBatchFinishedCallback
+  )
 
 closeBondedPoolContract
   :: BondedPoolParams
@@ -89,11 +119,14 @@ closeBondedPoolContract
   -- If closeList is null, update all entries in assocList
   -- Otherwise, just update entries selected by indices in closeList
   spendList <-
-    let allConstraints = createUtxoConstraint <$> (toUnfoldable <<< unwrap $ bondedPoolUtxos)
-    in if null closeList
-      then pure allConstraints
-      else liftContractM "depositBondedPoolContract: Failed to create updateList" $
-        traverse ((!!) allConstraints) closeList 
+    let
+      allConstraints = createUtxoConstraint <$>
+        (toUnfoldable <<< unwrap $ bondedPoolUtxos)
+    in
+      if null closeList then pure allConstraints
+      else
+        liftContractM "depositBondedPoolContract: Failed to create updateList" $
+          traverse ((!!) allConstraints) closeList
 
   -- We build the transaction
   let
