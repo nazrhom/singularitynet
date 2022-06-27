@@ -1,19 +1,18 @@
-cabal-version:      3.0
-name:               singularitynet
-version:            0.1
-synopsis:           TODO
-description:        TODO
-homepage:           https://github.com/mlabs-haskell/singularitynet
-bug-reports:        https://github.com/mlabs-haskell/singularitynet
+cabal-version: 3.0
+name:          singularitynet-common
+version:       0.1
+synopsis:      TODO
+description:   TODO
+homepage:      https://github.com/mlabs-haskell/singularitynet
+bug-reports:   https://github.com/mlabs-haskell/singularitynet
 license:
 license-file:
-author:             MLabs
-maintainer:         TODO
-copyright:          TODO
-category:           TODO
-build-type:         Simple
-tested-with:        GHC ==9.2.1
-extra-source-files: README.md
+author:        MLabs
+maintainer:    TODO
+copyright:     TODO
+category:      TODO
+build-type:    Simple
+tested-with:   GHC ==9.2.1
 
 source-repository head
   type:     git
@@ -27,17 +26,15 @@ common common-lang
     -Wno-partial-type-signatures -Wmissing-export-lists
     -Wincomplete-record-updates -Wmissing-deriving-strategies
     -Wno-name-shadowing -Wunused-foralls -fprint-explicit-foralls
-    -fprint-explicit-kinds -fwarn-missing-import-lists
-
-  ---Werror
+    -fprint-explicit-kinds -fwarn-missing-import-lists -Werror
 
   mixins:
     base hiding (Prelude),
-    pprelude (PPrelude as Prelude)
+    npprelude (NPPrelude as Prelude)
 
   build-depends:
-    , base      >=4.14
-    , pprelude
+    , base       >=4.14
+    , npprelude
 
   default-extensions:
     NoStarIsType
@@ -94,83 +91,25 @@ common common-lang
     TypeOperators
     TypeSynonymInstances
     ViewPatterns
-    OverloadedRecordDot
-    QualifiedDo
 
   default-language:   Haskell2010
 
 library
   import:          common-lang
   exposed-modules:
-    BondedStaking.BondedPool
-    BondedStaking.PTypes
-    InductiveLogic
-    ListNFT
-    PInterval
-    PNatural
-    PTypes
-    SingularityNet
-    StateNFT
-    UnbondedStaking.PTypes
-    UnbondedStaking.Types
-    UnbondedStaking.UnbondedPool
-    Utils
+    SingularityNet.Natural
+    SingularityNet.Settings
+    SingularityNet.Types
 
   build-depends:
     , generics-sop
-    , plutarch
     , plutus-ledger-api
     , plutus-tx
-    , singularitynet-common
 
   hs-source-dirs:  src
 
-library pprelude
+library npprelude
   default-language: Haskell2010
-  build-depends:
-    , base
-    , plutarch
-
-  exposed-modules:  PPrelude
+  build-depends:    base
+  exposed-modules:  NPPrelude
   hs-source-dirs:   src
-
-test-suite singularitynet-test
-  import:         common-lang
-  type:           exitcode-stdio-1.0
-  main-is:        Spec.hs
-  build-depends:
-    , plutarch
-    , plutus-ledger-api
-    , QuickCheck
-    , quickcheck-instances
-    , singularitynet
-    , singularitynet-common
-    , tasty
-    , tasty-hunit
-    , tasty-quickcheck
-
-  other-modules:
-    Test.Common
-    Test.SpecNFT
-    Test.SpecPeriod
-    Test.Utils
-
-  hs-source-dirs: test
-
-executable serialise
-  import:         common-lang
-  main-is:        Serialise.hs
-  build-depends:
-    , aeson
-    , base
-    , base16-bytestring
-    , bytestring
-    , optparse-applicative
-    , plutarch
-    , plutus-ledger-api
-    , serialise
-    , singularitynet
-    , singularitynet-common
-    , text
-
-  hs-source-dirs: exe

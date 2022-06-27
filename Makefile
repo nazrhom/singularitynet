@@ -1,3 +1,9 @@
+frontend-check-format: requires_nix_shell
+	purs-tidy check $(PURESCRIPT_SOURCES)
+
+frontend-format: requires_nix_shell
+	purs-tidy format-in-place $(PURESCRIPT_SOURCES)
+
 hoogle: requires_nix_shell
 	hoogle server --local --port=8070 > /dev/null &
 
@@ -47,8 +53,9 @@ code:
 	$(HLS_SHELL) --run "code ."
 
 # Nix files to format
-NIX_SOURCES := $(shell fd -enix)
+NIX_SOURCES := $(shell fd -enix --exclude='spago*')
 CABAL_SOURCES := $(shell fd -ecabal)
+PURESCRIPT_SOURCES := $(shell fd -epurs)
 
 # Apply hlint suggestions
 lint: requires_nix_shell
