@@ -132,10 +132,10 @@ getWithdrawingTime (BondedPoolParams bpp) = do
       possibleRanges = do
         -- Range from 0 to bpp.iterations
         n <- bigIntRange $ toBigInt bpp.iterations
-        -- Calculate start and end of the range
+        -- Calculate start and end of the range (same as staking range)
         let
-          range@(_start /\ end) = (bpp.start + n * cycleLength + bpp.userLength)
-            /\ (bpp.start + (n + one) * cycleLength - big 1000)
+          range@(_start /\ end) = (bpp.start + n * cycleLength) /\
+            (bpp.start + n * cycleLength + bpp.userLength - big 1000)
         -- Discard range if end < currTime
         guard $ currTime' <= end
         -- Discard range if currTime < start
