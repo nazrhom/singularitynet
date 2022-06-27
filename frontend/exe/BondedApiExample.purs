@@ -1,8 +1,8 @@
 module BondedApiExample
-  ( bondedCallContractAdminCloseExample1
-  , bondedCallContractAdminDepositExample1
-  , bondedCallContractCreatePoolExample1
-  , bondedCallContractExample1
+  ( -- bondedCallContractAdminCloseExample1
+    --, bondedCallContractAdminDepositExample1
+    bondedCallContractCreatePoolExample1
+  --, bondedCallContractExample1
   , bondedCallContractUserStakeExample1
   ) where
 
@@ -84,34 +84,34 @@ testInitialBondedArgs = do
 -- separate effects. See `bondedCallContractCreatePoolExample1`
 -- `bondedCallContractUserStakeExample1`, `bondedCallContractAdminDepositExample1`
 -- and `bondedCallContractAdminCloseExample1`.
-bondedCallContractExample1 :: Effect Unit
-bondedCallContractExample1 = launchAff_ do
-  adminCfg <- Promise.toAffE $ buildContractConfig defaultSdkConfig
-  iba <-
-    liftM
-      ( error
-          "bondedCallContractExample1: Could not create \
-          \InitialBondedArgs"
-      )
-      $ testInitialBondedArgs
-  log "STARTING AS ADMIN"
-  -- Create pool
-  bondedParams <- Promise.toAffE $ callCreateBondedPool adminCfg iba
-  log "SWITCH WALLETS NOW - CHANGE TO USER 1"
-  delay $ wrap $ Int.toNumber 100_00
-  -- User 1 stakes
-  userCfg <- Promise.toAffE $ buildContractConfig defaultSdkConfig
-  userStake <- liftM (error "bondedCallContractExample1: Cannot create BigInt")
-    $ BigInt.fromString "10"
-  Promise.toAffE $ callUserStakeBondedPool userCfg bondedParams userStake
-  log "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
-  delay $ wrap $ Int.toNumber 100_00
-  -- Admin deposit
-  Promise.toAffE $ callDepositBondedPool adminCfg bondedParams
-  log "DON'T SWITCH WALLETS - STAY AS ADMIN"
-  delay $ wrap $ Int.toNumber 100_00
-  -- Admin close
-  Promise.toAffE $ callCloseBondedPool adminCfg bondedParams
+--bondedCallContractExample1 :: Effect Unit
+--bondedCallContractExample1 = launchAff_ do
+--  adminCfg <- Promise.toAffE $ buildContractConfig defaultSdkConfig
+--  iba <-
+--    liftM
+--      ( error
+--          "bondedCallContractExample1: Could not create \
+--          \InitialBondedArgs"
+--      )
+--      $ testInitialBondedArgs
+--  log "STARTING AS ADMIN"
+--  -- Create pool
+--  bondedParams <- Promise.toAffE $ callCreateBondedPool adminCfg iba
+--  log "SWITCH WALLETS NOW - CHANGE TO USER 1"
+--  delay $ wrap $ Int.toNumber 100_00
+--  -- User 1 stakes
+--  userCfg <- Promise.toAffE $ buildContractConfig defaultSdkConfig
+--  userStake <- liftM (error "bondedCallContractExample1: Cannot create BigInt")
+--    $ BigInt.fromString "10"
+--  Promise.toAffE $ callUserStakeBondedPool userCfg bondedParams userStake
+--  log "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
+--  delay $ wrap $ Int.toNumber 100_00
+--  -- Admin deposit
+--  Promise.toAffE $ callDepositBondedPool adminCfg bondedParams
+--  log "DON'T SWITCH WALLETS - STAY AS ADMIN"
+--  delay $ wrap $ Int.toNumber 100_00
+--  -- Admin close
+--  Promise.toAffE $ callCloseBondedPool adminCfg bondedParams
 
 -- Hardcoded to pass persistent parameters onto subsequent calls.
 testBondedPoolArgs :: Maybe BondedPoolArgs
@@ -170,28 +170,28 @@ bondedCallContractUserStakeExample1 = launchAff_ do
   log "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
 
 -- Bonded admin deposit (rewards)
-bondedCallContractAdminDepositExample1 :: Effect Unit
-bondedCallContractAdminDepositExample1 = launchAff_ do
-  adminCfg <- Promise.toAffE $ buildContractConfig defaultSdkConfig
-  bondedParams <- liftM
-    ( error
-        "bondedCallContractAdminDepositExample1: Cannot \
-        \ get bonded pool parameters"
-    )
-    testBondedPoolArgs
-  -- Admin deposit
-  Promise.toAffE $ callDepositBondedPool adminCfg bondedParams
-  log "DON'T SWITCH WALLETS - STAY AS ADMIN"
+--bondedCallContractAdminDepositExample1 :: Effect Unit
+--bondedCallContractAdminDepositExample1 = launchAff_ do
+--  adminCfg <- Promise.toAffE $ buildContractConfig defaultSdkConfig
+--  bondedParams <- liftM
+--    ( error
+--        "bondedCallContractAdminDepositExample1: Cannot \
+--        \ get bonded pool parameters"
+--    )
+--    testBondedPoolArgs
+--  -- Admin deposit
+--  Promise.toAffE $ callDepositBondedPool adminCfg bondedParams
+--  log "DON'T SWITCH WALLETS - STAY AS ADMIN"
 
 -- Bonded admin pool close
-bondedCallContractAdminCloseExample1 :: Effect Unit
-bondedCallContractAdminCloseExample1 = launchAff_ do
-  adminCfg <- Promise.toAffE $ buildContractConfig defaultSdkConfig
-  bondedParams <- liftM
-    ( error
-        "bondedCallContractAdminCloseExample1: Cannot \
-        \ get bonded pool parameters"
-    )
-    testBondedPoolArgs
-  -- Admin close
-  Promise.toAffE $ callCloseBondedPool adminCfg bondedParams
+-- bondedCallContractAdminCloseExample1 :: Effect Unit
+-- bondedCallContractAdminCloseExample1 = launchAff_ do
+--   adminCfg <- Promise.toAffE $ buildContractConfig defaultSdkConfig
+--   bondedParams <- liftM
+--     ( error
+--         "bondedCallContractAdminCloseExample1: Cannot \
+--         \ get bonded pool parameters"
+--     )
+--     testBondedPoolArgs
+--   -- Admin close
+--   Promise.toAffE $ callCloseBondedPool adminCfg bondedParams
