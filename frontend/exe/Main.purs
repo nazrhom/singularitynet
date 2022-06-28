@@ -3,6 +3,7 @@ module Main (main) where
 import Contract.Prelude
 
 import BondedStaking.TimeUtils (startPoolFromNow)
+import ClosePool (closeBondedPoolContract)
 import Contract.Address (NetworkId(TestnetId))
 import Contract.Monad
   ( ContractConfig
@@ -20,7 +21,7 @@ import Contract.Monad
   )
 import Contract.Wallet (mkNamiWalletAff)
 import CreatePool (createBondedPoolContract)
-import ClosePool (closeBondedPoolContract)
+import Data.BigInt (BigInt)
 import Data.BigInt as BigInt
 import Data.Int as Int
 import DepositPool (depositBondedPoolContract)
@@ -28,10 +29,11 @@ import Effect.Aff (delay)
 import Effect.Exception (error)
 import Settings (testInitBondedParams)
 import Types (BondedPoolParams(..))
+import Types.Interval (POSIXTime(..))
 import Types.Natural as Natural
 import UserStake (userStakeBondedPoolContract)
 import UserWithdraw (userWithdrawBondedPoolContract)
-import Utils (logInfo_)
+import Utils (currentRoundedTime, logInfo_)
 
 -- import Settings (testInitUnbondedParams)
 -- import UnbondedStaking.ClosePool (closeUnbondedPoolContract)
@@ -85,6 +87,7 @@ main = launchAff_ do
       -- We give 30 seconds of margin for the users and admin to sign the transactions
       liftAff $ delay $ wrap $ Int.toNumber $ startDelayInt + 30_000
       pure bondedParams
+
   ---- User 1 deposits ----
   userCfg <- mkConfig
   userStake <- liftM (error "main: Cannot create userStake from String") $
@@ -96,20 +99,28 @@ main = launchAff_ do
     liftAff $ delay $ wrap $ BigInt.toNumber bpp.userLength
   ---- Admin deposits to pool ----
   runContract_ adminCfg do
-    depositBondedPoolContract bondedParams
-    logInfo' "SWITCH WALLETS NOW - CHANGE TO USER 1"
-    -- Wait until withdrawing period
-    liftAff $ delay $ wrap $ BigInt.toNumber bpp.bondingLength
+    depositBatchSize <-
+      liftM (error "Cannot create Natural") $ Natural.fromString "1"
+    depositBondedPoolContract bondedParams depositBatchSize [] bpp.bondingLength
   ---- User 1 withdraws ----
   runContract_ userCfg do
     userWithdrawBondedPoolContract bondedParams
     logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
-    -- Wait until closing period
-    liftAff $ delay $ wrap $ BigInt.toNumber bpp.userLength
+    -- Wait until transaction is processed
+    liftAff $ delay $ wrap $ Int.toNumber 100_000
   -- Admin closes pool
   runContract_ adminCfg do
-    closeBondedPoolContract bondedParams
-    logInfo' "END"
+    closeBatchSize <-
+      liftM (error "Cannot create Natural") $ Natural.fromString "10"
+    -- Wait until pool closing time
+    POSIXTime currTime <- currentRoundedTime
+    logInfo_ "currTime" currTime
+    let
+      deltaClose :: BigInt
+      deltaClose = bpp.end - currTime + BigInt.fromInt 2000
+    logInfo_ "deltaClose" deltaClose
+    void $ closeBondedPoolContract bondedParams closeBatchSize [] deltaClose
+    logInfo' "main: Pool closed"
 
 -- Unbonded: admin create pool, user stake, admin deposit (rewards),
 -- user withdraw, admin close using PureScript (non SDK)

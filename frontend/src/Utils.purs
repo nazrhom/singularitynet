@@ -76,7 +76,6 @@ import Data.Array
 import Data.Array as Array
 import Data.BigInt (BigInt, fromInt, fromNumber, quot, rem, toInt, toNumber)
 import Data.DateTime.Instant (unInstant)
-import Data.Int as Int
 import Data.Map (Map, toUnfoldable)
 import Data.Map as Map
 import Data.Time.Duration (Milliseconds(Milliseconds))
@@ -438,15 +437,15 @@ submitTransaction baseConstraints baseLookups updateList = do
       pure []
 
 txBatchFinishedCallback
-  :: Array
+  :: BigInt
+  -> Array
        ( Tuple
            (TxConstraints Unit Unit)
            (ScriptLookups.ScriptLookups PlutusData)
        )
   -> Contract () Unit
--- txBatchFinishedCallback failedDeposits = do
-txBatchFinishedCallback _ = do
+txBatchFinishedCallback waitTime _ = do
   logInfo'
     "txBatchFinishedCallback: Waiting to submit next Tx batch. \
     \DON'T SWITCH WALLETS - STAY AS ADMIN"
-  liftAff $ delay $ wrap $ Int.toNumber 100_000
+  liftAff $ delay $ wrap $ toNumber waitTime

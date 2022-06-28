@@ -58,6 +58,7 @@ import Control.Promise as Promise
 import ClosePool (closeBondedPoolContract)
 import CreatePool (createBondedPoolContract)
 import Data.BigInt (BigInt)
+import Data.BigInt as BigInt
 import Data.Int as Int
 import Data.UInt as UInt
 import Data.UInt (UInt)
@@ -256,12 +257,28 @@ callCreateBondedPool cfg iba = Promise.fromAff do
   pure $ toBondedPoolArgs bpp
 
 callDepositBondedPool
-  :: ContractConfig () -> BondedPoolArgs -> Effect (Promise Unit)
-callDepositBondedPool = callWithBondedPoolArgs depositBondedPoolContract
+  :: ContractConfig ()
+  -> BondedPoolArgs
+  -> BigInt
+  -> Array Int
+  -> Effect (Promise (Array Int))
+callDepositBondedPool cfg bpa bi arr = Promise.fromAff $ runContract cfg do
+  upp <- liftEither $ fromBondedPoolArgs bpa
+  nat <- liftM (error "callDepositBondedPool: Invalid natural number")
+    $ fromBigInt bi
+  depositBondedPoolContract upp nat arr (BigInt.fromInt 100_000)
 
 callCloseBondedPool
-  :: ContractConfig () -> BondedPoolArgs -> Effect (Promise Unit)
-callCloseBondedPool = callWithBondedPoolArgs closeBondedPoolContract
+  :: ContractConfig ()
+  -> BondedPoolArgs
+  -> BigInt
+  -> Array Int
+  -> Effect (Promise (Array Int))
+callCloseBondedPool cfg bpa bi arr = Promise.fromAff $ runContract cfg do
+  upp <- liftEither $ fromBondedPoolArgs bpa
+  nat <- liftM (error "callCloseBondedPool: Invalid natural number")
+    $ fromBigInt bi
+  closeBondedPoolContract upp nat arr (BigInt.fromInt 100_000)
 
 callUserStakeBondedPool
   :: ContractConfig () -> BondedPoolArgs -> BigInt -> Effect (Promise Unit)
