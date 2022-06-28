@@ -38,22 +38,28 @@ import Contract.TxConstraints
   , mustBeSignedBy
   , mustPayToScript
   , mustSpendScriptOutput
+  , mustValidateIn
   )
 import Contract.Utxos (utxosAt)
 import Contract.Value (mkTokenName, singleton)
 import Control.Applicative (unless)
+import Data.Array (elemIndex, (!!))
+import Data.BigInt as BigInt
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Settings (unbondedStakingTokenName)
 import Types.Natural (fromBigInt')
 import Types.Redeemer (Redeemer(Redeemer))
 import Types.Scripts (ValidatorHash)
-import UnbondedStaking.AdminUtils (calculateRewards, submitTransaction)
 import UnbondedStaking.Types
   ( Entry(Entry)
   , UnbondedPoolParams(UnbondedPoolParams)
   , UnbondedStakingAction(AdminAct)
   , UnbondedStakingDatum(AssetDatum, EntryDatum, StateDatum)
+  )
+import UnbondedStaking.Utils
+  ( calculateRewards
+  , getAdminTime
   )
 import Utils
   ( getUtxoWithNFT
@@ -62,49 +68,22 @@ import Utils
   , mkRatUnsafe
   , roundUp
   , splitByLength
+  , submitTransaction
   , toIntUnsafe
+  , txBatchFinishedCallback
   )
 
 -- | Deposits a certain amount in the pool
 -- | If the `batchSize` is zero, then funds will be deposited to all users.
 -- | Otherwise the transactions will be made in batches
 -- | If the `depositList` is empty, then reward deposits will be made to all
--- | users. Otherwise only the users within the constraints/lookups will have
--- | rewards deposited.
--- | `callback` is used to run additional logic after a transaction has been
--- | submitted. The function must be of the following type signature:
--- |
--- | ```purescript
--- | callback :: Array
--- |   ( Tuple
--- |     (TxConstraints Unit Unit)
--- |     (ScriptLookups.ScriptLookups PlutusData)
--- |   )
--- |   -> Contract () Unit
--- | callback = ...
--- | ```
+-- | users. Otherwise only the users within in the list will have rewards
+-- | deposited.
 depositUnbondedPoolContract
   :: UnbondedPoolParams
   -> Natural
-  -> Array
-       ( Tuple
-           (TxConstraints Unit Unit)
-           (ScriptLookups.ScriptLookups PlutusData)
-       )
-  -> ( Array
-         ( Tuple
-             (TxConstraints Unit Unit)
-             (ScriptLookups.ScriptLookups PlutusData)
-         )
-       -> Contract () Unit
-     )
-  -> Contract ()
-       ( Array
-           ( Tuple
-               (TxConstraints Unit Unit)
-               (ScriptLookups.ScriptLookups PlutusData)
-           )
-       )
+  -> Array Int
+  -> Contract () (Array Int)
 depositUnbondedPoolContract
   params@
     ( UnbondedPoolParams
@@ -114,8 +93,7 @@ depositUnbondedPoolContract
         }
     )
   batchSize
-  depositList
-  callback = do
+  depositList = do
   -- Fetch information related to the pool
   -- Get network ID and check admin's PKH
   networkId <- getNetworkId
@@ -165,6 +143,11 @@ depositUnbondedPoolContract
     liftContractM
       "depositUnbondedPoolContract: Cannot extract NFT State datum"
       $ fromData (unwrap poolDatum)
+  -- Get the validitiy range to use
+  logInfo' "depositUnbondedPoolContract: Getting admin range..."
+  { currTime, range } <- getAdminTime params
+  logInfo_ "depositUnbondedPoolContract: Current time: " $ show currTime
+  logInfo_ "depositUnbondedPoolContract: TX Range" range
   -- Update the association list
   case unbondedStakingDatum of
     -- Non-empty user list
@@ -176,7 +159,9 @@ depositUnbondedPoolContract
         assocList = mkOnchainAssocList assocListCs unbondedPoolUtxos
 
         constraints :: TxConstraints Unit Unit
-        constraints = mustBeSignedBy admin
+        constraints =
+          mustBeSignedBy admin
+            <> mustValidateIn range
 
         lookups :: ScriptLookups.ScriptLookups PlutusData
         lookups =
@@ -199,19 +184,23 @@ depositUnbondedPoolContract
                )
         submitTxWithCallback txBatch = do
           failedDeposits' <- submitTransaction constraints lookups txBatch
-          callback failedDeposits'
+          txBatchFinishedCallback (BigInt.fromInt 100_000) failedDeposits'
           pure failedDeposits'
       -- Get list of users to deposit rewards too
       updateList <-
         if null depositList then
           traverse (mkEntryUpdateList params valHash) assocList
-        else
-          pure depositList
+        else do
+          constraintsLookupsList <-
+            traverse (mkEntryUpdateList params valHash) assocList
+          liftContractM
+            "depositUnbondedPoolContract: Failed to create updateList'" $
+            traverse ((!!) constraintsLookupsList) depositList
       -- Submit transaction with possible batching
       failedDeposits <-
         if batchSize == zero then do
           failedDeposits' <- submitTransaction constraints lookups updateList
-          callback failedDeposits'
+          txBatchFinishedCallback (BigInt.fromInt 100_000) failedDeposits'
           pure failedDeposits'
         else do
           let updateBatches = splitByLength (toIntUnsafe batchSize) updateList
@@ -221,7 +210,12 @@ depositUnbondedPoolContract
         "depositUnbondedPoolContract: Finished updating pool entries. /\
         \Entries with failed updates"
         failedDeposits
-      pure failedDeposits
+      failedDepositsIndicies <-
+        liftContractM
+          "depositUnbondedPoolContract: Failed to create /\
+          \failedDepositsIndicies list" $
+          traverse (flip elemIndex updateList) failedDeposits
+      pure failedDepositsIndicies
     -- Other error cases:
     StateDatum { maybeEntryName: Nothing, open: true } ->
       throwContractError

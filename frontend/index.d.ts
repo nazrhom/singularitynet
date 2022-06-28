@@ -2,8 +2,8 @@ export declare class Pool<T> {
   readonly config: ContractConfig;
   readonly args: T;
 
-  deposit(): Promise<void>;
-  close(): Promise<void>;
+  deposit(amount: bigint, idxArray: int[]): Promise<int[]>;
+  close(amount: bigint, idxArray: int[]): Promise<int[]>;
   userStake(amount: bigint): Promise<void>;
   userWithdraw(): Promise<void>;
 }
@@ -69,7 +69,8 @@ export type InitialBondedArgs = {
 };
 
 // Unbonded pool
-export declare class UnbondedPool extends Pool<BondedPoolArgs> {}
+
+export declare class UnbondedPool extends Pool<UnbondedPoolArgs> {}
 
 export declare function createUnbondedPool(
   config: SdkConfig, initialArgs: InitialUnbondedArgs

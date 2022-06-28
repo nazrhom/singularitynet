@@ -17,8 +17,8 @@ import Contract.Prim.ByteArray (byteArrayFromAscii, hexToByteArray)
 import Contract.Value
   ( CurrencySymbol
   , TokenName
-  , adaSymbol
-  , adaToken
+  -- , adaSymbol
+  -- , adaToken
   , mkCurrencySymbol
   , mkTokenName
   )
@@ -67,7 +67,7 @@ testInitBondedParams = do
   currencySymbol <- agixCs
   tokenName <- agixTn
   pure $ InitialBondedParams
-    { iterations: nat 1
+    { iterations: nat 2
     , start: big 1000 -- dummy value
     , end: big 2000 -- dummy value
     , userLength: big 180_000 -- We use 3 minutes to make testing manageable
@@ -84,20 +84,20 @@ testInitBondedParams = do
 testInitUnbondedParams :: Maybe InitialUnbondedParams
 testInitUnbondedParams = do
   interest <- unbondedInterest
-  -- currencySymbol <- agixTn
-  -- tokenName <- ntxTn
+  currencySymbol <- agixCs
+  tokenName <- agixTn
   pure $ InitialUnbondedParams
-    { start: big 1000
-    , userLength: big 100
-    , adminLength: big 100
-    , bondingLength: big 100
-    , interestLength: big 2
-    , increments: nat 50
+    { start: big 1000 -- dummy value
+    , userLength: big 180_000 -- We use 3 minutes to make testing manageable
+    , adminLength: big 180_000 -- We use 3 minutes to make testing manageable
+    , bondingLength: big 180_000 -- We use 3 minutes to make testing manageable
+    , interestLength: big 100
+    , increments: nat 1800
     , interest: interest
     , minStake: nat 1
     , maxStake: nat 100_000_000
     , unbondedAssetClass: AssetClass
-        { currencySymbol: adaSymbol
-        , tokenName: adaToken
+        { currencySymbol
+        , tokenName
         }
     }

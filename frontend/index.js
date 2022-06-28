@@ -15,14 +15,18 @@ exports.BondedPool = class BondedPool {
     this.args = args;
   }
 
-  async deposit() {
+  async deposit(amount, idxArray) {
     const contracts = await frontend;
-    return contracts.callDepositBondedPool(this.config)(this.args)();
+    return contracts.callDepositBondedPool(this.config)(this.args)(amount)(
+      idxArray
+    )();
   }
 
-  async close() {
+  async close(amount, idxArray) {
     const contracts = await frontend;
-    return contracts.callCloseBondedPool(this.config)(this.args)();
+    return contracts.callCloseBondedPool(this.config)(this.args)(amount)(
+      idxArray
+    )();
   }
 
   async userStake(amount) {
@@ -49,14 +53,16 @@ exports.UnbondedPool = class UnbondedPool {
     this.args = args;
   }
 
-  async deposit() {
+  async deposit(amount, idxArray) {
     const contracts = await frontend;
-    return contracts.callDepositUnbondedPool(this.config)(this.args)();
+    return contracts.callDepositUnbondedPool(this.config)(this.args)(amount)(
+      idxArray)();
   }
 
-  async close() {
+  async close(amount, idxArray) {
     const contracts = await frontend;
-    return contracts.callCloseUnbondedPool(this.config)(this.args)();
+    return contracts.callCloseUnbondedPool(this.config)(this.args)(amount)(
+      idxArray)();
   }
 
   async userStake(amount) {

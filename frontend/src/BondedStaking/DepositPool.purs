@@ -13,30 +13,23 @@ import Contract.Address
 import Contract.Monad
   ( Contract
   , liftContractM
-  , liftedE
   , liftedE'
   , liftedM
   , logInfo'
   , throwContractError
   )
-import Contract.Numeric.Rational ((%), Rational)
+import Contract.Numeric.Rational (Rational, (%))
 import Contract.PlutusData
-  ( PlutusData
-  , Datum(Datum)
+  ( Datum(Datum)
+  , PlutusData
   , fromData
   , getDatumByHash
   , toData
   )
-import Contract.Prim.ByteArray (ByteArray, byteArrayToHex)
+import Contract.Prim.ByteArray (ByteArray)
 import Contract.ScriptLookups as ScriptLookups
-import Contract.Scripts (ValidatorHash, validatorHash)
-import Contract.Transaction
-  ( BalancedSignedTransaction(BalancedSignedTransaction)
-  , TransactionInput
-  , TransactionOutput
-  , balanceAndSignTx
-  , submit
-  )
+import Contract.Scripts (validatorHash)
+import Contract.Transaction (TransactionInput, TransactionOutput)
 import Contract.TxConstraints
   ( TxConstraints
   , mustBeSignedBy
@@ -47,27 +40,39 @@ import Contract.TxConstraints
 import Contract.Utxos (utxosAt)
 import Contract.Value (mkTokenName, singleton)
 import Control.Applicative (unless)
+import Data.Array (elemIndex, (!!))
 import Data.BigInt (BigInt)
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
 import Types
-  ( BondedStakingAction(AdminAct)
+  ( BondedPoolParams(BondedPoolParams)
+  , BondedStakingAction(AdminAct)
   , BondedStakingDatum(AssetDatum, EntryDatum, StateDatum)
-  , BondedPoolParams(BondedPoolParams)
   , Entry(Entry)
   )
+import Types.Natural (Natural)
 import Types.Redeemer (Redeemer(Redeemer))
+import Types.Scripts (ValidatorHash)
 import Utils
   ( getUtxoWithNFT
   , logInfo_
   , mkOnchainAssocList
   , mkRatUnsafe
   , roundUp
+  , splitByLength
+  , submitTransaction
+  , toIntUnsafe
+  , txBatchFinishedCallback
   )
 
 -- Deposits a certain amount in the pool
-depositBondedPoolContract :: BondedPoolParams -> Contract () Unit
+depositBondedPoolContract
+  :: BondedPoolParams
+  -> Natural
+  -> Array Int
+  -> BigInt
+  -> Contract () (Array Int)
 depositBondedPoolContract
   params@
     ( BondedPoolParams
@@ -75,7 +80,10 @@ depositBondedPoolContract
         , nftCs
         , assocListCs
         }
-    ) = do
+    )
+  batchSize
+  depositList
+  waitTime = do
   -- Fetch information related to the pool
   -- Get network ID and check admin's PKH
   networkId <- getNetworkId
@@ -128,8 +136,8 @@ depositBondedPoolContract
   -- Get the bonding range to use
   logInfo' "depositBondedPoolContract: Getting bonding range..."
   { currTime, range } <- getBondingTime params
-  logInfo_ "Current time: " $ show currTime
-  logInfo_ "TX Range" range
+  logInfo_ "depositBondedPoolContract: Current time: " $ show currTime
+  logInfo_ "depositBondedPoolContract: TX Range" range
 
   -- Update the association list
   case bondedStakingDatum of
@@ -140,16 +148,11 @@ depositBondedPoolContract
         \StateDatum { maybeEntryName: Just ... }"
       let
         assocList = mkOnchainAssocList assocListCs bondedPoolUtxos
-      updateList <- traverse (mkEntryUpdateList params valHash) assocList
-      -- Concatenate constraints/lookups
-      let
-        assocListconstraints = fst <$> updateList
-        assocListLookups = snd <$> updateList
 
+        -- Concatenate constraints/lookups
         constraints :: TxConstraints Unit Unit
         constraints =
           mustBeSignedBy admin
-            <> mconcat assocListconstraints
             <> mustValidateIn range
 
         lookups :: ScriptLookups.ScriptLookups PlutusData
@@ -157,26 +160,41 @@ depositBondedPoolContract
           ScriptLookups.validator validator
             <> ScriptLookups.unspentOutputs (unwrap adminUtxos)
             <> ScriptLookups.unspentOutputs (unwrap bondedPoolUtxos)
-            <> mconcat assocListLookups
 
-      -- Build transaction
-      unattachedBalancedTx <-
-        liftedE $ ScriptLookups.mkUnbalancedTx lookups constraints
+      -- If depositList is null, update all entries in assocList
+      -- Otherwise, just update entries selected by indices in depositList
+      updateList <- do
+        allConstraints <- traverse (mkEntryUpdateList params valHash) assocList
+        if null depositList then pure allConstraints
+        else
+          liftContractM "depositBondedPoolContract: Failed to create updateList"
+            $
+              traverse ((!!) allConstraints) depositList
+
+      -- Submit transaction with possible batching
+      failedDeposits <-
+        if batchSize == zero then do
+          failedDeposits' <- submitTransaction constraints lookups updateList
+          txBatchFinishedCallback waitTime failedDeposits'
+          pure failedDeposits'
+        else
+          let
+            updateBatches = splitByLength (toIntUnsafe batchSize) updateList
+          in
+            mconcat <$> for updateBatches \txBatch -> do
+              failedDeposits' <- submitTransaction constraints lookups txBatch
+              txBatchFinishedCallback waitTime failedDeposits'
+              pure failedDeposits'
       logInfo_
-        "depositBondedPoolContract: unAttachedUnbalancedTx"
-        unattachedBalancedTx
-      BalancedSignedTransaction { signedTxCbor } <-
-        liftedM
-          "depositBondedPoolContract: Cannot balance, reindex redeemers, /\
-          \attach datums redeemers and sign"
-          $ balanceAndSignTx unattachedBalancedTx
-      -- Submit transaction using Cbor-hex encoded `ByteArray`
-      transactionHash <- submit signedTxCbor
-      logInfo_
-        "depositBondedPoolContract: Transaction successfully submitted with \
-        \hash"
-        $ byteArrayToHex
-        $ unwrap transactionHash
+        "depositBondedPoolContract: Finished updating pool entries. /\
+        \Entries with failed updates"
+        failedDeposits
+      -- Return the indices of the failed deposits in the updateList
+      liftContractM
+        "depositUnbondedPoolContract: Failed to create /\
+        \failedDepositsIndicies list" $
+        traverse (flip elemIndex updateList) failedDeposits
+
     -- Other error cases:
     StateDatum { maybeEntryName: Nothing } ->
       throwContractError
@@ -184,20 +202,6 @@ depositBondedPoolContract
         \rewards for"
     _ ->
       throwContractError "depositBondedPoolContract: Datum incorrect type"
-
--- | Calculates user rewards
-calculateRewards
-  :: Rational -- interest
-  -> BigInt -- deposited
-  -> Contract () Rational
-calculateRewards interest deposited = do
-  when (deposited == zero) $
-    throwContractError "calculateRewards: totalDeposited is zero"
-  let
-    recentRewards = interest * mkRatUnsafe (deposited % one)
-  when (recentRewards < zero) $ throwContractError
-    "calculateRewards: invalid rewards amount"
-  pure recentRewards
 
 -- | Creates a constraint and lookups list for updating each user entry
 mkEntryUpdateList
@@ -274,3 +278,17 @@ mkEntryUpdateList
       pure (constraints /\ entryDatumLookup)
     _ -> throwContractError
       "mkEntryUpdateList: Datum not Entry constructor"
+
+-- | Calculates user rewards
+calculateRewards
+  :: Rational -- interest
+  -> BigInt -- deposited
+  -> Contract () Rational
+calculateRewards interest deposited = do
+  when (deposited == zero) $
+    throwContractError "calculateRewards: totalDeposited is zero"
+  let
+    recentRewards = interest * mkRatUnsafe (deposited % one)
+  when (recentRewards < zero) $ throwContractError
+    "calculateRewards: invalid rewards amount"
+  pure recentRewards

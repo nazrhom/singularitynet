@@ -7,28 +7,21 @@ import Contract.Address (getNetworkId, ownPaymentPubKeyHash, scriptHashAddress)
 import Contract.Monad
   ( Contract
   , liftContractM
-  , liftedE
   , liftedE'
   , liftedM
   , logInfo'
   , throwContractError
   )
 import Contract.PlutusData
-  ( Datum(Datum)
+  ( Datum(..)
   , PlutusData
-  , Redeemer(Redeemer)
   , fromData
   , getDatumByHash
   , toData
   )
-import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
-import Contract.Transaction
-  ( BalancedSignedTransaction(BalancedSignedTransaction)
-  , balanceAndSignTx
-  , submit
-  )
+import Contract.Transaction (TransactionInput, TransactionOutput)
 import Contract.TxConstraints
   ( TxConstraints
   , mustBeSignedBy
@@ -37,7 +30,9 @@ import Contract.TxConstraints
   , mustValidateIn
   )
 import Contract.Utxos (utxosAt)
+import Data.Array (elemIndex, (!!))
 import Data.Map (toUnfoldable)
+import Data.BigInt (BigInt)
 import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
@@ -46,10 +41,28 @@ import Types
   , BondedStakingAction(CloseAct)
   , BondedStakingDatum
   )
-import Utils (logInfo_, getUtxoWithNFT)
+import Types.Natural (Natural)
+import Types.Redeemer (Redeemer(Redeemer))
+import Utils
+  ( getUtxoWithNFT
+  , logInfo_
+  , splitByLength
+  , submitTransaction
+  , toIntUnsafe
+  , txBatchFinishedCallback
+  )
 
-closeBondedPoolContract :: BondedPoolParams -> Contract () Unit
-closeBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
+closeBondedPoolContract
+  :: BondedPoolParams
+  -> Natural
+  -> Array Int
+  -> BigInt
+  -> Contract () (Array Int)
+closeBondedPoolContract
+  params@(BondedPoolParams { admin, nftCs })
+  batchSize
+  closeList
+  waitTime = do
   -- Fetch information related to the pool
   -- Get network ID and check admin's PKH
   networkId <- getNetworkId
@@ -98,42 +111,66 @@ closeBondedPoolContract params@(BondedPoolParams { admin, nftCs }) = do
       $ ScriptLookups.datum bondedStateDatum
 
   -- Get the withdrawing range to use
-  logInfo' "userWithdrawBondedPoolContract: Getting withdrawing range..."
+  logInfo' "closeBondedPoolContract: Getting withdrawing range..."
   { currTime, range: txRange } <- getClosingTime params
-  logInfo_ "Current time: " $ show currTime
-  logInfo_ "TX Range" txRange
+  logInfo_ "closeBondedPoolContract: Current time: " $ show currTime
+  logInfo_ "closeBondedPoolContract: TX Range" txRange
+
+  -- If closeList is null, update all entries in assocList
+  -- Otherwise, just update entries selected by indices in closeList
+  spendList <-
+    let
+      allConstraints = createUtxoConstraint <$>
+        (toUnfoldable <<< unwrap $ bondedPoolUtxos)
+    in
+      if null closeList then pure allConstraints
+      else
+        liftContractM "depositBondedPoolContract: Failed to create updateList" $
+          traverse ((!!) allConstraints) closeList
 
   -- We build the transaction
   let
-    redeemer = Redeemer $ toData CloseAct
-
-    lookup :: ScriptLookups.ScriptLookups PlutusData
-    lookup = mconcat
+    lookups :: ScriptLookups.ScriptLookups PlutusData
+    lookups = mconcat
       [ ScriptLookups.validator validator
       , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
       , bondedStateDatumLookup
       ]
 
-    -- Seems suspect, not sure if typed constraints are working as expected
     constraints :: TxConstraints Unit Unit
     constraints =
-      -- Spend all UTXOs to return to Admin:
-      foldMap
-        (flip mustSpendScriptOutput redeemer <<< fst)
-        (toUnfoldable $ unwrap bondedPoolUtxos :: Array _)
-        <> mustBeSignedBy admin
+      mustBeSignedBy admin
         <> mustIncludeDatum bondedStateDatum
         <> mustValidateIn txRange
-  unattachedBalancedTx <-
-    liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
-  BalancedSignedTransaction { signedTxCbor } <-
-    liftedM
-      "closeBondedPoolContract: Cannot balance, reindex redeemers, attach/\
-      \datums redeemers and sign"
-      $ balanceAndSignTx unattachedBalancedTx
-  -- Submit transaction using Cbor-hex encoded `ByteArray`
-  transactionHash <- submit signedTxCbor
+
+  -- Submit transaction with possible batching
+  failedDeposits <-
+    if batchSize == zero then do
+      failedDeposits' <- submitTransaction constraints lookups spendList
+      txBatchFinishedCallback waitTime failedDeposits'
+      pure failedDeposits'
+    else
+      let
+        updateBatches = splitByLength (toIntUnsafe batchSize) spendList
+      in
+        mconcat <$> for updateBatches \txBatch -> do
+          failedDeposits' <- submitTransaction constraints lookups txBatch
+          txBatchFinishedCallback waitTime failedDeposits'
+          pure failedDeposits'
+
   logInfo_
-    "closeBondedPoolContract: Transaction successfully submitted with hash"
-    $ byteArrayToHex
-    $ unwrap transactionHash
+    "closeBondedPoolContract: Finished updating pool entries. /\
+    \Entries with failed updates"
+    failedDeposits
+  -- Return the indices of the failed deposits in the updateList
+  liftContractM
+    "depositUnbondedPoolContract: Failed to create /\
+    \failedDepositsIndicies list" $
+    traverse (flip elemIndex spendList) failedDeposits
+
+createUtxoConstraint
+  :: Tuple TransactionInput TransactionOutput
+  -> Tuple (TxConstraints Unit Unit) (ScriptLookups.ScriptLookups PlutusData)
+createUtxoConstraint (input /\ _) = do
+  let valRedeemer = Redeemer $ toData CloseAct
+  (mustSpendScriptOutput input valRedeemer) /\ mempty
