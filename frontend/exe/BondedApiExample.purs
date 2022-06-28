@@ -13,16 +13,16 @@ import SdkApi
   , InitialBondedArgs
   , SdkConfig
   , buildContractConfig
-  , callCloseBondedPool
+  -- , callCloseBondedPool
   , callCreateBondedPool
-  , callDepositBondedPool
+  -- , callDepositBondedPool
   , callUserStakeBondedPool
   )
 import Contract.Monad (launchAff_)
 import Control.Promise as Promise
 import Data.BigInt as BigInt
-import Data.Int as Int
-import Effect.Aff (delay, error)
+-- import Data.Int as Int
+import Effect.Aff (error)
 import Effect.Class.Console (log)
 import Record (merge)
 
