@@ -99,7 +99,7 @@ userWithdrawUnbondedPoolContract
   -- Get own staking hash
   userStakingPubKeyHash <-
     liftedM
-      "userWithdrawnBondedPoolContract: Cannot get\
+      "userWithdrawnUnbondedPoolContract: Cannot get\
       \ user's staking pub key hash" $
       ownStakePubKeyHash
   -- Get the (Nami) wallet address
@@ -143,7 +143,7 @@ userWithdrawUnbondedPoolContract
     "userWithdrawUnbondedPoolContract: Getting bonded assets in \
     \the pool..."
   unbondedAssetUtxos <- getUnbondedAssetUtxos unbondedPoolUtxos
-  logInfo_ "userWithdrawnBondedPoolContract: Bonded Asset UTxOs"
+  logInfo_ "userWithdrawnUnbondedPoolContract: Bonded Asset UTxOs"
     unbondedAssetUtxos
   -- Get the minting policy and currency symbol from the list NFT:
   listPolicy <- liftedE $ mkListNFTPolicy Unbonded nftCs
