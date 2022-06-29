@@ -334,12 +334,16 @@ userWithdrawBondedPoolContract
 
           -- Calculate assets to consume and change that needs to be returned
           -- to the pool
-          consumedAssetUtxos /\ totalSpentAmt <-
+          consumedAssetUtxos /\ withdrawChange <-
             liftContractM
               "userWithdrawBondedPoolContract: Cannot get asset \
               \UTxOs to consume" $
               getAssetsToConsume bondedAssetClass withdrawnAmt bondedAssetUtxos
-          logInfo_ "consumedAssetUtxos" consumedAssetUtxos
+
+          logInfo_ "userWithdrawBondedPoolContract: withdrawChange"
+            withdrawChange
+          logInfo_ "userWithdrawBondedPoolContract: consumedAssetUtxos"
+            consumedAssetUtxos
 
           let
             changeValue :: Value
@@ -347,8 +351,7 @@ userWithdrawBondedPoolContract
               singleton
                 (unwrap bondedAssetClass).currencySymbol
                 (unwrap bondedAssetClass).tokenName
-                $ totalSpentAmt
-                - withdrawnAmt
+                withdrawChange
 
             -- Build updated previous entry and its lookup
             prevEntryUpdated = Datum $ toData $ EntryDatum
