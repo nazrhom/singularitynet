@@ -103,9 +103,13 @@ main = launchAff_ do
       liftM (error "Cannot create Natural") $ Natural.fromString "1"
     void $
       depositBondedPoolContract
-        bondedParams depositBatchSize [] (BigInt.fromInt 100_000)
+        bondedParams
+        depositBatchSize
+        []
+        (BigInt.fromInt 100_000)
     logInfo' "SWITCH WALLETS NOW - CHANGE TO USER 1"
-    liftAff $ delay $ wrap $ BigInt.toNumber $ bpp.bondingLength - BigInt.fromInt 80_000
+    liftAff $ delay $ wrap $ BigInt.toNumber $ bpp.bondingLength -
+      BigInt.fromInt 80_000
   ---- User 1 withdraws ----
   runContract_ userCfg do
     userWithdrawBondedPoolContract bondedParams
