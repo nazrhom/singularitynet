@@ -38,7 +38,7 @@ getAdminTime (UnbondedPoolParams upp) = do
     adminStart = upp.start + upp.userLength
 
     adminEnd :: BigInt
-    adminEnd = adminStart + upp.adminLength
+    adminEnd = adminStart + upp.adminLength - big 1000
   -- Return range
   start /\ end <- liftContractM "getAdminTime: this is not a admin period" $
     isWithinPeriod currTime' cycleLength adminStart adminEnd
@@ -61,7 +61,7 @@ getUserTime (UnbondedPoolParams upp) = do
     userStart = upp.start
 
     userEnd :: BigInt
-    userEnd = userStart + upp.userLength
+    userEnd = userStart + upp.userLength - big 1000
   -- Return range
   start /\ end <- liftContractM "getUserTime: this is not a user period" $
     isWithinPeriod currTime' cycleLength userStart userEnd
@@ -85,13 +85,13 @@ getBondingTime (UnbondedPoolParams upp) = do
     userStart = upp.start
 
     userEnd :: BigInt
-    userEnd = userStart + upp.userLength
+    userEnd = userStart + upp.userLength - big 1000
 
     bondingStart :: BigInt
     bondingStart = upp.start + upp.userLength + upp.adminLength
 
     bondingEnd :: BigInt
-    bondingEnd = bondingStart + upp.bondingLength
+    bondingEnd = bondingStart + upp.bondingLength - big 1000
     -- Period ranges
     userPeriod = isWithinPeriod currTime' cycleLength userStart userEnd
     bondingPeriod = isWithinPeriod currTime' cycleLength bondingStart bondingEnd

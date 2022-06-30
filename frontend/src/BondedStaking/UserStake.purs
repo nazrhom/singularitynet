@@ -209,6 +209,7 @@ userStakeBondedPoolContract
             , mustPayToScript valHash entryDatum entryValue
             , mustBeSignedBy userPkh
             , mustSpendScriptOutput poolTxInput valRedeemer
+            , mustValidateIn range
             ]
 
         lookup :: ScriptLookups.ScriptLookups PlutusData
