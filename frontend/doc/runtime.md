@@ -45,7 +45,7 @@ Make sure that you have installed and configured [Nix](./nix.md) as described in
 
 #### Version
 
-v1.34.x will give you the greatest reliability for Alonzo-era transactions.
+`v1.35.x` is required; pre-Babbage-era nodes no longer sync correctly.
 
 #### Installation
 
@@ -56,12 +56,12 @@ docker run --rm \
   -e NETWORK=testnet \
   -v "$PWD"/node/socket:/ipc \
   -v "$PWD"/node/data:/data \
-  inputoutput/cardano-node:1.34.0
+  inputoutput/cardano-node:1.35.0
 ```
 
 #### Configuration
 
-No special configuration is required, beyond making sure that the node's IPC socket is exposed to other services (see below). This requires setting the `CARDANO_NODE_SOCKET_PATH` environment variable in most cases. Following the example Docker invocation above:
+No special configuration is required, beyond making sure that the node's IPC socket is exposed to Ogmios (see below). This requires setting the `CARDANO_NODE_SOCKET_PATH` environment variable in most cases. Following the example Docker invocation above:
 
 ```
 export CARDANO_NODE_SOCKET_PATH="$PWD"/node/socket/node.socket
@@ -78,7 +78,7 @@ https://github.com/input-output-hk/cardano-node
 
 #### Version
 
-v5.2.0 is currently the **only** version of Ogmios we support for use with CTL.
+`v5.5.0` is currently the **only** version of Ogmios we support for use with CTL.
 
 #### Installation
 
@@ -119,14 +119,14 @@ https://github.com/input-output-hk/cardano-configurations
 
 #### Version
 
-We're using revision `54ad2964af07ea0370bf95c0fed71f60a778ead5` of `ogmios-datum-cache` (ODC).
+We're using revision `98b1c4f2badc7ab1efe4be188ee9f9f5e4e54bb0` of `ogmios-datum-cache` (ODC). This revision or a more recent one is recommended as you may otherwise be unable to sync Babbage-era blocks.
 
 #### Installation
 
 First, clone the [repository](https://github.com/mlabs-haskell/ogmios-datum-cache), then:
 
 ```
-git checkout 54ad2964af07ea0370bf95c0fed71f60a778ead5
+git checkout 98b1c4f2badc7ab1efe4be188ee9f9f5e4e54bb0
 
 nix build .
 ```
@@ -148,24 +148,25 @@ docker run -d --rm \
     postgres:13
 ```
 
-Place a `config.toml` file in the working directory where you will run ODC with the following contents:
+ODC can be configured using command-line arguments, e.g.
 
 ```
-dbConnectionString = "host=localhost port=5432 user=user dbname=dbname password=password"
-
-server.port = 9999
-server.controlApiToken = "usr:pwd"
-
-ogmios.address = "127.0.0.1"
-ogmios.port = 1337
-
-blockFetcher.startFromLast = true
-blockFetcher.firstBlock.slot = 54066900
-blockFetcher.firstBlock.id = "6eb2542a85f375d5fd6cbc1c768707b0e9fe8be85b7b1dd42a85017a70d2623d"
-blockFetcher.filter = ""
+ogmios-datum-cache
+  --server-api '' \
+  --server-port 9999 \
+  --ogmios-address 127.0.0.1 \
+  --ogmios-port 1337 \
+  --db-port 5432 \
+  --db-host localhost \
+  --db-user user \
+  --db-name dbname \
+  --db-password password \
+  --block-slot 54066900 \
+  --block-hash 6eb2542a85f375d5fd6cbc1c768707b0e9fe8be85b7b1dd42a85017a70d2623d \
+  --block-filter ''
 ```
 
-The `server` options above refer to configuration options for ODC itself; the `controlApi` option can be ignored as we do not make use of that feature in our CTL contracts. Make sure that the `ogmios` options correspond to those that you start the Ogmios itself with.
+The `--server-*` options above refer to configuration options for ODC itself; the `--server-api` option for control tokens can be ignored as we do not make use of that feature in our CTL contracts. Make sure that the `ogmios` options correspond to those that you start the Ogmios itself with.
 
 #### Links
 
@@ -175,12 +176,12 @@ https://github.com/mlabs-haskell/ogmios-datum-cache
 
 #### Version
 
-The version of `ctl-server` corresponds to the CTL tag/revision being used, currently v1.0.1, and the code resides in the same repository as CTL.
+The version of `ctl-server` corresponds to the CTL tag/revision being used, currently `v2.0.0-alpha`, and the code resides in the same repository as CTL.
 
 #### Installation
 
 ```
-git checkout tags/v1.0.1
+git checkout tags/v2.0.0-alpha
 
 nix build .#ctl-server:exe:ctl-server
 ```
@@ -189,20 +190,13 @@ The binary will be under `./result/bin/ctl-server`
 
 #### Configuration
 
-As with Ogmios, CTL needs access to the node's IPC socket, so it must be run on the host as the node and the socket must be writable by the server process.
-
-CTL server can be configured using command-line parameters, as so:
+CTL server can also be configured using command-line parameters. Currently, only one option is available:
 
 ```
 
-ctl-server \
-  --port <PORT> \
-  --node-socket <SOCKET_PATH>/node.socket \
-  --network-id mainnet
+ctl-server --port <PORT> 
 
 ```
-
-The `--network-id` flag should either be `mainnet` or the network magic of the testnet network (e.g. `1097911063`).
 
 #### Links
 
