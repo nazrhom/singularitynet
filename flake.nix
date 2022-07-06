@@ -207,7 +207,6 @@
             flake = {
               packages = {
                 frontend-bundle-web = project.bundlePursProject {
-                  sources = [ "src" "exe" ];
                   main = "Main";
                 };
               };
@@ -218,8 +217,6 @@
 
               checks = {
                 frontend = project.runPursTest {
-                  name = "singularitynet-frontend";
-                  sources = [ "src" "test" ];
                   testMain = "Test.Main";
                 };
 
