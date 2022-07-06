@@ -197,7 +197,9 @@
             project = pkgs.purescriptProject {
               inherit src;
               projectName = "singularitynet-frontend";
-              nodejs = pkgs.nodejs-12_x;
+              packageJson = ./frontend/package.json;
+              packageLock = ./frontend/package-lock.json;
+              nodejs = pkgs.nodejs-14_x;
               shell.packages = [ pkgs.fd ];
             };
           in
