@@ -12,6 +12,7 @@ import Contract.Address
   )
 import Contract.Monad
   ( Contract
+  , liftContractAffM
   , liftContractM
   , liftedE'
   , liftedM
@@ -42,7 +43,7 @@ import Contract.Value (mkTokenName, singleton)
 import Control.Applicative (unless)
 import Data.Array (elemIndex, (!!))
 import Data.BigInt (BigInt)
-import Plutus.FromPlutusType (fromPlutusType)
+import Plutus.Conversion (fromPlutusAddress)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
 import Types
@@ -93,7 +94,7 @@ depositBondedPoolContract
     "depositBondedPoolContract: Admin is not current user"
   logInfo_ "depositBondedPoolContract: Admin PaymentPubKeyHash" userPkh
   -- Get the (Nami) wallet address
-  AddressWithNetworkTag { address: adminAddr } <-
+  adminAddr <-
     liftedM "depositBondedPoolContract: Cannot get wallet Address"
       getWalletAddress
   -- Get utxos at the wallet address
@@ -103,12 +104,12 @@ depositBondedPoolContract
   -- Get the bonded pool validator and hash
   validator <- liftedE' "depositBondedPoolContract: Cannot create validator"
     $ mkBondedPoolValidator params
-  valHash <- liftContractM "depositBondedPoolContract: Cannot hash validator"
+  valHash <- liftContractAffM "depositBondedPoolContract: Cannot hash validator"
     $ validatorHash validator
   logInfo_ "depositBondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
   logInfo_ "depositBondedPoolContract: Pool address"
-    $ fromPlutusType (networkId /\ poolAddr)
+    $ fromPlutusAddress networkId poolAddr
   -- Get the bonded pool's utxo
   bondedPoolUtxos <-
     liftedM

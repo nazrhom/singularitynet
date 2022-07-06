@@ -9,7 +9,14 @@ import Contract.Address
   , ownPaymentPubKeyHash
   , scriptHashAddress
   )
-import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM)
+import Contract.Monad
+  ( Contract
+  , liftContractAffM
+  , liftContractM
+  , liftedE
+  , liftedE'
+  , liftedM
+  )
 import Contract.PlutusData (Datum(Datum), PlutusData, toData)
 import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
@@ -29,7 +36,7 @@ import Contract.Utxos (utxosAt)
 import Contract.Value (scriptCurrencySymbol, singleton)
 import Data.Array (head)
 import Data.Map (toUnfoldable)
-import Plutus.FromPlutusType (fromPlutusType)
+import Plutus.Conversion (fromPlutusAddress)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Scripts.StateNFT (mkStateNFTPolicy)
@@ -54,11 +61,11 @@ createUnbondedPoolContract iup = do
     ownPaymentPubKeyHash
   logInfo_ "createUnbondedPoolContract: Admin PaymentPubKeyHash" adminPkh
   -- Get the (Nami) wallet address
-  AddressWithNetworkTag { address: adminAddr } <-
+  adminAddr <-
     liftedM "createUnbondedPoolContract: Cannot get wallet Address"
       getWalletAddress
   logInfo_ "createUnbondedPoolContract: User Address"
-    $ fromPlutusType (networkId /\ adminAddr)
+    $ fromPlutusAddress networkId adminAddr
   -- Get utxos at the wallet address
   adminUtxos <-
     liftedM "createUnbondedPoolContract: Cannot get user Utxos"
@@ -71,14 +78,14 @@ createUnbondedPoolContract iup = do
   -- Get the minting policy and currency symbol from the state NFT:
   statePolicy <- liftedE $ mkStateNFTPolicy Unbonded txOutRef
   stateNftCs <-
-    liftContractM
+    liftContractAffM
       "createUnbondedPoolContract: Cannot get CurrencySymbol from /\
       \state NFT"
       $ scriptCurrencySymbol statePolicy
   -- Get the minting policy and currency symbol from the list NFT:
   listPolicy <- liftedE $ mkListNFTPolicy Unbonded stateNftCs
   assocListCs <-
-    liftContractM
+    liftContractAffM
       "createUnbondedPoolContract: Cannot get CurrencySymbol from /\
       \state NFT"
       $ scriptCurrencySymbol listPolicy
@@ -100,13 +107,14 @@ createUnbondedPoolContract iup = do
   -- Get the bonding validator and hash
   validator <- liftedE' "createUnbondedPoolContract: Cannot create validator"
     $ mkUnbondedPoolValidator params
-  valHash <- liftContractM "createUnbondedPoolContract: Cannot hash validator"
-    (validatorHash validator)
+  valHash <-
+    liftContractAffM "createUnbondedPoolContract: Cannot hash validator"
+      $ validatorHash validator
   let
     mintValue = singleton stateNftCs tokenName one
     poolAddr = scriptHashAddress valHash
   logInfo_ "createUnbondedPoolContract: UnbondedPool Validator's address"
-    $ fromPlutusType (networkId /\ poolAddr)
+    $ fromPlutusAddress networkId poolAddr
 
   let
     unbondedStateDatum = Datum $ toData $ StateDatum
@@ -138,14 +146,14 @@ createUnbondedPoolContract iup = do
   -- 2) Reindex `Spend` redeemers after finalising transaction inputs.
   -- 3) Attach datums and redeemers to transaction.
   -- 3) Sign tx, returning the Cbor-hex encoded `ByteArray`.
-  BalancedSignedTransaction { signedTxCbor } <-
+  signedTx <-
     liftedM
       "createUnbondedPoolContract: Cannot balance, reindex redeemers, attach /\
       \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
 
   -- Submit transaction using Cbor-hex encoded `ByteArray`
-  transactionHash <- submit signedTxCbor
+  transactionHash <- submit signedTx
   logInfo_
     "createUnbondedPoolContract: Transaction successfully submitted /\
     \with hash"

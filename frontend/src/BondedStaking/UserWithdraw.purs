@@ -13,6 +13,7 @@ import Contract.Address
   )
 import Contract.Monad
   ( Contract
+  , liftContractAffM
   , liftContractM
   , liftedE
   , liftedE'
@@ -51,7 +52,7 @@ import Contract.Value (Value, mkTokenName, singleton)
 import Data.Array (catMaybes, head)
 import Data.BigInt (BigInt)
 import Data.Map as Map
-import Plutus.FromPlutusType (fromPlutusType)
+import Plutus.Conversion (fromPlutusAddress)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
@@ -92,7 +93,7 @@ userWithdrawBondedPoolContract
   -- Get own public key hash and compute hashed version
   userPkh <- liftedM "userWithdrawBondedPoolContract: Cannot get user's pkh"
     ownPaymentPubKeyHash
-  let hashedUserPkh = hashPkh userPkh
+  hashedUserPkh <- liftAff $ hashPkh userPkh
   logInfo_ "userWithdrawBondedPoolContract: User's PaymentPubKeyHash" userPkh
   -- Get own staking hash
   userStakingPubKeyHash <-
@@ -101,7 +102,7 @@ userWithdrawBondedPoolContract
       \ user's staking pub key hash" $
       ownStakePubKeyHash
   -- Get the (Nami) wallet address
-  AddressWithNetworkTag { address: userAddr } <-
+  userAddr <-
     liftedM "userWithdrawBondedPoolContract: Cannot get wallet Address"
       getWalletAddress
   -- Get utxos at the wallet address
@@ -114,12 +115,12 @@ userWithdrawBondedPoolContract
     liftedE' "userWithdrawBondedPoolContract: Cannot create validator"
       $ mkBondedPoolValidator params
   valHash <-
-    liftContractM "userWithdrawBondedPoolContract: Cannot hash validator"
+    liftContractAffM "userWithdrawBondedPoolContract: Cannot hash validator"
       $ validatorHash validator
   logInfo_ "userWithdrawBondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
   logInfo_ "userWithdrawBondedPoolContract: Pool address"
-    $ fromPlutusType (networkId /\ poolAddr)
+    $ fromPlutusAddress networkId poolAddr
   -- Get the bonded pool's utxo
   bondedPoolUtxos <-
     liftedM
@@ -408,13 +409,13 @@ userWithdrawBondedPoolContract
   logInfo_
     "userWithdrawBondedPoolContract: unAttachedUnbalancedTx"
     unattachedBalancedTx
-  BalancedSignedTransaction { signedTxCbor } <-
+  signedTx <-
     liftedM
       "userWithdrawBondedPoolContract: Cannot balance, reindex redeemers, attach \
       \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
-  transactionHash <- submit signedTxCbor
+  transactionHash <- submit signedTx
   logInfo_
     "userWithdrawBondedPoolContract: Transaction successfully submitted with hash"
     $ byteArrayToHex
