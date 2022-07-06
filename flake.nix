@@ -3,8 +3,8 @@
   nixConfig.bash-prompt = "\\[\\e[0m\\][\\[\\e[0;2m\\]nix-develop \\[\\e[0;1m\\]singularitynet \\[\\e[0;93m\\]\\w\\[\\e[0m\\]]\\[\\e[0m\\]$ \\[\\e[0m\\]";
 
   inputs = {
-    nixpkgs.follows = "plutip/nixpkgs";
-    haskell-nix.follows = "plutip/haskell-nix";
+    nixpkgs.follows = "ctl/nixpkgs";
+    haskell-nix.follows = "ctl/haskell-nix";
 
     plutip.url = "github:mlabs-haskell/plutip?rev=0b92bb7b913d213457713c09bacae06110c47bac";
 
@@ -18,7 +18,7 @@
       repo = "cardano-transaction-lib";
       # NOTE
       # Keep this in sync with the rev in `frontend/packages.dhall`
-      rev = "9d6d73a4285439f2ed8ec46fe4b2a1974fb89b0c";
+      rev = "c599f1c4f3eeb55a1236454ee6ca15a418fa9545";
     };
   };
 
