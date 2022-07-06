@@ -296,5 +296,10 @@
         offchain = self.offchain.flake.${system}.devShell;
         frontend = self.frontend.flake.${system}.devShell;
       });
+
+      hydraJobs = perSystem (system:
+        self.checks.${system} // {
+          inherit (self.packages.${system}) frontend-bundle-web;
+        });
     };
 }
