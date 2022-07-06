@@ -3,8 +3,7 @@ module UnbondedStaking.CreatePool (createUnbondedPoolContract) where
 import Contract.Prelude
 
 import Contract.Address
-  ( AddressWithNetworkTag(AddressWithNetworkTag)
-  , getNetworkId
+  ( getNetworkId
   , getWalletAddress
   , ownPaymentPubKeyHash
   , scriptHashAddress
@@ -21,11 +20,7 @@ import Contract.PlutusData (Datum(Datum), PlutusData, toData)
 import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
-import Contract.Transaction
-  ( BalancedSignedTransaction(BalancedSignedTransaction)
-  , balanceAndSignTx
-  , submit
-  )
+import Contract.Transaction (balanceAndSignTx, submit)
 import Contract.TxConstraints
   ( TxConstraints
   , mustMintValue

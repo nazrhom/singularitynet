@@ -4,8 +4,7 @@ import Contract.Prelude hiding (length)
 
 import BondedStaking.TimeUtils (getWithdrawingTime)
 import Contract.Address
-  ( AddressWithNetworkTag(AddressWithNetworkTag)
-  , getNetworkId
+  ( getNetworkId
   , getWalletAddress
   , ownPaymentPubKeyHash
   , ownStakePubKeyHash
@@ -32,8 +31,7 @@ import Contract.Prim.ByteArray (ByteArray, byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
 import Contract.Transaction
-  ( BalancedSignedTransaction(BalancedSignedTransaction)
-  , TransactionInput
+  ( TransactionInput
   , TransactionOutput
   , balanceAndSignTx
   , submit

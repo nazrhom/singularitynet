@@ -3,8 +3,7 @@ module UnbondedStaking.DepositPool (depositUnbondedPoolContract) where
 import Contract.Prelude
 
 import Contract.Address
-  ( AddressWithNetworkTag(AddressWithNetworkTag)
-  , getNetworkId
+  ( getNetworkId
   , getWalletAddress
   , ownPaymentPubKeyHash
   , scriptHashAddress

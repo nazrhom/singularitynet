@@ -4,8 +4,7 @@ import Contract.Prelude
 
 import BondedStaking.TimeUtils (getBondingTime)
 import Contract.Address
-  ( AddressWithNetworkTag(AddressWithNetworkTag)
-  , getNetworkId
+  ( getNetworkId
   , getWalletAddress
   , ownPaymentPubKeyHash
   , scriptHashAddress

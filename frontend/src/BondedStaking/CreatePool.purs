@@ -3,8 +3,7 @@ module CreatePool (createBondedPoolContract) where
 import Contract.Prelude
 
 import Contract.Address
-  ( AddressWithNetworkTag(AddressWithNetworkTag)
-  , getNetworkId
+  ( getNetworkId
   , getWalletAddress
   , ownPaymentPubKeyHash
   , scriptHashAddress
@@ -22,8 +21,7 @@ import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
 import Contract.Transaction
-  ( BalancedSignedTransaction(BalancedSignedTransaction)
-  , balanceAndSignTx
+  ( balanceAndSignTx
   , submit
   )
 import Contract.TxConstraints
