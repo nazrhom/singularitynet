@@ -1,10 +1,11 @@
-module UnbondedStaking.UserWithdraw (userWithdrawUnbondedPoolContract) where
+module UnbondedStaking.UserWithdraw
+  ( userWithdrawUnbondedPoolContract
+  ) where
 
 import Contract.Prelude hiding (length)
 
 import Contract.Address
-  ( AddressWithNetworkTag(AddressWithNetworkTag)
-  , getNetworkId
+  ( getNetworkId
   , getWalletAddress
   , ownPaymentPubKeyHash
   , ownStakePubKeyHash
@@ -12,6 +13,7 @@ import Contract.Address
   )
 import Contract.Monad
   ( Contract
+  , liftContractAffM
   , liftContractM
   , liftedE
   , liftedE'
@@ -30,8 +32,7 @@ import Contract.Prim.ByteArray (ByteArray, byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
 import Contract.Transaction
-  ( BalancedSignedTransaction(BalancedSignedTransaction)
-  , TransactionInput
+  ( TransactionInput
   , TransactionOutput
   , balanceAndSignTx
   , submit
@@ -50,7 +51,7 @@ import Contract.Value (Value, mkTokenName, singleton)
 import Data.Array (catMaybes, head)
 import Data.BigInt (BigInt)
 import Data.Map as Map
-import Plutus.FromPlutusType (fromPlutusType)
+import Plutus.Conversion (fromPlutusAddress)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Settings (unbondedStakingTokenName)
@@ -94,7 +95,7 @@ userWithdrawUnbondedPoolContract
   -- Get own public key hash and compute hashed version
   userPkh <- liftedM "userWithdrawUnbondedPoolContract: Cannot get user's pkh"
     ownPaymentPubKeyHash
-  let hashedUserPkh = hashPkh userPkh
+  hashedUserPkh <- liftAff $ hashPkh userPkh
   logInfo_ "userWithdrawUnbondedPoolContract: User's PaymentPubKeyHash" userPkh
   -- Get own staking hash
   userStakingPubKeyHash <-
@@ -103,7 +104,7 @@ userWithdrawUnbondedPoolContract
       \ user's staking pub key hash" $
       ownStakePubKeyHash
   -- Get the (Nami) wallet address
-  AddressWithNetworkTag { address: userAddr } <-
+  userAddr <-
     liftedM "userWithdrawUnbondedPoolContract: Cannot get wallet Address"
       getWalletAddress
   -- Get utxos at the wallet address
@@ -116,12 +117,12 @@ userWithdrawUnbondedPoolContract
     liftedE' "userWithdrawUnbondedPoolContract: Cannot create validator"
       $ mkUnbondedPoolValidator params
   valHash <-
-    liftContractM "userWithdrawUnbondedPoolContract: Cannot hash validator"
+    liftContractAffM "userWithdrawUnbondedPoolContract: Cannot hash validator"
       $ validatorHash validator
   logInfo_ "userWithdrawUnbondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
   logInfo_ "userWithdrawUnbondedPoolContract: Pool address"
-    $ fromPlutusType (networkId /\ poolAddr)
+    $ fromPlutusAddress networkId poolAddr
   -- Get the unbonded pool's utxo
   unbondedPoolUtxos <-
     liftedM
@@ -402,13 +403,13 @@ userWithdrawUnbondedPoolContract
   logInfo_
     "userWithdrawUnbondedPoolContract: unAttachedUnbalancedTx"
     unattachedBalancedTx
-  BalancedSignedTransaction { signedTxCbor } <-
+  signedTx <-
     liftedM
       "userWithdrawUnbondedPoolContract: Cannot balance, reindex redeemers, \
       \ attach datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
-  transactionHash <- submit signedTxCbor
+  transactionHash <- submit signedTx
   logInfo_
     "userWithdrawUnbondedPoolContract: Transaction successfully submitted with \
     \hash"

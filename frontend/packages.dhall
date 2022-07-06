@@ -105,10 +105,71 @@ in  upstream
 -------------------------------
 -}
 let upstream =
-      https://github.com/purescript/package-sets/releases/download/psc-0.14.5-20211116/packages.dhall sha256:7ba810597a275e43c83411d2ab0d4b3c54d0b551436f4b1632e9ff3eb62e327a
+      https://github.com/purescript/package-sets/releases/download/psc-0.14.5-20211116/packages.dhall
+        sha256:7ba810597a275e43c83411d2ab0d4b3c54d0b551436f4b1632e9ff3eb62e327a
 
 let additions =
-      { aeson =
+      { properties =
+          { dependencies = ["prelude", "console"]
+          , repo = "https://github.com/Risto-Stevcev/purescript-properties.git"
+          , version = "v0.2.0"
+          }
+      , lattice =
+          { dependencies = ["prelude", "console", "properties"]
+          , repo = "https://github.com/Risto-Stevcev/purescript-lattice.git"
+          , version = "v0.3.0"
+          }
+      , mote =
+          { dependencies = [ "these", "transformers", "arrays" ]
+          , repo = "https://github.com/garyb/purescript-mote"
+          , version = "v1.1.0"
+          }
+      , medea =
+          { dependencies =
+            [ "aff"
+            , "argonaut"
+            , "arrays"
+            , "bifunctors"
+            , "control"
+            , "effect"
+            , "either"
+            , "enums"
+            , "exceptions"
+            , "foldable-traversable"
+            , "foreign-object"
+            , "free"
+            , "integers"
+            , "lists"
+            , "maybe"
+            , "mote"
+            , "naturals"
+            , "newtype"
+            , "node-buffer"
+            , "node-fs-aff"
+            , "node-path"
+            , "nonempty"
+            , "ordered-collections"
+            , "parsing"
+            , "partial"
+            , "prelude"
+            , "psci-support"
+            , "quickcheck"
+            , "quickcheck-combinators"
+            , "safely"
+            , "spec"
+            , "strings"
+            , "these"
+            , "transformers"
+            , "typelevel"
+            , "tuples"
+            , "unicode"
+            , "unordered-collections"
+            , "unsafe-coerce"
+            ]
+        , repo = "https://github.com/juspay/medea-ps.git"
+        , version = "8b215851959aa8bbf33e6708df6bd683c89d1a5a"
+        }
+      , aeson =
         { dependencies =
           [ "aff"
           , "argonaut"
@@ -184,96 +245,35 @@ let additions =
         , version = "44d0dae060cf78babd4534320192b58c16a6f45b"
         }
       , sequences =
-          { dependencies =
-            [ "arrays"
-            , "assert"
-            , "console"
-            , "effect"
-            , "lazy"
-            , "maybe"
-            , "newtype"
-            , "nonempty"
-            , "partial"
-            , "prelude"
-            , "profunctor"
-            , "psci-support"
-            , "quickcheck"
-            , "quickcheck-laws"
-            , "tuples"
-            , "unfoldable"
-            , "unsafe-coerce"
-            ]
-          , repo = "https://github.com/hdgarrood/purescript-sequences"
-          , version = "v3.0.2"
-          }
-      , properties =
-          { dependencies = ["prelude", "console"]
-          , repo = "https://github.com/Risto-Stevcev/purescript-properties.git"
-          , version = "v0.2.0"
-          }
-      , lattice =
-          { dependencies = ["prelude", "console", "properties"]
-          , repo = "https://github.com/Risto-Stevcev/purescript-lattice.git"
-          , version = "v0.3.0"
-          }
-      , mote =
-          { dependencies = [ "these", "transformers", "arrays" ]
-          , repo = "https://github.com/garyb/purescript-mote"
-          , version = "v1.1.0"
-          }
-      , medea =
-          { dependencies =
-            [ "aff"
-            , "argonaut"
-            , "arrays"
-            , "bifunctors"
-            , "control"
-            , "effect"
-            , "either"
-            , "enums"
-            , "exceptions"
-            , "foldable-traversable"
-            , "foreign-object"
-            , "free"
-            , "integers"
-            , "lists"
-            , "maybe"
-            , "mote"
-            , "naturals"
-            , "newtype"
-            , "node-buffer"
-            , "node-fs-aff"
-            , "node-path"
-            , "nonempty"
-            , "ordered-collections"
-            , "parsing"
-            , "partial"
-            , "prelude"
-            , "psci-support"
-            , "quickcheck"
-            , "quickcheck-combinators"
-            , "safely"
-            , "spec"
-            , "strings"
-            , "these"
-            , "transformers"
-            , "typelevel"
-            , "tuples"
-            , "unicode"
-            , "unordered-collections"
-            , "unsafe-coerce"
-            ]
-        , repo = "https://github.com/juspay/medea-ps.git"
-        , version = "8b215851959aa8bbf33e6708df6bd683c89d1a5a"
+        { dependencies =
+          [ "arrays"
+          , "assert"
+          , "console"
+          , "effect"
+          , "lazy"
+          , "maybe"
+          , "newtype"
+          , "nonempty"
+          , "partial"
+          , "prelude"
+          , "profunctor"
+          , "psci-support"
+          , "quickcheck"
+          , "quickcheck-laws"
+          , "tuples"
+          , "unfoldable"
+          , "unsafe-coerce"
+          ]
+        , repo = "https://github.com/hdgarrood/purescript-sequences"
+        , version = "v3.0.2"
         }
       , cardano-transaction-lib =
           { dependencies =
-            [ "aff"
+            [ "aeson"
+            , "aeson-helpers"
+            , "aff"
             , "aff-promise"
             , "affjax"
-            , "argonaut"
-            , "argonaut-codecs"
-            , "argonaut-core"
             , "arraybuffer-types"
             , "arrays"
             , "bifunctors"
@@ -290,7 +290,7 @@ let additions =
             , "exceptions"
             , "foldable-traversable"
             , "foreign-object"
-            , "gen"
+            , "http-methods"
             , "identity"
             , "integers"
             , "js-date"
@@ -298,6 +298,7 @@ let additions =
             , "lists"
             , "maybe"
             , "medea"
+            , "media-types"
             , "monad-logger"
             , "mote"
             , "newtype"
@@ -307,18 +308,22 @@ let additions =
             , "node-path"
             , "nonempty"
             , "ordered-collections"
+            , "orders"
             , "partial"
             , "prelude"
             , "profunctor"
             , "profunctor-lenses"
             , "quickcheck"
             , "quickcheck-laws"
+            , "quickcheck-combinators"
             , "rationals"
             , "record"
             , "refs"
             , "spec"
+            , "spec-quickcheck"
             , "strings"
             , "tailrec"
+            , "text-encoding"
             , "these"
             , "transformers"
             , "tuples"
@@ -331,8 +336,7 @@ let additions =
             , "variant"
             ]
         , repo = "https://github.com/Plutonomicon/cardano-transaction-lib.git"
-        , version = "9d6d73a4285439f2ed8ec46fe4b2a1974fb89b0c "
+        , version = "c599f1c4f3eeb55a1236454ee6ca15a418fa9545"
         }
       }
-
-in  upstream // additions
+in upstream // additions

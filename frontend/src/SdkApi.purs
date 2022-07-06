@@ -72,7 +72,6 @@ import Types
   , BondedPoolParams(BondedPoolParams)
   , InitialBondedParams
   )
-import Types.CborBytes (cborBytesToHex)
 import Types.RawBytes (hexToRawBytes, rawBytesToHex)
 import UnbondedStaking.Types
   ( UnbondedPoolParams(UnbondedPoolParams)
@@ -162,7 +161,7 @@ callWithArgs f contract cfg args = Promise.fromAff
 toSdkAssetClass :: AssetClass -> Tuple String String
 toSdkAssetClass (AssetClass ac) =
   byteArrayToHex (getCurrencySymbol ac.currencySymbol)
-    /\ cborBytesToHex (getTokenName ac.tokenName)
+    /\ byteArrayToHex (getTokenName ac.tokenName)
 
 toSdkInterest :: Rational -> Tuple BigInt BigInt
 toSdkInterest i = numerator i /\ denominator i
