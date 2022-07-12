@@ -291,10 +291,7 @@ mkEntryUpdateList
               , totalDeposited = updatedTotalDeposited
               }
           }
-        valRedeemer = Redeemer $ toData $ AdminAct
-          { totalRewards: fromBigInt' $ updatedTotalRewards
-          , totalDeposited: fromBigInt' $ updatedTotalDeposited
-          }
+        valRedeemer = Redeemer $ toData AdminAct
         -- Build asset datum and value types
         assetDatum = Datum $ toData AssetDatum
         assetParams = unwrap unbondedAssetClass
