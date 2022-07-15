@@ -3,14 +3,14 @@ module UnbondedStaking.ClosePool (closeUnbondedPoolContract) where
 import Contract.Prelude
 
 import Contract.Address
-  ( AddressWithNetworkTag(AddressWithNetworkTag)
-  , getNetworkId
+  ( getNetworkId
   , getWalletAddress
   , ownPaymentPubKeyHash
   , scriptHashAddress
   )
 import Contract.Monad
   ( Contract
+  , liftContractAffM
   , liftContractM
   , liftedE'
   , liftedM
@@ -47,7 +47,6 @@ import Contract.Value (mkTokenName, singleton)
 import Data.Array (elemIndex, (:), (!!))
 import Data.Map (toUnfoldable)
 import Data.BigInt as BigInt
-import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Settings (unbondedStakingTokenName)
 import Types.Scripts (ValidatorHash)
@@ -103,7 +102,7 @@ closeUnbondedPoolContract
     "closeUnbondedPoolContract: Admin is not current user"
   logInfo_ "closeUnbondedPoolContract: Admin PaymentPubKeyHash" userPkh
   -- Get the (Nami) wallet address
-  AddressWithNetworkTag { address: adminAddr } <-
+  adminAddr <-
     liftedM "depositUnbondedPoolContract: Cannot get wallet Address"
       getWalletAddress
   -- Get utxos at the wallet address
@@ -113,12 +112,12 @@ closeUnbondedPoolContract
   -- Get the unbonded pool validator and hash
   validator <- liftedE' "closeUnbondedPoolContract: Cannot create validator"
     $ mkUnbondedPoolValidator params
-  valHash <- liftContractM "closeUnbondedPoolContract: Cannot hash validator"
+  valHash <- liftContractAffM "closeUnbondedPoolContract: Cannot hash validator"
     $ validatorHash validator
   logInfo_ "closeUnbondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
   logInfo_ "closeUnbondedPoolContract: Pool address"
-    $ fromPlutusType (networkId /\ poolAddr)
+    (networkId /\ poolAddr)
   -- Get the unbonded pool's utxo
   unbondedPoolUtxos <-
     liftedM

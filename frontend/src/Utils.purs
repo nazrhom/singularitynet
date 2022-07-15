@@ -42,11 +42,11 @@ import Contract.Prim.ByteArray (ByteArray, byteArrayToHex, hexToByteArray)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (PlutusScript)
 import Contract.Transaction
-  ( BalancedSignedTransaction(BalancedSignedTransaction)
-  , TransactionInput
+  ( TransactionInput
   , TransactionOutput(TransactionOutput)
   , balanceAndSignTx
   , submit
+  -- , awaitTxConfirmedWithTimeout
   )
 import Contract.TxConstraints (TxConstraints, mustSpendScriptOutput)
 import Contract.Utxos (UtxoM(UtxoM))
@@ -73,6 +73,7 @@ import Data.Array
   , sortBy
   , (..)
   )
+
 import Data.Array as Array
 import Data.BigInt (BigInt, fromInt, fromNumber, quot, rem, toInt, toNumber)
 import Data.DateTime.Instant (unInstant)
@@ -232,7 +233,7 @@ mkBondedPoolParams admin nftCs assocListCs (InitialBondedParams ibp) = do
     , assocListCs
     }
 
-hashPkh :: PaymentPubKeyHash -> ByteArray
+hashPkh :: PaymentPubKeyHash -> Aff ByteArray
 hashPkh =
   blake2b256Hash <<< unwrap <<< ed25519KeyHashToBytes <<< unwrap <<< unwrap
 
@@ -253,7 +254,7 @@ mkOnchainAssocList assocListCs (UtxoM utxos) =
     let val = flattenNonAdaAssets txOutput.amount
     cs /\ tn /\ amt <- head val
     guard (length val == one && cs == assocListCs && amt == one)
-    pure $ (unwrap $ getTokenName tn) /\ utxo
+    pure $ getTokenName tn /\ utxo
 
 compareBytes
   :: forall (t :: Type). ByteArray /\ t -> ByteArray /\ t -> Ordering
@@ -417,13 +418,13 @@ submitTransaction baseConstraints baseLookups updateList = do
     logInfo_
       "submitTransaction: unAttachedUnbalancedTx"
       unattachedBalancedTx
-    BalancedSignedTransaction { signedTxCbor } <-
+    transaction <-
       liftedM
         "submitTransaction: Cannot balance, reindex redeemers, /\
         \attach datums redeemers and sign"
         $ balanceAndSignTx unattachedBalancedTx
     -- Submit transaction using Cbor-hex encoded `ByteArray`
-    transactionHash <- submit signedTxCbor
+    transactionHash <- submit transaction
     logInfo_
       "submitTransaction: Transaction successfully submitted with /\
       \hash"

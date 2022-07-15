@@ -4,14 +4,14 @@ import Contract.Prelude hiding (length)
 
 import BondedStaking.TimeUtils (getStakingTime)
 import Contract.Address
-  ( AddressWithNetworkTag(AddressWithNetworkTag)
-  , getNetworkId
+  ( getNetworkId
   , getWalletAddress
   , ownPaymentPubKeyHash
   , scriptHashAddress
   )
 import Contract.Monad
   ( Contract
+  , liftContractAffM
   , liftContractM
   , liftedE
   , liftedE'
@@ -31,8 +31,7 @@ import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
 import Contract.Transaction
-  ( BalancedSignedTransaction(BalancedSignedTransaction)
-  , balanceAndSignTx
+  ( balanceAndSignTx
   , submit
   )
 import Contract.TxConstraints
@@ -47,7 +46,6 @@ import Contract.Utxos (utxosAt)
 import Contract.Value (mkTokenName, singleton)
 import Control.Applicative (unless)
 import Data.Array (head)
-import Plutus.FromPlutusType (fromPlutusType)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
@@ -89,7 +87,7 @@ userStakeBondedPoolContract
     ownPaymentPubKeyHash
   logInfo_ "userStakeBondedPoolContract: User's PaymentPubKeyHash" userPkh
   -- Get the (Nami) wallet address
-  AddressWithNetworkTag { address: userAddr } <-
+  userAddr <-
     liftedM "userStakeBondedPoolContract: Cannot get wallet Address"
       getWalletAddress
   -- Get utxos at the wallet address
@@ -100,12 +98,13 @@ userStakeBondedPoolContract
   -- Get the bonded pool validator and hash
   validator <- liftedE' "userStakeBondedPoolContract: Cannot create validator"
     $ mkBondedPoolValidator params
-  valHash <- liftContractM "userStakeBondedPoolContract: Cannot hash validator"
-    $ validatorHash validator
+  valHash <-
+    liftContractAffM "userStakeBondedPoolContract: Cannot hash validator"
+      $ validatorHash validator
   logInfo_ "userStakeBondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
   logInfo_ "userStakeBondedPoolContract: Pool address"
-    $ fromPlutusType (networkId /\ poolAddr)
+    (networkId /\ poolAddr)
   -- Get the bonded pool's utxo
   bondedPoolUtxos <-
     liftedM
@@ -131,7 +130,6 @@ userStakeBondedPoolContract
       "userStakeBondedPoolContract: Cannot extract NFT State datum"
       $ fromData (unwrap poolDatum)
   let
-    hashedUserPkh = hashPkh userPkh
     amtBigInt = toBigInt amt
     assetDatum = Datum $ toData AssetDatum
     stateTokenValue = singleton nftCs tokenName one
@@ -140,6 +138,7 @@ userStakeBondedPoolContract
     assetTn = assetParams.tokenName
     stakeValue = singleton assetCs assetTn amtBigInt
 
+  hashedUserPkh <- liftAff $ hashPkh userPkh
   -- Get the minting policy and currency symbol from the list NFT:
   listPolicy <- liftedE $ mkListNFTPolicy Bonded nftCs
   -- Get the token name for the user by hashing
@@ -565,13 +564,13 @@ userStakeBondedPoolContract
   logInfo_
     "userStakeBondedPoolContract: unAttachedUnbalancedTx"
     unattachedBalancedTx
-  BalancedSignedTransaction { signedTxCbor } <-
+  transaction <-
     liftedM
       "userStakeBondedPoolContract: Cannot balance, reindex redeemers, attach \
       \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
-  transactionHash <- submit signedTxCbor
+  transactionHash <- submit transaction
   logInfo_
     "userStakeBondedPoolContract: Transaction successfully submitted with hash"
     $ byteArrayToHex
