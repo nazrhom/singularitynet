@@ -72,7 +72,6 @@ import Types
   , BondedPoolParams(BondedPoolParams)
   , InitialBondedParams
   )
-import Types.CborBytes (cborBytesToHex)
 import Types.RawBytes (hexToRawBytes, rawBytesToHex)
 import UnbondedStaking.Types
   ( UnbondedPoolParams(UnbondedPoolParams)

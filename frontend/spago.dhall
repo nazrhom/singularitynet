@@ -4,9 +4,7 @@ You can edit this file as you like.
 -}
 { name = "singularitynet-frontend"
 , dependencies =
-  [ "aeson"
-  , "aeson-helpers"
-  , "aff"
+  [ "aff"
   , "aff-promise"
   , "argonaut-codecs"
   , "argonaut-core"
@@ -21,7 +19,6 @@ You can edit this file as you like.
   , "ordered-collections"
   , "prelude"
   , "record"
-  , "text-encoding"
   , "transformers"
   , "uint"
   , "datetime"

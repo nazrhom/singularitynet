@@ -50,6 +50,7 @@ import Contract.Value (Value, mkTokenName, singleton)
 import Data.Array (catMaybes, head)
 import Data.BigInt (BigInt)
 import Data.Map as Map
+import Plutus.Conversion (fromPlutusAddress)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
@@ -117,7 +118,7 @@ userWithdrawBondedPoolContract
   logInfo_ "userWithdrawBondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
   logInfo_ "userWithdrawBondedPoolContract: Pool address"
-    (networkId /\ poolAddr)
+    $ fromPlutusAddress networkId poolAddr
   -- Get the bonded pool's utxo
   bondedPoolUtxos <-
     liftedM
@@ -332,12 +333,16 @@ userWithdrawBondedPoolContract
 
           -- Calculate assets to consume and change that needs to be returned
           -- to the pool
-          consumedAssetUtxos /\ totalSpentAmt <-
+          consumedAssetUtxos /\ withdrawChange <-
             liftContractM
               "userWithdrawBondedPoolContract: Cannot get asset \
               \UTxOs to consume" $
               getAssetsToConsume bondedAssetClass withdrawnAmt bondedAssetUtxos
-          logInfo_ "consumedAssetUtxos" consumedAssetUtxos
+
+          logInfo_ "userWithdrawBondedPoolContract: withdrawChange"
+            withdrawChange
+          logInfo_ "userWithdrawBondedPoolContract: consumedAssetUtxos"
+            consumedAssetUtxos
 
           let
             changeValue :: Value
@@ -345,8 +350,7 @@ userWithdrawBondedPoolContract
               singleton
                 (unwrap bondedAssetClass).currencySymbol
                 (unwrap bondedAssetClass).tokenName
-                $ totalSpentAmt
-                - withdrawnAmt
+                withdrawChange
 
             -- Build updated previous entry and its lookup
             prevEntryUpdated = Datum $ toData $ EntryDatum
@@ -403,13 +407,13 @@ userWithdrawBondedPoolContract
   logInfo_
     "userWithdrawBondedPoolContract: unAttachedUnbalancedTx"
     unattachedBalancedTx
-  transaction <-
+  signedTx <-
     liftedM
       "userWithdrawBondedPoolContract: Cannot balance, reindex redeemers, attach \
       \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
-  transactionHash <- submit transaction
+  transactionHash <- submit signedTx
   logInfo_
     "userWithdrawBondedPoolContract: Transaction successfully submitted with hash"
     $ byteArrayToHex

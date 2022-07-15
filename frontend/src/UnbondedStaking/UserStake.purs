@@ -29,10 +29,7 @@ import Contract.PlutusData
 import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
-import Contract.Transaction
-  ( balanceAndSignTx
-  , submit
-  )
+import Contract.Transaction (balanceAndSignTx, submit)
 import Contract.TxConstraints
   ( TxConstraints
   , mustBeSignedBy
@@ -45,6 +42,7 @@ import Contract.Utxos (utxosAt)
 import Contract.Value (mkTokenName, singleton)
 import Control.Applicative (unless)
 import Data.Array (head)
+import Plutus.Conversion (fromPlutusAddress)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Settings (unbondedStakingTokenName)
@@ -106,7 +104,7 @@ userStakeUnbondedPoolContract
   logInfo_ "userStakeUnbondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
   logInfo_ "userStakeUnbondedPoolContract: Pool address"
-    (networkId /\ poolAddr)
+    $ fromPlutusAddress networkId poolAddr
   -- Get the unbonded pool's utxo
   unbondedPoolUtxos <-
     liftedM
@@ -131,6 +129,7 @@ userStakeUnbondedPoolContract
     liftContractM
       "userStakeUnbondedPoolContract: Cannot extract NFT State datum"
       $ fromData (unwrap poolDatum)
+  hashedUserPkh <- liftAff $ hashPkh userPkh
   let
     amtBigInt = toBigInt amt
     assetDatum = Datum $ toData AssetDatum
@@ -577,13 +576,13 @@ userStakeUnbondedPoolContract
   logInfo_
     "userStakeUnbondedPoolContract: unAttachedUnbalancedTx"
     unattachedBalancedTx
-  transaction <-
+  signedTx <-
     liftedM
       "userStakeUnbondedPoolContract: Cannot balance, reindex redeemers, attach \
       \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
-  transactionHash <- submit transaction
+  transactionHash <- submit signedTx
   logInfo_
     "userStakeUnbondedPoolContract: Transaction successfully submitted with hash"
     $ byteArrayToHex

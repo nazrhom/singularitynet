@@ -1,4 +1,6 @@
-module UnbondedStaking.UserWithdraw (userWithdrawUnbondedPoolContract) where
+module UnbondedStaking.UserWithdraw
+  ( userWithdrawUnbondedPoolContract
+  ) where
 
 import Contract.Prelude hiding (length)
 
@@ -49,6 +51,7 @@ import Contract.Value (Value, mkTokenName, singleton)
 import Data.Array (catMaybes, head)
 import Data.BigInt (BigInt)
 import Data.Map as Map
+import Plutus.Conversion (fromPlutusAddress)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Settings (unbondedStakingTokenName)
@@ -92,12 +95,13 @@ userWithdrawUnbondedPoolContract
   -- Get own public key hash and compute hashed version
   userPkh <- liftedM "userWithdrawUnbondedPoolContract: Cannot get user's pkh"
     ownPaymentPubKeyHash
+  hashedUserPkh <- liftAff $ hashPkh userPkh
   logInfo_ "userWithdrawUnbondedPoolContract: User's PaymentPubKeyHash" userPkh
   hashedUserPkh <- liftAff $ hashPkh userPkh
   -- Get own staking hash
   userStakingPubKeyHash <-
     liftedM
-      "userWithdrawnBondedPoolContract: Cannot get\
+      "userWithdrawnUnbondedPoolContract: Cannot get\
       \ user's staking pub key hash" $
       ownStakePubKeyHash
   -- Get the (Nami) wallet address
@@ -119,7 +123,7 @@ userWithdrawUnbondedPoolContract
   logInfo_ "userWithdrawUnbondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
   logInfo_ "userWithdrawUnbondedPoolContract: Pool address"
-    (networkId /\ poolAddr)
+    $ fromPlutusAddress networkId poolAddr
   -- Get the unbonded pool's utxo
   unbondedPoolUtxos <-
     liftedM
@@ -141,7 +145,7 @@ userWithdrawUnbondedPoolContract
     "userWithdrawUnbondedPoolContract: Getting bonded assets in \
     \the pool..."
   unbondedAssetUtxos <- getUnbondedAssetUtxos unbondedPoolUtxos
-  logInfo_ "userWithdrawnBondedPoolContract: Bonded Asset UTxOs"
+  logInfo_ "userWithdrawnUnbondedPoolContract: Bonded Asset UTxOs"
     unbondedAssetUtxos
   -- Get the minting policy and currency symbol from the list NFT:
   listPolicy <- liftedE $ mkListNFTPolicy Unbonded nftCs
@@ -400,13 +404,13 @@ userWithdrawUnbondedPoolContract
   logInfo_
     "userWithdrawUnbondedPoolContract: unAttachedUnbalancedTx"
     unattachedBalancedTx
-  transaction <-
+  signedTx <-
     liftedM
       "userWithdrawUnbondedPoolContract: Cannot balance, reindex redeemers, \
       \ attach datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
-  transactionHash <- submit transaction
+  transactionHash <- submit signedTx
   logInfo_
     "userWithdrawUnbondedPoolContract: Transaction successfully submitted with \
     \hash"

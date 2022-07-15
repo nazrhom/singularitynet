@@ -20,10 +20,7 @@ import Contract.PlutusData (Datum(Datum), PlutusData, toData)
 import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
-import Contract.Transaction
-  ( balanceAndSignTx
-  , submit
-  )
+import Contract.Transaction (balanceAndSignTx, submit)
 import Contract.TxConstraints
   ( TxConstraints
   , mustMintValue
@@ -34,6 +31,7 @@ import Contract.Utxos (utxosAt)
 import Contract.Value (scriptCurrencySymbol, singleton)
 import Data.Array (head)
 import Data.Map (toUnfoldable)
+import Plutus.Conversion (fromPlutusAddress)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Scripts.StateNFT (mkStateNFTPolicy)
@@ -62,7 +60,7 @@ createUnbondedPoolContract iup = do
     liftedM "createUnbondedPoolContract: Cannot get wallet Address"
       getWalletAddress
   logInfo_ "createUnbondedPoolContract: User Address"
-    (networkId /\ adminAddr)
+    $ fromPlutusAddress networkId adminAddr
   -- Get utxos at the wallet address
   adminUtxos <-
     liftedM "createUnbondedPoolContract: Cannot get user Utxos"
@@ -104,14 +102,14 @@ createUnbondedPoolContract iup = do
   -- Get the bonding validator and hash
   validator <- liftedE' "createUnbondedPoolContract: Cannot create validator"
     $ mkUnbondedPoolValidator params
-  valHash <- liftContractAffM
-    "createUnbondedPoolContract: Cannot hash validator"
-    (validatorHash validator)
+  valHash <-
+    liftContractAffM "createUnbondedPoolContract: Cannot hash validator"
+      $ validatorHash validator
   let
     mintValue = singleton stateNftCs tokenName one
     poolAddr = scriptHashAddress valHash
   logInfo_ "createUnbondedPoolContract: UnbondedPool Validator's address"
-    (networkId /\ poolAddr)
+    $ fromPlutusAddress networkId poolAddr
 
   let
     unbondedStateDatum = Datum $ toData $ StateDatum
@@ -143,14 +141,14 @@ createUnbondedPoolContract iup = do
   -- 2) Reindex `Spend` redeemers after finalising transaction inputs.
   -- 3) Attach datums and redeemers to transaction.
   -- 3) Sign tx, returning the Cbor-hex encoded `ByteArray`.
-  transaction <-
+  signedTx <-
     liftedM
       "createUnbondedPoolContract: Cannot balance, reindex redeemers, attach /\
       \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
 
   -- Submit transaction using Cbor-hex encoded `ByteArray`
-  transactionHash <- submit transaction
+  transactionHash <- submit signedTx
   logInfo_
     "createUnbondedPoolContract: Transaction successfully submitted /\
     \with hash"

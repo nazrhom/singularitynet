@@ -3,7 +3,11 @@ module ClosePool (closeBondedPoolContract) where
 import Contract.Prelude
 
 import BondedStaking.TimeUtils (getClosingTime)
-import Contract.Address (getNetworkId, ownPaymentPubKeyHash, scriptHashAddress)
+import Contract.Address
+  ( getNetworkId
+  , ownPaymentPubKeyHash
+  , scriptHashAddress
+  )
 import Contract.Monad
   ( Contract
   , liftContractAffM
@@ -34,6 +38,7 @@ import Contract.Utxos (utxosAt)
 import Data.Array (elemIndex, (!!))
 import Data.Map (toUnfoldable)
 import Data.BigInt (BigInt)
+import Plutus.Conversion (fromPlutusAddress)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
 import Types
@@ -80,7 +85,7 @@ closeBondedPoolContract
   logInfo_ "closeBondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
   logInfo_ "closeBondedPoolContract: Pool address"
-    (networkId /\ poolAddr)
+    $ fromPlutusAddress networkId poolAddr
   -- Get the bonded pool's utxo
   bondedPoolUtxos <-
     liftedM "closeBondedPoolContract: Cannot get pool's utxos at pool address" $

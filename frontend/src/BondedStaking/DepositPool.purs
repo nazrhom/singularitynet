@@ -42,6 +42,7 @@ import Contract.Value (mkTokenName, singleton)
 import Control.Applicative (unless)
 import Data.Array (elemIndex, (!!))
 import Data.BigInt (BigInt)
+import Plutus.Conversion (fromPlutusAddress)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
 import Types
@@ -107,7 +108,7 @@ depositBondedPoolContract
   logInfo_ "depositBondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
   logInfo_ "depositBondedPoolContract: Pool address"
-    (networkId /\ poolAddr)
+    $ fromPlutusAddress networkId poolAddr
   -- Get the bonded pool's utxo
   bondedPoolUtxos <-
     liftedM

@@ -45,7 +45,7 @@ import Contract.Prim.ByteArray (ByteArray, byteArrayToHex, hexToByteArray)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (PlutusScript)
 import Contract.Transaction
-  (TransactionInput
+  ( TransactionInput
   , TransactionOutput(TransactionOutput)
   , BalancedSignedTransaction
   , balanceAndSignTx
@@ -423,13 +423,13 @@ submitTransaction baseConstraints baseLookups updateList = do
     logInfo_
       "submitTransaction: unAttachedUnbalancedTx"
       unattachedBalancedTx
-    transaction <-
+    signedTx <-
       liftedM
         "submitTransaction: Cannot balance, reindex redeemers, /\
         \attach datums redeemers and sign"
         $ balanceAndSignTx unattachedBalancedTx
     -- Submit transaction using Cbor-hex encoded `ByteArray`
-    transactionHash <- submit transaction
+    transactionHash <- submit signedTx
     logInfo_
       "submitTransaction: Transaction successfully submitted with /\
       \hash"

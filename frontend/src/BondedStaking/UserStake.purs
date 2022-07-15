@@ -30,10 +30,7 @@ import Contract.PlutusData
 import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
-import Contract.Transaction
-  ( balanceAndSignTx
-  , submit
-  )
+import Contract.Transaction (balanceAndSignTx, submit)
 import Contract.TxConstraints
   ( TxConstraints
   , mustBeSignedBy
@@ -46,6 +43,7 @@ import Contract.Utxos (utxosAt)
 import Contract.Value (mkTokenName, singleton)
 import Control.Applicative (unless)
 import Data.Array (head)
+import Plutus.Conversion (fromPlutusAddress)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings (bondedStakingTokenName)
@@ -104,7 +102,7 @@ userStakeBondedPoolContract
   logInfo_ "userStakeBondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
   logInfo_ "userStakeBondedPoolContract: Pool address"
-    (networkId /\ poolAddr)
+    $ fromPlutusAddress networkId poolAddr
   -- Get the bonded pool's utxo
   bondedPoolUtxos <-
     liftedM
@@ -129,6 +127,7 @@ userStakeBondedPoolContract
     liftContractM
       "userStakeBondedPoolContract: Cannot extract NFT State datum"
       $ fromData (unwrap poolDatum)
+  hashedUserPkh <- liftAff $ hashPkh userPkh
   let
     amtBigInt = toBigInt amt
     assetDatum = Datum $ toData AssetDatum
@@ -137,8 +136,6 @@ userStakeBondedPoolContract
     assetCs = assetParams.currencySymbol
     assetTn = assetParams.tokenName
     stakeValue = singleton assetCs assetTn amtBigInt
-
-  hashedUserPkh <- liftAff $ hashPkh userPkh
   -- Get the minting policy and currency symbol from the list NFT:
   listPolicy <- liftedE $ mkListNFTPolicy Bonded nftCs
   -- Get the token name for the user by hashing
@@ -208,6 +205,7 @@ userStakeBondedPoolContract
             , mustPayToScript valHash entryDatum entryValue
             , mustBeSignedBy userPkh
             , mustSpendScriptOutput poolTxInput valRedeemer
+            , mustValidateIn range
             ]
 
         lookup :: ScriptLookups.ScriptLookups PlutusData
@@ -564,13 +562,13 @@ userStakeBondedPoolContract
   logInfo_
     "userStakeBondedPoolContract: unAttachedUnbalancedTx"
     unattachedBalancedTx
-  transaction <-
+  signedTx <-
     liftedM
       "userStakeBondedPoolContract: Cannot balance, reindex redeemers, attach \
       \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
-  transactionHash <- submit transaction
+  transactionHash <- submit signedTx
   logInfo_
     "userStakeBondedPoolContract: Transaction successfully submitted with hash"
     $ byteArrayToHex

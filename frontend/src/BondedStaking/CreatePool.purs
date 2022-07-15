@@ -34,6 +34,7 @@ import Contract.Utxos (utxosAt)
 import Contract.Value (scriptCurrencySymbol, singleton)
 import Data.Array (head)
 import Data.Map (toUnfoldable)
+import Plutus.Conversion (fromPlutusAddress)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Scripts.StateNFT (mkStateNFTPolicy)
@@ -59,7 +60,7 @@ createBondedPoolContract ibp = do
     liftedM "createBondedPoolContract: Cannot get wallet Address"
       getWalletAddress
   logInfo_ "createBondedPoolContract: User Address"
-    (networkId /\ adminAddr)
+    $ fromPlutusAddress networkId adminAddr
   -- Get utxos at the wallet address
   adminUtxos <- liftedM "createBondedPoolContract: Cannot get user Utxos"
     $ utxosAt adminAddr
@@ -95,7 +96,7 @@ createBondedPoolContract ibp = do
     mintValue = singleton stateNftCs tokenName one
     poolAddr = scriptHashAddress valHash
   logInfo_ "createBondedPoolContract: BondedPool Validator's address"
-    (networkId /\ poolAddr)
+    $ fromPlutusAddress networkId poolAddr
   let
     -- We initalize the pool with no head entry and a pool size of 100_000_000
     bondedStateDatum = Datum $ toData $ StateDatum
@@ -125,13 +126,13 @@ createBondedPoolContract ibp = do
   -- 2) Reindex `Spend` redeemers after finalising transaction inputs.
   -- 3) Attach datums and redeemers to transaction.
   -- 3) Sign tx, returning the Cbor-hex encoded `ByteArray`.
-  transaction <-
+  signedTx <-
     liftedM
       "createBondedPoolContract: Cannot balance, reindex redeemers, attach /\
       \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
-  transactionHash <- submit transaction
+  transactionHash <- submit signedTx
   logInfo_
     "createBondedPoolContract: Transaction successfully submitted /\
     \with hash"

@@ -85,13 +85,13 @@ main = launchAff_ do
       logInfo_ "Pool parameters" bondedParams
       logInfo' "SWITCH WALLETS NOW - CHANGE TO USER 1"
       -- We give 30 seconds of margin for the users and admin to sign the transactions
-      liftAff $ delay $ wrap $ Int.toNumber $ startDelayInt + 30_000
+      liftAff $ delay $ wrap $ Int.toNumber $ startDelayInt + 50_000
       pure bondedParams
 
   ---- User 1 deposits ----
   userCfg <- mkConfig
   userStake <- liftM (error "main: Cannot create userStake from String") $
-    Natural.fromString "4000"
+    Natural.fromString "4000000"
   runContract_ userCfg do
     userStakeBondedPoolContract bondedParams userStake
     logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
@@ -101,13 +101,21 @@ main = launchAff_ do
   runContract_ adminCfg do
     depositBatchSize <-
       liftM (error "Cannot create Natural") $ Natural.fromString "1"
-    depositBondedPoolContract bondedParams depositBatchSize [] bpp.bondingLength
+    void $
+      depositBondedPoolContract
+        bondedParams
+        depositBatchSize
+        []
+        (BigInt.fromInt 100_000)
+    logInfo' "SWITCH WALLETS NOW - CHANGE TO USER 1"
+    liftAff $ delay $ wrap $ BigInt.toNumber $ bpp.bondingLength -
+      BigInt.fromInt 80_000
   ---- User 1 withdraws ----
   runContract_ userCfg do
     userWithdrawBondedPoolContract bondedParams
     logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
     -- Wait until transaction is processed
-    liftAff $ delay $ wrap $ Int.toNumber 100_000
+    liftAff $ delay $ wrap $ Int.toNumber 120_000
   -- Admin closes pool
   runContract_ adminCfg do
     closeBatchSize <-
@@ -173,6 +181,10 @@ main = launchAff_ do
 --     void $ depositUnbondedPoolContract unbondedParams depositBatchSize []
 --     -- failedDeposits <- depositUnbondedPoolContract unbondedParams depositBatchSize []
 --     -- void $ depositUnbondedPoolContract unbondedParams depositBatchSize failedDeposits
+--     -- closeBatchSize <-
+--     --   liftM (error "Cannot create Natural") $ Natural.fromString "10"
+--     -- void $ closeUnbondedPoolContract unbondedParams closeBatchSize []
+
 --     logInfo' "SWITCH WALLETS NOW - CHANGE TO USER 1"
 --     -- Wait until withdrawing period
 --     liftAff $ delay $ wrap $ BigInt.toNumber upp.adminLength
@@ -181,7 +193,6 @@ main = launchAff_ do
 --     userWithdrawUnbondedPoolContract unbondedParams
 --     logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
 --     -- Wait until closing period
---     liftAff $ delay $ wrap $ BigInt.toNumber upp.bondingLength
 --     logInfo' "Waiting until admin period to close pool..."
 --     liftAff $ delay $ wrap $ BigInt.toNumber upp.userLength
 --   -- Admin closes pool

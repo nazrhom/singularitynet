@@ -47,6 +47,7 @@ import Contract.Value (mkTokenName, singleton)
 import Data.Array (elemIndex, (:), (!!))
 import Data.Map (toUnfoldable)
 import Data.BigInt as BigInt
+import Plutus.Conversion (fromPlutusAddress)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Settings (unbondedStakingTokenName)
 import Types.Scripts (ValidatorHash)
@@ -117,7 +118,7 @@ closeUnbondedPoolContract
   logInfo_ "closeUnbondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
   logInfo_ "closeUnbondedPoolContract: Pool address"
-    (networkId /\ poolAddr)
+    $ fromPlutusAddress networkId poolAddr
   -- Get the unbonded pool's utxo
   unbondedPoolUtxos <-
     liftedM
