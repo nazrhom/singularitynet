@@ -21,6 +21,7 @@ module Utils
   , submitTransaction
   , toIntUnsafe
   , txBatchFinishedCallback
+  , repeatUntilConfirmed
   ) where
 
 import Contract.Prelude hiding (length)
@@ -29,6 +30,8 @@ import Contract.Address (PaymentPubKeyHash)
 import Contract.Hashing (blake2b256Hash)
 import Contract.Monad
   ( Contract
+  , ContractConfig
+  , runContract
   , liftContractM
   , liftedE
   , liftedM
@@ -42,11 +45,12 @@ import Contract.Prim.ByteArray (ByteArray, byteArrayToHex, hexToByteArray)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (PlutusScript)
 import Contract.Transaction
-  ( TransactionInput
+  (TransactionInput
   , TransactionOutput(TransactionOutput)
+  , BalancedSignedTransaction
   , balanceAndSignTx
   , submit
-  -- , awaitTxConfirmedWithTimeout
+  , awaitTxConfirmedWithTimeout
   )
 import Contract.TxConstraints (TxConstraints, mustSpendScriptOutput)
 import Contract.Utxos (UtxoM(UtxoM))
@@ -58,7 +62,7 @@ import Contract.Value
   , valueOf
   )
 import Control.Alternative (guard)
-import Control.Monad.Error.Class (try)
+import Control.Monad.Error.Class (try, catchError, throwError)
 import Data.Argonaut.Core (Json, caseJsonObject)
 import Data.Argonaut.Decode.Combinators (getField) as Json
 import Data.Argonaut.Decode.Error (JsonDecodeError(TypeMismatch))
@@ -79,10 +83,11 @@ import Data.BigInt (BigInt, fromInt, fromNumber, quot, rem, toInt, toNumber)
 import Data.DateTime.Instant (unInstant)
 import Data.Map (Map, toUnfoldable)
 import Data.Map as Map
-import Data.Time.Duration (Milliseconds(Milliseconds))
+import Data.Time.Duration (Seconds, Milliseconds(Milliseconds))
 import Data.Unfoldable (unfoldr)
 import Effect.Aff (delay)
 import Effect.Now (now)
+import Effect.Exception(throw)
 import Math (ceil)
 import Serialization.Hash (ed25519KeyHashToBytes)
 import Types
@@ -450,3 +455,31 @@ txBatchFinishedCallback waitTime _ = do
     "txBatchFinishedCallback: Waiting to submit next Tx batch. \
     \DON'T SWITCH WALLETS - STAY AS ADMIN"
   liftAff $ delay $ wrap $ toNumber waitTime
+
+-- | This function executes a `Contract` that returns a `BalancedSignedTransaction`,
+-- | submits it, and waits `timeout` seconds for it to succeed. If it does not,
+-- | the function repeats the contract execution and TX submission until it
+-- | does or `maxTrials` attempts are completed.
+repeatUntilConfirmed ::
+  forall (r :: Row Type) .
+    ContractConfig r
+    -> Seconds
+    -> Int
+    -> Contract r BalancedSignedTransaction
+    -> Contract r Unit
+repeatUntilConfirmed config timeout maxTrials contract = do
+    transaction <- liftAff $ runContract config contract
+    logInfo' "repeatUntilConfirmed: transaction built successfully"
+    txHash <- submit transaction
+    logInfo' "repeatUntilConfirmed: transaction submitted. Waiting for confirmation"
+    catchError (awaitTxConfirmedWithTimeout timeout txHash) \_ -> do
+      logInfo' "repeatUntilConfirmed: timeout reached, the transaction was not confirmed"
+      if maxTrials == 0
+          then do
+              logInfo' "repeatUntilConfirmed: no more trials remaining, throwing exeption..."
+              liftEffect $ throw "Failed to submit transaction"
+          else do
+              logInfo' $ "repeatUntilConfirmed: running transaction again, "
+                  <> show maxTrials
+                  <> " trials remaining"
+              repeatUntilConfirmed config timeout (maxTrials - 1) contract
