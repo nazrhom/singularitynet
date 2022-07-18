@@ -74,7 +74,7 @@ testInitBondedParams = do
     , bondingLength: big 180_000
     , interest
     , minStake: nat 1
-    , maxStake: nat 10_000
+    , maxStake: nat 50_000
     , bondedAssetClass: AssetClass
         { currencySymbol
         , tokenName

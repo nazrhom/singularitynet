@@ -100,7 +100,7 @@ main = launchAff_ do
   ---- User 1 deposits ----
   userCfg <- mkConfig
   userStake <- liftM (error "main: Cannot create userStake from String") $
-    Natural.fromString "4000000"
+    Natural.fromString "40000"
   runContract_ userCfg do
     userStakeBondedPoolContract bondedParams userStake
     logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
