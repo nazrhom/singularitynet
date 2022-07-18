@@ -277,7 +277,7 @@ callCloseBondedPool cfg bpa bi arr = Promise.fromAff $ runContract cfg do
   upp <- liftEither $ fromBondedPoolArgs bpa
   nat <- liftM (error "callCloseBondedPool: Invalid natural number")
     $ fromBigInt bi
-  closeBondedPoolContract upp nat arr (BigInt.fromInt 100_000)
+  closeBondedPoolContract upp nat arr
 
 callUserStakeBondedPool
   :: ContractConfig () -> BondedPoolArgs -> BigInt -> Effect (Promise Unit)

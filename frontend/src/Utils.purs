@@ -21,7 +21,6 @@ module Utils
   , splitByLength
   , submitTransaction
   , toIntUnsafe
-  , txBatchFinishedCallback
   , repeatUntilConfirmed
   ) where
 
@@ -39,7 +38,7 @@ import Contract.Monad
   )
 import Contract.Numeric.Natural (Natural, fromBigInt', toBigInt)
 import Contract.Numeric.Rational (Rational, numerator, denominator)
-import Contract.Prim.ByteArray (ByteArray, byteArrayToHex, hexToByteArray)
+import Contract.Prim.ByteArray (ByteArray, hexToByteArray)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (PlutusScript)
 import Contract.Transaction
@@ -63,8 +62,6 @@ import Control.Alternative (guard)
 import Control.Monad.Error.Class
   ( class MonadThrow
   , try
-  , catchError
-  , throwError
   , liftMaybe
   )
 import Data.Argonaut.Core (Json, caseJsonObject)
@@ -425,6 +422,8 @@ submitTransaction
            (TxConstraints Unit Unit)
            (ScriptLookups.ScriptLookups PlutusData)
        )
+  -> Seconds
+  -> Int
   -> Contract ()
        ( Array
            ( Tuple
@@ -432,51 +431,32 @@ submitTransaction
                (ScriptLookups.ScriptLookups PlutusData)
            )
        )
-submitTransaction baseConstraints baseLookups updateList = do
-  let
-    constraintList = fst <$> updateList
-    lookupList = snd <$> updateList
-    constraints = baseConstraints <> mconcat constraintList
-    lookups = baseLookups <> mconcat lookupList
-  result <- try do
-    -- Build transaction
-    unattachedBalancedTx <-
-      liftedE $ ScriptLookups.mkUnbalancedTx lookups constraints
-    logInfo_
-      "submitTransaction: unAttachedUnbalancedTx"
-      unattachedBalancedTx
-    signedTx <-
-      liftedM
-        "submitTransaction: Cannot balance, reindex redeemers, /\
-        \attach datums redeemers and sign"
-        $ balanceAndSignTx unattachedBalancedTx
-    -- Submit transaction using Cbor-hex encoded `ByteArray`
-    transactionHash <- submit signedTx
-    logInfo_
-      "submitTransaction: Transaction successfully submitted with /\
-      \hash"
-      $ byteArrayToHex
-      $ unwrap transactionHash
-  case result of
-    Left e -> do
-      logInfo_ "submitTransaction:" e
-      pure updateList
-    Right _ ->
-      pure []
-
-txBatchFinishedCallback
-  :: BigInt
-  -> Array
-       ( Tuple
-           (TxConstraints Unit Unit)
-           (ScriptLookups.ScriptLookups PlutusData)
-       )
-  -> Contract () Unit
-txBatchFinishedCallback waitTime _ = do
-  logInfo'
-    "txBatchFinishedCallback: Waiting to submit next Tx batch. \
-    \DON'T SWITCH WALLETS - STAY AS ADMIN"
-  liftAff $ delay $ wrap $ toNumber waitTime
+submitTransaction baseConstraints baseLookups updateList timeout maxAttempts =
+  do
+    let
+      constraintList = fst <$> updateList
+      lookupList = snd <$> updateList
+      constraints = baseConstraints <> mconcat constraintList
+      lookups = baseLookups <> mconcat lookupList
+    result <- try $ repeatUntilConfirmed timeout maxAttempts do
+      -- Build transaction
+      unattachedBalancedTx <-
+        liftedE $ ScriptLookups.mkUnbalancedTx lookups constraints
+      logInfo_
+        "submitTransaction: unAttachedUnbalancedTx"
+        unattachedBalancedTx
+      signedTx <-
+        liftedM
+          "submitTransaction: Cannot balance, reindex redeemers, /\
+          \attach datums redeemers and sign"
+          $ balanceAndSignTx unattachedBalancedTx
+      pure { signedTx }
+    case result of
+      Left e -> do
+        logInfo_ "submitTransaction:" e
+        pure updateList
+      Right _ ->
+        pure []
 
 -- | This function executes a `Contract` that returns a `BalancedSignedTransaction`,
 -- | submits it, and waits `timeout` seconds for it to succeed. If it does not,

@@ -134,17 +134,10 @@ main = launchAff_ do
   countdownTo $ POSIXTime bpp.end
 
   -- Admin closes pool
+  closeBatchSize <-
+    liftM (error "Cannot create Natural") $ Natural.fromString "10"
   runContract_ adminCfg do
-    closeBatchSize <-
-      liftM (error "Cannot create Natural") $ Natural.fromString "10"
-    -- Wait until pool closing time
-    POSIXTime currTime <- currentRoundedTime
-    logInfo_ "currTime" currTime
-    let
-      deltaClose :: BigInt
-      deltaClose = bpp.end - currTime + BigInt.fromInt 2000
-    logInfo_ "deltaClose" deltaClose
-    void $ closeBondedPoolContract bondedParams closeBatchSize [] deltaClose
+    void $ closeBondedPoolContract bondedParams closeBatchSize []
     logInfo' "main: Pool closed"
 
 -- Unbonded: admin create pool, user stake, admin deposit (rewards),
