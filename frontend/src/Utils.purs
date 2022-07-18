@@ -60,7 +60,13 @@ import Contract.Value
   , valueOf
   )
 import Control.Alternative (guard)
-import Control.Monad.Error.Class (class MonadThrow, try, catchError, throwError, liftMaybe)
+import Control.Monad.Error.Class
+  ( class MonadThrow
+  , try
+  , catchError
+  , throwError
+  , liftMaybe
+  )
 import Data.Argonaut.Core (Json, caseJsonObject)
 import Data.Argonaut.Decode.Combinators (getField) as Json
 import Data.Argonaut.Decode.Error (JsonDecodeError(TypeMismatch))
@@ -86,7 +92,7 @@ import Data.Unfoldable (unfoldr)
 import Effect.Aff (delay)
 import Effect.Now (now)
 import Effect.Exception (Error, error, throw)
-import Effect.Class(class MonadEffect)
+import Effect.Class (class MonadEffect)
 import Math (ceil)
 import Serialization.Hash (ed25519KeyHashToBytes)
 import Types
@@ -362,34 +368,39 @@ bigIntRange lim =
     zero
 
 -- Get time rounded to the closest integer (ceiling) in seconds
-currentRoundedTime :: forall m . Monad m => MonadEffect m => MonadThrow Error m => m POSIXTime
+currentRoundedTime
+  :: forall m. Monad m => MonadEffect m => MonadThrow Error m => m POSIXTime
 currentRoundedTime = do
   POSIXTime t <- currentTime
-  t' <- liftMaybe (error "currentRoundedTime: could not convert Number to BigInt")
-    $ fromNumber
-    $ ceil (toNumber t / 1000.0)
-    * 1000.0
+  t' <-
+    liftMaybe (error "currentRoundedTime: could not convert Number to BigInt")
+      $ fromNumber
+      $ ceil (toNumber t / 1000.0)
+      * 1000.0
   pure $ POSIXTime t'
 
 -- Get UNIX epoch from system time
-currentTime :: forall m . Monad m => MonadEffect m => MonadThrow Error m => m POSIXTime
+currentTime
+  :: forall m. Monad m => MonadEffect m => MonadThrow Error m => m POSIXTime
 currentTime = do
   Milliseconds t <- unInstant <$> liftEffect now
-  t' <- liftMaybe (error "currentPOSIXTime: could not convert Number to BigInt") $
-    fromNumber t
+  t' <- liftMaybe (error "currentPOSIXTime: could not convert Number to BigInt")
+    $
+      fromNumber t
   pure $ POSIXTime t'
 
 countdownTo :: POSIXTime -> Aff Unit
 countdownTo tf = do
   -- Get current time
   t <- currentRoundedTime
-  if t > tf
-      then log "0"
-      else log (showSeconds $ unwrap tf - unwrap t) *> wait *> countdownTo tf
-  where wait :: Aff Unit
-        wait = delay $ Milliseconds 10000.0
-        showSeconds :: BigInt -> String
-        showSeconds n = show $ toNumber n / 1000.0
+  if t > tf then log "0"
+  else log (showSeconds $ unwrap tf - unwrap t) *> wait *> countdownTo tf
+  where
+  wait :: Aff Unit
+  wait = delay $ Milliseconds 10000.0
+
+  showSeconds :: BigInt -> String
+  showSeconds n = show $ toNumber n / 1000.0
 
 -- | Utility function for splitting an array into equal length sub-arrays
 -- | (with remainder array length <= size)

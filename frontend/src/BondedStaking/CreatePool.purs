@@ -40,7 +40,11 @@ import Plutus.Conversion (fromPlutusAddress)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Scripts.StateNFT (mkStateNFTPolicy)
-import Settings (bondedStakingTokenName)
+import Settings
+  ( bondedStakingTokenName
+  , confirmationTimeout
+  , submissionAttempts
+  )
 import Types
   ( BondedPoolParams
   , BondedStakingDatum(StateDatum)
@@ -48,12 +52,6 @@ import Types
   , StakingType(Bonded)
   )
 import Utils (logInfo_, mkBondedPoolParams, repeatUntilConfirmed)
-
-confirmationTimeout :: Seconds
-confirmationTimeout = Seconds $ Int.toNumber 30
-
-submissionAttempts :: Int
-submissionAttempts = 5
 
 -- Sets up pool configuration, mints the state NFT and deposits
 -- in the pool validator's address

@@ -30,7 +30,11 @@ import Contract.PlutusData
 import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
-import Contract.Transaction (balanceAndSignTx, submit)
+import Contract.Transaction
+  ( BalancedSignedTransaction
+  , balanceAndSignTx
+  , submit
+  )
 import Contract.TxConstraints
   ( TxConstraints
   , mustBeSignedBy
@@ -46,7 +50,11 @@ import Data.Array (head)
 import Plutus.Conversion (fromPlutusAddress)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
-import Settings (bondedStakingTokenName)
+import Settings
+  ( bondedStakingTokenName
+  , confirmationTimeout
+  , submissionAttempts
+  )
 import Types
   ( BondedStakingAction(StakeAct)
   , BondedStakingDatum(AssetDatum, EntryDatum, StateDatum)
@@ -63,10 +71,14 @@ import Utils
   , hashPkh
   , logInfo_
   , mkOnchainAssocList
+  , repeatUntilConfirmed
   )
 
 -- Deposits a certain amount in the pool
-userStakeBondedPoolContract :: BondedPoolParams -> Natural -> Contract () Unit
+userStakeBondedPoolContract
+  :: BondedPoolParams
+  -> Natural
+  -> Contract () { signedTx :: BalancedSignedTransaction }
 userStakeBondedPoolContract
   params@
     ( BondedPoolParams
@@ -77,7 +89,7 @@ userStakeBondedPoolContract
         , assocListCs
         }
     )
-  amt = do
+  amt = repeatUntilConfirmed confirmationTimeout submissionAttempts do
   -- Fetch information related to the pool
   -- Get network ID
   networkId <- getNetworkId
@@ -567,9 +579,4 @@ userStakeBondedPoolContract
       "userStakeBondedPoolContract: Cannot balance, reindex redeemers, attach \
       \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
-  -- Submit transaction using Cbor-hex encoded `ByteArray`
-  transactionHash <- submit signedTx
-  logInfo_
-    "userStakeBondedPoolContract: Transaction successfully submitted with hash"
-    $ byteArrayToHex
-    $ unwrap transactionHash
+  pure { signedTx }

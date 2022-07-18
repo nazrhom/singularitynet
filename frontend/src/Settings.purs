@@ -7,6 +7,8 @@ module Settings
   , testInitBondedParams
   , testInitUnbondedParams
   , unbondedStakingTokenName
+  , confirmationTimeout
+  , submissionAttempts
   ) where
 
 import Contract.Prelude
@@ -22,7 +24,9 @@ import Contract.Value
   , mkCurrencySymbol
   , mkTokenName
   )
+import Data.Int as Int
 import Data.Maybe (Maybe)
+import Data.Time.Duration (Seconds(Seconds))
 import Types
   ( AssetClass(AssetClass)
   , InitialBondedParams(InitialBondedParams)
@@ -101,3 +105,14 @@ testInitUnbondedParams = do
         , tokenName
         }
     }
+
+-- | The amount of time a contract should wait before considering a TX
+-- | submission a failure
+confirmationTimeout :: Seconds
+confirmationTimeout = Seconds $ Int.toNumber 60
+
+-- | The number of attempts a contract should do before giving up and
+-- | throwing an error
+submissionAttempts :: Int
+submissionAttempts = 5
+

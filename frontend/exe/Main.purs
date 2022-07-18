@@ -27,18 +27,20 @@ import Contract.Wallet (mkNamiWalletAff)
 import CreatePool (createBondedPoolContract)
 import Data.BigInt (BigInt)
 import Data.BigInt as BigInt
+import Data.DateTime.Instant (unInstant)
 import Data.Int as Int
 import Data.Time.Duration (Seconds(Seconds))
 import DepositPool (depositBondedPoolContract)
 import Effect.Aff (delay)
 import Effect.Exception (error)
+import Effect.Now (now)
 import Settings (testInitBondedParams)
 import Types (BondedPoolParams(..))
 import Types.Interval (POSIXTime(..))
 import Types.Natural as Natural
 import UserStake (userStakeBondedPoolContract)
 import UserWithdraw (userWithdrawBondedPoolContract)
-import Utils (currentRoundedTime, logInfo_, repeatUntilConfirmed)
+import Utils (currentRoundedTime, logInfo_, repeatUntilConfirmed, countdownTo)
 
 -- import Settings (testInitUnbondedParams)
 -- import UnbondedStaking.ClosePool (closeUnbondedPoolContract)
@@ -94,37 +96,43 @@ main = launchAff_ do
       pure bondedPoolParams
 
   log "SWITCH WALLETS NOW - CHANGE TO USER 1"
-  -- We give 50 seconds of margin for the users and admin to sign the transactions
-  liftAff $ delay $ wrap $ Int.toNumber $ startDelayInt + 50_000
+  log "Waiting for pool start..."
+  countdownTo $ POSIXTime bpp.start
 
   ---- User 1 deposits ----
   userCfg <- mkConfig
   userStake <- liftM (error "main: Cannot create userStake from String") $
     Natural.fromString "40000"
-  runContract_ userCfg do
+  runContract_ userCfg $
     userStakeBondedPoolContract bondedParams userStake
-    logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
-    -- Wait until bonding period
-    liftAff $ delay $ wrap $ BigInt.toNumber bpp.userLength
+
+  log "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
+  log "Waiting for bonding period..."
+  countdownTo $ POSIXTime $ bpp.start + bpp.userLength
+
   ---- Admin deposits to pool ----
+  depositBatchSize <-
+    liftM (error "main: Cannot create Natural") $ Natural.fromString "1"
   runContract_ adminCfg do
-    depositBatchSize <-
-      liftM (error "Cannot create Natural") $ Natural.fromString "1"
     void $
       depositBondedPoolContract
         bondedParams
         depositBatchSize
         []
         (BigInt.fromInt 100_000)
-    logInfo' "SWITCH WALLETS NOW - CHANGE TO USER 1"
-    liftAff $ delay $ wrap $ BigInt.toNumber $ bpp.bondingLength -
-      BigInt.fromInt 80_000
+
+  log "SWITCH WALLETS NOW - CHANGE TO USER 1"
+  log "Waiting for withdrawing period..."
+  countdownTo $ POSIXTime $ bpp.start + bpp.userLength + bpp.bondingLength
+
   ---- User 1 withdraws ----
-  runContract_ userCfg do
+  runContract_ userCfg $
     userWithdrawBondedPoolContract bondedParams
-    logInfo' "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
-    -- Wait until transaction is processed
-    liftAff $ delay $ wrap $ Int.toNumber 120_000
+
+  log "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
+  log "Waiting for closing period..."
+  countdownTo $ POSIXTime bpp.end
+
   -- Admin closes pool
   runContract_ adminCfg do
     closeBatchSize <-
@@ -237,3 +245,4 @@ mkConfig = do
     , extraConfig: {}
     , wallet
     }
+

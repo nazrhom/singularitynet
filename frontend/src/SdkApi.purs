@@ -285,12 +285,13 @@ callUserStakeBondedPool cfg bpa bi = Promise.fromAff $ runContract cfg do
   bpp <- liftEither $ fromBondedPoolArgs bpa
   nat <- liftM (error "callUserStakeBondedPool: Invalid natural number")
     $ fromBigInt bi
-  userStakeBondedPoolContract bpp nat
+  _ <- userStakeBondedPoolContract bpp nat
+  pure unit
 
 callUserWithdrawBondedPool
   :: ContractConfig () -> BondedPoolArgs -> Effect (Promise Unit)
 callUserWithdrawBondedPool =
-  callWithBondedPoolArgs userWithdrawBondedPoolContract
+  callWithBondedPoolArgs $ (pure unit <* _) <<< userWithdrawBondedPoolContract
 
 callWithBondedPoolArgs
   :: (BondedPoolParams -> Contract () Unit)
