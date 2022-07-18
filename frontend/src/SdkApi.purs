@@ -252,7 +252,7 @@ callCreateBondedPool
   -> Effect (Promise BondedPoolArgs)
 callCreateBondedPool cfg iba = Promise.fromAff do
   ibp <- liftEither $ fromInitialBondedArgs iba
-  bpp <- runContract cfg $ createBondedPoolContract ibp
+  { bondedPoolParams: bpp } <- runContract cfg $ createBondedPoolContract ibp
   pure $ toBondedPoolArgs bpp
 
 callDepositBondedPool

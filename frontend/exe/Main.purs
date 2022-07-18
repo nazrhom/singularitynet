@@ -6,7 +6,8 @@ import BondedStaking.TimeUtils (startPoolFromNow)
 import ClosePool (closeBondedPoolContract)
 import Contract.Address (NetworkId(TestnetId))
 import Contract.Monad
-  ( ContractConfig
+  ( Contract
+  , ContractConfig
   , ConfigParams(ConfigParams)
   , LogLevel(Info)
   , defaultDatumCacheWsConfig
@@ -19,11 +20,15 @@ import Contract.Monad
   , runContract
   , runContract_
   )
+import Contract.Transaction
+  ( BalancedSignedTransaction(BalancedSignedTransaction)
+  )
 import Contract.Wallet (mkNamiWalletAff)
 import CreatePool (createBondedPoolContract)
 import Data.BigInt (BigInt)
 import Data.BigInt as BigInt
 import Data.Int as Int
+import Data.Time.Duration (Seconds(Seconds))
 import DepositPool (depositBondedPoolContract)
 import Effect.Aff (delay)
 import Effect.Exception (error)
@@ -33,7 +38,7 @@ import Types.Interval (POSIXTime(..))
 import Types.Natural as Natural
 import UserStake (userStakeBondedPoolContract)
 import UserWithdraw (userWithdrawBondedPoolContract)
-import Utils (currentRoundedTime, logInfo_)
+import Utils (currentRoundedTime, logInfo_, repeatUntilConfirmed)
 
 -- import Settings (testInitUnbondedParams)
 -- import UnbondedStaking.ClosePool (closeUnbondedPoolContract)
@@ -65,28 +70,32 @@ import Utils (currentRoundedTime, logInfo_)
 -- using PureScript (non SDK)
 main :: Effect Unit
 main = launchAff_ do
+  log "STARTING AS ADMIN"
   adminCfg <- mkConfig
+  let
+    startDelayInt :: Int
+    startDelayInt = 80_000
   ---- Admin creates pool ----
   bondedParams@(BondedPoolParams bpp) <-
     runContract adminCfg do
-      logInfo' "STARTING AS ADMIN"
+      -- We get the initial parameters of the pool (no time information, no currency symbols)
       initParams <- liftContractM "main: Cannot initiate bonded parameters"
         testInitBondedParams
       -- We get the current time and set up the pool to start 80 seconds from now
-      let
-        startDelayInt :: Int
-        startDelayInt = 80_000
       startDelay <- liftContractM "main: Cannot create startDelay from Int"
         $ Natural.fromBigInt
         $ BigInt.fromInt startDelayInt
+      -- We build the initial parameters of the pool, now with time information (no currency symbols)
       initParams' /\ currTime <- startPoolFromNow startDelay initParams
       logInfo_ "Pool creation time" currTime
-      bondedParams <- createBondedPoolContract initParams'
-      logInfo_ "Pool parameters" bondedParams
-      logInfo' "SWITCH WALLETS NOW - CHANGE TO USER 1"
-      -- We give 30 seconds of margin for the users and admin to sign the transactions
-      liftAff $ delay $ wrap $ Int.toNumber $ startDelayInt + 50_000
-      pure bondedParams
+      -- We build the transaction and submit it. We finally get all the parameters of the pool
+      { bondedPoolParams } <- createBondedPoolContract initParams'
+      logInfo_ "Pool parameters" bondedPoolParams
+      pure bondedPoolParams
+
+  log "SWITCH WALLETS NOW - CHANGE TO USER 1"
+  -- We give 50 seconds of margin for the users and admin to sign the transactions
+  liftAff $ delay $ wrap $ Int.toNumber $ startDelayInt + 50_000
 
   ---- User 1 deposits ----
   userCfg <- mkConfig
