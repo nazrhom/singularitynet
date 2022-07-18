@@ -33,7 +33,6 @@ import Contract.Scripts (validatorHash)
 import Contract.Transaction
   ( BalancedSignedTransaction
   , balanceAndSignTx
-  , submit
   )
 import Contract.TxConstraints
   ( TxConstraints

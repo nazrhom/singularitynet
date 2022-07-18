@@ -17,7 +17,6 @@ import Contract.Monad
   , liftedM
   )
 import Contract.PlutusData (PlutusData, Datum(Datum), toData)
-import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
 import Contract.Transaction
@@ -33,9 +32,7 @@ import Contract.TxConstraints
 import Contract.Utxos (utxosAt)
 import Contract.Value (scriptCurrencySymbol, singleton)
 import Data.Array (head)
-import Data.Int as Int
 import Data.Map (toUnfoldable)
-import Data.Time.Duration (Seconds(Seconds))
 import Plutus.Conversion (fromPlutusAddress)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
