@@ -87,7 +87,7 @@ import Data.Time.Duration (Seconds, Milliseconds(Milliseconds))
 import Data.Unfoldable (unfoldr)
 import Effect.Aff (delay)
 import Effect.Now (now)
-import Effect.Exception(throw)
+import Effect.Exception (throw)
 import Math (ceil)
 import Serialization.Hash (ed25519KeyHashToBytes)
 import Types
@@ -460,26 +460,33 @@ txBatchFinishedCallback waitTime _ = do
 -- | submits it, and waits `timeout` seconds for it to succeed. If it does not,
 -- | the function repeats the contract execution and TX submission until it
 -- | does or `maxTrials` attempts are completed.
-repeatUntilConfirmed ::
-  forall (r :: Row Type) .
-    ContractConfig r
-    -> Seconds
-    -> Int
-    -> Contract r BalancedSignedTransaction
-    -> Contract r Unit
-repeatUntilConfirmed config timeout maxTrials contract = do
-    transaction <- liftAff $ runContract config contract
-    logInfo' "repeatUntilConfirmed: transaction built successfully"
-    txHash <- submit transaction
-    logInfo' "repeatUntilConfirmed: transaction submitted. Waiting for confirmation"
-    catchError (awaitTxConfirmedWithTimeout timeout txHash) \_ -> do
-      logInfo' "repeatUntilConfirmed: timeout reached, the transaction was not confirmed"
-      if maxTrials == 0
-          then do
-              logInfo' "repeatUntilConfirmed: no more trials remaining, throwing exeption..."
-              liftEffect $ throw "Failed to submit transaction"
-          else do
-              logInfo' $ "repeatUntilConfirmed: running transaction again, "
-                  <> show maxTrials
-                  <> " trials remaining"
-              repeatUntilConfirmed config timeout (maxTrials - 1) contract
+repeatUntilConfirmed
+  :: forall (r :: Row Type) (p :: Row Type)
+   . Seconds
+  -> Int
+  -> Contract r { signedTx :: BalancedSignedTransaction | p }
+  -> Contract r { signedTx :: BalancedSignedTransaction | p }
+repeatUntilConfirmed timeout maxTrials contract = do
+  result@{ signedTx } <- contract
+  logInfo' "repeatUntilConfirmed: transaction built successfully"
+  txHash <- submit signedTx
+  logInfo'
+    "repeatUntilConfirmed: transaction submitted. Waiting for confirmation"
+  confirmation <- try $ awaitTxConfirmedWithTimeout timeout txHash
+  case confirmation of
+    Left _ -> do
+      logInfo'
+        "repeatUntilConfirmed: timeout reached, the transaction was not confirmed"
+      if maxTrials == 0 then do
+        logInfo'
+          "repeatUntilConfirmed: no more trials remaining, throwing exception..."
+        liftEffect $ throw "Failed to submit transaction"
+      else do
+        logInfo' $ "repeatUntilConfirmed: running transaction again, "
+          <> show maxTrials
+          <> " trials remaining"
+        repeatUntilConfirmed timeout (maxTrials - 1) contract
+    Right _ -> do
+      logInfo' "repeatUntilConfirmed: transaction confirmed!"
+      logInfo_ "TX Hash" txHash
+      pure result
