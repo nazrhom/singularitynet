@@ -7,11 +7,11 @@ let
 
     "aeson" = pkgs.stdenv.mkDerivation {
         name = "aeson";
-        version = "69bd18c4a9cffdebc45c55d2448740721a91854c";
+        version = "286862a975f4bafbef15540c365bbbb0480e0bf7";
         src = pkgs.fetchgit {
           url = "https://github.com/mlabs-haskell/purescript-aeson.git";
-          rev = "69bd18c4a9cffdebc45c55d2448740721a91854c";
-          sha256 = "1khn834wsqgf80p8xjyw6z06dhj8vknj7lhpm5dj44nqlaj8qhqb";
+          rev = "286862a975f4bafbef15540c365bbbb0480e0bf7";
+          sha256 = "1d5h9n9f2qk8hjzqmhjfzwf86x3y60g3cm13gyvm5aaqjraaksvg";
         };
         phases = "installPhase";
         installPhase = "ln -s $src $out";
@@ -199,11 +199,11 @@ let
 
     "cardano-transaction-lib" = pkgs.stdenv.mkDerivation {
         name = "cardano-transaction-lib";
-        version = "cf669dbfe37dc97230dc4dfad4f8a639c62d0d66";
+        version = "35e32fc6a75bde86be7f47c0b697ef26c2210b81";
         src = pkgs.fetchgit {
           url = "https://github.com/Plutonomicon/cardano-transaction-lib.git";
-          rev = "cf669dbfe37dc97230dc4dfad4f8a639c62d0d66";
-          sha256 = "0jcf6bal5kdwhabcfas2yh02x05372ysvp1b589gcd2kf6rq7xlv";
+          rev = "35e32fc6a75bde86be7f47c0b697ef26c2210b81";
+          sha256 = "1rixldixmb0ynr7qmvx1pzvxvdvwmvw4y7qjycikbwl66lgqfdh2";
         };
         phases = "installPhase";
         installPhase = "ln -s $src $out";

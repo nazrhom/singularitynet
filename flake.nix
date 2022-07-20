@@ -18,7 +18,7 @@
       repo = "cardano-transaction-lib";
       # NOTE
       # Keep this in sync with the rev in `frontend/packages.dhall`
-      rev = "cf669dbfe37dc97230dc4dfad4f8a639c62d0d66";
+      rev = "35e32fc6a75bde86be7f47c0b697ef26c2210b81";
     };
   };
 
@@ -44,7 +44,7 @@
       };
       nixpkgsFor' = system: import nixpkgs {
         inherit system;
-        overlays = [ ctl.overlay.${system} ];
+        overlays = [ ctl.overlay ];
       };
 
       formatCheckFor = system:
