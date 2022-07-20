@@ -20,27 +20,18 @@ import Contract.Monad
   , runContract
   , runContract_
   )
-import Contract.Transaction
-  ( BalancedSignedTransaction(BalancedSignedTransaction)
-  )
 import Contract.Wallet (mkNamiWalletAff)
 import CreatePool (createBondedPoolContract)
-import Data.BigInt (BigInt)
 import Data.BigInt as BigInt
-import Data.DateTime.Instant (unInstant)
-import Data.Int as Int
-import Data.Time.Duration (Seconds(Seconds))
 import DepositPool (depositBondedPoolContract)
-import Effect.Aff (delay)
 import Effect.Exception (error)
-import Effect.Now (now)
 import Settings (testInitBondedParams)
 import Types (BondedPoolParams(..))
 import Types.Interval (POSIXTime(..))
 import Types.Natural as Natural
 import UserStake (userStakeBondedPoolContract)
 import UserWithdraw (userWithdrawBondedPoolContract)
-import Utils (currentRoundedTime, logInfo_, repeatUntilConfirmed, countdownTo)
+import Utils (logInfo_, countdownTo)
 
 -- import Settings (testInitUnbondedParams)
 -- import UnbondedStaking.ClosePool (closeUnbondedPoolContract)
