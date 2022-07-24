@@ -34,6 +34,7 @@ import Contract.Monad
   , liftedM
   , logInfo
   , logInfo'
+  , logAesonInfo
   , tag
   )
 import Contract.Numeric.Natural (Natural, fromBigInt', toBigInt)
@@ -442,9 +443,7 @@ submitTransaction baseConstraints baseLookups updateList timeout maxAttempts =
       -- Build transaction
       unattachedBalancedTx <-
         liftedE $ ScriptLookups.mkUnbalancedTx lookups constraints
-      logInfo_
-        "submitTransaction: unAttachedUnbalancedTx"
-        unattachedBalancedTx
+      logAesonInfo unattachedBalancedTx
       signedTx <-
         liftedM
           "submitTransaction: Cannot balance, reindex redeemers, /\

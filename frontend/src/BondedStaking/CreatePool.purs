@@ -15,6 +15,7 @@ import Contract.Monad
   , liftedE
   , liftedE'
   , liftedM
+  , logAesonInfo
   )
 import Contract.PlutusData (PlutusData, Datum(Datum), toData)
 import Contract.ScriptLookups as ScriptLookups
@@ -133,8 +134,9 @@ createBondedPoolContract ibp =
             , mustSpendPubKeyOutput txOutRef
             ]
 
-      unattachedBalancedTx <-
+      unattachedUnbalancedTx <-
         liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
+      logAesonInfo unattachedUnbalancedTx
       -- `balanceAndSignTx` does the following:
       -- 1) Balance a transaction
       -- 2) Reindex `Spend` redeemers after finalising transaction inputs.
@@ -144,6 +146,6 @@ createBondedPoolContract ibp =
         liftedM
           "createBondedPoolContract: Cannot balance, reindex redeemers, attach /\
           \datums redeemers and sign"
-          $ balanceAndSignTx unattachedBalancedTx
+          $ balanceAndSignTx unattachedUnbalancedTx
       -- Return the transaction and the pool info for subsequent transactions
       pure { signedTx, bondedPoolParams }

@@ -18,6 +18,7 @@ import Contract.Monad
   , liftedE'
   , liftedM
   , logInfo'
+  , logAesonInfo
   , throwContractError
   )
 import Contract.PlutusData
@@ -412,9 +413,7 @@ userWithdrawBondedPoolContract
 
   unattachedBalancedTx <-
     liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
-  logInfo_
-    "userWithdrawBondedPoolContract: unAttachedUnbalancedTx"
-    unattachedBalancedTx
+  logAesonInfo unattachedBalancedTx
   signedTx <-
     liftedM
       "userWithdrawBondedPoolContract: Cannot balance, reindex redeemers, attach \
