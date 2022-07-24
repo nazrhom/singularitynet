@@ -17,6 +17,7 @@ import Contract.Monad
   , liftedE'
   , liftedM
   , logInfo'
+  , logAesonInfo
   , throwContractError
   )
 import Contract.Numeric.Natural (Natural, toBigInt)
@@ -27,10 +28,12 @@ import Contract.PlutusData
   , getDatumByHash
   , toData
   )
-import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
-import Contract.Transaction (balanceAndSignTx, submit)
+import Contract.Transaction
+  ( BalancedSignedTransaction
+  , balanceAndSignTx
+  )
 import Contract.TxConstraints
   ( TxConstraints
   , mustBeSignedBy
@@ -46,7 +49,11 @@ import Data.Array (head)
 import Plutus.Conversion (fromPlutusAddress)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
-import Settings (bondedStakingTokenName)
+import Settings
+  ( bondedStakingTokenName
+  , confirmationTimeout
+  , submissionAttempts
+  )
 import Types
   ( BondedStakingAction(StakeAct)
   , BondedStakingDatum(AssetDatum, EntryDatum, StateDatum)
@@ -63,10 +70,14 @@ import Utils
   , hashPkh
   , logInfo_
   , mkOnchainAssocList
+  , repeatUntilConfirmed
   )
 
 -- Deposits a certain amount in the pool
-userStakeBondedPoolContract :: BondedPoolParams -> Natural -> Contract () Unit
+userStakeBondedPoolContract
+  :: BondedPoolParams
+  -> Natural
+  -> Contract () { signedTx :: BalancedSignedTransaction }
 userStakeBondedPoolContract
   params@
     ( BondedPoolParams
@@ -77,7 +88,7 @@ userStakeBondedPoolContract
         , assocListCs
         }
     )
-  amt = do
+  amt = repeatUntilConfirmed confirmationTimeout submissionAttempts do
   -- Fetch information related to the pool
   -- Get network ID
   networkId <- getNetworkId
@@ -136,7 +147,6 @@ userStakeBondedPoolContract
     assetCs = assetParams.currencySymbol
     assetTn = assetParams.tokenName
     stakeValue = singleton assetCs assetTn amtBigInt
-
   -- Get the minting policy and currency symbol from the list NFT:
   listPolicy <- liftedE $ mkListNFTPolicy Bonded nftCs
   -- Get the token name for the user by hashing
@@ -560,17 +570,10 @@ userStakeBondedPoolContract
 
   unattachedBalancedTx <-
     liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
-  logInfo_
-    "userStakeBondedPoolContract: unAttachedUnbalancedTx"
-    unattachedBalancedTx
+  logAesonInfo unattachedBalancedTx
   signedTx <-
     liftedM
       "userStakeBondedPoolContract: Cannot balance, reindex redeemers, attach \
       \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
-  -- Submit transaction using Cbor-hex encoded `ByteArray`
-  transactionHash <- submit signedTx
-  logInfo_
-    "userStakeBondedPoolContract: Transaction successfully submitted with hash"
-    $ byteArrayToHex
-    $ unwrap transactionHash
+  pure { signedTx }

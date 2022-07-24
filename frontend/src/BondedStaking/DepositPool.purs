@@ -44,7 +44,11 @@ import Data.Array (elemIndex, (!!))
 import Data.BigInt (BigInt)
 import Plutus.Conversion (fromPlutusAddress)
 import Scripts.PoolValidator (mkBondedPoolValidator)
-import Settings (bondedStakingTokenName)
+import Settings
+  ( bondedStakingTokenName
+  , confirmationTimeout
+  , submissionAttempts
+  )
 import Types
   ( BondedPoolParams(BondedPoolParams)
   , BondedStakingAction(AdminAct)
@@ -63,7 +67,6 @@ import Utils
   , splitByLength
   , submitTransaction
   , toIntUnsafe
-  , txBatchFinishedCallback
   )
 
 -- Deposits a certain amount in the pool
@@ -71,7 +74,6 @@ depositBondedPoolContract
   :: BondedPoolParams
   -> Natural
   -> Array Int
-  -> BigInt
   -> Contract () (Array Int)
 depositBondedPoolContract
   params@
@@ -82,8 +84,7 @@ depositBondedPoolContract
         }
     )
   batchSize
-  depositList
-  waitTime = do
+  depositList = do
   -- Fetch information related to the pool
   -- Get network ID and check admin's PKH
   networkId <- getNetworkId
@@ -173,18 +174,16 @@ depositBondedPoolContract
 
       -- Submit transaction with possible batching
       failedDeposits <-
-        if batchSize == zero then do
-          failedDeposits' <- submitTransaction constraints lookups updateList
-          txBatchFinishedCallback waitTime failedDeposits'
-          pure failedDeposits'
+        if batchSize == zero then
+          submitTransaction constraints lookups updateList confirmationTimeout
+            submissionAttempts
         else
           let
             updateBatches = splitByLength (toIntUnsafe batchSize) updateList
           in
-            mconcat <$> for updateBatches \txBatch -> do
-              failedDeposits' <- submitTransaction constraints lookups txBatch
-              txBatchFinishedCallback waitTime failedDeposits'
-              pure failedDeposits'
+            mconcat <$> for updateBatches \txBatch ->
+              submitTransaction constraints lookups txBatch confirmationTimeout
+                submissionAttempts
       logInfo_
         "depositBondedPoolContract: Finished updating pool entries. /\
         \Entries with failed updates"

@@ -47,7 +47,11 @@ import Data.Array (elemIndex, (!!))
 import Data.BigInt as BigInt
 import Plutus.Conversion (fromPlutusAddress)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
-import Settings (unbondedStakingTokenName)
+import Settings
+  ( unbondedStakingTokenName
+  , confirmationTimeout
+  , submissionAttempts
+  )
 import Types.Natural (fromBigInt')
 import Types.Redeemer (Redeemer(Redeemer))
 import Types.Scripts (ValidatorHash)
@@ -70,7 +74,6 @@ import Utils
   , splitByLength
   , submitTransaction
   , toIntUnsafe
-  , txBatchFinishedCallback
   )
 
 -- | Deposits a certain amount in the pool
@@ -170,7 +173,7 @@ depositUnbondedPoolContract
             <> ScriptLookups.unspentOutputs (unwrap unbondedPoolUtxos)
             <> ScriptLookups.unspentOutputs (unwrap adminUtxos)
 
-        submitTxWithCallback
+        submitBatch
           :: Array
                ( Tuple
                    (TxConstraints Unit Unit)
@@ -183,10 +186,9 @@ depositUnbondedPoolContract
                        (ScriptLookups.ScriptLookups PlutusData)
                    )
                )
-        submitTxWithCallback txBatch = do
-          failedDeposits' <- submitTransaction constraints lookups txBatch
-          txBatchFinishedCallback (BigInt.fromInt 100_000) failedDeposits'
-          pure failedDeposits'
+        submitBatch txBatch = do
+          submitTransaction constraints lookups txBatch confirmationTimeout
+            submissionAttempts
       -- Get list of users to deposit rewards too
       updateList <-
         if null depositList then
@@ -199,13 +201,11 @@ depositUnbondedPoolContract
             traverse ((!!) constraintsLookupsList) depositList
       -- Submit transaction with possible batching
       failedDeposits <-
-        if batchSize == zero then do
-          failedDeposits' <- submitTransaction constraints lookups updateList
-          txBatchFinishedCallback (BigInt.fromInt 100_000) failedDeposits'
-          pure failedDeposits'
+        if batchSize == zero then
+          submitBatch updateList
         else do
           let updateBatches = splitByLength (toIntUnsafe batchSize) updateList
-          failedDeposits' <- traverse submitTxWithCallback updateBatches
+          failedDeposits' <- traverse submitBatch updateBatches
           pure $ mconcat failedDeposits'
       logInfo_
         "depositUnbondedPoolContract: Finished updating pool entries. /\

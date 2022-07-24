@@ -37,10 +37,13 @@ import Contract.TxConstraints
 import Contract.Utxos (utxosAt)
 import Data.Array (elemIndex, (!!))
 import Data.Map (toUnfoldable)
-import Data.BigInt (BigInt)
 import Plutus.Conversion (fromPlutusAddress)
 import Scripts.PoolValidator (mkBondedPoolValidator)
-import Settings (bondedStakingTokenName)
+import Settings
+  ( bondedStakingTokenName
+  , confirmationTimeout
+  , submissionAttempts
+  )
 import Types
   ( BondedPoolParams(BondedPoolParams)
   , BondedStakingAction(CloseAct)
@@ -54,20 +57,17 @@ import Utils
   , splitByLength
   , submitTransaction
   , toIntUnsafe
-  , txBatchFinishedCallback
   )
 
 closeBondedPoolContract
   :: BondedPoolParams
   -> Natural
   -> Array Int
-  -> BigInt
   -> Contract () (Array Int)
 closeBondedPoolContract
   params@(BondedPoolParams { admin, nftCs })
   batchSize
-  closeList
-  waitTime = do
+  closeList = do
   -- Fetch information related to the pool
   -- Get network ID and check admin's PKH
   networkId <- getNetworkId
@@ -150,18 +150,16 @@ closeBondedPoolContract
 
   -- Submit transaction with possible batching
   failedDeposits <-
-    if batchSize == zero then do
-      failedDeposits' <- submitTransaction constraints lookups spendList
-      txBatchFinishedCallback waitTime failedDeposits'
-      pure failedDeposits'
+    if batchSize == zero then
+      submitTransaction constraints lookups spendList confirmationTimeout
+        submissionAttempts
     else
       let
         updateBatches = splitByLength (toIntUnsafe batchSize) spendList
       in
-        mconcat <$> for updateBatches \txBatch -> do
-          failedDeposits' <- submitTransaction constraints lookups txBatch
-          txBatchFinishedCallback waitTime failedDeposits'
-          pure failedDeposits'
+        mconcat <$> for updateBatches \txBatch ->
+          submitTransaction constraints lookups txBatch confirmationTimeout
+            submissionAttempts
 
   logInfo_
     "closeBondedPoolContract: Finished updating pool entries. /\

@@ -58,7 +58,6 @@ import Control.Promise as Promise
 import ClosePool (closeBondedPoolContract)
 import CreatePool (createBondedPoolContract)
 import Data.BigInt (BigInt)
-import Data.BigInt as BigInt
 import Data.Int as Int
 import Data.UInt as UInt
 import Data.UInt (UInt)
@@ -252,7 +251,7 @@ callCreateBondedPool
   -> Effect (Promise BondedPoolArgs)
 callCreateBondedPool cfg iba = Promise.fromAff do
   ibp <- liftEither $ fromInitialBondedArgs iba
-  bpp <- runContract cfg $ createBondedPoolContract ibp
+  { bondedPoolParams: bpp } <- runContract cfg $ createBondedPoolContract ibp
   pure $ toBondedPoolArgs bpp
 
 callDepositBondedPool
@@ -265,7 +264,7 @@ callDepositBondedPool cfg bpa bi arr = Promise.fromAff $ runContract cfg do
   upp <- liftEither $ fromBondedPoolArgs bpa
   nat <- liftM (error "callDepositBondedPool: Invalid natural number")
     $ fromBigInt bi
-  depositBondedPoolContract upp nat arr (BigInt.fromInt 100_000)
+  depositBondedPoolContract upp nat arr
 
 callCloseBondedPool
   :: ContractConfig ()
@@ -277,7 +276,7 @@ callCloseBondedPool cfg bpa bi arr = Promise.fromAff $ runContract cfg do
   upp <- liftEither $ fromBondedPoolArgs bpa
   nat <- liftM (error "callCloseBondedPool: Invalid natural number")
     $ fromBigInt bi
-  closeBondedPoolContract upp nat arr (BigInt.fromInt 100_000)
+  closeBondedPoolContract upp nat arr
 
 callUserStakeBondedPool
   :: ContractConfig () -> BondedPoolArgs -> BigInt -> Effect (Promise Unit)
@@ -285,12 +284,13 @@ callUserStakeBondedPool cfg bpa bi = Promise.fromAff $ runContract cfg do
   bpp <- liftEither $ fromBondedPoolArgs bpa
   nat <- liftM (error "callUserStakeBondedPool: Invalid natural number")
     $ fromBigInt bi
-  userStakeBondedPoolContract bpp nat
+  _ <- userStakeBondedPoolContract bpp nat
+  pure unit
 
 callUserWithdrawBondedPool
   :: ContractConfig () -> BondedPoolArgs -> Effect (Promise Unit)
 callUserWithdrawBondedPool =
-  callWithBondedPoolArgs userWithdrawBondedPoolContract
+  callWithBondedPoolArgs $ (pure unit <* _) <<< userWithdrawBondedPoolContract
 
 callWithBondedPoolArgs
   :: (BondedPoolParams -> Contract () Unit)

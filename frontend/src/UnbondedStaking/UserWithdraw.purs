@@ -95,8 +95,8 @@ userWithdrawUnbondedPoolContract
   -- Get own public key hash and compute hashed version
   userPkh <- liftedM "userWithdrawUnbondedPoolContract: Cannot get user's pkh"
     ownPaymentPubKeyHash
-  hashedUserPkh <- liftAff $ hashPkh userPkh
   logInfo_ "userWithdrawUnbondedPoolContract: User's PaymentPubKeyHash" userPkh
+  hashedUserPkh <- liftAff $ hashPkh userPkh
   -- Get own staking hash
   userStakingPubKeyHash <-
     liftedM

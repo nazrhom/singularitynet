@@ -14,6 +14,7 @@ You can edit this file as you like.
   , "console"
   , "control"
   , "exceptions"
+  , "effect"
   , "integers"
   , "maybe"
   , "ordered-collections"

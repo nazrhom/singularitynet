@@ -3,6 +3,7 @@ module Utils
   , bigIntRange
   , currentRoundedTime
   , currentTime
+  , countdownTo
   , findInsertUpdateElem
   , findRemoveOtherElem
   , getAssetsToConsume
@@ -20,7 +21,7 @@ module Utils
   , splitByLength
   , submitTransaction
   , toIntUnsafe
-  , txBatchFinishedCallback
+  , repeatUntilConfirmed
   ) where
 
 import Contract.Prelude hiding (length)
@@ -29,23 +30,25 @@ import Contract.Address (PaymentPubKeyHash)
 import Contract.Hashing (blake2b256Hash)
 import Contract.Monad
   ( Contract
-  , liftContractM
   , liftedE
   , liftedM
   , logInfo
   , logInfo'
+  , logAesonInfo
   , tag
   )
 import Contract.Numeric.Natural (Natural, fromBigInt', toBigInt)
 import Contract.Numeric.Rational (Rational, numerator, denominator)
-import Contract.Prim.ByteArray (ByteArray, byteArrayToHex, hexToByteArray)
+import Contract.Prim.ByteArray (ByteArray, hexToByteArray)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (PlutusScript)
 import Contract.Transaction
   ( TransactionInput
   , TransactionOutput(TransactionOutput)
+  , BalancedSignedTransaction
   , balanceAndSignTx
   , submit
+  , awaitTxConfirmedWithTimeout
   )
 import Contract.TxConstraints (TxConstraints, mustSpendScriptOutput)
 import Contract.Utxos (UtxoM(UtxoM))
@@ -57,7 +60,11 @@ import Contract.Value
   , valueOf
   )
 import Control.Alternative (guard)
-import Control.Monad.Error.Class (try)
+import Control.Monad.Error.Class
+  ( class MonadThrow
+  , try
+  , liftMaybe
+  )
 import Data.Argonaut.Core (Json, caseJsonObject)
 import Data.Argonaut.Decode.Combinators (getField) as Json
 import Data.Argonaut.Decode.Error (JsonDecodeError(TypeMismatch))
@@ -72,15 +79,18 @@ import Data.Array
   , sortBy
   , (..)
   )
+
 import Data.Array as Array
 import Data.BigInt (BigInt, fromInt, fromNumber, quot, rem, toInt, toNumber)
 import Data.DateTime.Instant (unInstant)
 import Data.Map (Map, toUnfoldable)
 import Data.Map as Map
-import Data.Time.Duration (Milliseconds(Milliseconds))
+import Data.Time.Duration (Seconds, Milliseconds(Milliseconds))
 import Data.Unfoldable (unfoldr)
 import Effect.Aff (delay)
 import Effect.Now (now)
+import Effect.Exception (Error, error, throw)
+import Effect.Class (class MonadEffect)
 import Math (ceil)
 import Serialization.Hash (ed25519KeyHashToBytes)
 import Types
@@ -356,22 +366,42 @@ bigIntRange lim =
     zero
 
 -- Get time rounded to the closest integer (ceiling) in seconds
-currentRoundedTime :: forall (r :: Row Type). Contract r POSIXTime
+currentRoundedTime
+  :: forall m. Monad m => MonadEffect m => MonadThrow Error m => m POSIXTime
 currentRoundedTime = do
   POSIXTime t <- currentTime
-  t' <- liftContractM "currentRoundedTime: could not convert Number to BigInt"
-    $ fromNumber
-    $ ceil (toNumber t / 1000.0)
-    * 1000.0
+  t' <-
+    liftMaybe (error "currentRoundedTime: could not convert Number to BigInt")
+      $ fromNumber
+      $ ceil (toNumber t / 1000.0)
+      * 1000.0
   pure $ POSIXTime t'
 
 -- Get UNIX epoch from system time
-currentTime :: forall (r :: Row Type). Contract r POSIXTime
+currentTime
+  :: forall m. Monad m => MonadEffect m => MonadThrow Error m => m POSIXTime
 currentTime = do
   Milliseconds t <- unInstant <$> liftEffect now
-  t' <- liftContractM "currentPOSIXTime: could not convert Number to BigInt" $
-    fromNumber t
+  t' <- liftMaybe (error "currentPOSIXTime: could not convert Number to BigInt")
+    $
+      fromNumber t
   pure $ POSIXTime t'
+
+countdownTo :: forall (r :: Row Type). POSIXTime -> Contract r Unit
+countdownTo tf = do
+  -- Get current time
+  t <- currentRoundedTime
+  let
+    msg :: String
+    msg = "Countdown: " <> (showSeconds $ unwrap tf - unwrap t)
+  if t > tf then logInfo' "0"
+  else logInfo' msg *> wait *> countdownTo tf
+  where
+  wait :: Contract r Unit
+  wait = liftAff $ delay $ Milliseconds 10000.0
+
+  showSeconds :: BigInt -> String
+  showSeconds n = show $ toNumber n / 1000.0
 
 -- | Utility function for splitting an array into equal length sub-arrays
 -- | (with remainder array length <= size)
@@ -396,6 +426,8 @@ submitTransaction
            (TxConstraints Unit Unit)
            (ScriptLookups.ScriptLookups PlutusData)
        )
+  -> Seconds
+  -> Int
   -> Contract ()
        ( Array
            ( Tuple
@@ -403,48 +435,62 @@ submitTransaction
                (ScriptLookups.ScriptLookups PlutusData)
            )
        )
-submitTransaction baseConstraints baseLookups updateList = do
-  let
-    constraintList = fst <$> updateList
-    lookupList = snd <$> updateList
-    constraints = baseConstraints <> mconcat constraintList
-    lookups = baseLookups <> mconcat lookupList
-  result <- try do
-    -- Build transaction
-    unattachedBalancedTx <-
-      liftedE $ ScriptLookups.mkUnbalancedTx lookups constraints
-    logInfo_
-      "submitTransaction: unAttachedUnbalancedTx"
-      unattachedBalancedTx
-    signedTx <-
-      liftedM
-        "submitTransaction: Cannot balance, reindex redeemers, /\
-        \attach datums redeemers and sign"
-        $ balanceAndSignTx unattachedBalancedTx
-    -- Submit transaction using Cbor-hex encoded `ByteArray`
-    transactionHash <- submit signedTx
-    logInfo_
-      "submitTransaction: Transaction successfully submitted with /\
-      \hash"
-      $ byteArrayToHex
-      $ unwrap transactionHash
-  case result of
-    Left e -> do
-      logInfo_ "submitTransaction:" e
-      pure updateList
-    Right _ ->
-      pure []
+submitTransaction baseConstraints baseLookups updateList timeout maxAttempts =
+  do
+    let
+      constraintList = fst <$> updateList
+      lookupList = snd <$> updateList
+      constraints = baseConstraints <> mconcat constraintList
+      lookups = baseLookups <> mconcat lookupList
+    result <- try $ repeatUntilConfirmed timeout maxAttempts do
+      -- Build transaction
+      unattachedBalancedTx <-
+        liftedE $ ScriptLookups.mkUnbalancedTx lookups constraints
+      logAesonInfo unattachedBalancedTx
+      signedTx <-
+        liftedM
+          "submitTransaction: Cannot balance, reindex redeemers, /\
+          \attach datums redeemers and sign"
+          $ balanceAndSignTx unattachedBalancedTx
+      pure { signedTx }
+    case result of
+      Left e -> do
+        logInfo_ "submitTransaction:" e
+        pure updateList
+      Right _ ->
+        pure []
 
-txBatchFinishedCallback
-  :: BigInt
-  -> Array
-       ( Tuple
-           (TxConstraints Unit Unit)
-           (ScriptLookups.ScriptLookups PlutusData)
-       )
-  -> Contract () Unit
-txBatchFinishedCallback waitTime _ = do
+-- | This function executes a `Contract` that returns a `BalancedSignedTransaction`,
+-- | submits it, and waits `timeout` seconds for it to succeed. If it does not,
+-- | the function repeats the contract execution and TX submission until it
+-- | does or `maxTrials` attempts are completed.
+repeatUntilConfirmed
+  :: forall (r :: Row Type) (p :: Row Type)
+   . Seconds
+  -> Int
+  -> Contract r { signedTx :: BalancedSignedTransaction | p }
+  -> Contract r { signedTx :: BalancedSignedTransaction | p }
+repeatUntilConfirmed timeout maxTrials contract = do
+  result@{ signedTx } <- contract
+  logInfo' "repeatUntilConfirmed: transaction built successfully"
+  txHash <- submit signedTx
   logInfo'
-    "txBatchFinishedCallback: Waiting to submit next Tx batch. \
-    \DON'T SWITCH WALLETS - STAY AS ADMIN"
-  liftAff $ delay $ wrap $ toNumber waitTime
+    "repeatUntilConfirmed: transaction submitted. Waiting for confirmation"
+  confirmation <- try $ awaitTxConfirmedWithTimeout timeout txHash
+  case confirmation of
+    Left _ -> do
+      logInfo'
+        "repeatUntilConfirmed: timeout reached, the transaction was not confirmed"
+      if maxTrials == 0 then do
+        logInfo'
+          "repeatUntilConfirmed: no more trials remaining, throwing exception..."
+        liftEffect $ throw "Failed to submit transaction"
+      else do
+        logInfo' $ "repeatUntilConfirmed: running transaction again, "
+          <> show maxTrials
+          <> " trials remaining"
+        repeatUntilConfirmed timeout (maxTrials - 1) contract
+    Right _ -> do
+      logInfo' "repeatUntilConfirmed: transaction confirmed!"
+      logInfo_ "TX Hash" txHash
+      pure result

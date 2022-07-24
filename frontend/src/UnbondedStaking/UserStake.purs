@@ -129,7 +129,6 @@ userStakeUnbondedPoolContract
     liftContractM
       "userStakeUnbondedPoolContract: Cannot extract NFT State datum"
       $ fromData (unwrap poolDatum)
-  hashedUserPkh <- liftAff $ hashPkh userPkh
   let
     amtBigInt = toBigInt amt
     assetDatum = Datum $ toData AssetDatum
@@ -138,6 +137,8 @@ userStakeUnbondedPoolContract
     assetCs = assetParams.currencySymbol
     assetTn = assetParams.tokenName
     stakeValue = singleton assetCs assetTn amtBigInt
+  -- Get the the hashed user PKH used as key in the entry list
+  hashedUserPkh <- liftAff $ hashPkh userPkh
   -- Get the minting policy and currency symbol from the list NFT:
   listPolicy <- liftedE $ mkListNFTPolicy Unbonded nftCs
   -- Get the token name for the user by hashing
