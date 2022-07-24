@@ -387,18 +387,20 @@ currentTime = do
       fromNumber t
   pure $ POSIXTime t'
 
-countdownTo :: POSIXTime -> Aff Unit
+countdownTo :: forall (r :: Row Type). POSIXTime -> Contract r Unit
 countdownTo tf = do
   -- Get current time
   t <- currentRoundedTime
+  let msg :: String
+      msg = "Countdown: " <> (showSeconds $ unwrap tf - unwrap t)
   if t > tf then log "0"
-  else log (showSeconds $ unwrap tf - unwrap t) *> wait *> countdownTo tf
+  else logInfo' msg *> wait *> countdownTo tf
   where
-  wait :: Aff Unit
-  wait = delay $ Milliseconds 10000.0
-
+  wait :: Contract r Unit
+  wait = liftAff $ delay $ Milliseconds 10000.0
   showSeconds :: BigInt -> String
   showSeconds n = show $ toNumber n / 1000.0
+
 
 -- | Utility function for splitting an array into equal length sub-arrays
 -- | (with remainder array length <= size)

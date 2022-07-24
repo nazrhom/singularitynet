@@ -125,7 +125,6 @@ createBondedPoolContract ibp =
           , ScriptLookups.unspentOutputs $ unwrap adminUtxos
           ]
 
-        -- Seems suspect, not sure if typed constraints are working as expected
         constraints :: TxConstraints Unit Unit
         constraints =
           mconcat

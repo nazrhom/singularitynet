@@ -87,7 +87,7 @@ main = launchAff_ do
 
   log "SWITCH WALLETS NOW - CHANGE TO USER 1"
   log "Waiting for pool start..."
-  countdownTo $ POSIXTime bpp.start
+  countdownTo' $ POSIXTime bpp.start
 
   ---- User 1 deposits ----
   userCfg <- mkConfig
@@ -98,7 +98,7 @@ main = launchAff_ do
 
   log "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
   log "Waiting for bonding period..."
-  countdownTo $ POSIXTime $ bpp.start + bpp.userLength
+  countdownTo' $ POSIXTime $ bpp.start + bpp.userLength
 
   ---- Admin deposits to pool ----
   depositBatchSize <-
@@ -113,7 +113,7 @@ main = launchAff_ do
 
   log "SWITCH WALLETS NOW - CHANGE TO USER 1"
   log "Waiting for withdrawing period..."
-  countdownTo $ POSIXTime $ bpp.start + bpp.userLength + bpp.bondingLength
+  countdownTo' $ POSIXTime $ bpp.start + bpp.userLength + bpp.bondingLength
 
   ---- User 1 withdraws ----
   runContract_ userCfg $
@@ -121,7 +121,7 @@ main = launchAff_ do
 
   log "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
   log "Waiting for closing period..."
-  countdownTo $ POSIXTime bpp.end
+  countdownTo' $ POSIXTime bpp.end
 
   -- Admin closes pool
   closeBatchSize <-
@@ -229,3 +229,5 @@ mkConfig = do
     , wallet
     }
 
+countdownTo' :: forall (r :: Row Type) . POSIXTime -> Aff Unit
+countdownTo' t = mkConfig >>= flip runContract_ (countdownTo t)
