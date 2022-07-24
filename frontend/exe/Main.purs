@@ -6,8 +6,7 @@ import BondedStaking.TimeUtils (startPoolFromNow)
 import ClosePool (closeBondedPoolContract)
 import Contract.Address (NetworkId(TestnetId))
 import Contract.Monad
-  ( Contract
-  , ContractConfig
+  (ContractConfig
   , ConfigParams(ConfigParams)
   , LogLevel(Info)
   , defaultDatumCacheWsConfig
