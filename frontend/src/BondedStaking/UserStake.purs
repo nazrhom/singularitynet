@@ -17,6 +17,7 @@ import Contract.Monad
   , liftedE'
   , liftedM
   , logInfo'
+  , logAesonInfo
   , throwContractError
   )
 import Contract.Numeric.Natural (Natural, toBigInt)
@@ -570,9 +571,7 @@ userStakeBondedPoolContract
 
   unattachedBalancedTx <-
     liftedE $ ScriptLookups.mkUnbalancedTx lookup constraints
-  logInfo_
-    "userStakeBondedPoolContract: unAttachedUnbalancedTx"
-    unattachedBalancedTx
+  logAesonInfo unattachedBalancedTx
   signedTx <-
     liftedM
       "userStakeBondedPoolContract: Cannot balance, reindex redeemers, attach \
