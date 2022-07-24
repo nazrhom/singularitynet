@@ -74,7 +74,6 @@ depositBondedPoolContract
   :: BondedPoolParams
   -> Natural
   -> Array Int
-  -> BigInt
   -> Contract () (Array Int)
 depositBondedPoolContract
   params@
@@ -85,8 +84,7 @@ depositBondedPoolContract
         }
     )
   batchSize
-  depositList
-  waitTime = do
+  depositList = do
   -- Fetch information related to the pool
   -- Get network ID and check admin's PKH
   networkId <- getNetworkId

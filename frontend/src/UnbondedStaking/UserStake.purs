@@ -129,7 +129,6 @@ userStakeUnbondedPoolContract
     liftContractM
       "userStakeUnbondedPoolContract: Cannot extract NFT State datum"
       $ fromData (unwrap poolDatum)
-  hashedUserPkh <- liftAff $ hashPkh userPkh
   let
     amtBigInt = toBigInt amt
     assetDatum = Datum $ toData AssetDatum

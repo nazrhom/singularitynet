@@ -6,7 +6,7 @@ import BondedStaking.TimeUtils (startPoolFromNow)
 import ClosePool (closeBondedPoolContract)
 import Contract.Address (NetworkId(TestnetId))
 import Contract.Monad
-  (ContractConfig
+  ( ContractConfig
   , ConfigParams(ConfigParams)
   , LogLevel(Info)
   , defaultDatumCacheWsConfig
@@ -109,7 +109,6 @@ main = launchAff_ do
         bondedParams
         depositBatchSize
         []
-        (BigInt.fromInt 100_000)
 
   log "SWITCH WALLETS NOW - CHANGE TO USER 1"
   log "Waiting for withdrawing period..."
@@ -229,5 +228,5 @@ mkConfig = do
     , wallet
     }
 
-countdownTo' :: forall (r :: Row Type) . POSIXTime -> Aff Unit
+countdownTo' :: forall (r :: Row Type). POSIXTime -> Aff Unit
 countdownTo' t = mkConfig >>= flip runContract_ (countdownTo t)

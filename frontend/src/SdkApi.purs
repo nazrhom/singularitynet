@@ -58,7 +58,6 @@ import Control.Promise as Promise
 import ClosePool (closeBondedPoolContract)
 import CreatePool (createBondedPoolContract)
 import Data.BigInt (BigInt)
-import Data.BigInt as BigInt
 import Data.Int as Int
 import Data.UInt as UInt
 import Data.UInt (UInt)
@@ -265,7 +264,7 @@ callDepositBondedPool cfg bpa bi arr = Promise.fromAff $ runContract cfg do
   upp <- liftEither $ fromBondedPoolArgs bpa
   nat <- liftM (error "callDepositBondedPool: Invalid natural number")
     $ fromBigInt bi
-  depositBondedPoolContract upp nat arr (BigInt.fromInt 100_000)
+  depositBondedPoolContract upp nat arr
 
 callCloseBondedPool
   :: ContractConfig ()

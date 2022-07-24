@@ -37,7 +37,6 @@ import Contract.TxConstraints
 import Contract.Utxos (utxosAt)
 import Data.Array (elemIndex, (!!))
 import Data.Map (toUnfoldable)
-import Data.BigInt (BigInt)
 import Plutus.Conversion (fromPlutusAddress)
 import Scripts.PoolValidator (mkBondedPoolValidator)
 import Settings
