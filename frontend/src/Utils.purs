@@ -394,7 +394,7 @@ countdownTo tf = do
   let
     msg :: String
     msg = "Countdown: " <> (showSeconds $ unwrap tf - unwrap t)
-  if t > tf then log "0"
+  if t > tf then logInfo' "0"
   else logInfo' msg *> wait *> countdownTo tf
   where
   wait :: Contract r Unit
