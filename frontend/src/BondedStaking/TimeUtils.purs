@@ -5,20 +5,19 @@ module BondedStaking.TimeUtils
   , getClosingTime
   , startPoolFromNow
   , startPoolNow
+  , toSlotInterval
   ) where
 
 import Contract.Prelude
 
-import Contract.Monad (Contract, liftContractM, throwContractError)
+import Contract.Monad (Contract, liftContractE, liftContractM, throwContractError)
 import Contract.Numeric.Natural (toBigInt)
+import Contract.Time (Slot, getEraSummaries, getSystemStart)
 import Control.Alternative (guard)
 import Data.Array (head)
 import Data.BigInt (BigInt)
-import Types
-  ( BondedPoolParams(BondedPoolParams)
-  , InitialBondedParams(InitialBondedParams)
-  )
-import Types.Interval (POSIXTime(POSIXTime), POSIXTimeRange, from, interval)
+import Types (BondedPoolParams(BondedPoolParams), InitialBondedParams(InitialBondedParams))
+import Types.Interval (POSIXTime(POSIXTime), POSIXTimeRange, from, interval, posixTimeRangeToTransactionValidity)
 import Types.Natural (Natural)
 import Utils (big, bigIntRange, currentRoundedTime)
 
@@ -203,3 +202,11 @@ startPoolNow (InitialBondedParams ibp) = do
           + ibp.userLength
       }
   pure $ ibp' /\ POSIXTime currTime
+
+-- | Convert a `POSIXTimeRange` to a `Slot` interval
+toSlotInterval :: forall (r :: Row Type) . POSIXTimeRange -> Contract r { validityStartInterval :: Maybe Slot, timeToLive :: Maybe Slot }
+toSlotInterval posixTimeRange = do
+  es <- getEraSummaries
+  ss <- getSystemStart
+  liftContractE <=< liftEffect $ posixTimeRangeToTransactionValidity es ss posixTimeRange
+
