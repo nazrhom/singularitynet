@@ -6,13 +6,14 @@ module BondedStaking.TimeUtils
   , startPoolFromNow
   , startPoolNow
   , toSlotInterval
+  , fromSlotInterval
   ) where
 
 import Contract.Prelude
 
 import Contract.Monad (Contract, liftContractE, liftContractM, throwContractError)
 import Contract.Numeric.Natural (toBigInt)
-import Contract.Time (Slot, getEraSummaries, getSystemStart)
+import Contract.Time (Slot, getEraSummaries, getSystemStart, slotToPosixTime)
 import Control.Alternative (guard)
 import Data.Array (head)
 import Data.BigInt (BigInt)
@@ -209,4 +210,16 @@ toSlotInterval posixTimeRange = do
   es <- getEraSummaries
   ss <- getSystemStart
   liftContractE <=< liftEffect $ posixTimeRangeToTransactionValidity es ss posixTimeRange
+
+-- | Convert a `Slot` to a `POSIXTimeRange` interval
+fromSlotInterval :: forall (r :: Row Type) . {validityStartInterval :: Maybe Slot, timeToLive :: Maybe Slot } -> Contract r { from :: POSIXTime, to :: POSIXTime }
+fromSlotInterval r = do
+  es <- getEraSummaries
+  ss <- getSystemStart
+  startSlot <- liftContractM "fromSlotInterval: could not get validityStartInterval slot"
+    r.validityStartInterval
+  endSlot <- liftContractM "fromSlotInterval: could not get timeToLive slot" r.timeToLive
+  from <- liftContractE =<< (liftEffect $ slotToPosixTime es ss startSlot)
+  to <- liftContractE =<< (liftEffect $ slotToPosixTime es ss endSlot)
+  pure { from, to }
 
