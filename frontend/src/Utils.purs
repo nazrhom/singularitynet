@@ -32,10 +32,12 @@ import Contract.Monad
   ( Contract
   , liftedE
   , liftedM
-  , logInfo
+  , tag
+  )
+import Contract.Log(
+  logInfo
   , logInfo'
   , logAesonInfo
-  , tag
   )
 import Contract.Numeric.Natural (Natural, fromBigInt', toBigInt)
 import Contract.Numeric.Rational (Rational, numerator, denominator)

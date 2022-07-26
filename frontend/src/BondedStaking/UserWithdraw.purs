@@ -17,9 +17,11 @@ import Contract.Monad
   , liftedE
   , liftedE'
   , liftedM
-  , logInfo'
-  , logAesonInfo
   , throwContractError
+  )
+import Contract.Log(
+  logInfo'
+  , logAesonInfo
   )
 import Contract.PlutusData
   ( PlutusData

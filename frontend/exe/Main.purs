@@ -5,21 +5,9 @@ import Contract.Prelude
 import BondedStaking.TimeUtils (startPoolFromNow)
 import ClosePool (closeBondedPoolContract)
 import Contract.Address (NetworkId(TestnetId))
-import Contract.Monad
-  ( ContractConfig
-  , ConfigParams(ConfigParams)
-  , LogLevel(Info)
-  , defaultDatumCacheWsConfig
-  , defaultOgmiosWsConfig
-  , defaultServerConfig
-  , launchAff_
-  , liftContractM
-  , logInfo'
-  , mkContractConfig
-  , runContract
-  , runContract_
-  )
-import Contract.Wallet (mkNamiWalletAff)
+import Contract.Config (WalletSpec(..))
+import Contract.Log (logInfo')
+import Contract.Monad (Contract, defaultDatumCacheWsConfig, defaultOgmiosWsConfig, defaultServerConfig, launchAff_, liftContractM, runContract)
 import CreatePool (createBondedPoolContract)
 import Data.BigInt as BigInt
 import DepositPool (depositBondedPoolContract)
@@ -63,13 +51,12 @@ import Utils (logInfo_, countdownTo)
 main :: Effect Unit
 main = launchAff_ do
   log "STARTING AS ADMIN"
-  adminCfg <- mkConfig
   let
     startDelayInt :: Int
     startDelayInt = 80_000
   ---- Admin creates pool ----
   bondedParams@(BondedPoolParams bpp) <-
-    runContract adminCfg do
+    runContract_ do
       -- We get the initial parameters of the pool (no time information, no currency symbols)
       initParams <- liftContractM "main: Cannot initiate bonded parameters"
         testInitBondedParams
@@ -90,10 +77,9 @@ main = launchAff_ do
   countdownTo' $ POSIXTime bpp.start
 
   ---- User 1 deposits ----
-  userCfg <- mkConfig
   userStake <- liftM (error "main: Cannot create userStake from String") $
     Natural.fromString "40000"
-  runContract_ userCfg $
+  _ <- runContract_ $
     userStakeBondedPoolContract bondedParams userStake
 
   log "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
@@ -103,7 +89,7 @@ main = launchAff_ do
   ---- Admin deposits to pool ----
   depositBatchSize <-
     liftM (error "main: Cannot create Natural") $ Natural.fromString "1"
-  runContract_ adminCfg do
+  runContract_ do
     void $
       depositBondedPoolContract
         bondedParams
@@ -115,7 +101,7 @@ main = launchAff_ do
   countdownTo' $ POSIXTime $ bpp.start + bpp.userLength + bpp.bondingLength
 
   ---- User 1 withdraws ----
-  runContract_ userCfg $
+  _ <- runContract_ $
     userWithdrawBondedPoolContract bondedParams
 
   log "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
@@ -125,7 +111,7 @@ main = launchAff_ do
   -- Admin closes pool
   closeBatchSize <-
     liftM (error "Cannot create Natural") $ Natural.fromString "10"
-  runContract_ adminCfg do
+  runContract_ do
     void $ closeBondedPoolContract bondedParams closeBatchSize []
     logInfo' "main: Pool closed"
 
@@ -215,18 +201,21 @@ main = launchAff_ do
 -- bondedCallContractAdminDepositExample1
 -- bondedCallContractAdminCloseExample1
 
-mkConfig :: Aff (ContractConfig ())
-mkConfig = do
-  wallet <- Just <$> mkNamiWalletAff
-  mkContractConfig $ ConfigParams
+-- | Run contract in an environment defined with a certain `ConfigParams`.
+-- | The environment is created and destroyed for this single contract
+-- | execution
+runContract_ :: forall (a :: Type) . Contract () a -> Aff a
+runContract_ contract = do
+  runContract
     { ogmiosConfig: defaultOgmiosWsConfig
     , datumCacheConfig: defaultDatumCacheWsConfig
     , ctlServerConfig: defaultServerConfig
     , networkId: TestnetId
     , logLevel: Info
+    , walletSpec: Just ConnectToNami
+    , customLogger: Nothing
     , extraConfig: {}
-    , wallet
-    }
+    } contract
 
 countdownTo' :: forall (r :: Row Type). POSIXTime -> Aff Unit
-countdownTo' t = mkConfig >>= flip runContract_ (countdownTo t)
+countdownTo' = runContract_ <<< countdownTo

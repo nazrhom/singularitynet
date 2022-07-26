@@ -14,9 +14,9 @@ import Contract.Monad
   , liftContractM
   , liftedE'
   , liftedM
-  , logInfo'
   , throwContractError
   )
+import Contract.Log(logInfo')
 import Contract.Numeric.Natural (Natural, toBigInt)
 import Contract.Numeric.Rational ((%))
 import Contract.PlutusData

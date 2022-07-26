@@ -15,9 +15,9 @@ import Contract.Monad
   , liftContractM
   , liftedE'
   , liftedM
-  , logInfo'
   , throwContractError
   )
+import Contract.Log(logInfo')
 import Contract.Numeric.Rational (Rational, (%))
 import Contract.PlutusData
   ( Datum(Datum)
