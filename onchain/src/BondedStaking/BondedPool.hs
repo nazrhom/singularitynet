@@ -55,7 +55,6 @@ import PTypes (
   PAssetClass,
   PBurningAction (PBurnHead, PBurnOther, PBurnSingle),
   PMintingAction (PMintEnd, PMintHead, PMintInBetween),
-  PPeriod (ClosingPeriod),
   PTxInInfoFields,
   PTxInInfoHRec,
   PTxInfoFields,
@@ -151,14 +150,13 @@ pbondedPoolValidator = phoistAcyclic $
       pmatch act $ \case
         PAdminAct _ -> unTermCont $ do
           pguardC "pbondedPoolValidator: wrong period for PAdminAct redeemer" $
-            getBondedPeriod # txInfoF.validRange # params #== bondingPeriod
+            period #== bondingPeriod
           pure $ adminActLogic txInfoF paramsF
         PStakeAct act -> unTermCont $ do
           pguardC
             "pbondedPoolValidator: wrong period for PStakeAct \
             \redeemer"
-            $ getBondedPeriod # txInfoF.validRange # params
-              #== depositWithdrawPeriod
+            $ period #== depositWithdrawPeriod
           pure
             . pletFields
               @'["stakeAmount", "pubKeyHash", "maybeMintingAction"]
@@ -188,7 +186,7 @@ pbondedPoolValidator = phoistAcyclic $
             act
         PCloseAct _ -> unTermCont $ do
           pguardC "pbondedPoolValidator: wrong period for PcloseAct redeemer" $
-            getBondedPeriod # txInfoF.validRange # params #== closingPeriod
+            period #== closingPeriod
           pure $ closeActLogic ctxF.txInfo params
   where
     isBurningEntry ::
@@ -790,16 +788,7 @@ closeActLogic txInfo params = unTermCont $ do
   -- We check that the transaction was signed by the pool operator
   pguardC "transaction not signed by admin" $
     signedBy txInfoF.signatories paramsF.admin
-  -- We check that the transaction occurs during the closing period
-  let period = getBondedPeriod # txInfoF.validRange # params
-  pguardC "admin deposit not done in closing period" $
-    isClosingPeriod period
   pure punit
-  where
-    isClosingPeriod :: Term s PPeriod -> Term s PBool
-    isClosingPeriod period = pmatch period $ \case
-      ClosingPeriod -> pconstant True
-      _ -> pconstant False
 
 -- Helper functions for the different logics
 
