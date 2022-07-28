@@ -14,9 +14,9 @@ import Contract.Monad
   , liftContractM
   , liftedE'
   , liftedM
-  , logInfo'
   , throwContractError
   )
+import Contract.Log(logInfo')
 import Contract.Numeric.Natural (Natural)
 import Contract.Numeric.Rational ((%))
 import Contract.PlutusData
@@ -46,7 +46,6 @@ import Contract.Utxos (utxosAt)
 import Contract.Value (mkTokenName, singleton)
 import Data.Array (elemIndex, (:), (!!))
 import Data.Map (toUnfoldable)
-import Data.BigInt as BigInt
 import Plutus.Conversion (fromPlutusAddress)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
 import Settings

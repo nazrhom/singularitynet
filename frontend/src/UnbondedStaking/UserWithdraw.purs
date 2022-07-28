@@ -18,9 +18,9 @@ import Contract.Monad
   , liftedE
   , liftedE'
   , liftedM
-  , logInfo'
   , throwContractError
   )
+import Contract.Log(logInfo')
 import Contract.PlutusData
   ( PlutusData
   , Datum(Datum)

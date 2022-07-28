@@ -22,63 +22,34 @@ module SdkApi
 
 import Contract.Prelude
 
+import ClosePool (closeBondedPoolContract)
 import Contract.Address (PaymentPubKeyHash)
-import Contract.Monad
-  ( Contract
-  , ContractConfig
-  , LogLevel
-      ( Trace
-      , Debug
-      , Info
-      , Warn
-      , Error
-      )
-  , runContract
-  , mkContractConfig
-  )
+import Contract.Config (ConfigParams, WalletSpec(..))
+import Contract.Monad (Contract, runContract)
 import Contract.Numeric.NatRatio (fromNaturals, toRational)
 import Contract.Numeric.Natural (Natural, fromBigInt, toBigInt)
 import Contract.Numeric.Rational (Rational, denominator, numerator)
-import Contract.Prim.ByteArray
-  ( byteArrayFromAscii
-  , byteArrayToHex
-  , hexToByteArray
-  )
-import Contract.Value
-  ( CurrencySymbol
-  , TokenName
-  , getCurrencySymbol
-  , getTokenName
-  , mkCurrencySymbol
-  , mkTokenName
-  )
-import Contract.Wallet (mkNamiWalletAff)
+import Contract.Prim.ByteArray (byteArrayFromAscii, byteArrayToHex, hexToByteArray)
+import Contract.Value (CurrencySymbol, TokenName, getCurrencySymbol, getTokenName, mkCurrencySymbol, mkTokenName)
 import Control.Promise (Promise)
 import Control.Promise as Promise
-import ClosePool (closeBondedPoolContract)
 import CreatePool (createBondedPoolContract)
 import Data.BigInt (BigInt)
 import Data.Int as Int
-import Data.UInt as UInt
+import Data.Log.Level (LogLevel(Trace, Debug, Info, Warn, Error))
 import Data.UInt (UInt)
+import Data.UInt as UInt
 import DepositPool (depositBondedPoolContract)
 import Effect.Aff (error)
 import Effect.Exception (Error)
 import Serialization.Address (intToNetworkId)
 import Serialization.Hash (ed25519KeyHashFromBytes, ed25519KeyHashToBytes)
-import Types
-  ( AssetClass(AssetClass)
-  , BondedPoolParams(BondedPoolParams)
-  , InitialBondedParams
-  )
+import Types (AssetClass(AssetClass), BondedPoolParams(BondedPoolParams), InitialBondedParams)
 import Types.RawBytes (hexToRawBytes, rawBytesToHex)
-import UnbondedStaking.Types
-  ( UnbondedPoolParams(UnbondedPoolParams)
-  , InitialUnbondedParams
-  )
 import UnbondedStaking.ClosePool (closeUnbondedPoolContract)
 import UnbondedStaking.CreatePool (createUnbondedPoolContract)
 import UnbondedStaking.DepositPool (depositUnbondedPoolContract)
+import UnbondedStaking.Types (UnbondedPoolParams(UnbondedPoolParams), InitialUnbondedParams)
 import UnbondedStaking.UserStake (userStakeUnbondedPoolContract)
 import UnbondedStaking.UserWithdraw (userWithdrawUnbondedPoolContract)
 import UserStake (userStakeBondedPoolContract)
@@ -95,6 +66,7 @@ type SdkConfig =
 
 type SdkServerConfig =
   { host :: String
+  , path :: Maybe String
   , port :: Number -- converts to UInt
   , secure :: Boolean
   }
@@ -111,14 +83,14 @@ fromSdkLogLevel = case _ of
 fromSdkServerConfig
   :: String
   -> SdkServerConfig
-  -> Either Error { port :: UInt, host :: String, secure :: Boolean }
-fromSdkServerConfig serviceName conf@{ host, secure } = do
+  -> Either Error { port :: UInt, path :: Maybe String, host :: String, secure :: Boolean }
+fromSdkServerConfig serviceName conf@{ host, path, secure } = do
   port <-
     note (error $ "invalid " <> serviceName <> " port number")
       $ UInt.fromNumber' conf.port
-  pure { port, host, secure }
+  pure { port, host, path, secure }
 
-buildContractConfig :: SdkConfig -> Effect (Promise (ContractConfig ()))
+buildContractConfig :: SdkConfig -> Effect (Promise (ConfigParams ()))
 buildContractConfig cfg = Promise.fromAff $ do
   ctlServerConfig <- liftEither $ fromSdkServerConfig "ctl-server"
     cfg.ctlServerConfig
@@ -129,16 +101,16 @@ buildContractConfig cfg = Promise.fromAff $ do
     $ Int.fromNumber cfg.networkId
   networkId <- liftM (errorWithContext "invalid `NetworkId`")
     $ intToNetworkId networkIdInt
-  wallet <- Just <$> mkNamiWalletAff
   logLevel <- liftM (errorWithContext "invalid `LogLevel`")
     $ fromSdkLogLevel cfg.logLevel
-  mkContractConfig $ wrap
+  pure
     { ogmiosConfig
     , datumCacheConfig
     , ctlServerConfig
     , logLevel
     , networkId
-    , wallet
+    , walletSpec: Just ConnectToNami
+    , customLogger: Nothing
     , extraConfig: {}
     }
   where
@@ -149,7 +121,7 @@ callWithArgs
   :: forall (a :: Type) (b :: Type)
    . (a -> Either Error b)
   -> (b -> Contract () Unit)
-  -> ContractConfig ()
+  -> ConfigParams ()
   -> a
   -> Effect (Promise Unit)
 callWithArgs f contract cfg args = Promise.fromAff
@@ -246,7 +218,7 @@ type InitialBondedArgs =
   }
 
 callCreateBondedPool
-  :: ContractConfig ()
+  :: ConfigParams ()
   -> InitialBondedArgs
   -> Effect (Promise BondedPoolArgs)
 callCreateBondedPool cfg iba = Promise.fromAff do
@@ -255,7 +227,7 @@ callCreateBondedPool cfg iba = Promise.fromAff do
   pure $ toBondedPoolArgs bpp
 
 callDepositBondedPool
-  :: ContractConfig ()
+  :: ConfigParams ()
   -> BondedPoolArgs
   -> BigInt
   -> Array Int
@@ -267,7 +239,7 @@ callDepositBondedPool cfg bpa bi arr = Promise.fromAff $ runContract cfg do
   depositBondedPoolContract upp nat arr
 
 callCloseBondedPool
-  :: ContractConfig ()
+  :: ConfigParams ()
   -> BondedPoolArgs
   -> BigInt
   -> Array Int
@@ -279,7 +251,7 @@ callCloseBondedPool cfg bpa bi arr = Promise.fromAff $ runContract cfg do
   closeBondedPoolContract upp nat arr
 
 callUserStakeBondedPool
-  :: ContractConfig () -> BondedPoolArgs -> BigInt -> Effect (Promise Unit)
+  :: ConfigParams () -> BondedPoolArgs -> BigInt -> Effect (Promise Unit)
 callUserStakeBondedPool cfg bpa bi = Promise.fromAff $ runContract cfg do
   bpp <- liftEither $ fromBondedPoolArgs bpa
   nat <- liftM (error "callUserStakeBondedPool: Invalid natural number")
@@ -288,13 +260,13 @@ callUserStakeBondedPool cfg bpa bi = Promise.fromAff $ runContract cfg do
   pure unit
 
 callUserWithdrawBondedPool
-  :: ContractConfig () -> BondedPoolArgs -> Effect (Promise Unit)
+  :: ConfigParams () -> BondedPoolArgs -> Effect (Promise Unit)
 callUserWithdrawBondedPool =
   callWithBondedPoolArgs $ (pure unit <* _) <<< userWithdrawBondedPoolContract
 
 callWithBondedPoolArgs
   :: (BondedPoolParams -> Contract () Unit)
-  -> ContractConfig ()
+  -> ConfigParams ()
   -> BondedPoolArgs
   -> Effect (Promise Unit)
 callWithBondedPoolArgs contract cfg = callWithArgs fromBondedPoolArgs contract
@@ -407,7 +379,7 @@ type InitialUnbondedArgs =
   }
 
 callCreateUnbondedPool
-  :: ContractConfig ()
+  :: ConfigParams ()
   -> InitialUnbondedArgs
   -> Effect (Promise UnbondedPoolArgs)
 callCreateUnbondedPool cfg iba = Promise.fromAff do
@@ -416,7 +388,7 @@ callCreateUnbondedPool cfg iba = Promise.fromAff do
   pure $ toUnbondedPoolArgs upp
 
 callDepositUnbondedPool
-  :: ContractConfig ()
+  :: ConfigParams ()
   -> UnbondedPoolArgs
   -> BigInt
   -> Array Int
@@ -428,7 +400,7 @@ callDepositUnbondedPool cfg upa bi arr = Promise.fromAff $ runContract cfg do
   depositUnbondedPoolContract upp nat arr
 
 callCloseUnbondedPool
-  :: ContractConfig ()
+  :: ConfigParams ()
   -> UnbondedPoolArgs
   -> BigInt
   -> Array Int
@@ -440,7 +412,7 @@ callCloseUnbondedPool cfg upa bi arr = Promise.fromAff $ runContract cfg do
   closeUnbondedPoolContract upp nat arr
 
 callUserStakeUnbondedPool
-  :: ContractConfig () -> UnbondedPoolArgs -> BigInt -> Effect (Promise Unit)
+  :: ConfigParams () -> UnbondedPoolArgs -> BigInt -> Effect (Promise Unit)
 callUserStakeUnbondedPool cfg upa bi = Promise.fromAff $ runContract cfg do
   upp <- liftEither $ fromUnbondedPoolArgs upa
   nat <- liftM (error "callUserStakeUnbondedPool: Invalid natural number")
@@ -448,13 +420,13 @@ callUserStakeUnbondedPool cfg upa bi = Promise.fromAff $ runContract cfg do
   userStakeUnbondedPoolContract upp nat
 
 callUserWithdrawUnbondedPool
-  :: ContractConfig () -> UnbondedPoolArgs -> Effect (Promise Unit)
+  :: ConfigParams () -> UnbondedPoolArgs -> Effect (Promise Unit)
 callUserWithdrawUnbondedPool =
   callWithUnbondedPoolArgs userWithdrawUnbondedPoolContract
 
 callWithUnbondedPoolArgs
   :: (UnbondedPoolParams -> Contract () Unit)
-  -> ContractConfig ()
+  -> ConfigParams ()
   -> UnbondedPoolArgs
   -> Effect (Promise Unit)
 callWithUnbondedPoolArgs contract cfg = callWithArgs fromUnbondedPoolArgs

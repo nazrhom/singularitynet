@@ -26,6 +26,10 @@ You can edit this file as you like.
   , "math"
   , "now"
   , "unfoldable"
+  , "optparse"
+  -- The project does not compile if these CTL dependencies are not added
+  , "purescript-toppokki"
+  , "monad-logger"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "exe/**/*.purs", "test/**/*.purs" ]

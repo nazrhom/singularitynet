@@ -31,16 +31,19 @@ defaultSdkConfig :: SdkConfig
 defaultSdkConfig =
   { ctlServerConfig:
       { host: "localhost"
+      , path: Nothing
       , port: 8081.0
       , secure: false
       }
   , ogmiosConfig:
       { host: "localhost"
+      , path: Nothing
       , port: 1337.0
       , secure: false
       }
   , datumCacheConfig:
       { host: "localhost"
+      , path: Nothing
       , port: 9999.0
       , secure: false
       }
