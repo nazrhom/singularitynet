@@ -109,7 +109,7 @@ testInitUnbondedParams = do
 -- | The amount of time a contract should wait before considering a TX
 -- | submission a failure
 confirmationTimeout :: Seconds
-confirmationTimeout = Seconds $ Int.toNumber 60
+confirmationTimeout = Seconds $ Int.toNumber 120
 
 -- | The number of attempts a contract should do before giving up and
 -- | throwing an error
