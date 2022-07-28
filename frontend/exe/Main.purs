@@ -10,7 +10,10 @@ import Contract.Log (logInfo')
 import Contract.Monad (Contract, defaultDatumCacheWsConfig, defaultOgmiosWsConfig, defaultServerConfig, launchAff_, liftContractM, runContract)
 import CreatePool (createBondedPoolContract)
 import Data.BigInt as BigInt
+import Data.Int as Int
+import Data.Time.Duration (Milliseconds(..))
 import DepositPool (depositBondedPoolContract)
+import Effect.Aff (delay)
 import Effect.Exception (error)
 import Settings (testInitBondedParams)
 import Types (BondedPoolParams(..))
@@ -73,6 +76,7 @@ main = launchAff_ do
       pure bondedPoolParams
 
   log "SWITCH WALLETS NOW - CHANGE TO USER 1"
+  delay' 10
   log "Waiting for pool start..."
   countdownTo' $ POSIXTime bpp.start
 
@@ -83,6 +87,7 @@ main = launchAff_ do
     userStakeBondedPoolContract bondedParams userStake
 
   log "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
+  delay' 10
   log "Waiting for bonding period..."
   countdownTo' $ POSIXTime $ bpp.start + bpp.userLength
 
@@ -97,6 +102,7 @@ main = launchAff_ do
         []
 
   log "SWITCH WALLETS NOW - CHANGE TO USER 1"
+  delay' 10
   log "Waiting for withdrawing period..."
   countdownTo' $ POSIXTime $ bpp.start + bpp.userLength + bpp.bondingLength
 
@@ -105,6 +111,7 @@ main = launchAff_ do
     userWithdrawBondedPoolContract bondedParams
 
   log "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
+  delay' 10
   log "Waiting for closing period..."
   countdownTo' $ POSIXTime bpp.end
 
@@ -219,3 +226,6 @@ runContract_ contract = do
 
 countdownTo' :: forall (r :: Row Type). POSIXTime -> Aff Unit
 countdownTo' = runContract_ <<< countdownTo
+
+delay' :: Int -> Aff Unit
+delay' = delay <<< Milliseconds <<< Int.toNumber <<< (_ * 1000)
