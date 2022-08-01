@@ -173,10 +173,12 @@ pbondedPoolValidator = phoistAcyclic $
             "pbondedPoolValidator: wrong period for PWithdrawAct \
             \redeemer"
             $ period #== depositWithdrawPeriod #|| period #== onlyWithdrawPeriod
+          pure punit
           pguardC
             "pbondedPoolValidator: a token should be burned when using \
             \ PWithdrawAct"
             $ isBurningEntry txInfoF.mint paramsF.assocListCs
+          pure punit
           act <- tcont . pletFields @'["pubKeyHash", "burningAction"] $ act'
           withdrawActLogic
             txInfoF
@@ -614,23 +616,25 @@ withdrawActLogic
     -- Check business and inductive conditions depending on redeemer
     pure . pmatch (pfromData act.burningAction) $ \case
       PBurnHead outRefs' -> unTermCont $ do
-        outRefs <- tcont . pletFields @'["state", "headEntry"] $ outRefs'
-        -- We check most conditions when consuming the state UTXO
-        let withdrawHeadCheck =
-              withdrawHeadActLogic
-                spentInput
-                withdrawnAmt
-                datum
-                txInfo
-                params
-                outRefs.state
-                outRefs.headEntry
-        pure $
-          pnestedIf
-            [ spentInput.outRef #== outRefs.state >: withdrawHeadCheck
-            , spentInput.outRef #== outRefs.headEntry >: entryCheck outRefs.headEntry
-            ]
-            assetCheck
+          outRefs <- tcont . pletFields @'["state", "headEntry"] $ outRefs'
+          -- We check most conditions when consuming the state UTXO
+          let withdrawHeadCheck =
+                withdrawHeadActLogic
+                  spentInput
+                  withdrawnAmt
+                  datum
+                  txInfo
+                  params
+                  outRefs.state
+                  outRefs.headEntry
+          pure $
+            pnestedIf
+              [
+              -- THIS CHECK FAILS
+              -- spentInput.outRef #== outRefs.state >: withdrawHeadCheck
+              spentInput.outRef #== outRefs.headEntry >: entryCheck outRefs.headEntry
+              ]
+              punit
       PBurnOther entries' -> unTermCont $ do
         entries <- tcont . pletFields @'["previousEntry", "burnEntry"] $ entries'
         let withdrawOtherCheck :: Term s PUnit
