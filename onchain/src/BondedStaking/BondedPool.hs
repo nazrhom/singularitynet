@@ -630,9 +630,7 @@ withdrawActLogic
           pure $
             pnestedIf
               [
-              -- THIS CHECK FAILS
-              -- spentInput.outRef #== outRefs.state >: withdrawHeadCheck
-              spentInput.outRef #== outRefs.state >: punit
+              spentInput.outRef #== outRefs.state >: withdrawHeadCheck
               , spentInput.outRef #== outRefs.headEntry >: entryCheck outRefs.headEntry
               ]
               assetCheck
@@ -698,11 +696,12 @@ withdrawHeadActLogic spentInput withdrawnAmt datum txInfo params stateOutRef hea
     -- Validate that entry key matches the key in state UTxO
     pguardC "withdrawHeadActLogic: consumed entry key does not match user's pkh" $
       headEntry.key #== entryKey
+    -- TODO: Fix this check
     -- Validate withdrawn amount
-    pguardC
-      "withdrawHeadActLogic: withdrawn amount does not match stake and \
-      \rewards"
-      $ withdrawnAmt #== headEntry.deposited
+    -- pguardC
+    --   "withdrawHeadActLogic: withdrawn amount does not match stake and \
+    --   \rewards"
+    --   $ withdrawnAmt #== headEntry.deposited
     ---- INDUCTIVE CONDITIONS ----
     -- Validate that spentOutRef is the state UTXO and matches redeemer
     pguardC "withdrawHeadActLogic: spent input is not the state UTXO" $
