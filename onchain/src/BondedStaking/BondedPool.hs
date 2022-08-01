@@ -632,9 +632,10 @@ withdrawActLogic
               [
               -- THIS CHECK FAILS
               -- spentInput.outRef #== outRefs.state >: withdrawHeadCheck
-              spentInput.outRef #== outRefs.headEntry >: entryCheck outRefs.headEntry
+              spentInput.outRef #== outRefs.state >: punit
+              , spentInput.outRef #== outRefs.headEntry >: entryCheck outRefs.headEntry
               ]
-              punit
+              assetCheck
       PBurnOther entries' -> unTermCont $ do
         entries <- tcont . pletFields @'["previousEntry", "burnEntry"] $ entries'
         let withdrawOtherCheck :: Term s PUnit
