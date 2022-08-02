@@ -7,7 +7,15 @@ import ClosePool (closeBondedPoolContract)
 import Contract.Address (NetworkId(TestnetId))
 import Contract.Config (WalletSpec(..))
 import Contract.Log (logInfo')
-import Contract.Monad (Contract, defaultDatumCacheWsConfig, defaultOgmiosWsConfig, defaultServerConfig, launchAff_, liftContractM, runContract)
+import Contract.Monad
+  ( Contract
+  , defaultDatumCacheWsConfig
+  , defaultOgmiosWsConfig
+  , defaultServerConfig
+  , launchAff_
+  , liftContractM
+  , runContract
+  )
 import CreatePool (createBondedPoolContract)
 import Data.BigInt as BigInt
 import DepositPool (depositBondedPoolContract)
@@ -204,7 +212,7 @@ main = launchAff_ do
 -- | Run contract in an environment defined with a certain `ConfigParams`.
 -- | The environment is created and destroyed for this single contract
 -- | execution
-runContract_ :: forall (a :: Type) . Contract () a -> Aff a
+runContract_ :: forall (a :: Type). Contract () a -> Aff a
 runContract_ contract = do
   runContract
     { ogmiosConfig: defaultOgmiosWsConfig
@@ -215,7 +223,8 @@ runContract_ contract = do
     , walletSpec: Just ConnectToNami
     , customLogger: Nothing
     , extraConfig: {}
-    } contract
+    }
+    contract
 
 countdownTo' :: forall (r :: Row Type). POSIXTime -> Aff Unit
 countdownTo' = runContract_ <<< countdownTo

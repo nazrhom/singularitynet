@@ -22,12 +22,13 @@ export type NetworkId = 1 | 2
 export type SdkServerConfig = {
   host: string; // e.g. "localhost"
   port: number; // uint
+  path: string; // leave empty to unset
   secure: boolean;
 };
 
 export type SdkConfig = {
   ctlServerConfig: SdkServerConfig;
-  ogmiosServerConfig: SdkServerConfig;
+  ogmiosConfig: SdkServerConfig;
   datumCacheConfig: SdkServerConfig;
   networkId: NetworkId; // int
   logLevel: LogLevel;

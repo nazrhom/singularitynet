@@ -214,7 +214,7 @@ const sdkConfig = {
     port: 443,
     secure: true,
   },
-  ogmiosServerConfig: {
+  ogmiosConfig: {
     host: "example.com",
     port: 443,
     secure: true,

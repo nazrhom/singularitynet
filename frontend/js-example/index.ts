@@ -45,7 +45,7 @@ const localSdkConfig: SdkConfig = {
     port: 8081,
     secure: false,
   },
-  ogmiosServerConfig: {
+  ogmiosConfig: {
     host: "localhost",
     port: 1337,
     secure: false,
