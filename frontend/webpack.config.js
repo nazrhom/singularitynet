@@ -25,12 +25,12 @@ module.exports = {
     port: 4008,
   },
 
-  // we can add more entrypoints as needed
   entry: "./index.js",
 
   output: {
     path: path.resolve(__dirname, "dist"),
     filename: "bundle.js",
+    library: { name: "singularitynet", type: "commonjs" },
   },
 
   module: {
