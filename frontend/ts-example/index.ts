@@ -6,6 +6,7 @@ import {
 } from "singularitynet";
 
 const singularitynet = require("singularitynet");
+const bigInt = require("big-integer");
 
 const main = async () => {
   const date = new Date();
@@ -25,14 +26,14 @@ const main = async () => {
 };
 
 const initialBondedArgs: InitialBondedArgs = {
-  iterations: BigInt(2),
-  start: BigInt(1000),
-  end: BigInt(2000),
-  userLength: BigInt(180000),
-  bondingLength: BigInt(180000),
-  interest: [BigInt(10), BigInt(100)],
-  minStake: BigInt(1),
-  maxStake: BigInt(50000),
+  iterations: bigInt(2),
+  start: bigInt(1000),
+  end: bigInt(2000),
+  userLength: bigInt(180000),
+  bondingLength: bigInt(180000),
+  interest: [bigInt(10), bigInt(100)],
+  minStake: bigInt(1),
+  maxStake: bigInt(50000),
   bondedAssetClass: [
     "6f1a1f0c7ccf632cc9ff4b79687ed13ffe5b624cce288b364ebdce50",
     "AGIX",
@@ -44,16 +45,19 @@ const localSdkConfig: SdkConfig = {
     host: "localhost",
     port: 8081,
     secure: false,
+    path: "",
   },
   ogmiosConfig: {
     host: "localhost",
     port: 1337,
     secure: false,
+    path: "",
   },
   datumCacheConfig: {
     host: "localhost",
     port: 9999,
     secure: false,
+    path: "",
   },
   networkId: 1,
   logLevel: "Info",

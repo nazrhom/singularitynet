@@ -1,10 +1,12 @@
+import { BigInteger } from "big-integer";
+
 export declare class Pool<T> {
   readonly config: ContractConfig;
   readonly args: T;
 
-  deposit(amount: bigint, idxArray: int[]): Promise<int[]>;
-  close(amount: bigint, idxArray: int[]): Promise<int[]>;
-  userStake(amount: bigint): Promise<void>;
+  deposit(amount: BigInteger, idxArray: int[]): Promise<int[]>;
+  close(amount: BigInteger, idxArray: int[]): Promise<int[]>;
+  userStake(amount: BigInteger): Promise<void>;
   userWithdraw(): Promise<void>;
 }
 
@@ -43,14 +45,14 @@ export declare function createBondedPool(
 ): Promise<BondedPool>;
 
 export type BondedPoolArgs = {
-  iterations: bigint; // Natural
-  start: bigint; // like POSIXTime so positive
-  end: bigint; // like POSIXTime so positive
-  userLength: bigint; // like POSIXTime so positive
-  bondingLength: bigint; // like POSIXTime so positive
-  interest: [bigint, bigint]; // Rational (positive)
-  minStake: bigint; // Natural
-  maxStake: bigint; // Natural
+  iterations: BigInteger; // Natural
+  start: BigInteger; // like POSIXTime so positive
+  end: BigInteger; // like POSIXTime so positive
+  userLength: BigInteger; // like POSIXTime so positive
+  bondingLength: BigInteger; // like POSIXTime so positive
+  interest: [BigInteger, BigInteger]; // Rational (positive)
+  minStake: BigInteger; // Natural
+  maxStake: BigInteger; // Natural
   bondedAssetClass: [string, string]; // AssetClass ~ Tuple CBORCurrencySymbol TokenName
   admin: string; // PaymentPubKeyHash
   nftCs: string; // CBORHexCurrencySymbol
@@ -58,14 +60,14 @@ export type BondedPoolArgs = {
 };
 
 export type InitialBondedArgs = {
-  iterations: bigint; // Natural
-  start: bigint; // like POSIXTime so positive
-  end: bigint; // like POSIXTime so positive
-  userLength: bigint; // like POSIXTime so positive
-  bondingLength: bigint; // like POSIXTime so positive
-  interest: [bigint, bigint]; // Rational (positive)
-  minStake: bigint; // Natural
-  maxStake: bigint; // Natural
+  iterations: BigInteger; // Natural
+  start: BigInteger; // like POSIXTime so positive
+  end: BigInteger; // like POSIXTime so positive
+  userLength: BigInteger; // like POSIXTime so positive
+  bondingLength: BigInteger; // like POSIXTime so positive
+  interest: [BigInteger, BigInteger]; // Rational (positive)
+  minStake: BigInteger; // Natural
+  maxStake: BigInteger; // Natural
   bondedAssetClass: [string, string]; // AssetClass ~ Tuple CBORHexCurrencySymbol TokenName
 };
 
@@ -78,15 +80,15 @@ export declare function createUnbondedPool(
 ): Promise<UnbondedPool>;
 
 export type UnbondedPoolArgs = {
-  start: bigint; // like POSIXTime so positive
-  userLength: bigint; // like POSIXTime so positive
-  bondingLength: bigint; // like POSIXTime so positive
-  adminLength: bigint; // like POSIXTime so positive
-  interestLength: bigint; // like POSIXTime so positive
-  increments: bigint; // Natural
-  interest: [bigint, bigint]; // Rational (positive)
-  minStake: bigint; // Natural
-  maxStake: bigint; // Natural
+  start: BigInteger; // like POSIXTime so positive
+  userLength: BigInteger; // like POSIXTime so positive
+  bondingLength: BigInteger; // like POSIXTime so positive
+  adminLength: BigInteger; // like POSIXTime so positive
+  interestLength: BigInteger; // like POSIXTime so positive
+  increments: BigInteger; // Natural
+  interest: [BigInteger, BigInteger]; // Rational (positive)
+  minStake: BigInteger; // Natural
+  maxStake: BigInteger; // Natural
   unbondedAssetClass: [string, string]; // AssetClass ~ Tuple CBORCurrencySymbol TokenName
   admin: string; // PaymentPubKeyHash
   nftCs: string; // CBORHexCurrencySymbol
@@ -94,14 +96,14 @@ export type UnbondedPoolArgs = {
 };
 
 export type InitialUnbondedArgs = {
-  start: bigint; // like POSIXTime so positive
-  userLength: bigint; // like POSIXTime so positive
-  adminLength: bigint; // like POSIXTime so positive
-  interestLength: bigint; // like POSIXTime so positive
-  bondingLength: bigint; // like POSIXTime so positive
-  increments: bigint; // Natural
-  interest: [bigint, bigint]; // Rational (positive)
-  minStake: bigint; // Natural
-  maxStake: bigint; // Natural
+  start: BigInteger; // like POSIXTime so positive
+  userLength: BigInteger; // like POSIXTime so positive
+  adminLength: BigInteger; // like POSIXTime so positive
+  interestLength: BigInteger; // like POSIXTime so positive
+  bondingLength: BigInteger; // like POSIXTime so positive
+  increments: BigInteger; // Natural
+  interest: [BigInteger, BigInteger]; // Rational (positive)
+  minStake: BigInteger; // Natural
+  maxStake: BigInteger; // Natural
   unbondedAssetClass: [string, string]; // AssetClass ~ Tuple CBORHexCurrencySymbol TokenName
 };

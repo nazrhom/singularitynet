@@ -2,6 +2,7 @@ module SdkApi
   ( SdkConfig
   , SdkServerConfig
   , buildContractConfig
+  , fromSdkNat
   -- Bonded
   , BondedPoolArgs
   , InitialBondedArgs
