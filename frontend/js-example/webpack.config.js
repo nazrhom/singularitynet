@@ -1,9 +1,28 @@
 const path = require("path");
 const webpack = require("webpack");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
+const NodePolyfillPlugin = require("node-polyfill-webpack-plugin");
 
 module.exports = {
   entry: "./index.ts",
+
+  experiments: {
+    asyncWebAssembly: false,
+    layers: false,
+    lazyCompilation: false,
+    outputModule: true,
+    syncWebAssembly: true,
+    topLevelAwait: true,
+  },
+
+  devtool: "eval-source-map",
+
+  stats: { errorDetails: true },
+
+  devServer: {
+    port: 4008,
+  },
+
   module: {
     rules: [
       {
@@ -13,10 +32,26 @@ module.exports = {
       },
     ],
   },
+
   resolve: {
     extensions: [".tsx", ".ts", ".js"],
-    modules: ["./node_modules"],
+    modules: [process.env.NODE_PATH, "./node_modules"],
+    fallback: {
+      buffer: require.resolve("buffer/"),
+      http: false,
+      url: false,
+      stream: false,
+      crypto: false,
+      https: false,
+      net: false,
+      tls: false,
+      zlib: false,
+      os: false,
+      path: false,
+      fs: false,
+    },
   },
+
   output: {
     filename: "bundle.js",
     path: path.resolve(__dirname, "dist"),
@@ -29,6 +64,7 @@ module.exports = {
     new webpack.LoaderOptionsPlugin({
       debug: true,
     }),
+    new NodePolyfillPlugin(),
     new HtmlWebpackPlugin({
       title: "singularitynet-example",
       template: "./index.html",
