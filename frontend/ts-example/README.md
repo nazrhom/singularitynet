@@ -95,7 +95,8 @@ const main = async () => {
     someSdkConfig,
     someInitialArgs
   );
-  // pool operations
+  await pool.deposit(BigInteger(1), []);
+  // more pool operations...
 };
 ```
 
