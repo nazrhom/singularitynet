@@ -12,28 +12,27 @@ As previously discussed, we will upgrade CTL for you once we have compatibility 
 
 - [Prerequisites](#prerequisites)
 - [Services](#services)
-    - [`cardano-node`](#cardano-node)
-        - [Version](#version)
-        - [Installation](#installation)
-        - [Configuration](#configuration)
-        - [Links](#links)
-    - [`ogmios`](#ogmios)
-        - [Version](#version-1)
-        - [Installation](#installation-1)
-        - [Configuration](#configuration-1)
-        - [Links](#links-1)
-    - [`ogmios-datum-cache`](#ogmios-datum-cache)
-        - [Version](#version-2)
-        - [Installation](#installation-2)
-        - [Configuration](#configuration-2)
-        - [Links](#links-2)
-    - [`ctl-server`](#ctl-server)
-        - [Version](#version-3)
-        - [Installation](#installation-3)
-        - [Configuration](#configuration-3)
-        - [Links](#links-3)
+  - [`cardano-node`](#cardano-node)
+    - [Version](#version)
+    - [Installation](#installation)
+    - [Configuration](#configuration)
+    - [Links](#links)
+  - [`ogmios`](#ogmios)
+    - [Version](#version-1)
+    - [Installation](#installation-1)
+    - [Configuration](#configuration-1)
+    - [Links](#links-1)
+  - [`ogmios-datum-cache`](#ogmios-datum-cache)
+    - [Version](#version-2)
+    - [Installation](#installation-2)
+    - [Configuration](#configuration-2)
+    - [Links](#links-2)
+  - [`ctl-server`](#ctl-server)
+    - [Version](#version-3)
+    - [Installation](#installation-3)
+    - [Configuration](#configuration-3)
+    - [Links](#links-3)
 - [Configuring CTL contract execution](#configuring-ctl-contract-execution)
-
 
 ## Prerequisites
 
@@ -194,7 +193,7 @@ CTL server can also be configured using command-line parameters. Currently, only
 
 ```
 
-ctl-server --port <PORT> 
+ctl-server --port <PORT>
 
 ```
 
@@ -207,33 +206,35 @@ https://github.com/Plutonomicon/cardano-transaction-lib
 CTL requires information about each of these runtime dependencies in order to execute contracts. This can be done using the `SdkConfig` type that is provided when creating each type of pool. The following example assumes that the services have been deployed using a dedicated HTTP server (e.g. Nginx) with TLS certificates and a reverse proxy (note: such a setup is **not** required for CTL contract execution).
 
 ```javascript
-
-const sdkConfig = { 
+const sdkConfig = {
   ctlServerConfig: {
     host: "example.com",
     port: 443,
     secure: true,
+    path: "",
   },
   ogmiosConfig: {
     host: "example.com",
     port: 443,
     secure: true,
+    path: "",
   },
   datumCacheConfig: {
     host: "example.com",
     port: 443,
     secure: true,
+    path: "",
   },
   networkId: 1,
   logLevel: "Error",
 };
 
 const bondedPoolAdminExample = async () => {
-  const initialArgs = { /* omitted for brevity */ };
+  const initialArgs = {
+    /* omitted for brevity */
+  };
   const bondedPool = await createBondedPool(sdkConfig, initialArgs);
   await bondedPool.deposit();
   // ...
 };
-
 ```
-
