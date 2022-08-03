@@ -2,6 +2,19 @@
 
 This subdirectory contains a new Typescript project demonstrating how to consume the [Javascript SDK](../package.json) that we created. This document outlines the necessary steps to build and bundle the main JS SDK and then build the Typescript project. It also details some important details for your own frontend integration.
 
+**Table of Contents**
+
+- [How to build and run](#how-to-build-and-run)
+  - [Build the main SDK package](#build-the-main-sdk-package)
+  - [Build the Typescript project](#build-the-typescript-project)
+- [Other important notes](#other-important-notes)
+  - [Type definitions](#type-definitions)
+  - [Creating the pools](#creating-the-pools)
+    - [Changing the service configurations](#changing-the-service-configurations)
+  - [Using `big-integer` instead of native `bigint`s](#using-big-integer-instead-of-native-bigints)
+  - [The `BROWSER_RUNTIME` environment variable](#the-browser_runtime-environment-variable)
+  - [Webpack](#webpack)
+
 ## How to build and run
 
 ### Build the main SDK package
@@ -45,7 +58,7 @@ We're now ready to consume the (local) SDK package. If you make any changes in t
    $ npm i
    ```
    **Note**: We do **not** do this before building the main SDK package as the NPM dependencies are handled by Nix in that case. For the current TS example, however, I did not create a similar setup so we need to use `npm` directly.
-3. If you're running the CTL runtime on `localhost`, make sure that's started. Otherwise, change the configurations in `index.ts` (see [below](.))
+3. If you're running the CTL runtime on `localhost`, make sure that's started. Otherwise, change the configurations in `index.ts` (see [below](#changing-the-service-configurations))
 4. Either start the development server or run the build:
    ```
    $ npm run dev
@@ -66,20 +79,22 @@ The present example makes use of several type definitions, but there are several
 ```typescript
 import {
   SdkConfig,
-  LogLevel, 
+  LogLevel,
   SdkServerConfig,
   BondedPool,
 } from "singularitynet";
-
 ```
 
 ### Creating the pools
 
 `index.d.ts` defines two immutable classes that represent bonded and unbonded pools (`BondedPool` and `UnbondedPool`, respectively). **Do not** use the constructors directly. Instead, use the asynchronous `createBondedPool` and `createUnbondedPool` functions. This is because the initializations of each pool must be done asynchronously and JS does not allow `async` constructors. For example
 
-``` typescript
+```typescript
 const main = async () => {
-  const pool: BondedPool = await createBondedPool(someSdkConfig, someInitialArgs);
+  const pool: BondedPool = await createBondedPool(
+    someSdkConfig,
+    someInitialArgs
+  );
   // pool operations
 };
 ```
@@ -90,7 +105,7 @@ Both types of pools take an `SdkConfig` as their first argument which includes i
 
 _`frontend/ts-example/index.ts`_
 
-``` typescript
+```typescript
 import { SdkConfig } from "singularitynet";
 
 // omitted for brevity
@@ -121,8 +136,7 @@ const localHostSdkConfig: SdkConfig = {
 
 You can easily change all of these to connect to remote services, however. For example, we could host all of them on `some-domain.com` with TLS enabled and route them to different paths. We would only need to change the `SdkConfig` to support this:
 
-``` typescript
-
+```typescript
 const remoteSdkConfig: SdkConfig = {
   ctlServerConfig: {
     host: "some-domain.com",
