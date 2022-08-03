@@ -1,8 +1,9 @@
 module SdkApi
   ( SdkConfig
   , SdkServerConfig
+  , SdkInterest
+  , SdkAssetClass
   , buildContractConfig
-  , fromSdkNat
   -- Bonded
   , BondedPoolArgs
   , InitialBondedArgs
@@ -90,6 +91,10 @@ type SdkServerConfig =
   , secure :: Boolean
   }
 
+type SdkInterest = { numerator :: BigInt, denominator :: BigInt }
+
+type SdkAssetClass = { currencySymbol :: String, tokenName :: String }
+
 fromSdkLogLevel :: String -> Maybe LogLevel
 fromSdkLogLevel = case _ of
   "Trace" -> pure Trace
@@ -157,13 +162,14 @@ callWithArgs f contract cfg args = Promise.fromAff
   <<< contract
   =<< liftEither (f args)
 
-toSdkAssetClass :: AssetClass -> Tuple String String
+toSdkAssetClass :: AssetClass -> SdkAssetClass
 toSdkAssetClass (AssetClass ac) =
-  byteArrayToHex (getCurrencySymbol ac.currencySymbol)
-    /\ byteArrayToHex (getTokenName ac.tokenName)
+   { currencySymbol: byteArrayToHex $ getCurrencySymbol ac.currencySymbol
+   , tokenName: byteArrayToHex $ getTokenName ac.tokenName
+   }
 
-toSdkInterest :: Rational -> Tuple BigInt BigInt
-toSdkInterest i = numerator i /\ denominator i
+toSdkInterest :: Rational -> SdkInterest
+toSdkInterest i = { numerator: numerator i,  denominator: denominator i }
 
 toSdkAdmin :: PaymentPubKeyHash -> String
 toSdkAdmin = rawBytesToHex <<< ed25519KeyHashToBytes <<< unwrap <<< unwrap
@@ -177,8 +183,8 @@ fromSdkNat context name bint = note (error msg) $ fromBigInt bint
   msg :: String
   msg = context <> ": Could not convert " <> name <> " to `Natural`"
 
-fromSdkAssetClass :: String -> String /\ String -> Either Error AssetClass
-fromSdkAssetClass context (currencySymbol /\ tokenName) = map wrap
+fromSdkAssetClass :: String -> SdkAssetClass -> Either Error AssetClass
+fromSdkAssetClass context { currencySymbol, tokenName } = map wrap
   $ { currencySymbol: _, tokenName: _ }
   <$> fromSdkCurrencySymbol context currencySymbol
   <*> fromSdkTokenName context tokenName
@@ -193,8 +199,8 @@ fromSdkCurrencySymbol context currencySymbol =
   note (errorWithMsg context "`CurrencySymbol`") $ mkCurrencySymbol =<<
     hexToByteArray currencySymbol
 
-fromSdkInterest :: String -> BigInt /\ BigInt -> Either Error Rational
-fromSdkInterest context (numerator /\ denominator) = do
+fromSdkInterest :: String -> SdkInterest -> Either Error Rational
+fromSdkInterest context { numerator, denominator } = do
   interestNum <- fromSdkNat context "interest numerator" numerator
   interestDen <- fromSdkNat context "interest denominator" denominator
   note (error msg) $ toRational <$> fromNaturals interestNum interestDen
@@ -222,11 +228,10 @@ type BondedPoolArgs =
   , end :: BigInt -- like POSIXTime
   , userLength :: BigInt -- like POSIXTime
   , bondingLength :: BigInt -- like POSIXTime
-  , interest :: Tuple BigInt BigInt -- Rational
+  , interest :: SdkInterest
   , minStake :: BigInt -- Natural
   , maxStake :: BigInt -- Natural
-  , bondedAssetClass ::
-      Tuple String String -- AssetClass ~ Tuple CBORCurrencySymbol ASCIITokenName
+  , bondedAssetClass :: SdkAssetClass
   , admin :: String -- PaymentPubKeyHash
   , nftCs :: String -- CurrencySymbol
   , assocListCs :: String -- CurrencySymbol
@@ -238,11 +243,10 @@ type InitialBondedArgs =
   , end :: BigInt -- like POSIXTime
   , userLength :: BigInt -- like POSIXTime
   , bondingLength :: BigInt -- like POSIXTime
-  , interest :: Tuple BigInt BigInt -- Rational
+  , interest :: SdkInterest
   , minStake :: BigInt -- Natural
   , maxStake :: BigInt -- Natural
-  , bondedAssetClass ::
-      Tuple String String -- AssetClass ~ Tuple CBORCurrencySymbol ASCIITokenName
+  , bondedAssetClass :: SdkAssetClass
   }
 
 callCreateBondedPool
@@ -382,12 +386,11 @@ type UnbondedPoolArgs =
   , bondingLength :: BigInt -- like POSIXTime
   , interestLength :: BigInt -- like POSIXTime
   , increments :: BigInt -- Natural
-  , interest :: Tuple BigInt BigInt -- Rational
+  , interest :: SdkInterest
   , minStake :: BigInt -- Natural
   , maxStake :: BigInt -- Natural
   , admin :: String -- PaymentPubKeyHash
-  , unbondedAssetClass ::
-      Tuple String String -- AssetClass ~ Tuple CBORCurrencySymbol ASCIITokenName
+  , unbondedAssetClass :: SdkAssetClass
   , nftCs :: String -- CurrencySymbol
   , assocListCs :: String -- CurrencySymbol
   }
@@ -399,11 +402,10 @@ type InitialUnbondedArgs =
   , interestLength :: BigInt -- like POSIXTime
   , bondingLength :: BigInt -- like POSIXTime
   , increments :: BigInt -- Natural
-  , interest :: Tuple BigInt BigInt -- Rational
+  , interest :: SdkInterest
   , minStake :: BigInt -- Natural
   , maxStake :: BigInt -- Natural
-  , unbondedAssetClass ::
-      Tuple String String -- AssetClass ~ Tuple CBORCurrencySymbol ASCIITokenName
+  , unbondedAssetClass :: SdkAssetClass
   }
 
 callCreateUnbondedPool

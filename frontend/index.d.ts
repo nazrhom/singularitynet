@@ -28,6 +28,16 @@ export type SdkServerConfig = {
   secure: boolean;
 };
 
+export type SdkAssetClass = {
+  currencySymbol: string;
+  tokenName: string;
+}
+
+export type SdkInterest = {
+  numerator: BigInteger;
+  denominator: BigInteger;
+}
+
 export type SdkConfig = {
   ctlServerConfig: SdkServerConfig;
   ogmiosConfig: SdkServerConfig;
@@ -50,10 +60,10 @@ export type BondedPoolArgs = {
   end: BigInteger; // like POSIXTime so positive
   userLength: BigInteger; // like POSIXTime so positive
   bondingLength: BigInteger; // like POSIXTime so positive
-  interest: [BigInteger, BigInteger]; // Rational (positive)
+  interest: SdkInterest;
   minStake: BigInteger; // Natural
   maxStake: BigInteger; // Natural
-  bondedAssetClass: [string, string]; // AssetClass ~ Tuple CBORCurrencySymbol TokenName
+  bondedAssetClass: SdkAssetClass;
   admin: string; // PaymentPubKeyHash
   nftCs: string; // CBORHexCurrencySymbol
   assocListCs: string; // CBORHexCurrencySymbol
@@ -65,10 +75,10 @@ export type InitialBondedArgs = {
   end: BigInteger; // like POSIXTime so positive
   userLength: BigInteger; // like POSIXTime so positive
   bondingLength: BigInteger; // like POSIXTime so positive
-  interest: [BigInteger, BigInteger]; // Rational (positive)
+  interest: SdkInterest;
   minStake: BigInteger; // Natural
   maxStake: BigInteger; // Natural
-  bondedAssetClass: [string, string]; // AssetClass ~ Tuple CBORHexCurrencySymbol TokenName
+  bondedAssetClass: SdkAssetClass;
 };
 
 // Unbonded pool
@@ -86,10 +96,10 @@ export type UnbondedPoolArgs = {
   adminLength: BigInteger; // like POSIXTime so positive
   interestLength: BigInteger; // like POSIXTime so positive
   increments: BigInteger; // Natural
-  interest: [BigInteger, BigInteger]; // Rational (positive)
+  interest: SdkInterest;
   minStake: BigInteger; // Natural
   maxStake: BigInteger; // Natural
-  unbondedAssetClass: [string, string]; // AssetClass ~ Tuple CBORCurrencySymbol TokenName
+  unbondedAssetClass: SdkAssetClass;
   admin: string; // PaymentPubKeyHash
   nftCs: string; // CBORHexCurrencySymbol
   assocListCs: string; // CBORHexCurrencySymbol
@@ -102,8 +112,8 @@ export type InitialUnbondedArgs = {
   interestLength: BigInteger; // like POSIXTime so positive
   bondingLength: BigInteger; // like POSIXTime so positive
   increments: BigInteger; // Natural
-  interest: [BigInteger, BigInteger]; // Rational (positive)
+  interest: SdkInterest;
   minStake: BigInteger; // Natural
   maxStake: BigInteger; // Natural
-  unbondedAssetClass: [string, string]; // AssetClass ~ Tuple CBORHexCurrencySymbol TokenName
+  unbondedAssetClass: SdkAssetClass;
 };
