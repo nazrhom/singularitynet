@@ -29,7 +29,7 @@ const main = async () => {
     `Bonded pool creation: ${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`
   );
   const bondedPool: BondedPool = await singularitynet.createBondedPool(
-    localSdkConfig,
+    localHostSdkConfig,
     initialBondedArgs
   );
   const bondedPoolArgs: BondedPoolArgs = bondedPool.args;
@@ -81,7 +81,7 @@ const initialBondedArgs: InitialBondedArgs = {
   },
 };
 
-const localSdkConfig: SdkConfig = {
+const localHostSdkConfig: SdkConfig = {
   ctlServerConfig: {
     host: "localhost",
     port: 8081,
