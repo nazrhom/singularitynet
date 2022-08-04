@@ -2,10 +2,12 @@
 
 const frontend = import("./output.js");
 
-exports.createBondedPool = async (sdkConfig, intialArgs) => {
+exports.createBondedPool = async (sdkConfig, initialArgs) => {
   const contracts = await frontend;
   const config = await contracts.buildContractConfig(sdkConfig)();
-  const bondedArgs = await callCreateBondedPool(config)(initialArgs)();
+  const bondedArgs = await contracts.callCreateBondedPool(config)(
+    initialArgs
+  )();
   return new BondedPool(config, bondedArgs);
 };
 
@@ -40,7 +42,7 @@ exports.BondedPool = class BondedPool {
   }
 };
 
-exports.createUnbondedPool = async (sdkConfig, intialArgs) => {
+exports.createUnbondedPool = async (sdkConfig, initialArgs) => {
   const contracts = await frontend;
   const config = await contracts.buildContractConfig(sdkConfig)();
   const unbondedArgs = await callCreateUnbondedPool(config)(initialArgs)();
@@ -56,13 +58,15 @@ exports.UnbondedPool = class UnbondedPool {
   async deposit(amount, idxArray) {
     const contracts = await frontend;
     return contracts.callDepositUnbondedPool(this.config)(this.args)(amount)(
-      idxArray)();
+      idxArray
+    )();
   }
 
   async close(amount, idxArray) {
     const contracts = await frontend;
     return contracts.callCloseUnbondedPool(this.config)(this.args)(amount)(
-      idxArray)();
+      idxArray
+    )();
   }
 
   async userStake(amount) {

@@ -34,8 +34,8 @@ import Contract.Monad
   , liftedM
   , tag
   )
-import Contract.Log(
-  logInfo
+import Contract.Log
+  ( logInfo
   , logInfo'
   , logAesonInfo
   )
