@@ -164,12 +164,12 @@ callWithArgs f contract cfg args = Promise.fromAff
 
 toSdkAssetClass :: AssetClass -> SdkAssetClass
 toSdkAssetClass (AssetClass ac) =
-   { currencySymbol: byteArrayToHex $ getCurrencySymbol ac.currencySymbol
-   , tokenName: byteArrayToHex $ getTokenName ac.tokenName
-   }
+  { currencySymbol: byteArrayToHex $ getCurrencySymbol ac.currencySymbol
+  , tokenName: byteArrayToHex $ getTokenName ac.tokenName
+  }
 
 toSdkInterest :: Rational -> SdkInterest
-toSdkInterest i = { numerator: numerator i,  denominator: denominator i }
+toSdkInterest i = { numerator: numerator i, denominator: denominator i }
 
 toSdkAdmin :: PaymentPubKeyHash -> String
 toSdkAdmin = rawBytesToHex <<< ed25519KeyHashToBytes <<< unwrap <<< unwrap
