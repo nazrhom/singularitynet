@@ -28,7 +28,7 @@ import Contract.PlutusData
   , getDatumByHash
   , toData
   )
-import Contract.Prim.ByteArray (ByteArray, byteArrayToHex)
+import Contract.Prim.ByteArray (ByteArray)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
 import Contract.Transaction

@@ -17,7 +17,6 @@ import Contract.Monad
   , liftedM
   )
 import Contract.PlutusData (Datum(Datum), PlutusData, toData)
-import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
 import Contract.Transaction
