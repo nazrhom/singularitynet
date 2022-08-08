@@ -35,7 +35,6 @@ import Contract.Transaction
   ( TransactionInput
   , TransactionOutput
   , balanceAndSignTx
-  , submit
   )
 import Contract.TxConstraints
   ( TxConstraints
@@ -54,7 +53,11 @@ import Data.Map as Map
 import Plutus.Conversion (fromPlutusAddress)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
-import Settings (unbondedStakingTokenName)
+import Settings
+  ( unbondedStakingTokenName
+  , confirmationTimeout
+  , submissionAttempts
+  )
 import Types
   ( BurningAction(BurnHead, BurnOther, BurnSingle)
   , ListAction(ListRemove)
@@ -77,6 +80,7 @@ import Utils
   , hashPkh
   , logInfo_
   , mkOnchainAssocList
+  , repeatUntilConfirmed
   )
 
 -- Deposits a certain amount in the pool
@@ -88,7 +92,7 @@ userWithdrawUnbondedPoolContract
         , nftCs
         , assocListCs
         }
-    ) = do
+    ) = void $ repeatUntilConfirmed confirmationTimeout submissionAttempts $ do
   ---- FETCH BASIC INFORMATION ----
   -- Get network ID
   networkId <- getNetworkId
@@ -410,13 +414,7 @@ userWithdrawUnbondedPoolContract
       "userWithdrawUnbondedPoolContract: Cannot balance, reindex redeemers, \
       \ attach datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
-  -- Submit transaction using Cbor-hex encoded `ByteArray`
-  transactionHash <- submit signedTx
-  logInfo_
-    "userWithdrawUnbondedPoolContract: Transaction successfully submitted with \
-    \hash"
-    $ byteArrayToHex
-    $ unwrap transactionHash
+  pure { signedTx }
 
 -- | This function filters all the asset UTxOs from a `UtxoM`
 getUnbondedAssetUtxos :: forall (r :: Row Type). UtxoM -> Contract r UtxoM

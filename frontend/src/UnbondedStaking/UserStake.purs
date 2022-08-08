@@ -29,7 +29,7 @@ import Contract.PlutusData
 import Contract.Prim.ByteArray (byteArrayToHex)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
-import Contract.Transaction (balanceAndSignTx, submit)
+import Contract.Transaction (balanceAndSignTx)
 import Contract.TxConstraints
   ( TxConstraints
   , mustBeSignedBy
@@ -45,7 +45,11 @@ import Data.Array (head)
 import Plutus.Conversion (fromPlutusAddress)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkUnbondedPoolValidator)
-import Settings (unbondedStakingTokenName)
+import Settings
+  ( unbondedStakingTokenName
+  , confirmationTimeout
+  , submissionAttempts
+  )
 import Types
   ( ListAction(ListInsert)
   , MintingAction(MintHead)
@@ -65,6 +69,7 @@ import Utils
   , hashPkh
   , mkOnchainAssocList
   , logInfo_
+  , repeatUntilConfirmed
   )
 
 -- Deposits a certain amount in the pool
@@ -80,7 +85,7 @@ userStakeUnbondedPoolContract
         , assocListCs
         }
     )
-  amt = do
+  amt = void $ repeatUntilConfirmed confirmationTimeout submissionAttempts $ do
   -- Fetch information related to the pool
   -- Get network ID
   networkId <- getNetworkId
@@ -581,8 +586,4 @@ userStakeUnbondedPoolContract
       \datums redeemers and sign"
       $ balanceAndSignTx unattachedBalancedTx
   -- Submit transaction using Cbor-hex encoded `ByteArray`
-  transactionHash <- submit signedTx
-  logInfo_
-    "userStakeUnbondedPoolContract: Transaction successfully submitted with hash"
-    $ byteArrayToHex
-    $ unwrap transactionHash
+  pure { signedTx }
