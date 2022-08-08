@@ -230,7 +230,7 @@ userWithdrawUnbondedPoolContract
       , ScriptLookups.unspentOutputs $ unwrap userUtxos
       , ScriptLookups.unspentOutputs $ unwrap unbondedPoolUtxos
       ]
-  -- Deterimne if we are doing a closed or open withdrawal
+  -- Determine if we are doing a closed or open withdrawal
   constraints /\ lookups <-
     if userEntry.open then do
       -- Get state utxo
