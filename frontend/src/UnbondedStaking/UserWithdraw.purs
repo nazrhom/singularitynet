@@ -230,9 +230,30 @@ userWithdrawUnbondedPoolContract
       , ScriptLookups.unspentOutputs $ unwrap userUtxos
       , ScriptLookups.unspentOutputs $ unwrap unbondedPoolUtxos
       ]
+
   -- Determine if we are doing a closed or open withdrawal
-  constraints /\ lookups <-
-    if userEntry.open then do
+  constraints /\ lookups <- case userEntry.open of
+    false -> do
+      logInfo' "userWithdrawUnbondedPoolContract: Pool closed withdrawal"
+      let
+        -- Build validator redeemer
+        valRedeemer = Redeemer <<< toData $
+          WithdrawAct
+            { stakeHolder: userPkh
+            , burningAction: BurnSingle entryInput
+            }
+        -- Build minting policy redeemer
+        mintRedeemer = Redeemer $ toData $ ListRemove $ BurnSingle entryInput
+
+        constraints :: TxConstraints Unit Unit
+        constraints =
+          mconcat
+            [ mustSpendScriptOutput entryInput valRedeemer
+            , mkAssetUtxosConstraints consumedAssetUtxos valRedeemer
+            , mustMintValueWithRedeemer mintRedeemer burnEntryValue
+            ]
+      pure $ constraints /\ mempty
+    true -> do
       -- Get state utxo
       tokenName <- liftContractM
         "userWithdrawUnbondedPoolContract: Cannot create TokenName"
@@ -375,26 +396,7 @@ userWithdrawUnbondedPoolContract
                     ]
               pure $ constraints /\ prevEntryDatumLookup
       pure $ constraints /\ lookups
-    else do
-      logInfo' "userWithdrawUnbondedPoolContract: Pool closed withdrawal"
-      let
-        -- Build validator redeemer
-        valRedeemer = Redeemer <<< toData $
-          WithdrawAct
-            { stakeHolder: userPkh
-            , burningAction: BurnSingle entryInput
-            }
-        -- Build minting policy redeemer
-        mintRedeemer = Redeemer $ toData $ ListRemove $ BurnSingle entryInput
 
-        constraints :: TxConstraints Unit Unit
-        constraints =
-          mconcat
-            [ mustSpendScriptOutput entryInput valRedeemer
-            , mkAssetUtxosConstraints consumedAssetUtxos valRedeemer
-            , mustMintValueWithRedeemer mintRedeemer burnEntryValue
-            ]
-      pure $ constraints /\ mempty
   -- Balance transaction
   unattachedBalancedTx <-
     liftedE $ ScriptLookups.mkUnbalancedTx
