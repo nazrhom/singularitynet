@@ -50,6 +50,7 @@ import PNatural (
   -- roundDown,
   -- toNatRatio,
  )
+
 import PTypes (
   HField,
   PAssetClass,
@@ -76,8 +77,8 @@ import Utils (
   getDatum,
   getDatumHash,
   getInput,
-  getOutputSignedBy,
-  getTokenCount,
+  getOutputsSignedBy,
+  getTokenTotalOutputs,
   getTokenName,
   oneWith,
   parseStakingDatum,
@@ -149,25 +150,27 @@ pbondedPoolValidator = phoistAcyclic $
     pure $
       pmatch act $ \case
         PAdminAct _ -> unTermCont $ do
-          pguardC "pbondedPoolValidator: wrong period for PAdminAct redeemer" $
-            period #== bondingPeriod
-          pure $ adminActLogic txInfoF paramsF
+          pure punit
+          -- pguardC "pbondedPoolValidator: wrong period for PAdminAct redeemer" $
+          --   period #== bondingPeriod
+          -- pure $ adminActLogic txInfoF paramsF
         PStakeAct act -> unTermCont $ do
-          pguardC
-            "pbondedPoolValidator: wrong period for PStakeAct \
-            \redeemer"
-            $ period #== depositWithdrawPeriod
-          pure
-            . pletFields
-              @'["stakeAmount", "pubKeyHash", "maybeMintingAction"]
-              act
-            $ \actF ->
-              stakeActLogic
-                txInfoF
-                paramsF
-                ctxF.purpose
-                dat
-                actF
+          pure punit
+          -- pguardC
+          --   "pbondedPoolValidator: wrong period for PStakeAct \
+          --   \redeemer"
+          --   $ period #== depositWithdrawPeriod
+          -- pure
+          --   . pletFields
+          --     @'["stakeAmount", "pubKeyHash", "maybeMintingAction"]
+          --     act
+          --   $ \actF ->
+          --     stakeActLogic
+          --       txInfoF
+          --       paramsF
+          --       ctxF.purpose
+          --       dat
+          --       actF
         PWithdrawAct act' -> unTermCont $ do
           pguardC
             "pbondedPoolValidator: wrong period for PWithdrawAct \
@@ -187,9 +190,10 @@ pbondedPoolValidator = phoistAcyclic $
             dat
             act
         PCloseAct _ -> unTermCont $ do
-          pguardC "pbondedPoolValidator: wrong period for PcloseAct redeemer" $
-            period #== closingPeriod
-          pure $ closeActLogic ctxF.txInfo params
+          pure punit
+          -- pguardC "pbondedPoolValidator: wrong period for PcloseAct redeemer" $
+          --   period #== closingPeriod
+          -- pure $ closeActLogic ctxF.txInfo params
   where
     isBurningEntry ::
       forall (s :: S).
@@ -198,7 +202,6 @@ pbondedPoolValidator = phoistAcyclic $
       Term s PBool
     isBurningEntry val cs =
       oneWith # (peq # cs) # pconst ptrue # (peq # (-1)) # val
-
 -- Untyped version to be serialised. This version is responsible for verifying
 -- that the parameters (pool params, datum and redeemer) have the proper types.
 -- The script context should always be safe.
@@ -580,12 +583,9 @@ withdrawActLogic
     -- Validate holder's signature
     pguardC "withdrawActLogic: tx not exclusively signed by the stake-holder" $
       signedOnlyBy txInfo.signatories act.pubKeyHash
-    -- Get amount staked from output
     withdrawnAmt <-
-      pure . getTokenCount params.bondedAssetClass
-        <=< (\txOut -> pure $ pfield @"value" # txOut)
-        <=< getOutputSignedBy act.pubKeyHash
-        $ txInfo.outputs
+        getTokenTotalOutputs params.bondedAssetClass
+        <$> getOutputsSignedBy act.pubKeyHash txInfo.outputs
     -- Validate the asset input is effectively an asset UTXO
     let assetCheck :: Term s PUnit
         assetCheck = unTermCont $ do
@@ -696,12 +696,10 @@ withdrawHeadActLogic spentInput withdrawnAmt datum txInfo params stateOutRef hea
     -- Validate that entry key matches the key in state UTxO
     pguardC "withdrawHeadActLogic: consumed entry key does not match user's pkh" $
       headEntry.key #== entryKey
-    -- TODO: Fix this check
-    -- Validate withdrawn amount
-    -- pguardC
-    --   "withdrawHeadActLogic: withdrawn amount does not match stake and \
-    --   \rewards"
-    --   $ withdrawnAmt #== headEntry.deposited
+    pguardC
+      "withdrawHeadActLogic: withdrawn amount does not match stake and \
+      \rewards"
+      $ pto withdrawnAmt #== pto (pfromData headEntry.deposited)
     ---- INDUCTIVE CONDITIONS ----
     -- Validate that spentOutRef is the state UTXO and matches redeemer
     pguardC "withdrawHeadActLogic: spent input is not the state UTXO" $
@@ -905,3 +903,4 @@ getKey =
           PDJust key -> pfield @"_0" # key
           PDNothing _ -> ptraceError "getKey: no key found"
       )
+

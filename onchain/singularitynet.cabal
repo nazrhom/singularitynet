@@ -121,6 +121,7 @@ library
     , plutus-ledger-api
     , plutus-tx
     , singularitynet-common
+    , text
 
   hs-source-dirs:  src
 
