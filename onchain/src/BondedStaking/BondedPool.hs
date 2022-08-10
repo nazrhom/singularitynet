@@ -150,38 +150,34 @@ pbondedPoolValidator = phoistAcyclic $
     pure $
       pmatch act $ \case
         PAdminAct _ -> unTermCont $ do
-          pure punit
-          -- pguardC "pbondedPoolValidator: wrong period for PAdminAct redeemer" $
-          --   period #== bondingPeriod
-          -- pure $ adminActLogic txInfoF paramsF
+          pguardC "pbondedPoolValidator: wrong period for PAdminAct redeemer" $
+            period #== bondingPeriod
+          pure $ adminActLogic txInfoF paramsF
         PStakeAct act -> unTermCont $ do
-          pure punit
-          -- pguardC
-          --   "pbondedPoolValidator: wrong period for PStakeAct \
-          --   \redeemer"
-          --   $ period #== depositWithdrawPeriod
-          -- pure
-          --   . pletFields
-          --     @'["stakeAmount", "pubKeyHash", "maybeMintingAction"]
-          --     act
-          --   $ \actF ->
-          --     stakeActLogic
-          --       txInfoF
-          --       paramsF
-          --       ctxF.purpose
-          --       dat
-          --       actF
+          pguardC
+            "pbondedPoolValidator: wrong period for PStakeAct \
+            \redeemer"
+            $ period #== depositWithdrawPeriod
+          pure
+            . pletFields
+              @'["stakeAmount", "pubKeyHash", "maybeMintingAction"]
+              act
+            $ \actF ->
+              stakeActLogic
+                txInfoF
+                paramsF
+                ctxF.purpose
+                dat
+                actF
         PWithdrawAct act' -> unTermCont $ do
           pguardC
             "pbondedPoolValidator: wrong period for PWithdrawAct \
             \redeemer"
             $ period #== depositWithdrawPeriod #|| period #== onlyWithdrawPeriod
-          pure punit
           pguardC
             "pbondedPoolValidator: a token should be burned when using \
             \ PWithdrawAct"
             $ isBurningEntry txInfoF.mint paramsF.assocListCs
-          pure punit
           act <- tcont . pletFields @'["pubKeyHash", "burningAction"] $ act'
           withdrawActLogic
             txInfoF
@@ -190,10 +186,9 @@ pbondedPoolValidator = phoistAcyclic $
             dat
             act
         PCloseAct _ -> unTermCont $ do
-          pure punit
-          -- pguardC "pbondedPoolValidator: wrong period for PcloseAct redeemer" $
-          --   period #== closingPeriod
-          -- pure $ closeActLogic ctxF.txInfo params
+          pguardC "pbondedPoolValidator: wrong period for PcloseAct redeemer" $
+            period #== closingPeriod
+          pure $ closeActLogic ctxF.txInfo params
   where
     isBurningEntry ::
       forall (s :: S).
