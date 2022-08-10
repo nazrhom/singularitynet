@@ -17,6 +17,7 @@ import Contract.Time (Slot, getEraSummaries, getSystemStart, slotToPosixTime)
 import Control.Alternative (guard)
 import Data.Array (head)
 import Data.BigInt (BigInt)
+import Data.BigInt as BigInt
 import Types (BondedPoolParams(BondedPoolParams), InitialBondedParams(InitialBondedParams))
 import Types.Interval (POSIXTime(POSIXTime), POSIXTimeRange, from, interval, posixTimeRangeToTransactionValidity)
 import Types.Natural (Natural)
@@ -160,8 +161,10 @@ getClosingTime (BondedPoolParams bpp) = do
   -- Throw error if the pool can't close yet
   when (currTime' < bpp.end) $
     throwContractError "getClosingTime: pool can't close yet"
-  -- Otherwise, return range from bpp.end to infinity
-  pure { currTime, range: from $ POSIXTime bpp.end }
+  -- Otherwise, return range from now to 1 hour from now
+  -- NOTE: It's an error to use an open range (i.e. to infinity). The validator
+  -- will fail if it detects that.
+  pure { currTime, range: interval (POSIXTime bpp.end) (POSIXTime $ bpp.end + BigInt.fromInt 3_600_000) }
 
 -- | Substitute the `start` and `end` field of the initial pool parameters to
 -- | make the pool start `delay` seconds from the current time. Return the
