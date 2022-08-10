@@ -49,14 +49,25 @@ import Utils (logInfo_, countdownTo)
 --     liftAff $ delay $ wrap $ toNumber 80_000
 --     closeBondedPoolContract bondedParams
 
--- Bonded: admin create pool, user stake, admin deposit (rewards), admin close
--- using PureScript (non SDK)
 main :: Effect Unit
-main = launchAff_ do
+main = testBonded -- write here the desired test
+
+-- | Bonded: admin creates pool, user stakes, admin deposits (rewards),
+-- | user withdraws (stakes and rewards), admin closes the pool. Uses
+-- | PureScript (not the SDK)
+testBonded :: Effect Unit
+testBonded = launchAff_ do
   log "STARTING AS ADMIN"
   let
     startDelayInt :: Int
     startDelayInt = 80_000
+    waitForWalletChange :: String -> Aff Unit
+    waitForWalletChange role = do
+        let n = 20
+        log $ "SWITCH WALLETS NOW - CHANGE TO BACK TO " <> role
+        log $ show n
+        waitN n
+
   ---- Admin creates pool ----
   bondedParams@(BondedPoolParams bpp) <-
     runContract_ do
@@ -75,8 +86,7 @@ main = launchAff_ do
       logInfo_ "Pool parameters" bondedPoolParams
       pure bondedPoolParams
 
-  log "SWITCH WALLETS NOW - CHANGE TO USER 1"
-  delay' 10
+  waitForWalletChange "USER 1"
   log "Waiting for pool start..."
   countdownTo' $ POSIXTime bpp.start
 
@@ -86,8 +96,7 @@ main = launchAff_ do
   _ <- runContract_ $
     userStakeBondedPoolContract bondedParams userStake
 
-  log "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
-  delay' 10
+  waitForWalletChange "ADMIN"
   log "Waiting for bonding period..."
   countdownTo' $ POSIXTime $ bpp.start + bpp.userLength
 
@@ -101,8 +110,7 @@ main = launchAff_ do
         depositBatchSize
         []
 
-  log "SWITCH WALLETS NOW - CHANGE TO USER 1"
-  delay' 10
+  waitForWalletChange "USER 1"
   log "Waiting for withdrawing period..."
   countdownTo' $ POSIXTime $ bpp.start + bpp.userLength + bpp.bondingLength
 
@@ -110,8 +118,7 @@ main = launchAff_ do
   _ <- runContract_ $
     userWithdrawBondedPoolContract bondedParams
 
-  log "SWITCH WALLETS NOW - CHANGE TO BACK TO ADMIN"
-  delay' 10
+  waitForWalletChange "ADMIN"
   log "Waiting for closing period..."
   countdownTo' $ POSIXTime bpp.end
 
@@ -208,6 +215,8 @@ main = launchAff_ do
 -- bondedCallContractAdminDepositExample1
 -- bondedCallContractAdminCloseExample1
 
+---- Utils ----
+
 -- | Run contract in an environment defined with a certain `ConfigParams`.
 -- | The environment is created and destroyed for this single contract
 -- | execution
@@ -224,8 +233,16 @@ runContract_ contract = do
     , extraConfig: {}
     } contract
 
+-- | Wait until the given time. It queries the node time every 5 seconds to
+-- | determine the passing of time, so more time may actually pass
 countdownTo' :: forall (r :: Row Type). POSIXTime -> Aff Unit
 countdownTo' = runContract_ <<< countdownTo
 
-delay' :: Int -> Aff Unit
-delay' = delay <<< Milliseconds <<< Int.toNumber <<< (_ * 1000)
+-- | Wait for a given number of seconds. This uses LOCAL time, and it's only
+-- | used to give the tester some time to switch their wallet
+waitN :: Int -> Aff Unit
+waitN n = if n < 5
+    then delay' n *> log "GO"
+    else delay' 5 *> log (show $ n - 5) *> waitN (n-5)
+    where  delay' :: Int -> Aff Unit
+           delay' = delay <<< Milliseconds <<< Int.toNumber <<< (_ * 1000)
