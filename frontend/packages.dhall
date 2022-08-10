@@ -336,7 +336,7 @@ let additions =
             , "variant"
             ]
         , repo = "https://github.com/Plutonomicon/cardano-transaction-lib.git"
-        , version = "96dab592511590e774738b50606afe14ddaa58bf"
+        , version = "16b9dea9c81d49a59f44d622653d3afc06ef2972"
         }
         , purescript-toppokki =
           { dependencies =

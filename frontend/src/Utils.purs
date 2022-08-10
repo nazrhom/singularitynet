@@ -28,8 +28,18 @@ import Contract.Prelude hiding (length)
 
 import Contract.Address (PaymentPubKeyHash)
 import Contract.Hashing (blake2b256Hash)
-import Contract.Log (logInfo, logInfo', logAesonInfo)
-import Contract.Monad (Contract, liftedE, liftedM, tag, throwContractError)
+import Contract.Monad
+  ( Contract
+  , liftedE
+  , liftedM
+  , tag
+  , throwContractError
+  )
+import Contract.Log
+  ( logInfo
+  , logInfo'
+  , logAesonInfo
+  )
 import Contract.Numeric.Natural (Natural, fromBigInt', toBigInt)
 import Contract.Numeric.Rational (Rational, numerator, denominator)
 import Contract.Prim.ByteArray (ByteArray, hexToByteArray)

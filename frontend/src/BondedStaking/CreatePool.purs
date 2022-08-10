@@ -16,7 +16,7 @@ import Contract.Monad
   , liftedE'
   , liftedM
   )
-import Contract.Log(logAesonInfo)
+import Contract.Log (logAesonInfo)
 import Contract.PlutusData (PlutusData, Datum(Datum), toData)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)

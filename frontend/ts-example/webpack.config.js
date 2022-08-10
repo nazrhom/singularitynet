@@ -1,12 +1,10 @@
-"use strict";
-
 const path = require("path");
 const webpack = require("webpack");
-const NodePolyfillPlugin = require("node-polyfill-webpack-plugin");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
+const NodePolyfillPlugin = require("node-polyfill-webpack-plugin");
 
 module.exports = {
-  mode: "development",
+  entry: "./index.ts",
 
   experiments: {
     asyncWebAssembly: false,
@@ -25,33 +23,19 @@ module.exports = {
     port: 4008,
   },
 
-  entry: "./index.js",
-
-  output: {
-    path: path.resolve(__dirname, "dist"),
-    filename: "bundle.js",
-    library: { name: "singularitynet", type: "commonjs" },
-  },
-
   module: {
     rules: [
       {
-        test: /\.(png|jpg|gif)$/i,
-        use: [
-          {
-            loader: "url-loader",
-            options: {
-              limit: 8192,
-            },
-          },
-        ],
+        test: /\.tsx?$/,
+        use: "ts-loader",
+        exclude: /node_modules/,
       },
     ],
   },
 
   resolve: {
-    modules: [process.env.NODE_PATH],
-    extensions: [".js"],
+    extensions: [".tsx", ".ts", ".js"],
+    modules: [process.env.NODE_PATH, "./node_modules"],
     fallback: {
       buffer: require.resolve("buffer/"),
       http: false,
@@ -68,16 +52,21 @@ module.exports = {
     },
   },
 
+  output: {
+    filename: "bundle.js",
+    path: path.resolve(__dirname, "dist"),
+  },
+
   plugins: [
     new webpack.DefinePlugin({
       BROWSER_RUNTIME: !!process.env.BROWSER_RUNTIME,
     }),
-    new NodePolyfillPlugin(),
     new webpack.LoaderOptionsPlugin({
       debug: true,
     }),
+    new NodePolyfillPlugin(),
     new HtmlWebpackPlugin({
-      title: "ctl-scaffold",
+      title: "singularitynet-example",
       template: "./index.html",
       inject: false, // See stackoverflow.com/a/38292765/3067181
     }),

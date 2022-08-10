@@ -31,19 +31,19 @@ defaultSdkConfig :: SdkConfig
 defaultSdkConfig =
   { ctlServerConfig:
       { host: "localhost"
-      , path: Nothing
+      , path: ""
       , port: 8081.0
       , secure: false
       }
   , ogmiosConfig:
       { host: "localhost"
-      , path: Nothing
+      , path: ""
       , port: 1337.0
       , secure: false
       }
   , datumCacheConfig:
       { host: "localhost"
-      , path: Nothing
+      , path: ""
       , port: 9999.0
       , secure: false
       }
@@ -61,25 +61,25 @@ testInitialBondedArgs = do
   end <- BigInt.fromString "2000"
   userLength <- BigInt.fromString "100"
   bondingLength <- BigInt.fromString "4"
-  interestNum <- BigInt.fromString "10"
-  interestDen <- BigInt.fromString "100"
-  let interest = interestNum /\ interestDen
+  numerator <- BigInt.fromString "10"
+  denominator <- BigInt.fromString "100"
   minStake <- BigInt.fromString "1"
   maxStake <- BigInt.fromString "10000"
   let
-    bondedCs = "6f1a1f0c7ccf632cc9ff4b79687ed13ffe5b624cce288b364ebdce50"
-    bondedTn = "AGIX"
-    bondedAssetClass = bondedCs /\ bondedTn
+    currencySymbol = "6f1a1f0c7ccf632cc9ff4b79687ed13ffe5b624cce288b364ebdce50"
+    tokenName = "AGIX"
+    bondedAssetClass = { currencySymbol, tokenName }
+    interest = { numerator, denominator }
   pure
     { iterations
     , start
     , end
     , userLength
     , bondingLength
-    , interest
     , minStake
     , maxStake
     , bondedAssetClass
+    , interest
     }
 
 -- Bonded example: admin deposit, user head stake, admin deposit and admin close.

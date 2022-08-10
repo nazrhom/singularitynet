@@ -7,7 +7,15 @@ import ClosePool (closeBondedPoolContract)
 import Contract.Address (NetworkId(TestnetId))
 import Contract.Config (WalletSpec(..))
 import Contract.Log (logInfo')
-import Contract.Monad (Contract, defaultDatumCacheWsConfig, defaultOgmiosWsConfig, defaultServerConfig, launchAff_, liftContractM, runContract)
+import Contract.Monad
+  ( Contract
+  , defaultDatumCacheWsConfig
+  , defaultOgmiosWsConfig
+  , defaultServerConfig
+  , launchAff_
+  , liftContractM
+  , runContract
+  )
 import CreatePool (createBondedPoolContract)
 import Data.BigInt as BigInt
 import Data.Int as Int
@@ -220,7 +228,7 @@ testBonded = launchAff_ do
 -- | Run contract in an environment defined with a certain `ConfigParams`.
 -- | The environment is created and destroyed for this single contract
 -- | execution
-runContract_ :: forall (a :: Type) . Contract () a -> Aff a
+runContract_ :: forall (a :: Type). Contract () a -> Aff a
 runContract_ contract = do
   runContract
     { ogmiosConfig: defaultOgmiosWsConfig
@@ -231,7 +239,8 @@ runContract_ contract = do
     , walletSpec: Just ConnectToNami
     , customLogger: Nothing
     , extraConfig: {}
-    } contract
+    }
+    contract
 
 -- | Wait until the given time. It queries the node time every 5 seconds to
 -- | determine the passing of time, so more time may actually pass
