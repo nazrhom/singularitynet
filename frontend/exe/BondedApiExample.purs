@@ -49,6 +49,7 @@ defaultSdkConfig =
       }
   , networkId: zero
   , logLevel: "Info"
+  , walletSpec: "Nami"
   }
 
 -- Hardcoded initial parameters for testing.
