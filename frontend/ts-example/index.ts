@@ -102,6 +102,7 @@ const localHostSdkConfig: SdkConfig = {
   },
   networkId: 1,
   logLevel: "Info",
+  walletSpec: "Gero",
 };
 
 // Helpers

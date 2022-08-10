@@ -139,13 +139,14 @@ buildContractConfig cfg = Promise.fromAff $ do
   networkId <- liftM (errorWithContext "invalid `NetworkId`")
     $ intToNetworkId networkIdInt
   logLevel <- liftEither $ fromSdkLogLevel cfg.logLevel
+  walletSpec <- Just <$> liftEither (fromSdkWalletSpec cfg.walletSpec)
   pure
     { ogmiosConfig
     , datumCacheConfig
     , ctlServerConfig
     , logLevel
     , networkId
-    , walletSpec: Just ConnectToNami
+    , walletSpec
     , customLogger: Nothing
     , extraConfig: {}
     }
