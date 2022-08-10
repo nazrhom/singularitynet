@@ -45,17 +45,47 @@ import Contract.Numeric.Rational (Rational, numerator, denominator)
 import Contract.Prim.ByteArray (ByteArray, hexToByteArray)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (PlutusScript)
-import Contract.Time (ChainTip(..), Tip(..), getEraSummaries, getSystemStart, getTip, slotToPosixTime)
-import Contract.Transaction (TransactionInput, TransactionOutput(TransactionOutput), BalancedSignedTransaction, balanceAndSignTx, submit, awaitTxConfirmedWithTimeout)
+import Contract.Time
+  ( ChainTip(..)
+  , Tip(..)
+  , getEraSummaries
+  , getSystemStart
+  , getTip
+  , slotToPosixTime
+  )
+import Contract.Transaction
+  ( TransactionInput
+  , TransactionOutput(TransactionOutput)
+  , BalancedSignedTransaction
+  , balanceAndSignTx
+  , submit
+  , awaitTxConfirmedWithTimeout
+  )
 import Contract.TxConstraints (TxConstraints, mustSpendScriptOutput)
 import Contract.Utxos (UtxoM(UtxoM))
-import Contract.Value (CurrencySymbol, TokenName, flattenNonAdaAssets, getTokenName, valueOf)
+import Contract.Value
+  ( CurrencySymbol
+  , TokenName
+  , flattenNonAdaAssets
+  , getTokenName
+  , valueOf
+  )
 import Control.Alternative (guard)
 import Control.Monad.Error.Class (try, liftMaybe)
 import Data.Argonaut.Core (Json, caseJsonObject)
 import Data.Argonaut.Decode.Combinators (getField) as Json
 import Data.Argonaut.Decode.Error (JsonDecodeError(TypeMismatch))
-import Data.Array (filter, head, last, length, partition, mapMaybe, slice, sortBy, (..))
+import Data.Array
+  ( filter
+  , head
+  , last
+  , length
+  , partition
+  , mapMaybe
+  , slice
+  , sortBy
+  , (..)
+  )
 import Data.Array as Array
 import Data.Bifunctor (lmap)
 import Data.BigInt (BigInt, fromInt, fromNumber, quot, rem, toInt, toNumber)
@@ -67,7 +97,12 @@ import Effect.Aff (delay)
 import Effect.Exception (error, throw)
 import Math (ceil)
 import Serialization.Hash (ed25519KeyHashToBytes)
-import Types (AssetClass(AssetClass), BondedPoolParams(BondedPoolParams), InitialBondedParams(InitialBondedParams), MintingAction(MintEnd, MintInBetween))
+import Types
+  ( AssetClass(AssetClass)
+  , BondedPoolParams(BondedPoolParams)
+  , InitialBondedParams(InitialBondedParams)
+  , MintingAction(MintEnd, MintInBetween)
+  )
 import Types.Interval (POSIXTime(POSIXTime))
 import Types.PlutusData (PlutusData)
 import Types.Redeemer (Redeemer)
@@ -359,35 +394,37 @@ currentTime = do
   es <- getEraSummaries
   ss <- getSystemStart
   liftEither
-       <<< lmap (error <<< show)
-       <=< liftEffect
-       $ slotToPosixTime es ss slot
+    <<< lmap (error <<< show)
+    <=< liftEffect
+    $ slotToPosixTime es ss slot
 
 countdownTo :: forall (r :: Row Type). POSIXTime -> Contract r Unit
 countdownTo targetTime = countdownTo' Nothing
   where
-      countdownTo' :: Maybe POSIXTime -> Contract r Unit
-      countdownTo' prevTime = do
-          currTime <- currentTime
-          let
-            msg :: String
-            msg = "Countdown: " <> showSeconds delta
-            delta :: BigInt
-            delta = unwrap targetTime - unwrap currTime
-          if currTime >= targetTime
-              then logInfo' "GO"
-              else if timeChanged prevTime currTime
-                then logInfo' msg *> wait delta *> countdownTo' (Just currTime)
-                else wait delta *> countdownTo' (Just currTime)
-      wait :: BigInt -> Contract r Unit
-      wait n = liftAff $ delay $
-          if n > fromInt 5000
-              then Milliseconds 5000.0
-              else Milliseconds $ toNumber n
-      showSeconds :: BigInt -> String
-      showSeconds n = show $ toNumber n / 1000.0
-      timeChanged :: Maybe POSIXTime -> POSIXTime -> Boolean
-      timeChanged prevTime currTime = maybe true (_ /= currTime) prevTime
+  countdownTo' :: Maybe POSIXTime -> Contract r Unit
+  countdownTo' prevTime = do
+    currTime <- currentTime
+    let
+      msg :: String
+      msg = "Countdown: " <> showSeconds delta
+
+      delta :: BigInt
+      delta = unwrap targetTime - unwrap currTime
+    if currTime >= targetTime then logInfo' "GO"
+    else if timeChanged prevTime currTime then logInfo' msg *> wait delta *>
+      countdownTo' (Just currTime)
+    else wait delta *> countdownTo' (Just currTime)
+
+  wait :: BigInt -> Contract r Unit
+  wait n = liftAff $ delay $
+    if n > fromInt 5000 then Milliseconds 5000.0
+    else Milliseconds $ toNumber n
+
+  showSeconds :: BigInt -> String
+  showSeconds n = show $ toNumber n / 1000.0
+
+  timeChanged :: Maybe POSIXTime -> POSIXTime -> Boolean
+  timeChanged prevTime currTime = maybe true (_ /= currTime) prevTime
 
 -- | Utility function for splitting an array into equal length sub-arrays
 -- | (with remainder array length <= size)

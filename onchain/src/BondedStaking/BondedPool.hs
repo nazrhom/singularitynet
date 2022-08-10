@@ -78,8 +78,8 @@ import Utils (
   getDatumHash,
   getInput,
   getOutputsSignedBy,
-  getTokenTotalOutputs,
   getTokenName,
+  getTokenTotalOutputs,
   oneWith,
   parseStakingDatum,
   pconst,
@@ -197,6 +197,7 @@ pbondedPoolValidator = phoistAcyclic $
       Term s PBool
     isBurningEntry val cs =
       oneWith # (peq # cs) # pconst ptrue # (peq # (-1)) # val
+
 -- Untyped version to be serialised. This version is responsible for verifying
 -- that the parameters (pool params, datum and redeemer) have the proper types.
 -- The script context should always be safe.
@@ -579,7 +580,7 @@ withdrawActLogic
     pguardC "withdrawActLogic: tx not exclusively signed by the stake-holder" $
       signedOnlyBy txInfo.signatories act.pubKeyHash
     withdrawnAmt <-
-        getTokenTotalOutputs params.bondedAssetClass
+      getTokenTotalOutputs params.bondedAssetClass
         <$> getOutputsSignedBy act.pubKeyHash txInfo.outputs
     -- Validate the asset input is effectively an asset UTXO
     let assetCheck :: Term s PUnit
@@ -611,24 +612,23 @@ withdrawActLogic
     -- Check business and inductive conditions depending on redeemer
     pure . pmatch (pfromData act.burningAction) $ \case
       PBurnHead outRefs' -> unTermCont $ do
-          outRefs <- tcont . pletFields @'["state", "headEntry"] $ outRefs'
-          -- We check most conditions when consuming the state UTXO
-          let withdrawHeadCheck =
-                withdrawHeadActLogic
-                  spentInput
-                  withdrawnAmt
-                  datum
-                  txInfo
-                  params
-                  outRefs.state
-                  outRefs.headEntry
-          pure $
-            pnestedIf
-              [
-              spentInput.outRef #== outRefs.state >: withdrawHeadCheck
-              , spentInput.outRef #== outRefs.headEntry >: entryCheck outRefs.headEntry
-              ]
-              assetCheck
+        outRefs <- tcont . pletFields @'["state", "headEntry"] $ outRefs'
+        -- We check most conditions when consuming the state UTXO
+        let withdrawHeadCheck =
+              withdrawHeadActLogic
+                spentInput
+                withdrawnAmt
+                datum
+                txInfo
+                params
+                outRefs.state
+                outRefs.headEntry
+        pure $
+          pnestedIf
+            [ spentInput.outRef #== outRefs.state >: withdrawHeadCheck
+            , spentInput.outRef #== outRefs.headEntry >: entryCheck outRefs.headEntry
+            ]
+            assetCheck
       PBurnOther entries' -> unTermCont $ do
         entries <- tcont . pletFields @'["previousEntry", "burnEntry"] $ entries'
         let withdrawOtherCheck :: Term s PUnit
@@ -898,4 +898,3 @@ getKey =
           PDJust key -> pfield @"_0" # key
           PDNothing _ -> ptraceError "getKey: no key found"
       )
-

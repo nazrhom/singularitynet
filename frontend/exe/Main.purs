@@ -69,12 +69,13 @@ testBonded = launchAff_ do
   let
     startDelayInt :: Int
     startDelayInt = 80_000
+
     waitForWalletChange :: String -> Aff Unit
     waitForWalletChange role = do
-        let n = 20
-        log $ "SWITCH WALLETS NOW - CHANGE TO BACK TO " <> role
-        log $ show n
-        waitN n
+      let n = 20
+      log $ "SWITCH WALLETS NOW - CHANGE TO BACK TO " <> role
+      log $ show n
+      waitN n
 
   ---- Admin creates pool ----
   bondedParams@(BondedPoolParams bpp) <-
@@ -250,8 +251,9 @@ countdownTo' = runContract_ <<< countdownTo
 -- | Wait for a given number of seconds. This uses LOCAL time, and it's only
 -- | used to give the tester some time to switch their wallet
 waitN :: Int -> Aff Unit
-waitN n = if n < 5
-    then delay' n *> log "GO"
-    else delay' 5 *> log (show $ n - 5) *> waitN (n-5)
-    where  delay' :: Int -> Aff Unit
-           delay' = delay <<< Milliseconds <<< Int.toNumber <<< (_ * 1000)
+waitN n =
+  if n < 5 then delay' n *> log "GO"
+  else delay' 5 *> log (show $ n - 5) *> waitN (n - 5)
+  where
+  delay' :: Int -> Aff Unit
+  delay' = delay <<< Milliseconds <<< Int.toNumber <<< (_ * 1000)
