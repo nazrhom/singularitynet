@@ -5,20 +5,34 @@ module BondedStaking.TimeUtils
   , getClosingTime
   , startPoolFromNow
   , startPoolNow
+  , toSlotInterval
+  , fromSlotInterval
   ) where
 
 import Contract.Prelude
 
-import Contract.Monad (Contract, liftContractM, throwContractError)
+import Contract.Monad
+  ( Contract
+  , liftContractE
+  , liftContractM
+  , throwContractError
+  )
 import Contract.Numeric.Natural (toBigInt)
+import Contract.Time (Slot, getEraSummaries, getSystemStart, slotToPosixTime)
 import Control.Alternative (guard)
 import Data.Array (head)
 import Data.BigInt (BigInt)
+import Data.BigInt as BigInt
 import Types
   ( BondedPoolParams(BondedPoolParams)
   , InitialBondedParams(InitialBondedParams)
   )
-import Types.Interval (POSIXTime(POSIXTime), POSIXTimeRange, from, interval)
+import Types.Interval
+  ( POSIXTime(POSIXTime)
+  , POSIXTimeRange
+  , interval
+  , posixTimeRangeToTransactionValidity
+  )
 import Types.Natural (Natural)
 import Utils (big, bigIntRange, currentRoundedTime)
 
@@ -160,8 +174,14 @@ getClosingTime (BondedPoolParams bpp) = do
   -- Throw error if the pool can't close yet
   when (currTime' < bpp.end) $
     throwContractError "getClosingTime: pool can't close yet"
-  -- Otherwise, return range from bpp.end to infinity
-  pure { currTime, range: from $ POSIXTime bpp.end }
+  -- Otherwise, return range from now to 1 hour from now
+  -- NOTE: It's an error to use an open range (i.e. to infinity). The validator
+  -- will fail if it detects that.
+  pure
+    { currTime
+    , range: interval (POSIXTime bpp.end)
+        (POSIXTime $ bpp.end + BigInt.fromInt 3_600_000)
+    }
 
 -- | Substitute the `start` and `end` field of the initial pool parameters to
 -- | make the pool start `delay` seconds from the current time. Return the
@@ -203,3 +223,33 @@ startPoolNow (InitialBondedParams ibp) = do
           + ibp.userLength
       }
   pure $ ibp' /\ POSIXTime currTime
+
+-- | Convert a `POSIXTimeRange` to a `Slot` interval
+toSlotInterval
+  :: forall (r :: Row Type)
+   . POSIXTimeRange
+  -> Contract r
+       { validityStartInterval :: Maybe Slot, timeToLive :: Maybe Slot }
+toSlotInterval posixTimeRange = do
+  es <- getEraSummaries
+  ss <- getSystemStart
+  liftContractE <=< liftEffect $ posixTimeRangeToTransactionValidity es ss
+    posixTimeRange
+
+-- | Convert a `Slot` to a `POSIXTimeRange` interval
+fromSlotInterval
+  :: forall (r :: Row Type)
+   . { validityStartInterval :: Maybe Slot, timeToLive :: Maybe Slot }
+  -> Contract r { from :: POSIXTime, to :: POSIXTime }
+fromSlotInterval r = do
+  es <- getEraSummaries
+  ss <- getSystemStart
+  startSlot <- liftContractM
+    "fromSlotInterval: could not get validityStartInterval slot"
+    r.validityStartInterval
+  endSlot <- liftContractM "fromSlotInterval: could not get timeToLive slot"
+    r.timeToLive
+  from <- liftContractE =<< (liftEffect $ slotToPosixTime es ss startSlot)
+  to <- liftContractE =<< (liftEffect $ slotToPosixTime es ss endSlot)
+  pure { from, to }
+

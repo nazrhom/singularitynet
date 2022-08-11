@@ -50,12 +50,12 @@ import PNatural (
   -- roundDown,
   -- toNatRatio,
  )
+
 import PTypes (
   HField,
   PAssetClass,
   PBurningAction (PBurnHead, PBurnOther, PBurnSingle),
   PMintingAction (PMintEnd, PMintHead, PMintInBetween),
-  PPeriod (ClosingPeriod),
   PTxInInfoFields,
   PTxInInfoHRec,
   PTxInfoFields,
@@ -77,9 +77,9 @@ import Utils (
   getDatum,
   getDatumHash,
   getInput,
-  getOutputSignedBy,
-  getTokenCount,
+  getOutputsSignedBy,
   getTokenName,
+  getTokenTotalOutputs,
   oneWith,
   parseStakingDatum,
   pconst,
@@ -151,14 +151,13 @@ pbondedPoolValidator = phoistAcyclic $
       pmatch act $ \case
         PAdminAct _ -> unTermCont $ do
           pguardC "pbondedPoolValidator: wrong period for PAdminAct redeemer" $
-            getBondedPeriod # txInfoF.validRange # params #== bondingPeriod
+            period #== bondingPeriod
           pure $ adminActLogic txInfoF paramsF
         PStakeAct act -> unTermCont $ do
           pguardC
             "pbondedPoolValidator: wrong period for PStakeAct \
             \redeemer"
-            $ getBondedPeriod # txInfoF.validRange # params
-              #== depositWithdrawPeriod
+            $ period #== depositWithdrawPeriod
           pure
             . pletFields
               @'["stakeAmount", "pubKeyHash", "maybeMintingAction"]
@@ -188,7 +187,7 @@ pbondedPoolValidator = phoistAcyclic $
             act
         PCloseAct _ -> unTermCont $ do
           pguardC "pbondedPoolValidator: wrong period for PcloseAct redeemer" $
-            getBondedPeriod # txInfoF.validRange # params #== closingPeriod
+            period #== closingPeriod
           pure $ closeActLogic ctxF.txInfo params
   where
     isBurningEntry ::
@@ -580,12 +579,9 @@ withdrawActLogic
     -- Validate holder's signature
     pguardC "withdrawActLogic: tx not exclusively signed by the stake-holder" $
       signedOnlyBy txInfo.signatories act.pubKeyHash
-    -- Get amount staked from output
     withdrawnAmt <-
-      pure . getTokenCount params.bondedAssetClass
-        <=< (\txOut -> pure $ pfield @"value" # txOut)
-        <=< getOutputSignedBy act.pubKeyHash
-        $ txInfo.outputs
+      getTokenTotalOutputs params.bondedAssetClass
+        <$> getOutputsSignedBy act.pubKeyHash txInfo.outputs
     -- Validate the asset input is effectively an asset UTXO
     let assetCheck :: Term s PUnit
         assetCheck = unTermCont $ do
@@ -695,11 +691,10 @@ withdrawHeadActLogic spentInput withdrawnAmt datum txInfo params stateOutRef hea
     -- Validate that entry key matches the key in state UTxO
     pguardC "withdrawHeadActLogic: consumed entry key does not match user's pkh" $
       headEntry.key #== entryKey
-    -- Validate withdrawn amount
     pguardC
       "withdrawHeadActLogic: withdrawn amount does not match stake and \
       \rewards"
-      $ withdrawnAmt #== headEntry.deposited
+      $ pto withdrawnAmt #== pto (pfromData headEntry.deposited)
     ---- INDUCTIVE CONDITIONS ----
     -- Validate that spentOutRef is the state UTXO and matches redeemer
     pguardC "withdrawHeadActLogic: spent input is not the state UTXO" $
@@ -790,16 +785,7 @@ closeActLogic txInfo params = unTermCont $ do
   -- We check that the transaction was signed by the pool operator
   pguardC "transaction not signed by admin" $
     signedBy txInfoF.signatories paramsF.admin
-  -- We check that the transaction occurs during the closing period
-  let period = getBondedPeriod # txInfoF.validRange # params
-  pguardC "admin deposit not done in closing period" $
-    isClosingPeriod period
   pure punit
-  where
-    isClosingPeriod :: Term s PPeriod -> Term s PBool
-    isClosingPeriod period = pmatch period $ \case
-      ClosingPeriod -> pconstant True
-      _ -> pconstant False
 
 -- Helper functions for the different logics
 

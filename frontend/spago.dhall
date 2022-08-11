@@ -10,6 +10,7 @@ You can edit this file as you like.
   , "argonaut-core"
   , "arrays"
   , "bigints"
+  , "bifunctors"
   , "cardano-transaction-lib"
   , "console"
   , "control"

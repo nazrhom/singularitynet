@@ -16,7 +16,7 @@ import Plutus.V1.Ledger.Scripts (
  )
 import PlutusTx (toData)
 
-import Ledger.Address (Address, PaymentPubKeyHash)
+import Ledger.Address (PaymentPubKeyHash)
 import Ledger.Constraints qualified as Constraints
 import Ledger.Tx qualified as Tx
 import Plutus.Contract (
@@ -34,7 +34,6 @@ import Test.Plutip.Predicate (shouldFail, shouldSucceed)
 import Test.Tasty (TestTree)
 
 import Ledger (ChainIndexTxOut, scriptCurrencySymbol)
-import Ledger qualified as Ledger
 import Ledger.Constraints (ScriptLookups)
 import Ledger.Constraints.TxConstraints (TxConstraints)
 
