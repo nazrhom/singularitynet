@@ -71,7 +71,7 @@ testInitBondedParams = do
   currencySymbol <- agixCs
   tokenName <- agixTn
   pure $ InitialBondedParams
-    { iterations: nat 2
+    { iterations: nat 1
     , start: big 1000 -- dummy value
     , end: big 2000 -- dummy value
     , userLength: big 180_000 -- We use 3 minutes to make testing manageable
@@ -109,7 +109,7 @@ testInitUnbondedParams = do
 -- | The amount of time a contract should wait before considering a TX
 -- | submission a failure
 confirmationTimeout :: Seconds
-confirmationTimeout = Seconds $ Int.toNumber 60
+confirmationTimeout = Seconds $ Int.toNumber 120
 
 -- | The number of attempts a contract should do before giving up and
 -- | throwing an error

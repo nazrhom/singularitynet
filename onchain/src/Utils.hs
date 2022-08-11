@@ -21,6 +21,9 @@ module Utils (
   ppairData,
   psndData,
   ptraceBool,
+  ptraceC,
+  pshowInt,
+  pshowByteString,
   getTokenName,
   getTokenCount,
   oneOf,
@@ -41,7 +44,9 @@ module Utils (
   getDatumHash,
   getContinuingOutputWithNFT,
   getOutputSignedBy,
-  getTokenTotal,
+  getOutputsSignedBy,
+  getTokenTotalInputs,
+  getTokenTotalOutputs,
   getCoWithDatum,
   getOnlySignatory,
   signedBy,
@@ -53,11 +58,13 @@ module Utils (
   (>:),
 ) where
 
+import Data.Text qualified as T
+
 import PNatural (PNatural (PNatural), PNonNegative ((#+)))
 import PTypes (PAssetClass, passetClass)
 import Plutarch.Api.V1 (
   PAddress,
-  PCredential (PPubKeyCredential),
+  PCredential (PPubKeyCredential, PScriptCredential),
   PCurrencySymbol,
   PDatum,
   PDatumHash,
@@ -81,6 +88,7 @@ import Plutarch.Lift (
 import Plutarch.TryFrom (PTryFrom, ptryFrom)
 import SingularityNet.Natural (Natural (Natural))
 
+import Data.Char (intToDigit)
 import UnbondedStaking.PTypes (PBoolData (PDFalse, PDTrue))
 
 -- Term-level boolean functions
@@ -364,10 +372,14 @@ getTokenCount ac val =
         )
     getTokenCount' = phoistAcyclic $
       plam $ \ac' val -> unTermCont $ do
+        ptraceC "(getTokenCount) BEGIN TRACE"
         ac <- tcont . pletFields @'["currencySymbol", "tokenName"] $ ac'
-        let cs = pfromData ac.currencySymbol
-            tn = pfromData ac.tokenName
-        pure $ pfoldl # (foldCsMap # cs # tn) # pconstant (Natural 0) # val
+        cs <- pletC $ pfromData ac.currencySymbol
+        tn <- pletC $ pfromData ac.tokenName
+        ptraceC $ "(getTokenCount) cs: " <> pshowByteString # pto cs
+        ptraceC $ "(getTokenCount) tn: " <> pshowByteString # pto tn
+        res <- pletC $ pfoldl # (foldCsMap # cs # tn) # pconstant (Natural 0) # val
+        pure res
     foldCsMap ::
       forall (s :: S).
       Term
@@ -382,11 +394,14 @@ getTokenCount ac val =
         )
     foldCsMap = phoistAcyclic $
       plam $ \cs tn acc pair ->
-        runTermCont (ppairData pair) $ \(cs', tnMap) ->
-          pif
-            (cs #== cs')
-            (pfoldl # (foldTnMap # tn) # acc # pto tnMap)
-            acc
+        runTermCont (ppairData pair) $ \(cs', tnMap) -> unTermCont $ do
+          ptraceC $ "(foldCsMap) cs: " <> pshowByteString # pto cs
+          ptraceC $ "(foldCsMap) cs': " <> pshowByteString # pto cs'
+          pure $
+            pif
+              (cs #== cs')
+              (ptrace "(foldCsMap) EQUAL" $ pfoldl # (foldTnMap # tn) # acc # pto tnMap)
+              (ptrace "(foldCsMap) NOT EQUAL" acc)
     foldTnMap ::
       forall (s :: S).
       Term
@@ -400,11 +415,14 @@ getTokenCount ac val =
         )
     foldTnMap = phoistAcyclic $
       plam $ \tn acc pair ->
-        runTermCont (ppairData pair) $ \(tn', n) ->
-          pif
-            (tn #== tn')
-            (acc #+ (pcon $ PNatural n))
-            acc
+        runTermCont (ppairData pair) $ \(tn', n) -> unTermCont $ do
+          ptraceC $ "(foldTnMap) tn': " <> pshowByteString # pto tn'
+          ptraceC $ "(foldTnMap) n: " <> pshowInt # n
+          pure $
+            pif
+              (ptrace "(foldTnMap) EQUAL" $ tn #== tn')
+              (ptrace "(foldTnMap) NOT EQUAL" $ acc #+ (pcon $ PNatural n))
+              acc
 
 -- go self ls cont = pmatch ls $ \case
 --  PNil -> pconstant False
@@ -770,19 +788,48 @@ getOutputSignedBy ::
   Term s (PBuiltinList (PAsData PTxOut)) ->
   TermCont s (Term s PTxOut)
 getOutputSignedBy pkh outputs = do
+  ptraceC "(getOutputSignedBy) BEGIN TRACE"
+  ptraceC $ "(getOutputSignedBy) pkh: " <> pshowByteString # pto pkh
   credential <- pletC $ mkPubKeyCredential pkh
-  output <- flip pfind outputs $
-    plam $ \output -> unTermCont $ do
-      let credential' = pfield @"credential" #$ pfield @"address" # output
-      pure $ pdata credential #== pdata credential'
-  pure $ pfromData output
+  fmap pfromData $
+    flip pfind outputs $
+      plam $ \output -> unTermCont $ do
+        credential' <- pletC $ pfield @"credential" #$ pfield @"address" # output
+        -- Just for debugging
+        ptraceC $
+          ("(getOutputSignedBy) credential: " <>) $
+            pshowByteString #$ pmatch credential' $ \case
+              PPubKeyCredential pkh' -> pto $ pfromData $ pfield @"_0" # pkh'
+              PScriptCredential sch' -> pto $ pfromData $ pfield @"_0" # sch'
+        pure $ ptraceBool "(getOutputSignedBy) Result" "EQUAL" "NOT EQUAL" $ pdata credential #== pdata credential'
 
-getTokenTotal ::
+getOutputsSignedBy ::
+  forall (s :: S).
+  Term s PPubKeyHash ->
+  Term s (PBuiltinList (PAsData PTxOut)) ->
+  TermCont s (Term s (PBuiltinList (PAsData PTxOut)))
+getOutputsSignedBy pkh outputs = do
+  ptraceC "(getOutputSignedBy) BEGIN TRACE"
+  ptraceC $ "(getOutputSignedBy) pkh: " <> pshowByteString # pto pkh
+  credential <- pletC $ mkPubKeyCredential pkh
+  pure $
+    pflip pfilter outputs $
+      plam $ \output -> unTermCont $ do
+        credential' <- pletC $ pfield @"credential" #$ pfield @"address" # output
+        -- Just for debugging
+        ptraceC $
+          ("(getOutputSignedBy) credential: " <>) $
+            pshowByteString #$ pmatch credential' $ \case
+              PPubKeyCredential pkh' -> pto $ pfromData $ pfield @"_0" # pkh'
+              PScriptCredential sch' -> pto $ pfromData $ pfield @"_0" # sch'
+        pure $ ptraceBool "(getOutputSignedBy) Result" "EQUAL" "NOT EQUAL" $ pdata credential #== pdata credential'
+
+getTokenTotalInputs ::
   forall (s :: S).
   Term s PAssetClass ->
   Term s (PBuiltinList (PAsData PTxInInfo)) ->
   Term s PNatural
-getTokenTotal ac inputs =
+getTokenTotalInputs ac inputs =
   pfoldl # (sumAmount # ac) # pconstant (Natural 0) # inputs
   where
     sumAmount ::
@@ -796,6 +843,27 @@ getTokenTotal ac inputs =
     sumAmount = phoistAcyclic $
       plam $ \ac acc input ->
         let val = pfield @"value" #$ pfield @"resolved" # pfromData input
+         in acc #+ getTokenCount ac val
+
+getTokenTotalOutputs ::
+  forall (s :: S).
+  Term s PAssetClass ->
+  Term s (PBuiltinList (PAsData PTxOut)) ->
+  Term s PNatural
+getTokenTotalOutputs ac outputs =
+  pfoldl # (sumAmount # ac) # pconstant (Natural 0) # outputs
+  where
+    sumAmount ::
+      Term
+        s
+        ( PAssetClass
+            :--> PNatural
+            :--> PAsData PTxOut
+            :--> PNatural
+        )
+    sumAmount = phoistAcyclic $
+      plam $ \ac acc output ->
+        let val = pfield @"value" # pfromData output
          in acc #+ getTokenCount ac val
 
 {- | Gets the CO and datum that satisfy the given datum predicate.
@@ -972,3 +1040,78 @@ toPBool = phoistAcyclic $
 -- | Build a `PCredential` from a `PPubKeyHash`
 mkPubKeyCredential :: forall (s :: S). Term s PPubKeyHash -> Term s PCredential
 mkPubKeyCredential pkh = pcon . PPubKeyCredential $ pdcons # pdata pkh # pdnil
+
+pshowByteString :: Term s (PByteString :--> PString)
+pshowByteString = phoistAcyclic $
+  plam $ \bs ->
+    "0x" <> pshowByteString' # bs
+
+pshowByteString' :: Term s (PByteString :--> PString)
+pshowByteString' = phoistAcyclic $
+  pfix #$ plam $ \self bs ->
+    pelimBS # bs
+      # (pconstant @PString "")
+      #$ plam
+      $ \x xs -> showByte # x <> self # xs
+
+showByte :: Term s (PInteger :--> PString)
+showByte = phoistAcyclic $
+  plam $ \n ->
+    plet (pquot # n # 16) $ \a ->
+      plet (prem # n # 16) $ \b ->
+        showNibble # a <> showNibble # b
+
+showNibble :: Term s (PInteger :--> PString)
+showNibble = phoistAcyclic $
+  plam $ \n ->
+    pcase perror n $
+      flip fmap [0 .. 15] $ \(x :: Int) ->
+        ( pconstant $ toInteger x
+        , pconstant @PString $ T.pack $ intToDigit x : []
+        )
+
+-- | Case matching on bytestring, as if a list.
+pelimBS ::
+  Term
+    s
+    ( PByteString
+        :--> a -- If bytestring is empty
+        :--> (PInteger :--> PByteString :--> a) -- If bytestring is non-empty
+        :--> a
+    )
+pelimBS = phoistAcyclic $
+  plam $ \bs z f ->
+    plet (plengthBS # bs) $ \n ->
+      pif (n #== 0) z $
+        plet (pindexBS # bs # 0) $ \x ->
+          plet (psliceBS # 1 # (n - 1) # bs) $ \xs ->
+            f # x # xs
+
+pcase :: PEq a => Term s b -> Term s a -> [(Term s a, Term s b)] -> Term s b
+pcase otherwise x = \case
+  [] -> otherwise
+  ((x', r) : cs) -> pif (x #== x') r $ pcase otherwise x cs
+
+ptraceC :: Term s PString -> TermCont s ()
+ptraceC s = tcont $ \f -> ptrace s (f ())
+
+pshowInt :: Term s (PInteger :--> PString)
+pshowInt = phoistAcyclic $
+  pfix #$ plam $ \self n ->
+    let sign = pif (n #< 0) "-" ""
+     in sign
+          <> ( plet (pquot # abs n # 10) $ \q ->
+                plet (prem # abs n # 10) $ \r ->
+                  pif
+                    (q #== 0)
+                    (pshowDigit # r)
+                    ( plet (self # q) $ \prefix ->
+                        prefix <> pshowDigit # r
+                    )
+             )
+pshowDigit :: Term s (PInteger :--> PString)
+pshowDigit = phoistAcyclic $
+  plam $ \digit ->
+    pcase perror digit $
+      flip fmap [0 .. 9] $ \(x :: Integer) ->
+        (pconstant x, pconstant (T.pack . show $ x))

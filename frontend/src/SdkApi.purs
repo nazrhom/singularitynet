@@ -424,7 +424,8 @@ callCreateUnbondedPool
   -> Effect (Promise UnbondedPoolArgs)
 callCreateUnbondedPool cfg iba = Promise.fromAff do
   iup <- liftEither $ fromInitialUnbondedArgs iba
-  upp <- runContract cfg $ createUnbondedPoolContract iup
+  { unbondedPoolParams: upp } <- runContract cfg $ createUnbondedPoolContract
+    iup
   pure $ toUnbondedPoolArgs upp
 
 callDepositUnbondedPool

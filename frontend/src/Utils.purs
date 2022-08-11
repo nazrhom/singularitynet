@@ -33,6 +33,7 @@ import Contract.Monad
   , liftedE
   , liftedM
   , tag
+  , throwContractError
   )
 import Contract.Log
   ( logInfo
@@ -44,6 +45,14 @@ import Contract.Numeric.Rational (Rational, numerator, denominator)
 import Contract.Prim.ByteArray (ByteArray, hexToByteArray)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (PlutusScript)
+import Contract.Time
+  ( ChainTip(..)
+  , Tip(..)
+  , getEraSummaries
+  , getSystemStart
+  , getTip
+  , slotToPosixTime
+  )
 import Contract.Transaction
   ( TransactionInput
   , TransactionOutput(TransactionOutput)
@@ -62,11 +71,7 @@ import Contract.Value
   , valueOf
   )
 import Control.Alternative (guard)
-import Control.Monad.Error.Class
-  ( class MonadThrow
-  , try
-  , liftMaybe
-  )
+import Control.Monad.Error.Class (try, liftMaybe)
 import Data.Argonaut.Core (Json, caseJsonObject)
 import Data.Argonaut.Decode.Combinators (getField) as Json
 import Data.Argonaut.Decode.Error (JsonDecodeError(TypeMismatch))
@@ -81,18 +86,15 @@ import Data.Array
   , sortBy
   , (..)
   )
-
 import Data.Array as Array
+import Data.Bifunctor (lmap)
 import Data.BigInt (BigInt, fromInt, fromNumber, quot, rem, toInt, toNumber)
-import Data.DateTime.Instant (unInstant)
 import Data.Map (Map, toUnfoldable)
 import Data.Map as Map
 import Data.Time.Duration (Seconds, Milliseconds(Milliseconds))
 import Data.Unfoldable (unfoldr)
 import Effect.Aff (delay)
-import Effect.Now (now)
-import Effect.Exception (Error, error, throw)
-import Effect.Class (class MonadEffect)
+import Effect.Exception (error, throw)
 import Math (ceil)
 import Serialization.Hash (ed25519KeyHashToBytes)
 import Types
@@ -367,9 +369,9 @@ bigIntRange lim =
     )
     zero
 
--- Get time rounded to the closest integer (ceiling) in seconds
+-- Get the node's time rounded to the closest integer (ceiling) in seconds.
 currentRoundedTime
-  :: forall m. Monad m => MonadEffect m => MonadThrow Error m => m POSIXTime
+  :: forall (r :: Row Type). Contract r POSIXTime
 currentRoundedTime = do
   POSIXTime t <- currentTime
   t' <-
@@ -379,31 +381,50 @@ currentRoundedTime = do
       * 1000.0
   pure $ POSIXTime t'
 
--- Get UNIX epoch from system time
+-- | Get the POSIX time from the node. This is obtained by converting the current
+-- | slot.
 currentTime
-  :: forall m. Monad m => MonadEffect m => MonadThrow Error m => m POSIXTime
+  :: forall (r :: Row Type). Contract r POSIXTime
 currentTime = do
-  Milliseconds t <- unInstant <$> liftEffect now
-  t' <- liftMaybe (error "currentPOSIXTime: could not convert Number to BigInt")
-    $
-      fromNumber t
-  pure $ POSIXTime t'
+  -- Get current slot
+  ChainTip { slot } <- getTip >>= case _ of
+    Tip chainTip -> pure chainTip
+    TipAtGenesis -> throwContractError "currentTime: node returned TipAtGenesis"
+  -- Convert slot to POSIXTime
+  es <- getEraSummaries
+  ss <- getSystemStart
+  liftEither
+    <<< lmap (error <<< show)
+    <=< liftEffect
+    $ slotToPosixTime es ss slot
 
 countdownTo :: forall (r :: Row Type). POSIXTime -> Contract r Unit
-countdownTo tf = do
-  -- Get current time
-  t <- currentRoundedTime
-  let
-    msg :: String
-    msg = "Countdown: " <> (showSeconds $ unwrap tf - unwrap t)
-  if t > tf then logInfo' "0"
-  else logInfo' msg *> wait *> countdownTo tf
+countdownTo targetTime = countdownTo' Nothing
   where
-  wait :: Contract r Unit
-  wait = liftAff $ delay $ Milliseconds 10000.0
+  countdownTo' :: Maybe POSIXTime -> Contract r Unit
+  countdownTo' prevTime = do
+    currTime <- currentTime
+    let
+      msg :: String
+      msg = "Countdown: " <> showSeconds delta
+
+      delta :: BigInt
+      delta = unwrap targetTime - unwrap currTime
+    if currTime >= targetTime then logInfo' "GO"
+    else if timeChanged prevTime currTime then logInfo' msg *> wait delta *>
+      countdownTo' (Just currTime)
+    else wait delta *> countdownTo' (Just currTime)
+
+  wait :: BigInt -> Contract r Unit
+  wait n = liftAff $ delay $
+    if n > fromInt 5000 then Milliseconds 5000.0
+    else Milliseconds $ toNumber n
 
   showSeconds :: BigInt -> String
   showSeconds n = show $ toNumber n / 1000.0
+
+  timeChanged :: Maybe POSIXTime -> POSIXTime -> Boolean
+  timeChanged prevTime currTime = maybe true (_ /= currTime) prevTime
 
 -- | Utility function for splitting an array into equal length sub-arrays
 -- | (with remainder array length <= size)
