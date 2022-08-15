@@ -21,7 +21,7 @@ export type LogLevel = "Trace" | "Debug" | "Info" | "Warn" | "Error";
 
 export type WalletSpec = "Nami" | "Gero" | "Flint";
 
-export type NetworkId = 1 | 2;
+export type NetworkId = 0 | 1;
 
 export type SdkServerConfig = {
   host: string; // e.g. "localhost"

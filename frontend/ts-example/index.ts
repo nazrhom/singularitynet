@@ -100,7 +100,7 @@ const localHostSdkConfig: SdkConfig = {
     secure: false,
     path: "",
   },
-  networkId: 1,
+  networkId: 0,
   logLevel: "Info",
   walletSpec: "Flint",
 };
