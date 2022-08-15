@@ -335,6 +335,7 @@ let additions =
             , "spec"
             , "spec-quickcheck"
             , "strings"
+            , "stringutils"
             , "tailrec"
             , "text-encoding"
             , "these"
@@ -349,7 +350,7 @@ let additions =
             , "variant"
             ]
         , repo = "https://github.com/Plutonomicon/cardano-transaction-lib.git"
-        , version = "16b9dea9c81d49a59f44d622653d3afc06ef2972"
+        , version = "be9ddad6d36703eedb43cc6598486867ae061aba"
         }
         , purescript-toppokki =
           { dependencies =
