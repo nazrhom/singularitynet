@@ -19,7 +19,7 @@ export type ContractConfig = typeof cfg;
 
 export type LogLevel = "Trace" | "Debug" | "Info" | "Warn" | "Error";
 
-export type WalletSpec = "Nami" | "Gero";
+export type WalletSpec = "Nami" | "Gero" | "Flint";
 
 export type NetworkId = 1 | 2;
 
