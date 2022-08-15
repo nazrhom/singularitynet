@@ -13,13 +13,15 @@ export declare class Pool<T> {
 // This is something of a hack for creating an opaque type without nominal typing,
 // which typescript lacks
 //
-// It should not be possible to directly construct `ContractConfig`s
+// It should not be possible to directly construct `ContractEnv`s
 declare const cfg: unique symbol;
 export type ContractConfig = typeof cfg;
 
-export type LogLevel = "Trace" | "Debug" | "Info" | "Warn" | "Error"
+export type LogLevel = "Trace" | "Debug" | "Info" | "Warn" | "Error";
 
-export type NetworkId = 1 | 2
+export type WalletSpec = "Nami" | "Gero" | "Flint";
+
+export type NetworkId = 0 | 1;
 
 export type SdkServerConfig = {
   host: string; // e.g. "localhost"
@@ -44,6 +46,7 @@ export type SdkConfig = {
   datumCacheConfig: SdkServerConfig;
   networkId: NetworkId; // int
   logLevel: LogLevel;
+  walletSpec: WalletSpec;
 };
 
 // Bonded pool

@@ -26,7 +26,14 @@ import Contract.Prelude
 
 import ClosePool (closeBondedPoolContract)
 import Contract.Address (PaymentPubKeyHash)
-import Contract.Config (ConfigParams, WalletSpec(..))
+import Contract.Config
+  ( ConfigParams
+  , WalletSpec
+      ( ConnectToNami
+      , ConnectToGero
+      , ConnectToFlint
+      )
+  )
 import Contract.Monad (Contract, runContract)
 import Contract.Numeric.NatRatio (fromNaturals, toRational)
 import Contract.Numeric.Natural (Natural, fromBigInt, toBigInt)
@@ -82,6 +89,7 @@ type SdkConfig =
   , datumCacheConfig :: SdkServerConfig
   , networkId :: Number -- converts to Int
   , logLevel :: String -- "Trace", "Debug", "Info", "Warn", "Error"
+  , walletSpec :: String -- "Nami" or "Gero"
   }
 
 type SdkServerConfig =
@@ -95,14 +103,14 @@ type SdkInterest = { numerator :: BigInt, denominator :: BigInt }
 
 type SdkAssetClass = { currencySymbol :: String, tokenName :: String }
 
-fromSdkLogLevel :: String -> Maybe LogLevel
+fromSdkLogLevel :: String -> Either Error LogLevel
 fromSdkLogLevel = case _ of
   "Trace" -> pure Trace
   "Debug" -> pure Debug
   "Info" -> pure Info -- default
   "Warn" -> pure Warn
   "Error" -> pure Error
-  _ -> Nothing
+  s -> Left $ error $ "Invalid `LogLevel`: " <> s
 
 fromSdkServerConfig
   :: String
@@ -134,15 +142,15 @@ buildContractConfig cfg = Promise.fromAff $ do
     $ Int.fromNumber cfg.networkId
   networkId <- liftM (errorWithContext "invalid `NetworkId`")
     $ intToNetworkId networkIdInt
-  logLevel <- liftM (errorWithContext "invalid `LogLevel`")
-    $ fromSdkLogLevel cfg.logLevel
+  logLevel <- liftEither $ fromSdkLogLevel cfg.logLevel
+  walletSpec <- Just <$> liftEither (fromSdkWalletSpec cfg.walletSpec)
   pure
     { ogmiosConfig
     , datumCacheConfig
     , ctlServerConfig
     , logLevel
     , networkId
-    , walletSpec: Just ConnectToNami
+    , walletSpec
     , customLogger: Nothing
     , extraConfig: {}
     }
@@ -216,6 +224,13 @@ fromSdkAdmin context admin = note (error msg)
   where
   msg :: String
   msg = context <> ": invalid admin"
+
+fromSdkWalletSpec :: String -> Either Error WalletSpec
+fromSdkWalletSpec = case _ of
+  "Nami" -> pure ConnectToNami
+  "Gero" -> pure ConnectToGero
+  "Flint" -> pure ConnectToFlint
+  s -> Left $ error $ "Invalid `WalletSpec`: " <> s
 
 errorWithMsg :: String -> String -> Error
 errorWithMsg context name = error $ context <> ": invalid " <> name

@@ -70,7 +70,7 @@ createBondedPoolContract ibp =
       adminAddr <-
         liftedM "createBondedPoolContract: Cannot get wallet Address"
           getWalletAddress
-      logInfo_ "createBondedPoolContract: User Address"
+      logInfo_ "createBondedPoolContract: Admin Address"
         $ fromPlutusAddress networkId adminAddr
       -- Get utxos at the wallet address
       adminUtxos <- liftedM "createBondedPoolContract: Cannot get user Utxos"

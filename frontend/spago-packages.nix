@@ -211,11 +211,11 @@ let
 
     "cardano-transaction-lib" = pkgs.stdenv.mkDerivation {
         name = "cardano-transaction-lib";
-        version = "16b9dea9c81d49a59f44d622653d3afc06ef2972";
+        version = "be9ddad6d36703eedb43cc6598486867ae061aba";
         src = pkgs.fetchgit {
           url = "https://github.com/Plutonomicon/cardano-transaction-lib.git";
-          rev = "16b9dea9c81d49a59f44d622653d3afc06ef2972";
-          sha256 = "03687zpfaw24jphlqlrry5vxaqpgxlvdmphwy151g48wc74mqvck";
+          rev = "be9ddad6d36703eedb43cc6598486867ae061aba";
+          sha256 = "1jwhc08jdi69hb1f1yi7cl4317mvssazb3bdcm4dsc7d9ap93mbk";
         };
         phases = "installPhase";
         installPhase = "ln -s $src $out";
@@ -1308,6 +1308,18 @@ let
           url = "https://github.com/purescript/purescript-strings.git";
           rev = "157e372a23e4becd594d7e7bff6f372a6f63dd82";
           sha256 = "0hyaa4d8gyyvac2nxnwqkn2rvi5vax4bi4yv10mpk7rgb8rv7mb8";
+        };
+        phases = "installPhase";
+        installPhase = "ln -s $src $out";
+      };
+
+    "stringutils" = pkgs.stdenv.mkDerivation {
+        name = "stringutils";
+        version = "v0.0.11";
+        src = pkgs.fetchgit {
+          url = "https://github.com/menelaos/purescript-stringutils.git";
+          rev = "e149d04cd5bcc25222c1807f2e1edafb36b5f70e";
+          sha256 = "1hbr936bvnm5iil4cfr9qhkbzd1i00yrxf5jd0rnny29df5wsq1w";
         };
         phases = "installPhase";
         installPhase = "ln -s $src $out";
