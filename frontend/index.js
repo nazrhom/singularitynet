@@ -2,15 +2,6 @@
 
 const frontend = import("./output.js");
 
-exports.createBondedPool = async (sdkConfig, initialArgs) => {
-  const contracts = await frontend;
-  const config = await contracts.buildContractConfig(sdkConfig)();
-  const bondedArgs = await contracts.callCreateBondedPool(config)(
-    initialArgs
-  )();
-  return new BondedPool(config, bondedArgs);
-};
-
 exports.BondedPool = class BondedPool {
   constructor(config, args) {
     this.config = config;
@@ -40,13 +31,6 @@ exports.BondedPool = class BondedPool {
     const contracts = await frontend;
     return contracts.callUserWithdrawBondedPool(this.config)(this.args)();
   }
-};
-
-exports.createUnbondedPool = async (sdkConfig, initialArgs) => {
-  const contracts = await frontend;
-  const config = await contracts.buildContractConfig(sdkConfig)();
-  const unbondedArgs = await callCreateUnbondedPool(config)(initialArgs)();
-  return new UnbondedPool(config, unbondedArgs);
 };
 
 exports.UnbondedPool = class UnbondedPool {
@@ -80,4 +64,20 @@ exports.UnbondedPool = class UnbondedPool {
     const contracts = await frontend;
     return contracts.callUserWithdrawUnbondedPool(this.config)(this.args)();
   }
+};
+
+exports.createBondedPool = async (sdkConfig, initialArgs) => {
+  const contracts = await frontend;
+  const config = await contracts.buildContractConfig(sdkConfig)();
+  const bondedArgs = await contracts.callCreateBondedPool(config)(
+    initialArgs
+  )();
+  return new exports.BondedPool(config, bondedArgs);
+};
+
+exports.createUnbondedPool = async (sdkConfig, initialArgs) => {
+  const contracts = await frontend;
+  const config = await contracts.buildContractConfig(sdkConfig)();
+  const unbondedArgs = await callCreateUnbondedPool(config)(initialArgs)();
+  return new exports.UnbondedPool(config, unbondedArgs);
 };
