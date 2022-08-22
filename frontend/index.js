@@ -2,6 +2,10 @@
 
 const frontend = import("./output.js");
 
+exports.BondedPool = BondedPool;
+
+exports.UnbondedPool = UnbondedPool;
+
 exports.createBondedPool = async (sdkConfig, initialArgs) => {
   const contracts = await frontend;
   const config = await contracts.buildContractConfig(sdkConfig)();
@@ -11,7 +15,14 @@ exports.createBondedPool = async (sdkConfig, initialArgs) => {
   return new BondedPool(config, bondedArgs);
 };
 
-exports.BondedPool = class BondedPool {
+exports.createUnbondedPool = async (sdkConfig, initialArgs) => {
+  const contracts = await frontend;
+  const config = await contracts.buildContractConfig(sdkConfig)();
+  const unbondedArgs = await callCreateUnbondedPool(config)(initialArgs)();
+  return new UnbondedPool(config, unbondedArgs);
+};
+
+class BondedPool {
   constructor(config, args) {
     this.config = config;
     this.args = args;
@@ -40,16 +51,9 @@ exports.BondedPool = class BondedPool {
     const contracts = await frontend;
     return contracts.callUserWithdrawBondedPool(this.config)(this.args)();
   }
-};
+}
 
-exports.createUnbondedPool = async (sdkConfig, initialArgs) => {
-  const contracts = await frontend;
-  const config = await contracts.buildContractConfig(sdkConfig)();
-  const unbondedArgs = await callCreateUnbondedPool(config)(initialArgs)();
-  return new UnbondedPool(config, unbondedArgs);
-};
-
-exports.UnbondedPool = class UnbondedPool {
+class UnbondedPool {
   constructor(config, args) {
     this.config = config;
     this.args = args;
@@ -80,4 +84,4 @@ exports.UnbondedPool = class UnbondedPool {
     const contracts = await frontend;
     return contracts.callUserWithdrawUnbondedPool(this.config)(this.args)();
   }
-};
+}
