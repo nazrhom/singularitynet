@@ -225,7 +225,13 @@
               };
 
               apps = {
-                frontend-runtime = pkgs.launchCtlRuntime { };
+                frontend-runtime = pkgs.launchCtlRuntime {
+                  network = {
+                    name = "preprod";
+                    magic = 1; # use `null` for mainnet
+                  };
+                  node.tag = "1.35.3";
+                };
               };
 
               checks = {
