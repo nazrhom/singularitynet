@@ -41,6 +41,7 @@ import Contract.Numeric.Rational (Rational, denominator, numerator)
 import Contract.Prim.ByteArray
   ( byteArrayFromAscii
   , byteArrayToHex
+  , byteArrayToIntArray
   , hexToByteArray
   )
 import Contract.Value
@@ -54,14 +55,17 @@ import Contract.Value
 import Control.Promise (Promise)
 import Control.Promise as Promise
 import CreatePool (createBondedPoolContract)
+import Data.Char (fromCharCode)
 import Data.BigInt (BigInt)
 import Data.Int as Int
 import Data.Log.Level (LogLevel(Trace, Debug, Info, Warn, Error))
+import Data.String.CodeUnits (fromCharArray)
 import Data.UInt (UInt)
 import Data.UInt as UInt
 import DepositPool (depositBondedPoolContract)
 import Effect.Aff (error)
 import Effect.Exception (Error)
+import Partial.Unsafe (unsafePartial)
 import Serialization.Address (intToNetworkId)
 import Serialization.Hash (ed25519KeyHashFromBytes, ed25519KeyHashToBytes)
 import Types
@@ -133,7 +137,7 @@ fromSdkPath s = Just s
 
 buildContractConfig :: SdkConfig -> Effect (Promise (ConfigParams ()))
 buildContractConfig cfg = Promise.fromAff $ do
-  ctlServerConfig <- liftEither $ fromSdkServerConfig "ctl-server"
+  ctlServerConfig <- map Just $ liftEither $ fromSdkServerConfig "ctl-server"
     cfg.ctlServerConfig
   ogmiosConfig <- liftEither $ fromSdkServerConfig "ogmios" cfg.ogmiosConfig
   datumCacheConfig <- liftEither $ fromSdkServerConfig "ogmios-datum-cache"
@@ -152,6 +156,7 @@ buildContractConfig cfg = Promise.fromAff $ do
     , networkId
     , walletSpec
     , customLogger: Nothing
+    , suppressLogs: false
     , extraConfig: {}
     }
   where
@@ -173,8 +178,16 @@ callWithArgs f contract cfg args = Promise.fromAff
 toSdkAssetClass :: AssetClass -> SdkAssetClass
 toSdkAssetClass (AssetClass ac) =
   { currencySymbol: byteArrayToHex $ getCurrencySymbol ac.currencySymbol
-  , tokenName: byteArrayToHex $ getTokenName ac.tokenName
+  , tokenName: tokenNameAscii ac.tokenName
   }
+  where
+  tokenNameAscii :: TokenName -> String
+  tokenNameAscii = unsafePartial
+    $ fromJust
+    <<< map fromCharArray
+    <<< traverse fromCharCode
+    <<< byteArrayToIntArray
+    <<< getTokenName
 
 toSdkInterest :: Rational -> SdkInterest
 toSdkInterest i = { numerator: numerator i, denominator: denominator i }

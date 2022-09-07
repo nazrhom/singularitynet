@@ -234,11 +234,12 @@ runContract_ contract = do
   runContract
     { ogmiosConfig: defaultOgmiosWsConfig
     , datumCacheConfig: defaultDatumCacheWsConfig
-    , ctlServerConfig: defaultServerConfig
+    , ctlServerConfig: Just defaultServerConfig
     , networkId: TestnetId
     , logLevel: Info
     , walletSpec: Just ConnectToNami
     , customLogger: Nothing
+    , suppressLogs: false
     , extraConfig: {}
     }
     contract
