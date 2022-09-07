@@ -12,27 +12,13 @@
     plutarch.inputs.haskell-nix.follows = "plutip/haskell-nix";
     plutarch.inputs.nixpkgs.follows = "plutip/nixpkgs";
 
-    # TODO
-    # remove these after upgrading CTL fully
-    ogmios.url = "github:mlabs-haskell/ogmios/e406801eaeb32b28cd84357596ca1512bff27741";
-    ogmios-datum-cache.url = "github:mlabs-haskell/ogmios-datum-cache/880a69a03fbfd06a4990ba8873f06907d4cd16a7";
-    cardano-configurations = {
-      url = "github:input-output-hk/cardano-configurations";
-      flake = false;
-    };
-
     ctl = {
       type = "github";
       owner = "Plutonomicon";
       repo = "cardano-transaction-lib";
       # NOTE
       # Keep this in sync with the rev in `frontend/packages.dhall`
-      rev = "be9ddad6d36703eedb43cc6598486867ae061aba";
-      inputs = {
-        ogmios.follows = "ogmios";
-        ogmios-datum-cache.follows = "ogmios-datum-cache";
-        cardano-configurations.follows = "cardano-configurations";
-      };
+      rev = "4c0d3d2aa8f9a112ffca266f97f39f52b5065ce5";
     };
   };
 
