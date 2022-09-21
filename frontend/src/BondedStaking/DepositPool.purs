@@ -11,7 +11,7 @@ import Contract.Address
   )
 import Contract.Monad
   ( Contract
-  , liftContractAffM
+  , liftContractM
   , liftContractM
   , liftedE'
   , liftedM
@@ -29,11 +29,10 @@ import Contract.PlutusData
 import Contract.Prim.ByteArray (ByteArray)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
-import Contract.Transaction (TransactionInput, TransactionOutput)
+import Contract.Transaction (TransactionInput, TransactionOutputWithRefScript)
 import Contract.TxConstraints
   ( TxConstraints
   , mustBeSignedBy
-  , mustPayToScript
   , mustSpendScriptOutput
   , mustValidateIn
   )
@@ -67,6 +66,8 @@ import Utils
   , splitByLength
   , submitTransaction
   , toIntUnsafe
+  , mustPayToScript
+  , getUtxoDatumHash
   )
 
 -- Deposits a certain amount in the pool
@@ -104,8 +105,7 @@ depositBondedPoolContract
   -- Get the bonded pool validator and hash
   validator <- liftedE' "depositBondedPoolContract: Cannot create validator"
     $ mkBondedPoolValidator params
-  valHash <- liftContractAffM "depositBondedPoolContract: Cannot hash validator"
-    $ validatorHash validator
+  let valHash = validatorHash validator
   logInfo_ "depositBondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
   logInfo_ "depositBondedPoolContract: Pool address"
@@ -126,7 +126,7 @@ depositBondedPoolContract
   poolDatumHash <-
     liftContractM
       "depositBondedPoolContract: Could not get Pool UTXO's Datum Hash"
-      (unwrap poolTxOutput).dataHash
+      $ getUtxoDatumHash poolTxOutput
   logInfo_ "depositBondedPoolContract: Pool's UTXO DatumHash" poolDatumHash
   poolDatum <- liftedM "depositBondedPoolContract: Cannot get datum"
     $ getDatumByHash poolDatumHash
@@ -159,8 +159,8 @@ depositBondedPoolContract
         lookups :: ScriptLookups.ScriptLookups PlutusData
         lookups =
           ScriptLookups.validator validator
-            <> ScriptLookups.unspentOutputs (unwrap adminUtxos)
-            <> ScriptLookups.unspentOutputs (unwrap bondedPoolUtxos)
+            <> ScriptLookups.unspentOutputs adminUtxos
+            <> ScriptLookups.unspentOutputs bondedPoolUtxos
 
       -- If depositList is null, update all entries in assocList
       -- Otherwise, just update entries selected by indices in depositList
@@ -206,7 +206,7 @@ depositBondedPoolContract
 mkEntryUpdateList
   :: BondedPoolParams
   -> ValidatorHash
-  -> (ByteArray /\ TransactionInput /\ TransactionOutput)
+  -> (ByteArray /\ TransactionInput /\ TransactionOutputWithRefScript)
   -> Contract ()
        ( Tuple (TxConstraints Unit Unit)
            (ScriptLookups.ScriptLookups PlutusData)
@@ -216,9 +216,10 @@ mkEntryUpdateList
   valHash
   (_ /\ txIn /\ txOut) = do
   -- Get the Entry datum of the old assoc. list element
-  dHash <- liftContractM
-    "mkEntryUpdateList: Could not get Entry Datum Hash"
-    (unwrap txOut).dataHash
+  dHash <-
+    liftContractM
+      "mkEntryUpdateList: Could not get Entry Datum Hash"
+      $ getUtxoDatumHash txOut
   logInfo_ "mkEntryUpdateList: datum hash" dHash
   listDatum <-
     liftedM

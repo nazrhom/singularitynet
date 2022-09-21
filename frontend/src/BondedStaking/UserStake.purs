@@ -11,7 +11,7 @@ import Contract.Address
   )
 import Contract.Monad
   ( Contract
-  , liftContractAffM
+  , liftContractM
   , liftContractM
   , liftedE
   , liftedE'
@@ -40,7 +40,6 @@ import Contract.TxConstraints
   ( TxConstraints
   , mustBeSignedBy
   , mustMintValueWithRedeemer
-  , mustPayToScript
   , mustSpendScriptOutput
   , mustValidateIn
   )
@@ -73,6 +72,8 @@ import Utils
   , logInfo_
   , mkOnchainAssocList
   , repeatUntilConfirmed
+  , mustPayToScript
+  , getUtxoDatumHash
   )
 
 -- Deposits a certain amount in the pool
@@ -109,9 +110,7 @@ userStakeBondedPoolContract
   -- Get the bonded pool validator and hash
   validator <- liftedE' "userStakeBondedPoolContract: Cannot create validator"
     $ mkBondedPoolValidator params
-  valHash <-
-    liftContractAffM "userStakeBondedPoolContract: Cannot hash validator"
-      $ validatorHash validator
+  let valHash = validatorHash validator
   logInfo_ "userStakeBondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
   logInfo_ "userStakeBondedPoolContract: Pool address"
@@ -132,7 +131,7 @@ userStakeBondedPoolContract
   poolDatumHash <-
     liftContractM
       "userStakeBondedPoolContract: Could not get Pool UTXO's Datum Hash"
-      (unwrap poolTxOutput).dataHash
+      $ getUtxoDatumHash poolTxOutput
   logInfo_ "userStakeBondedPoolContract: Pool's UTXO DatumHash" poolDatumHash
   poolDatum <- liftedM "userStakeBondedPoolContract: Cannot get datum"
     $ getDatumByHash poolDatumHash
@@ -225,8 +224,8 @@ userStakeBondedPoolContract
         lookup = mconcat
           [ ScriptLookups.mintingPolicy listPolicy
           , ScriptLookups.validator validator
-          , ScriptLookups.unspentOutputs $ unwrap userUtxos
-          , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
+          , ScriptLookups.unspentOutputs userUtxos
+          , ScriptLookups.unspentOutputs bondedPoolUtxos
           , bondedStateDatumLookup
           , entryDatumLookup
           ]
@@ -299,8 +298,8 @@ userStakeBondedPoolContract
             lookup = mconcat
               [ ScriptLookups.mintingPolicy listPolicy
               , ScriptLookups.validator validator
-              , ScriptLookups.unspentOutputs $ unwrap userUtxos
-              , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
+              , ScriptLookups.unspentOutputs userUtxos
+              , ScriptLookups.unspentOutputs bondedPoolUtxos
               , bondedStateDatumLookup
               , entryDatumLookup
               ]
@@ -324,9 +323,10 @@ userStakeBondedPoolContract
               -- head Assoc. List element.
               }
           -- Get the Entry datum of the old assoc. list element
-          dHash <- liftContractM
-            "userStakeBondedPoolContract: Could not get Entry Datum Hash"
-            (unwrap txOut).dataHash
+          dHash <-
+            liftContractM
+              "userStakeBondedPoolContract: Could not get Entry Datum Hash"
+              $ getUtxoDatumHash txOut
           logInfo_ "userStakeBondedPoolContract: " dHash
           listDatum <-
             liftedM
@@ -377,8 +377,8 @@ userStakeBondedPoolContract
             lookup :: ScriptLookups.ScriptLookups PlutusData
             lookup = mconcat
               [ ScriptLookups.validator validator
-              , ScriptLookups.unspentOutputs $ unwrap userUtxos
-              , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
+              , ScriptLookups.unspentOutputs userUtxos
+              , ScriptLookups.unspentOutputs bondedPoolUtxos
               , entryDatumLookup
               ]
           pure $ constraints /\ lookup
@@ -401,9 +401,10 @@ userStakeBondedPoolContract
               }
 
           -- Get the Entry datum of the old assoc. list (first) element
-          dHash <- liftContractM
-            "userStakeBondedPoolContract: Could not get Entry Datum Hash"
-            (unwrap firstOutput).dataHash
+          dHash <-
+            liftContractM
+              "userStakeBondedPoolContract: Could not get Entry Datum Hash"
+              $ getUtxoDatumHash firstOutput
           logInfo_ "userStakeBondedPoolContract: " dHash
           firstListDatum <-
             liftedM
@@ -510,9 +511,10 @@ userStakeBondedPoolContract
           lastConstraints /\ lastLookups <- case secondOutput, secondInput of
             Nothing, Nothing -> pure $ mempty /\ mempty
             Just so, Just si -> do --
-              dh <- liftContractM
-                "userStakeBondedPoolContract: Could not get Entry Datum Hash"
-                (unwrap so).dataHash
+              dh <-
+                liftContractM
+                  "userStakeBondedPoolContract: Could not get Entry Datum Hash"
+                  $ getUtxoDatumHash so
               logInfo_ "userStakeBondedPoolContract: " dh
               secondListDatum <-
                 liftedM
@@ -560,8 +562,8 @@ userStakeBondedPoolContract
             /\
               mconcat
                 [ ScriptLookups.validator validator
-                , ScriptLookups.unspentOutputs $ unwrap userUtxos
-                , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
+                , ScriptLookups.unspentOutputs userUtxos
+                , ScriptLookups.unspentOutputs bondedPoolUtxos
                 , firstLookups
                 , middleLookups
                 , lastLookups

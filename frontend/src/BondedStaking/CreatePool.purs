@@ -10,7 +10,6 @@ import Contract.Address
   )
 import Contract.Monad
   ( Contract
-  , liftContractAffM
   , liftContractM
   , liftedE
   , liftedE'
@@ -27,7 +26,6 @@ import Contract.Transaction
 import Contract.TxConstraints
   ( TxConstraints
   , mustMintValue
-  , mustPayToScript
   , mustSpendPubKeyOutput
   )
 import Contract.Utxos (utxosAt)
@@ -49,7 +47,12 @@ import Types
   , InitialBondedParams
   , StakingType(Bonded)
   )
-import Utils (logInfo_, mkBondedPoolParams, repeatUntilConfirmed)
+import Utils
+  ( logInfo_
+  , mkBondedPoolParams
+  , repeatUntilConfirmed
+  , mustPayToScript
+  )
 
 -- Sets up pool configuration, mints the state NFT and deposits
 -- in the pool validator's address
@@ -78,18 +81,18 @@ createBondedPoolContract ibp =
       txOutRef <-
         liftContractM "createBondedPoolContract: Could not get head UTXO"
           $ fst
-          <$> (head $ toUnfoldable $ unwrap adminUtxos)
+          <$> (head $ toUnfoldable adminUtxos)
       logInfo_ "createBondedPoolContract: Admin Utxos" adminUtxos
       -- Get the minting policy and currency symbol from the state NFT:
       statePolicy <- liftedE $ mkStateNFTPolicy Bonded txOutRef
       stateNftCs <-
-        liftContractAffM
+        liftContractM
           "createBondedPoolContract: Cannot get CurrencySymbol from state NFT"
           $ scriptCurrencySymbol statePolicy
       -- Get the minting policy and currency symbol from the list NFT:
       listPolicy <- liftedE $ mkListNFTPolicy Bonded stateNftCs
       assocListCs <-
-        liftContractAffM
+        liftContractM
           "createBondedPoolContract: Cannot get CurrencySymbol from state NFT"
           $ scriptCurrencySymbol listPolicy
       -- May want to hardcode this somewhere:
@@ -104,10 +107,8 @@ createBondedPoolContract ibp =
       validator <-
         liftedE' "createBondedPoolContract: Cannot create validator"
           $ mkBondedPoolValidator bondedPoolParams
-      valHash <-
-        liftContractAffM "createBondedPoolContract: Cannot hash validator"
-          $ validatorHash validator
       let
+        valHash = validatorHash validator
         mintValue = singleton stateNftCs tokenName one
         poolAddr = scriptHashAddress valHash
       logInfo_ "createBondedPoolContract: BondedPool Validator's address"
@@ -122,7 +123,7 @@ createBondedPoolContract ibp =
         lookup = mconcat
           [ ScriptLookups.mintingPolicy statePolicy
           , ScriptLookups.validator validator
-          , ScriptLookups.unspentOutputs $ unwrap adminUtxos
+          , ScriptLookups.unspentOutputs adminUtxos
           ]
 
         constraints :: TxConstraints Unit Unit

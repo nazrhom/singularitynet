@@ -22,6 +22,8 @@ module Utils
   , submitTransaction
   , toIntUnsafe
   , repeatUntilConfirmed
+  , mustPayToScript
+  , getUtxoDatumHash
   ) where
 
 import Contract.Prelude hiding (length)
@@ -55,17 +57,27 @@ import Contract.Time
   )
 import Contract.Transaction
   ( TransactionInput
-  , TransactionOutput(TransactionOutput)
+  , TransactionOutputWithRefScript(TransactionOutputWithRefScript)
   , BalancedSignedTransaction
   , balanceAndSignTx
   , submit
   , awaitTxConfirmedWithTimeout
+  , plutusV1Script
   )
-import Contract.TxConstraints (TxConstraints, mustSpendScriptOutput)
-import Contract.Utxos (UtxoM(UtxoM))
+import Contract.TxConstraints
+  ( TxConstraints
+  , DatumPresence(DatumWitness)
+  , mustSpendScriptOutput
+  , mustPayToScript
+  )
+import Contract.TxConstraints as TxConstraints
+import Contract.PlutusData (Datum, DataHash, PlutusData)
+import Contract.Scripts (ValidatorHash)
+import Contract.Utxos (UtxoMap)
 import Contract.Value
   ( CurrencySymbol
   , TokenName
+  , Value
   , flattenNonAdaAssets
   , getTokenName
   , valueOf
@@ -104,7 +116,7 @@ import Types
   , MintingAction(MintEnd, MintInBetween)
   )
 import Types.Interval (POSIXTime(POSIXTime))
-import Types.PlutusData (PlutusData)
+import Types.OutputDatum (OutputDatum(OutputDatumHash))
 import Types.Redeemer (Redeemer)
 
 -- | Helper to decode the local inputs such as unapplied minting policy and
@@ -118,65 +130,67 @@ jsonReader field = do
     hex <- Json.getField o field
     case hexToByteArray hex of
       Nothing -> Left $ TypeMismatch "Could not convert to bytes"
-      Just bytes -> pure $ wrap bytes
+      Just bytes -> pure $ plutusV1Script bytes
 
 -- | Get the UTXO with the NFT defined by its `CurrencySymbol` and `TokenName`.
 -- If more than one UTXO contains the NFT, something is seriously wrong.
 getUtxoWithNFT
-  :: UtxoM
+  :: UtxoMap
   -> CurrencySymbol
   -> TokenName
-  -> Maybe (Tuple TransactionInput TransactionOutput)
+  -> Maybe (Tuple TransactionInput TransactionOutputWithRefScript)
 getUtxoWithNFT utxoM cs tn =
   let
-    utxos = filter hasNFT $ toUnfoldable $ unwrap utxoM
+    utxos = filter hasNFT $ toUnfoldable utxoM
   in
     if length utxos > 1 then Nothing
     else head utxos
   where
   hasNFT
-    :: Tuple TransactionInput TransactionOutput
+    :: Tuple TransactionInput TransactionOutputWithRefScript
     -> Boolean
   hasNFT (Tuple _ txOutput') =
     let
-      txOutput = unwrap txOutput'
+      txOutput = unwrap $ (unwrap txOutput').output
     in
       valueOf txOutput.amount cs tn == one
 
--- | This receives a `UtxoM` with all the asset UTxOs of the pool and the desired
+-- | This receives a `UtxoMap` with all the asset UTxOs of the pool and the desired
 -- | amount to withdraw. It returns a subset of these that sums at least
 -- | the given amount and the total amount
-getAssetsToConsume :: AssetClass -> BigInt -> UtxoM -> Maybe (UtxoM /\ BigInt)
+getAssetsToConsume
+  :: AssetClass -> BigInt -> UtxoMap -> Maybe (UtxoMap /\ BigInt)
 getAssetsToConsume (AssetClass ac) withdrawAmt assetUtxos =
   go assetList Map.empty zero
   where
-  assetList :: Array (TransactionInput /\ TransactionOutput)
-  assetList = Map.toUnfoldable <<< unwrap $ assetUtxos
+  assetList :: Array (TransactionInput /\ TransactionOutputWithRefScript)
+  assetList = Map.toUnfoldable $ assetUtxos
 
   go
-    :: Array (TransactionInput /\ TransactionOutput)
-    -> Map TransactionInput TransactionOutput
+    :: Array (TransactionInput /\ TransactionOutputWithRefScript)
+    -> Map TransactionInput TransactionOutputWithRefScript
     -> BigInt
-    -> Maybe (UtxoM /\ BigInt)
+    -> Maybe (UtxoMap /\ BigInt)
   go arr toConsume sum
-    | sum >= withdrawAmt = Just $ UtxoM toConsume /\ (sum - withdrawAmt)
+    | sum >= withdrawAmt = Just $ toConsume /\ (sum - withdrawAmt)
     | null arr = Nothing
     | otherwise = do
         input /\ output <- Array.head arr
         arr' <- Array.tail arr
         let
-          assetCount = valueOf (unwrap output).amount ac.currencySymbol
+          assetCount = valueOf (unwrap (unwrap output).output).amount
+            ac.currencySymbol
             ac.tokenName
           toConsume' = Map.insert input output toConsume
           sum' = sum + assetCount
         go arr' toConsume' sum'
 
 -- | Builds constraints for asset UTxOs
-mkAssetUtxosConstraints :: UtxoM -> Redeemer -> TxConstraints Unit Unit
+mkAssetUtxosConstraints :: UtxoMap -> Redeemer -> TxConstraints Unit Unit
 mkAssetUtxosConstraints utxos redeemer =
   foldMap (\(input /\ _) -> mustSpendScriptOutput input redeemer)
-    ( Map.toUnfoldable $ unwrap utxos
-        :: Array (TransactionInput /\ TransactionOutput)
+    ( Map.toUnfoldable $ utxos
+        :: Array (TransactionInput /\ TransactionOutputWithRefScript)
     )
 
 -- | Convert from `Int` to `Natural`
@@ -247,23 +261,24 @@ mkBondedPoolParams admin nftCs assocListCs (InitialBondedParams ibp) = do
 
 hashPkh :: PaymentPubKeyHash -> Aff ByteArray
 hashPkh =
-  blake2b256Hash <<< unwrap <<< ed25519KeyHashToBytes <<< unwrap <<< unwrap
+  pure <<< blake2b256Hash <<< unwrap <<< ed25519KeyHashToBytes <<< unwrap <<<
+    unwrap
 
 -- | Makes an on chain assoc list returning the key, input and output. We could
 -- | be more stringent on checks to ensure the list is genuinely connected
 -- | although on chain code should enforce this.
 mkOnchainAssocList
   :: CurrencySymbol
-  -> UtxoM
-  -> Array (ByteArray /\ TransactionInput /\ TransactionOutput)
-mkOnchainAssocList assocListCs (UtxoM utxos) =
+  -> UtxoMap
+  -> Array (ByteArray /\ TransactionInput /\ TransactionOutputWithRefScript)
+mkOnchainAssocList assocListCs utxos =
   sortBy compareBytes $ mapMaybe getAssocListUtxos $ toUnfoldable utxos
   where
   getAssocListUtxos
-    :: TransactionInput /\ TransactionOutput
-    -> Maybe (ByteArray /\ TransactionInput /\ TransactionOutput)
-  getAssocListUtxos utxo@(_ /\ (TransactionOutput txOutput)) = do
-    let val = flattenNonAdaAssets txOutput.amount
+    :: TransactionInput /\ TransactionOutputWithRefScript
+    -> Maybe (ByteArray /\ TransactionInput /\ TransactionOutputWithRefScript)
+  getAssocListUtxos utxo@(_ /\ (TransactionOutputWithRefScript txOutput)) = do
+    let val = flattenNonAdaAssets (unwrap (txOutput.output)).amount
     cs /\ tn /\ amt <- head val
     guard (length val == one && cs == assocListCs && amt == one)
     pure $ getTokenName tn /\ utxo
@@ -277,7 +292,7 @@ compareBytes (bytes /\ _) (bytes' /\ _) = compare bytes bytes'
 -- | simplicity. THIS MUST BE USED ON A SORTED LIST, i.e. with
 -- | `mkOnchainAssocList`. We should probably create a type for the output.
 findInsertUpdateElem
-  :: Array (ByteArray /\ TransactionInput /\ TransactionOutput)
+  :: Array (ByteArray /\ TransactionInput /\ TransactionOutputWithRefScript)
   -> ByteArray
   -> Maybe
        ( Maybe MintingAction
@@ -286,8 +301,8 @@ findInsertUpdateElem
              , secondInput :: Maybe TransactionInput
              }
            /\
-             { firstOutput :: TransactionOutput
-             , secondOutput :: Maybe TransactionOutput
+             { firstOutput :: TransactionOutputWithRefScript
+             , secondOutput :: Maybe TransactionOutputWithRefScript
              }
            /\
              { firstKey :: ByteArray
@@ -329,15 +344,15 @@ findInsertUpdateElem assocList hashedKey = do
 -- | in-between case, since it assumes that some entry will have a key less
 -- | than the given one.
 findRemoveOtherElem
-  :: Array (ByteArray /\ TransactionInput /\ TransactionOutput)
+  :: Array (ByteArray /\ TransactionInput /\ TransactionOutputWithRefScript)
   -> ByteArray
   -> Maybe
        ( { firstInput :: TransactionInput
          , secondInput :: TransactionInput
          }
            /\
-             { firstOutput :: TransactionOutput
-             , secondOutput :: TransactionOutput
+             { firstOutput :: TransactionOutputWithRefScript
+             , secondOutput :: TransactionOutputWithRefScript
              }
            /\
              { firstKey :: ByteArray
@@ -517,3 +532,16 @@ repeatUntilConfirmed timeout maxTrials contract = do
       logInfo' "repeatUntilConfirmed: transaction confirmed!"
       logInfo_ "TX Hash" txHash
       pure result
+
+mustPayToScript
+  :: forall (i :: Type) (o :: Type)
+   . ValidatorHash
+  -> Datum
+  -> Value
+  -> TxConstraints i o
+mustPayToScript vh dat = TxConstraints.mustPayToScript vh dat DatumWitness
+
+getUtxoDatumHash :: TransactionOutputWithRefScript -> Maybe DataHash
+getUtxoDatumHash = unwrap >>> _.output >>> unwrap >>> _.datum >>> case _ of
+  OutputDatumHash dh -> pure dh
+  _ -> Nothing

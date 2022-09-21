@@ -10,7 +10,7 @@ import Contract.Address
   )
 import Contract.Monad
   ( Contract
-  , liftContractAffM
+  , liftContractM
   , liftContractM
   , liftedE
   , liftedE'
@@ -26,7 +26,6 @@ import Contract.Transaction
 import Contract.TxConstraints
   ( TxConstraints
   , mustMintValue
-  , mustPayToScript
   , mustSpendPubKeyOutput
   )
 import Contract.Utxos (utxosAt)
@@ -54,6 +53,7 @@ import Utils
   ( currentRoundedTime
   , logInfo_
   , repeatUntilConfirmed
+  , mustPayToScript
   )
 
 -- Sets up pool configuration, mints the state NFT and deposits
@@ -83,19 +83,19 @@ createUnbondedPoolContract iup =
     txOutRef <-
       liftContractM "createUnbondedPoolContract: Could not get head UTXO"
         $ fst
-        <$> (head $ toUnfoldable $ unwrap adminUtxos)
+        <$> (head $ toUnfoldable adminUtxos)
     logInfo_ "createUnbondedPoolContract: Admin Utxos" adminUtxos
     -- Get the minting policy and currency symbol from the state NFT:
     statePolicy <- liftedE $ mkStateNFTPolicy Unbonded txOutRef
     stateNftCs <-
-      liftContractAffM
+      liftContractM
         "createUnbondedPoolContract: Cannot get CurrencySymbol from /\
         \state NFT"
         $ scriptCurrencySymbol statePolicy
     -- Get the minting policy and currency symbol from the list NFT:
     listPolicy <- liftedE $ mkListNFTPolicy Unbonded stateNftCs
     assocListCs <-
-      liftContractAffM
+      liftContractM
         "createUnbondedPoolContract: Cannot get CurrencySymbol from /\
         \state NFT"
         $ scriptCurrencySymbol listPolicy
@@ -119,10 +119,8 @@ createUnbondedPoolContract iup =
     -- Get the bonding validator and hash
     validator <- liftedE' "createUnbondedPoolContract: Cannot create validator"
       $ mkUnbondedPoolValidator unbondedPoolParams
-    valHash <-
-      liftContractAffM "createUnbondedPoolContract: Cannot hash validator"
-        $ validatorHash validator
     let
+      valHash = validatorHash validator
       mintValue = singleton stateNftCs tokenName one
       poolAddr = scriptHashAddress valHash
     logInfo_ "createUnbondedPoolContract: UnbondedPool Validator's address"
@@ -138,7 +136,7 @@ createUnbondedPoolContract iup =
       lookup = mconcat
         [ ScriptLookups.mintingPolicy statePolicy
         , ScriptLookups.validator validator
-        , ScriptLookups.unspentOutputs $ unwrap adminUtxos
+        , ScriptLookups.unspentOutputs adminUtxos
         ]
 
       -- Seems suspect, not sure if typed constraints are working as expected

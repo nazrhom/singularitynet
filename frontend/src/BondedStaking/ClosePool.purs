@@ -10,7 +10,7 @@ import Contract.Address
   )
 import Contract.Monad
   ( Contract
-  , liftContractAffM
+  , liftContractM
   , liftContractM
   , liftedE'
   , liftedM
@@ -26,7 +26,7 @@ import Contract.PlutusData
   )
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
-import Contract.Transaction (TransactionInput, TransactionOutput)
+import Contract.Transaction (TransactionInput, TransactionOutputWithRefScript)
 import Contract.TxConstraints
   ( TxConstraints
   , mustBeSignedBy
@@ -57,6 +57,7 @@ import Utils
   , splitByLength
   , submitTransaction
   , toIntUnsafe
+  , getUtxoDatumHash
   )
 
 closeBondedPoolContract
@@ -80,8 +81,7 @@ closeBondedPoolContract
   -- Get the bonded pool validator and hash
   validator <- liftedE' "closeBondedPoolContract: Cannot create validator"
     $ mkBondedPoolValidator params
-  valHash <- liftContractAffM "closeBondedPoolContract: Cannot hash validator"
-    $ validatorHash validator
+  let valHash = validatorHash validator
   logInfo_ "closeBondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
   logInfo_ "closeBondedPoolContract: Pool address"
@@ -101,7 +101,7 @@ closeBondedPoolContract
   poolDatumHash <-
     liftContractM
       "closeBondedPoolContract: Could not get Pool UTXO's Datum Hash"
-      (unwrap poolTxOutput).dataHash
+      $ getUtxoDatumHash poolTxOutput
   logInfo_ "closeBondedPoolContract: Pool's UTXO DatumHash" poolDatumHash
   poolDatum <- liftedM "closeBondedPoolContract: Cannot get datum"
     $ getDatumByHash poolDatumHash
@@ -126,7 +126,7 @@ closeBondedPoolContract
   spendList <-
     let
       allConstraints = createUtxoConstraint <$>
-        (toUnfoldable <<< unwrap $ bondedPoolUtxos)
+        (toUnfoldable bondedPoolUtxos)
     in
       if null closeList then pure allConstraints
       else
@@ -138,7 +138,7 @@ closeBondedPoolContract
     lookups :: ScriptLookups.ScriptLookups PlutusData
     lookups = mconcat
       [ ScriptLookups.validator validator
-      , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
+      , ScriptLookups.unspentOutputs bondedPoolUtxos
       , bondedStateDatumLookup
       ]
 
@@ -172,7 +172,7 @@ closeBondedPoolContract
     traverse (flip elemIndex spendList) failedDeposits
 
 createUtxoConstraint
-  :: Tuple TransactionInput TransactionOutput
+  :: Tuple TransactionInput TransactionOutputWithRefScript
   -> Tuple (TxConstraints Unit Unit) (ScriptLookups.ScriptLookups PlutusData)
 createUtxoConstraint (input /\ _) = do
   let valRedeemer = Redeemer $ toData CloseAct
