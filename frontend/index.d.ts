@@ -19,7 +19,7 @@ export type ContractConfig = typeof cfg;
 
 export type LogLevel = "Trace" | "Debug" | "Info" | "Warn" | "Error";
 
-export type WalletSpec = "Nami" | "Gero" | "Flint";
+export type WalletSpec = "Nami" | "Gero" | "Flint" | "Lode";
 
 export type NetworkId = 0 | 1;
 
@@ -33,12 +33,12 @@ export type SdkServerConfig = {
 export type SdkAssetClass = {
   currencySymbol: string;
   tokenName: string;
-}
+};
 
 export type SdkInterest = {
   numerator: BigInteger;
   denominator: BigInteger;
-}
+};
 
 export type SdkConfig = {
   ctlServerConfig: SdkServerConfig;
@@ -54,7 +54,8 @@ export type SdkConfig = {
 export declare class BondedPool extends Pool<BondedPoolArgs> {}
 
 export declare function createBondedPool(
-  config: SdkConfig, initialArgs: InitialBondedArgs
+  config: SdkConfig,
+  initialArgs: InitialBondedArgs
 ): Promise<BondedPool>;
 
 export type BondedPoolArgs = {
@@ -89,7 +90,8 @@ export type InitialBondedArgs = {
 export declare class UnbondedPool extends Pool<UnbondedPoolArgs> {}
 
 export declare function createUnbondedPool(
-  config: SdkConfig, initialArgs: InitialUnbondedArgs
+  config: SdkConfig,
+  initialArgs: InitialUnbondedArgs
 ): Promise<UnbondedPool>;
 
 export type UnbondedPoolArgs = {

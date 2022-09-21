@@ -32,6 +32,7 @@ import Contract.Config
       ( ConnectToNami
       , ConnectToGero
       , ConnectToFlint
+      , ConnectToLode
       )
   )
 import Contract.Monad (Contract, runContract)
@@ -93,7 +94,7 @@ type SdkConfig =
   , datumCacheConfig :: SdkServerConfig
   , networkId :: Number -- converts to Int
   , logLevel :: String -- "Trace", "Debug", "Info", "Warn", "Error"
-  , walletSpec :: String -- "Nami" or "Gero"
+  , walletSpec :: String -- "Nami", "Gero", "Flint", "Lode"
   }
 
 type SdkServerConfig =
@@ -243,6 +244,7 @@ fromSdkWalletSpec = case _ of
   "Nami" -> pure ConnectToNami
   "Gero" -> pure ConnectToGero
   "Flint" -> pure ConnectToFlint
+  "Lode" -> pure ConnectToLode
   s -> Left $ error $ "Invalid `WalletSpec`: " <> s
 
 errorWithMsg :: String -> String -> Error
