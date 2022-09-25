@@ -24,10 +24,32 @@ const main = async () => {
 
   // Admin creates pool
   console.log(`STARTING AS ${admin}`);
-  const date = new Date();
+  const nodeTime = await singularitynet.getNodeTime(localHostSdkConfig);
+  console.log(nodeTime);
+  console.log(typeof(nodeTime));
+  const date = new Date(nodeTime);
+  const delay = BigInteger(0)
   console.log(
     `Bonded pool creation: ${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`
   );
+
+  // The initial arguments of the pool. The rest of the parameters are obtained
+  // during pool creation.
+  const initialBondedArgs: InitialBondedArgs = {
+    iterations: BigInteger(2),
+    start: nodeTime.add(delay),
+    end: nodeTime.add(delay).add(BigInteger(2).multiply(BigInteger(540000))),
+    userLength: BigInteger(180000),
+    bondingLength: BigInteger(180000),
+    interest: { numerator: BigInteger(10), denominator: BigInteger(100) },
+    minStake: BigInteger(1),
+    maxStake: BigInteger(50000),
+    bondedAssetClass: {
+      currencySymbol: "6f1a1f0c7ccf632cc9ff4b79687ed13ffe5b624cce288b364ebdce50",
+      tokenName: "AGIX",
+    },
+  };
+
   const bondedPool: BondedPool = await singularitynet.createBondedPool(
     localHostSdkConfig,
     initialBondedArgs
@@ -64,21 +86,6 @@ const main = async () => {
   await bondedPool.close(closeBatchSize, []);
 
   console.log("Pool closed");
-};
-
-const initialBondedArgs: InitialBondedArgs = {
-  iterations: BigInteger(2),
-  start: BigInteger(1000),
-  end: BigInteger(2000),
-  userLength: BigInteger(180000),
-  bondingLength: BigInteger(180000),
-  interest: { numerator: BigInteger(10), denominator: BigInteger(100) },
-  minStake: BigInteger(1),
-  maxStake: BigInteger(50000),
-  bondedAssetClass: {
-    currencySymbol: "6f1a1f0c7ccf632cc9ff4b79687ed13ffe5b624cce288b364ebdce50",
-    tokenName: "AGIX",
-  },
 };
 
 const localHostSdkConfig: SdkConfig = {
