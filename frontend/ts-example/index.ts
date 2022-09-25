@@ -125,13 +125,15 @@ const logSwitchAndCountdown = async (
 };
 
 const countdownTo = async (tf: number) => {
-  const now = Date.now();
-  if (now > tf) {
-    console.log("0");
-  } else {
+  let now = await singularitynet.getNodeTime(localHostSdkConfig);
+  while (now <= tf) {
+    console.log(`${now} <= ${tf}`);
     console.log(`Countdown: ${showSecondsDiff(tf, now)}`);
     await sleep(10000);
+    now = await singularitynet.getNodeTime(localHostSdkConfig);
   }
+  console.log(`${now} > ${tf}`);
+  console.log(`0`);
 };
 
 const sleep = async (ms: number) => new Promise((r) => setTimeout(r, ms));
