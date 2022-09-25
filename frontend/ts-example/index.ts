@@ -109,7 +109,7 @@ const localHostSdkConfig: SdkConfig = {
   },
   networkId: 0,
   logLevel: "Info",
-  walletSpec: "Flint",
+  walletSpec: "Lode",
 };
 
 // Helpers
