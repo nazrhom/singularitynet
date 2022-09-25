@@ -4,6 +4,8 @@ export declare class Pool<T> {
   readonly config: ContractConfig;
   readonly args: T;
 
+  constructor(config: ContractConfig, args: T);
+
   deposit(amount: BigInteger, idxArray: int[]): Promise<int[]>;
   close(amount: BigInteger, idxArray: int[]): Promise<int[]>;
   userStake(amount: BigInteger): Promise<void>;
