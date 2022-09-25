@@ -15,7 +15,9 @@ export declare class Pool<T> {
 // This is something of a hack for creating an opaque type without nominal typing,
 // which typescript lacks
 //
-// It should not be possible to directly construct `ContractEnv`s
+// It should not be possible to directly construct this type, use `createBondedPool`
+// or `createUnbondedPool` with the `SdkConfig`, then access the `args` field of
+// the class instance for the `ContractConfig`
 declare const cfg: unique symbol;
 export type ContractConfig = typeof cfg;
 
