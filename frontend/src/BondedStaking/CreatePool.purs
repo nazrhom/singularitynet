@@ -3,7 +3,9 @@ module CreatePool (createBondedPoolContract) where
 import Contract.Prelude
 
 import Contract.Address
-  ( getNetworkId
+  ( Bech32String
+  , addressToBech32
+  , getNetworkId
   , getWalletAddress
   , ownPaymentPubKeyHash
   , scriptHashAddress
@@ -61,6 +63,7 @@ createBondedPoolContract
   -> Contract ()
        { signedTx :: BalancedSignedTransaction
        , bondedPoolParams :: BondedPoolParams
+       , address :: Bech32String
        }
 createBondedPoolContract ibp =
   repeatUntilConfirmed confirmationTimeout submissionAttempts
@@ -110,9 +113,9 @@ createBondedPoolContract ibp =
       let
         valHash = validatorHash validator
         mintValue = singleton stateNftCs tokenName one
-        poolAddr = scriptHashAddress valHash
+      address <- addressToBech32 $ scriptHashAddress valHash
       logInfo_ "createBondedPoolContract: BondedPool Validator's address"
-        $ fromPlutusAddress networkId poolAddr
+        address
       let
         -- We initalize the pool with no head entry and a pool size of 100_000_000
         bondedStateDatum = Datum $ toData $ StateDatum
@@ -148,4 +151,4 @@ createBondedPoolContract ibp =
           \datums redeemers and sign"
           $ balanceAndSignTx unattachedUnbalancedTx
       -- Return the transaction and the pool info for subsequent transactions
-      pure { signedTx, bondedPoolParams }
+      pure { signedTx, bondedPoolParams, address }

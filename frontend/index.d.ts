@@ -3,8 +3,9 @@ import { BigInteger } from "big-integer";
 export declare class Pool<T> {
   readonly config: ContractConfig;
   readonly args: T;
+  readonly address: string;
 
-  constructor(config: ContractConfig, args: T);
+  constructor(config: ContractConfig, args: T, address: string);
 
   deposit(amount: BigInteger, idxArray: int[]): Promise<int[]>;
   close(amount: BigInteger, idxArray: int[]): Promise<int[]>;
@@ -127,6 +128,4 @@ export type InitialUnbondedArgs = {
   unbondedAssetClass: SdkAssetClass;
 };
 
-export declare function getNodeTime(
-  config: SdkConfig
-): Promise<BigInteger>
+export declare function getNodeTime(config: SdkConfig): Promise<BigInteger>;

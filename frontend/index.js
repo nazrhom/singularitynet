@@ -3,9 +3,10 @@
 const frontend = import("./output.js");
 
 exports.BondedPool = class BondedPool {
-  constructor(config, args) {
+  constructor(config, args, address) {
     this.config = config;
     this.args = args;
+    this.address = address;
   }
 
   async deposit(amount, idxArray) {
@@ -69,10 +70,8 @@ exports.UnbondedPool = class UnbondedPool {
 exports.createBondedPool = async (sdkConfig, initialArgs) => {
   const contracts = await frontend;
   const config = await contracts.buildContractConfig(sdkConfig)();
-  const bondedArgs = await contracts.callCreateBondedPool(config)(
-    initialArgs
-  )();
-  return new exports.BondedPool(config, bondedArgs);
+  const info = await contracts.callCreateBondedPool(config)(initialArgs)();
+  return new exports.BondedPool(config, info.args, info.address);
 };
 
 exports.createUnbondedPool = async (sdkConfig, initialArgs) => {

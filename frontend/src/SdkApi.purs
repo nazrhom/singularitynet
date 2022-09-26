@@ -279,11 +279,12 @@ type InitialBondedArgs =
 callCreateBondedPool
   :: ConfigParams ()
   -> InitialBondedArgs
-  -> Effect (Promise BondedPoolArgs)
+  -> Effect (Promise { args :: BondedPoolArgs, address :: String })
 callCreateBondedPool cfg iba = Promise.fromAff do
   ibp <- liftEither $ fromInitialBondedArgs iba
-  { bondedPoolParams: bpp } <- runContract cfg $ createBondedPoolContract ibp
-  pure $ toBondedPoolArgs bpp
+  { bondedPoolParams: bpp, address } <- runContract cfg $
+    createBondedPoolContract ibp
+  pure $ { args: toBondedPoolArgs bpp, address }
 
 callDepositBondedPool
   :: ConfigParams ()
