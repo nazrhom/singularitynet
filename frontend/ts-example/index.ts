@@ -26,9 +26,8 @@ const main = async () => {
   console.log(`STARTING AS ${admin}`);
   const nodeTime = await singularitynet.getNodeTime(localHostSdkConfig);
   console.log(nodeTime);
-  console.log(typeof(nodeTime));
   const date = new Date(nodeTime);
-  const delay = BigInteger(0)
+  const delay = BigInteger(0);
   console.log(
     `Bonded pool creation: ${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`
   );
@@ -45,7 +44,8 @@ const main = async () => {
     minStake: BigInteger(1),
     maxStake: BigInteger(50000),
     bondedAssetClass: {
-      currencySymbol: "6f1a1f0c7ccf632cc9ff4b79687ed13ffe5b624cce288b364ebdce50",
+      currencySymbol:
+        "6f1a1f0c7ccf632cc9ff4b79687ed13ffe5b624cce288b364ebdce50",
       tokenName: "AGIX",
     },
   };

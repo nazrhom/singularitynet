@@ -35,9 +35,10 @@ exports.BondedPool = class BondedPool {
 };
 
 exports.UnbondedPool = class UnbondedPool {
-  constructor(config, args) {
+  constructor(config, args, address) {
     this.config = config;
     this.args = args;
+    this.address = address;
   }
 
   async deposit(amount, idxArray) {
@@ -77,8 +78,8 @@ exports.createBondedPool = async (sdkConfig, initialArgs) => {
 exports.createUnbondedPool = async (sdkConfig, initialArgs) => {
   const contracts = await frontend;
   const config = await contracts.buildContractConfig(sdkConfig)();
-  const unbondedArgs = await callCreateUnbondedPool(config)(initialArgs)();
-  return new exports.UnbondedPool(config, unbondedArgs);
+  const info = await contracts.callCreateUnbondedPool(config)(initialArgs)();
+  return new exports.UnbondedPool(config, info.args, info.address);
 };
 
 exports.getNodeTime = async (sdkConfig) => {

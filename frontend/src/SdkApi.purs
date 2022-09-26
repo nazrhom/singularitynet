@@ -439,12 +439,13 @@ type InitialUnbondedArgs =
 callCreateUnbondedPool
   :: ConfigParams ()
   -> InitialUnbondedArgs
-  -> Effect (Promise UnbondedPoolArgs)
+  -> Effect (Promise { args :: UnbondedPoolArgs, address :: String })
 callCreateUnbondedPool cfg iba = Promise.fromAff do
   iup <- liftEither $ fromInitialUnbondedArgs iba
-  { unbondedPoolParams: upp } <- runContract cfg $ createUnbondedPoolContract
-    iup
-  pure $ toUnbondedPoolArgs upp
+  { unbondedPoolParams: upp, address } <- runContract cfg $
+    createUnbondedPoolContract
+      iup
+  pure $ { args: toUnbondedPoolArgs upp, address }
 
 callDepositUnbondedPool
   :: ConfigParams ()

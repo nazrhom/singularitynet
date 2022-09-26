@@ -5,7 +5,6 @@ import Contract.Prelude
 import Contract.Address
   ( Bech32String
   , addressToBech32
-  , getNetworkId
   , getWalletAddress
   , ownPaymentPubKeyHash
   , scriptHashAddress
@@ -68,7 +67,6 @@ createBondedPoolContract
 createBondedPoolContract ibp =
   repeatUntilConfirmed confirmationTimeout submissionAttempts
     do
-      networkId <- getNetworkId
       adminPkh <- liftedM "createBondedPoolContract: Cannot get admin's pkh"
         ownPaymentPubKeyHash
       logInfo_ "createBondedPoolContract: Admin PaymentPubKeyHash" adminPkh
@@ -77,7 +75,7 @@ createBondedPoolContract ibp =
         liftedM "createBondedPoolContract: Cannot get wallet Address"
           getWalletAddress
       logInfo_ "createBondedPoolContract: Admin Address"
-        $ fromPlutusAddress networkId adminAddr
+        =<< addressToBech32 adminAddr
       -- Get utxos at the wallet address
       adminUtxos <- liftedM "createBondedPoolContract: Cannot get user Utxos"
         $ utxosAt adminAddr

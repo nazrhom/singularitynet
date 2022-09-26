@@ -3,7 +3,8 @@ module UnbondedStaking.CreatePool (createUnbondedPoolContract) where
 import Contract.Prelude
 
 import Contract.Address
-  ( getNetworkId
+  ( Bech32String
+  , addressToBech32
   , getWalletAddress
   , ownPaymentPubKeyHash
   , scriptHashAddress
@@ -63,10 +64,10 @@ createUnbondedPoolContract
   -> Contract ()
        { signedTx :: BalancedSignedTransaction
        , unbondedPoolParams :: UnbondedPoolParams
+       , address :: Bech32String
        }
 createUnbondedPoolContract iup =
   repeatUntilConfirmed confirmationTimeout submissionAttempts $ do
-    networkId <- getNetworkId
     adminPkh <- liftedM "createUnbondedPoolContract: Cannot get admin's pkh"
       ownPaymentPubKeyHash
     logInfo_ "createUnbondedPoolContract: Admin PaymentPubKeyHash" adminPkh
@@ -75,7 +76,7 @@ createUnbondedPoolContract iup =
       liftedM "createUnbondedPoolContract: Cannot get wallet Address"
         getWalletAddress
     logInfo_ "createUnbondedPoolContract: User Address"
-      $ fromPlutusAddress networkId adminAddr
+      =<< addressToBech32 adminAddr
     -- Get utxos at the wallet address
     adminUtxos <-
       liftedM "createUnbondedPoolContract: Cannot get user Utxos"
@@ -122,10 +123,9 @@ createUnbondedPoolContract iup =
     let
       valHash = validatorHash validator
       mintValue = singleton stateNftCs tokenName one
-      poolAddr = scriptHashAddress valHash
+    address <- addressToBech32 $ scriptHashAddress valHash
     logInfo_ "createUnbondedPoolContract: UnbondedPool Validator's address"
-      $ fromPlutusAddress networkId poolAddr
-
+      address
     let
       unbondedStateDatum = Datum $ toData $ StateDatum
         { maybeEntryName: Nothing
@@ -163,4 +163,4 @@ createUnbondedPoolContract iup =
         $ balanceAndSignTx unattachedBalancedTx
 
     -- Return the pool info for subsequent transactions
-    pure { signedTx, unbondedPoolParams }
+    pure { signedTx, unbondedPoolParams, address }
