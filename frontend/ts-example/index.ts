@@ -120,6 +120,7 @@ const logSwitchAndCountdown = async (
   time: BigInteger // how long to wait
 ) => {
   console.log(`SWITCH WALLETS NOW - CHANGE TO ${who}`);
+  const _input = prompt("Press OK after switching.");
   console.log(`Waiting for ${what}...`);
   await countdownTo(Number(time));
 };
