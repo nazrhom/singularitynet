@@ -1,26 +1,17 @@
 import { BigInteger } from "big-integer";
 
 export declare class Pool<T> {
-  readonly config: ContractConfig;
+  readonly config: SdkConfig;
   readonly args: T;
   readonly address: string;
 
-  constructor(config: ContractConfig, args: T, address: string);
+  constructor(config: SdkConfig, args: T, address: string);
 
   deposit(amount: BigInteger, idxArray: int[]): Promise<int[]>;
   close(amount: BigInteger, idxArray: int[]): Promise<int[]>;
   userStake(amount: BigInteger): Promise<void>;
   userWithdraw(): Promise<void>;
 }
-
-// This is something of a hack for creating an opaque type without nominal typing,
-// which typescript lacks
-//
-// It should not be possible to directly construct this type, use `createBondedPool`
-// or `createUnbondedPool` with the `SdkConfig`, then access the `args` field of
-// the class instance for the `ContractConfig`
-declare const cfg: unique symbol;
-export type ContractConfig = typeof cfg;
 
 export type LogLevel = "Trace" | "Debug" | "Info" | "Warn" | "Error";
 
