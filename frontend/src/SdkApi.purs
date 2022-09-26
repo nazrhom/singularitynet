@@ -4,6 +4,7 @@ module SdkApi
   , SdkInterest
   , SdkAssetClass
   , buildContractConfig
+  , callGetNodeTime
   -- Bonded
   , BondedPoolArgs
   , InitialBondedArgs
@@ -28,12 +29,7 @@ import ClosePool (closeBondedPoolContract)
 import Contract.Address (PaymentPubKeyHash)
 import Contract.Config
   ( ConfigParams
-  , WalletSpec
-      ( ConnectToNami
-      , ConnectToGero
-      , ConnectToFlint
-      , ConnectToLode
-      )
+  , WalletSpec(ConnectToNami, ConnectToGero, ConnectToFlint, ConnectToLode)
   )
 import Contract.Monad (Contract, runContract)
 import Contract.Numeric.NatRatio (fromNaturals, toRational)
@@ -53,11 +49,11 @@ import Contract.Value
   , mkCurrencySymbol
   , mkTokenName
   )
-import Control.Promise (Promise)
+import Control.Promise (Promise, fromAff)
 import Control.Promise as Promise
 import CreatePool (createBondedPoolContract)
-import Data.Char (fromCharCode)
 import Data.BigInt (BigInt)
+import Data.Char (fromCharCode)
 import Data.Int as Int
 import Data.Log.Level (LogLevel(Trace, Debug, Info, Warn, Error))
 import Data.String.CodeUnits (fromCharArray)
@@ -86,6 +82,7 @@ import UnbondedStaking.UserStake (userStakeUnbondedPoolContract)
 import UnbondedStaking.UserWithdraw (userWithdrawUnbondedPoolContract)
 import UserStake (userStakeBondedPoolContract)
 import UserWithdraw (userWithdrawBondedPoolContract)
+import Utils (currentRoundedTime)
 
 -- | Configuation needed to call contracts from JS.
 type SdkConfig =
@@ -569,3 +566,6 @@ fromInitialUnbondedArgs iba = do
 
   context :: String
   context = "fromInitialUnbondedArgs"
+
+callGetNodeTime :: ConfigParams () -> Effect (Promise BigInt)
+callGetNodeTime cfg = fromAff $ runContract cfg $ unwrap <$> currentRoundedTime

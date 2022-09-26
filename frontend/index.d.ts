@@ -126,3 +126,7 @@ export type InitialUnbondedArgs = {
   maxStake: BigInteger; // Natural
   unbondedAssetClass: SdkAssetClass;
 };
+
+export declare function getNodeTime(
+  config: SdkConfig
+): Promise<BigInteger>

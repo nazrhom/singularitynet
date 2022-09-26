@@ -81,3 +81,10 @@ exports.createUnbondedPool = async (sdkConfig, initialArgs) => {
   const unbondedArgs = await callCreateUnbondedPool(config)(initialArgs)();
   return new exports.UnbondedPool(config, unbondedArgs);
 };
+
+exports.getNodeTime = async (sdkConfig) => {
+  const contracts = await frontend;
+  const config = await contracts.buildContractConfig(sdkConfig)();
+  const time = contracts.callGetNodeTime(config)();
+  return time
+};
