@@ -35,9 +35,9 @@ const main = async () => {
   // The initial arguments of the pool. The rest of the parameters are obtained
   // during pool creation.
   const initialBondedArgs: InitialBondedArgs = {
-    iterations: BigInteger(2),
+    iterations: BigInteger(1),
     start: nodeTime.add(delay),
-    end: nodeTime.add(delay).add(BigInteger(2).multiply(BigInteger(540000))),
+    end: nodeTime.add(delay).add(BigInteger(1).multiply(BigInteger(360000))).add(180000),
     userLength: BigInteger(180000),
     bondingLength: BigInteger(180000),
     interest: { numerator: BigInteger(10), denominator: BigInteger(100) },
