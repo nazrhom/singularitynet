@@ -570,4 +570,7 @@ fromInitialUnbondedArgs iba = do
   context = "fromInitialUnbondedArgs"
 
 callGetNodeTime :: ConfigParams () -> Effect (Promise BigInt)
-callGetNodeTime cfg = fromAff $ runContract cfg $ unwrap <$> currentRoundedTime
+callGetNodeTime cfg = fromAff
+  $ runContract cfg { walletSpec = Nothing }
+  $ unwrap
+  <$> currentRoundedTime
