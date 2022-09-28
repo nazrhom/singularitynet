@@ -200,6 +200,7 @@
               packageLock = ./frontend/package-lock.json;
               nodejs = pkgs.nodejs-14_x;
               shell.packages = [ pkgs.fd ];
+              strictComp = false;
             };
           in
           {
