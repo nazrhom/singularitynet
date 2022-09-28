@@ -275,9 +275,13 @@
         self.onchain.flake.${system}.checks
         // self.offchain.flake.${system}.checks
         // self.frontend.flake.${system}.checks # includes formatting check as well
-        // {
-          formatCheck = formatCheckFor system;
-        }
+        # FIXME
+        # Fourmolu from haskell.nix is broken, it might be possible to use one
+        # from `nixpkgs` instead
+        #
+        # // {
+        #   formatCheck = formatCheckFor system;
+        # }
       );
 
       check = perSystem (system:
