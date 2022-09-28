@@ -29,7 +29,13 @@ import ClosePool (closeBondedPoolContract)
 import Contract.Address (PaymentPubKeyHash)
 import Contract.Config
   ( ConfigParams
-  , WalletSpec(ConnectToNami, ConnectToGero, ConnectToFlint, ConnectToLode)
+  , WalletSpec
+      ( ConnectToNami
+      , ConnectToGero
+      , ConnectToFlint
+      , ConnectToLode
+      , ConnectToEternl
+      )
   )
 import Contract.Monad (Contract, runContract)
 import Contract.Numeric.NatRatio (fromNaturals, toRational)
@@ -242,6 +248,7 @@ fromSdkWalletSpec = case _ of
   "Gero" -> pure ConnectToGero
   "Flint" -> pure ConnectToFlint
   "Lode" -> pure ConnectToLode
+  "Eternl" -> pure ConnectToEternl
   s -> Left $ error $ "Invalid `WalletSpec`: " <> s
 
 errorWithMsg :: String -> String -> Error

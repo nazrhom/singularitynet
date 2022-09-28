@@ -15,7 +15,7 @@ export declare class Pool<T> {
 
 export type LogLevel = "Trace" | "Debug" | "Info" | "Warn" | "Error";
 
-export type WalletSpec = "Nami" | "Gero" | "Flint" | "Lode";
+export type WalletSpec = "Nami" | "Gero" | "Flint" | "Lode" | "Eternl";
 
 export type NetworkId = 0 | 1;
 
