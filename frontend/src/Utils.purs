@@ -24,10 +24,12 @@ module Utils
   , repeatUntilConfirmed
   , mustPayToScript
   , getUtxoDatumHash
+  , setLocalStorage
   ) where
 
 import Contract.Prelude hiding (length)
 
+import Aeson (Aeson, stringifyAeson)
 import Contract.Address (PaymentPubKeyHash)
 import Contract.Hashing (blake2b256Hash)
 import Contract.Monad
@@ -106,6 +108,7 @@ import Data.Map as Map
 import Data.Time.Duration (Seconds, Milliseconds(Milliseconds))
 import Data.Unfoldable (unfoldr)
 import Effect.Aff (delay)
+import Effect.Class (class MonadEffect)
 import Effect.Exception (error, throw)
 import Math (ceil)
 import Serialization.Hash (ed25519KeyHashToBytes)
@@ -545,3 +548,9 @@ getUtxoDatumHash :: TransactionOutputWithRefScript -> Maybe DataHash
 getUtxoDatumHash = unwrap >>> _.output >>> unwrap >>> _.datum >>> case _ of
   OutputDatumHash dh -> pure dh
   _ -> Nothing
+
+setLocalStorage
+  :: forall (m :: Type -> Type). MonadEffect m => String -> Aeson -> m Unit
+setLocalStorage k = liftEffect <<< _setLocalStorage k <<< stringifyAeson
+
+foreign import _setLocalStorage :: String -> String -> Effect Unit
