@@ -2,6 +2,7 @@ module CreatePool (createBondedPoolContract) where
 
 import Contract.Prelude
 
+import Aeson (encodeAeson)
 import Contract.Address
   ( Bech32String
   , addressToBech32
@@ -32,7 +33,9 @@ import Contract.TxConstraints
 import Contract.Utxos (utxosAt)
 import Contract.Value (scriptCurrencySymbol, singleton)
 import Data.Array (head)
+import Data.JSDate (now, toISOString)
 import Data.Map (toUnfoldable)
+import Effect.Class (liftEffect)
 import Plutus.Conversion (fromPlutusAddress)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
@@ -53,6 +56,7 @@ import Utils
   , mkBondedPoolParams
   , repeatUntilConfirmed
   , mustPayToScript
+  , setLocalStorage
   )
 
 -- Sets up pool configuration, mints the state NFT and deposits
@@ -74,8 +78,8 @@ createBondedPoolContract ibp =
       adminAddr <-
         liftedM "createBondedPoolContract: Cannot get wallet Address"
           getWalletAddress
-      logInfo_ "createBondedPoolContract: Admin Address"
-        =<< addressToBech32 adminAddr
+      adminAddress <- addressToBech32 adminAddr
+      logInfo_ "createBondedPoolContract: Admin Address" adminAddress
       -- Get utxos at the wallet address
       adminUtxos <- liftedM "createBondedPoolContract: Cannot get user Utxos"
         $ utxosAt adminAddr
@@ -148,5 +152,13 @@ createBondedPoolContract ibp =
           "createBondedPoolContract: Cannot balance, reindex redeemers, attach /\
           \datums redeemers and sign"
           $ balanceAndSignTx unattachedUnbalancedTx
+      timestamp <- liftEffect $ toISOString =<< now
+      -- Save the pool info to local storage in order to always be able to
+      -- retrieve it
+      void $ setLocalStorage timestamp $ encodeAeson
+        { bondedPoolParams
+        , address
+        , adminAddress
+        }
       -- Return the transaction and the pool info for subsequent transactions
       pure { signedTx, bondedPoolParams, address }

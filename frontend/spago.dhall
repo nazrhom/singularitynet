@@ -17,6 +17,7 @@ You can edit this file as you like.
   , "exceptions"
   , "effect"
   , "integers"
+  , "js-date"
   , "maybe"
   , "monad-logger"
   , "ordered-collections"

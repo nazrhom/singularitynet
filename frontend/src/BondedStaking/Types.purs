@@ -14,8 +14,12 @@ module Types
 
 import Contract.Prelude
 
+import Aeson
+  ( class EncodeAeson
+  , encodeAeson'
+  )
 import Contract.Address (Address, PaymentPubKeyHash)
-import Contract.Numeric.Natural (Natural)
+import Contract.Numeric.Natural (Natural, toBigInt)
 import Contract.Numeric.Rational (Rational)
 import Contract.PlutusData
   ( class FromData
@@ -35,6 +39,7 @@ import Contract.Prim.ByteArray (ByteArray)
 import Contract.Transaction (TransactionInput)
 import Contract.Value (CurrencySymbol, TokenName)
 import Data.BigInt (BigInt)
+import Data.Newtype (unwrap)
 import TypeLevel.Nat (S, Z)
 
 newtype AssetClass = AssetClass
@@ -64,6 +69,9 @@ instance ToData AssetClass where
 
 instance Show AssetClass where
   show = genericShow
+
+instance EncodeAeson AssetClass where
+  encodeAeson' = encodeAeson' <<< unwrap
 
 newtype PoolInfo = PoolInfo
   { stateNftCs :: CurrencySymbol
@@ -101,6 +109,14 @@ derive instance Newtype BondedPoolParams _
 
 instance Show BondedPoolParams where
   show = genericShow
+
+instance EncodeAeson BondedPoolParams where
+  encodeAeson' (BondedPoolParams bpp) = encodeAeson' $ bpp
+    { admin = unwrap bpp.admin
+    , iterations = toBigInt bpp.iterations
+    , maxStake = toBigInt bpp.maxStake
+    , minStake = toBigInt bpp.minStake
+    }
 
 newtype InitialBondedParams = InitialBondedParams
   { iterations :: Natural
