@@ -27,7 +27,7 @@ const main = async () => {
   const nodeTime = await singularitynet.getNodeTime(localHostSdkConfig);
   console.log(nodeTime);
   const date = new Date(nodeTime);
-  const delay = BigInteger(0);
+  const delay = BigInteger(80000);
   console.log(
     `Bonded pool creation: ${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`
   );
@@ -37,7 +37,7 @@ const main = async () => {
   const initialBondedArgs: InitialBondedArgs = {
     iterations: BigInteger(1),
     start: nodeTime.add(delay),
-    end: nodeTime.add(delay).add(BigInteger(2).multiply(BigInteger(540000))),
+    end: nodeTime.add(delay).add(BigInteger(2).multiply(BigInteger(180000))).add(BigInteger(180000)),
     userLength: BigInteger(180000),
     bondingLength: BigInteger(180000),
     interest: { numerator: BigInteger(10), denominator: BigInteger(100) },
@@ -120,6 +120,7 @@ const logSwitchAndCountdown = async (
   time: BigInteger // how long to wait
 ) => {
   console.log(`SWITCH WALLETS NOW - CHANGE TO ${who}`);
+  const _input = prompt("Press OK after switching.");
   console.log(`Waiting for ${what}...`);
   await countdownTo(Number(time));
 };
