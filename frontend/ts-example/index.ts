@@ -31,15 +31,17 @@ const main = async () => {
   console.log(
     `Bonded pool creation: ${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`
   );
+  // Length of a staking/bonding period
+  const periodLength = BigInteger(240000);
 
   // The initial arguments of the pool. The rest of the parameters are obtained
   // during pool creation.
   const initialBondedArgs: InitialBondedArgs = {
     iterations: BigInteger(1),
     start: nodeTime.add(delay),
-    end: nodeTime.add(delay).add(BigInteger(2).multiply(BigInteger(180000))).add(BigInteger(180000)),
-    userLength: BigInteger(180000),
-    bondingLength: BigInteger(180000),
+    end: nodeTime.add(delay).add(BigInteger(2).multiply(periodLength)).add(periodLength),
+    userLength: periodLength,
+    bondingLength: periodLength,
     interest: { numerator: BigInteger(10), denominator: BigInteger(100) },
     minStake: BigInteger(1),
     maxStake: BigInteger(50000),
