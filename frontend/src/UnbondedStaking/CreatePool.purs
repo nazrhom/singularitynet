@@ -3,14 +3,15 @@ module UnbondedStaking.CreatePool (createUnbondedPoolContract) where
 import Contract.Prelude
 
 import Contract.Address
-  ( getNetworkId
+  ( Bech32String
+  , addressToBech32
   , getWalletAddress
   , ownPaymentPubKeyHash
   , scriptHashAddress
   )
 import Contract.Monad
   ( Contract
-  , liftContractAffM
+  , liftContractM
   , liftContractM
   , liftedE
   , liftedE'
@@ -26,7 +27,6 @@ import Contract.Transaction
 import Contract.TxConstraints
   ( TxConstraints
   , mustMintValue
-  , mustPayToScript
   , mustSpendPubKeyOutput
   )
 import Contract.Utxos (utxosAt)
@@ -54,6 +54,7 @@ import Utils
   ( currentRoundedTime
   , logInfo_
   , repeatUntilConfirmed
+  , mustPayToScript
   )
 
 -- Sets up pool configuration, mints the state NFT and deposits
@@ -63,10 +64,10 @@ createUnbondedPoolContract
   -> Contract ()
        { signedTx :: BalancedSignedTransaction
        , unbondedPoolParams :: UnbondedPoolParams
+       , address :: Bech32String
        }
 createUnbondedPoolContract iup =
   repeatUntilConfirmed confirmationTimeout submissionAttempts $ do
-    networkId <- getNetworkId
     adminPkh <- liftedM "createUnbondedPoolContract: Cannot get admin's pkh"
       ownPaymentPubKeyHash
     logInfo_ "createUnbondedPoolContract: Admin PaymentPubKeyHash" adminPkh
@@ -75,7 +76,7 @@ createUnbondedPoolContract iup =
       liftedM "createUnbondedPoolContract: Cannot get wallet Address"
         getWalletAddress
     logInfo_ "createUnbondedPoolContract: User Address"
-      $ fromPlutusAddress networkId adminAddr
+      =<< addressToBech32 adminAddr
     -- Get utxos at the wallet address
     adminUtxos <-
       liftedM "createUnbondedPoolContract: Cannot get user Utxos"
@@ -83,19 +84,19 @@ createUnbondedPoolContract iup =
     txOutRef <-
       liftContractM "createUnbondedPoolContract: Could not get head UTXO"
         $ fst
-        <$> (head $ toUnfoldable $ unwrap adminUtxos)
+        <$> (head $ toUnfoldable adminUtxos)
     logInfo_ "createUnbondedPoolContract: Admin Utxos" adminUtxos
     -- Get the minting policy and currency symbol from the state NFT:
     statePolicy <- liftedE $ mkStateNFTPolicy Unbonded txOutRef
     stateNftCs <-
-      liftContractAffM
+      liftContractM
         "createUnbondedPoolContract: Cannot get CurrencySymbol from /\
         \state NFT"
         $ scriptCurrencySymbol statePolicy
     -- Get the minting policy and currency symbol from the list NFT:
     listPolicy <- liftedE $ mkListNFTPolicy Unbonded stateNftCs
     assocListCs <-
-      liftContractAffM
+      liftContractM
         "createUnbondedPoolContract: Cannot get CurrencySymbol from /\
         \state NFT"
         $ scriptCurrencySymbol listPolicy
@@ -119,15 +120,12 @@ createUnbondedPoolContract iup =
     -- Get the bonding validator and hash
     validator <- liftedE' "createUnbondedPoolContract: Cannot create validator"
       $ mkUnbondedPoolValidator unbondedPoolParams
-    valHash <-
-      liftContractAffM "createUnbondedPoolContract: Cannot hash validator"
-        $ validatorHash validator
     let
+      valHash = validatorHash validator
       mintValue = singleton stateNftCs tokenName one
-      poolAddr = scriptHashAddress valHash
+    address <- addressToBech32 $ scriptHashAddress valHash
     logInfo_ "createUnbondedPoolContract: UnbondedPool Validator's address"
-      $ fromPlutusAddress networkId poolAddr
-
+      address
     let
       unbondedStateDatum = Datum $ toData $ StateDatum
         { maybeEntryName: Nothing
@@ -138,7 +136,7 @@ createUnbondedPoolContract iup =
       lookup = mconcat
         [ ScriptLookups.mintingPolicy statePolicy
         , ScriptLookups.validator validator
-        , ScriptLookups.unspentOutputs $ unwrap adminUtxos
+        , ScriptLookups.unspentOutputs adminUtxos
         ]
 
       -- Seems suspect, not sure if typed constraints are working as expected
@@ -165,4 +163,4 @@ createUnbondedPoolContract iup =
         $ balanceAndSignTx unattachedBalancedTx
 
     -- Return the pool info for subsequent transactions
-    pure { signedTx, unbondedPoolParams }
+    pure { signedTx, unbondedPoolParams, address }

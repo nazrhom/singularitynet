@@ -3,14 +3,14 @@ module CreatePool (createBondedPoolContract) where
 import Contract.Prelude
 
 import Contract.Address
-  ( getNetworkId
+  ( Bech32String
+  , addressToBech32
   , getWalletAddress
   , ownPaymentPubKeyHash
   , scriptHashAddress
   )
 import Contract.Monad
   ( Contract
-  , liftContractAffM
   , liftContractM
   , liftedE
   , liftedE'
@@ -27,7 +27,6 @@ import Contract.Transaction
 import Contract.TxConstraints
   ( TxConstraints
   , mustMintValue
-  , mustPayToScript
   , mustSpendPubKeyOutput
   )
 import Contract.Utxos (utxosAt)
@@ -49,7 +48,12 @@ import Types
   , InitialBondedParams
   , StakingType(Bonded)
   )
-import Utils (logInfo_, mkBondedPoolParams, repeatUntilConfirmed)
+import Utils
+  ( logInfo_
+  , mkBondedPoolParams
+  , repeatUntilConfirmed
+  , mustPayToScript
+  )
 
 -- Sets up pool configuration, mints the state NFT and deposits
 -- in the pool validator's address
@@ -58,11 +62,11 @@ createBondedPoolContract
   -> Contract ()
        { signedTx :: BalancedSignedTransaction
        , bondedPoolParams :: BondedPoolParams
+       , address :: Bech32String
        }
 createBondedPoolContract ibp =
   repeatUntilConfirmed confirmationTimeout submissionAttempts
     do
-      networkId <- getNetworkId
       adminPkh <- liftedM "createBondedPoolContract: Cannot get admin's pkh"
         ownPaymentPubKeyHash
       logInfo_ "createBondedPoolContract: Admin PaymentPubKeyHash" adminPkh
@@ -71,25 +75,25 @@ createBondedPoolContract ibp =
         liftedM "createBondedPoolContract: Cannot get wallet Address"
           getWalletAddress
       logInfo_ "createBondedPoolContract: Admin Address"
-        $ fromPlutusAddress networkId adminAddr
+        =<< addressToBech32 adminAddr
       -- Get utxos at the wallet address
       adminUtxos <- liftedM "createBondedPoolContract: Cannot get user Utxos"
         $ utxosAt adminAddr
       txOutRef <-
         liftContractM "createBondedPoolContract: Could not get head UTXO"
           $ fst
-          <$> (head $ toUnfoldable $ unwrap adminUtxos)
+          <$> (head $ toUnfoldable adminUtxos)
       logInfo_ "createBondedPoolContract: Admin Utxos" adminUtxos
       -- Get the minting policy and currency symbol from the state NFT:
       statePolicy <- liftedE $ mkStateNFTPolicy Bonded txOutRef
       stateNftCs <-
-        liftContractAffM
+        liftContractM
           "createBondedPoolContract: Cannot get CurrencySymbol from state NFT"
           $ scriptCurrencySymbol statePolicy
       -- Get the minting policy and currency symbol from the list NFT:
       listPolicy <- liftedE $ mkListNFTPolicy Bonded stateNftCs
       assocListCs <-
-        liftContractAffM
+        liftContractM
           "createBondedPoolContract: Cannot get CurrencySymbol from state NFT"
           $ scriptCurrencySymbol listPolicy
       -- May want to hardcode this somewhere:
@@ -104,14 +108,12 @@ createBondedPoolContract ibp =
       validator <-
         liftedE' "createBondedPoolContract: Cannot create validator"
           $ mkBondedPoolValidator bondedPoolParams
-      valHash <-
-        liftContractAffM "createBondedPoolContract: Cannot hash validator"
-          $ validatorHash validator
       let
+        valHash = validatorHash validator
         mintValue = singleton stateNftCs tokenName one
-        poolAddr = scriptHashAddress valHash
+      address <- addressToBech32 $ scriptHashAddress valHash
       logInfo_ "createBondedPoolContract: BondedPool Validator's address"
-        $ fromPlutusAddress networkId poolAddr
+        address
       let
         -- We initalize the pool with no head entry and a pool size of 100_000_000
         bondedStateDatum = Datum $ toData $ StateDatum
@@ -122,7 +124,7 @@ createBondedPoolContract ibp =
         lookup = mconcat
           [ ScriptLookups.mintingPolicy statePolicy
           , ScriptLookups.validator validator
-          , ScriptLookups.unspentOutputs $ unwrap adminUtxos
+          , ScriptLookups.unspentOutputs adminUtxos
           ]
 
         constraints :: TxConstraints Unit Unit
@@ -147,4 +149,4 @@ createBondedPoolContract ibp =
           \datums redeemers and sign"
           $ balanceAndSignTx unattachedUnbalancedTx
       -- Return the transaction and the pool info for subsequent transactions
-      pure { signedTx, bondedPoolParams }
+      pure { signedTx, bondedPoolParams, address }

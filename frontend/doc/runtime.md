@@ -44,7 +44,7 @@ Make sure that you have installed and configured [Nix](./nix.md) as described in
 
 #### Version
 
-`v1.35.x` is required; pre-Babbage-era nodes no longer sync correctly.
+`v1.35.3` is required.
 
 #### Installation
 
@@ -77,7 +77,7 @@ https://github.com/input-output-hk/cardano-node
 
 #### Version
 
-`v5.5.0` is currently the **only** version of Ogmios we support for use with CTL.
+Revision `e406801eaeb32b28cd84357596ca1512bff27741`
 
 #### Installation
 
@@ -118,7 +118,7 @@ https://github.com/input-output-hk/cardano-configurations
 
 #### Version
 
-We're using revision `98b1c4f2badc7ab1efe4be188ee9f9f5e4e54bb0` of `ogmios-datum-cache` (ODC). This revision or a more recent one is recommended as you may otherwise be unable to sync Babbage-era blocks.
+Revision `880a69a03fbfd06a4990ba8873f06907d4cd16a7`
 
 #### Installation
 

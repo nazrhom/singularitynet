@@ -18,10 +18,9 @@
       repo = "cardano-transaction-lib";
       # NOTE
       # Keep this in sync with the rev in `frontend/packages.dhall`
-      rev = "be9ddad6d36703eedb43cc6598486867ae061aba";
+      rev = "767e1f35b8b1f243f31ed3360d85a59ef695262b";
     };
   };
-
 
   outputs =
     inputs@{ self
@@ -201,6 +200,7 @@
               packageLock = ./frontend/package-lock.json;
               nodejs = pkgs.nodejs-14_x;
               shell.packages = [ pkgs.fd ];
+              strictComp = false;
             };
           in
           {
@@ -212,7 +212,13 @@
               };
 
               apps = {
-                frontend-runtime = pkgs.launchCtlRuntime { };
+                frontend-runtime = pkgs.launchCtlRuntime {
+                  network = {
+                    name = "preprod";
+                    magic = 1; # use `null` for mainnet
+                  };
+                  node.tag = "1.35.3";
+                };
               };
 
               checks = {
@@ -269,9 +275,13 @@
         self.onchain.flake.${system}.checks
         // self.offchain.flake.${system}.checks
         // self.frontend.flake.${system}.checks # includes formatting check as well
-        // {
-          formatCheck = formatCheckFor system;
-        }
+        # FIXME
+        # Fourmolu from haskell.nix is broken, it might be possible to use one
+        # from `nixpkgs` instead
+        #
+        # // {
+        #   formatCheck = formatCheckFor system;
+        # }
       );
 
       check = perSystem (system:

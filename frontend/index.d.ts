@@ -1,8 +1,11 @@
 import { BigInteger } from "big-integer";
 
 export declare class Pool<T> {
-  readonly config: ContractConfig;
+  readonly config: SdkConfig;
   readonly args: T;
+  readonly address: string;
+
+  constructor(config: SdkConfig, args: T, address: string);
 
   deposit(amount: BigInteger, idxArray: int[]): Promise<int[]>;
   close(amount: BigInteger, idxArray: int[]): Promise<int[]>;
@@ -10,16 +13,9 @@ export declare class Pool<T> {
   userWithdraw(): Promise<void>;
 }
 
-// This is something of a hack for creating an opaque type without nominal typing,
-// which typescript lacks
-//
-// It should not be possible to directly construct `ContractEnv`s
-declare const cfg: unique symbol;
-export type ContractConfig = typeof cfg;
-
 export type LogLevel = "Trace" | "Debug" | "Info" | "Warn" | "Error";
 
-export type WalletSpec = "Nami" | "Gero" | "Flint";
+export type WalletSpec = "Nami" | "Gero" | "Flint" | "Lode" | "Eternl";
 
 export type NetworkId = 0 | 1;
 
@@ -33,12 +29,12 @@ export type SdkServerConfig = {
 export type SdkAssetClass = {
   currencySymbol: string;
   tokenName: string;
-}
+};
 
 export type SdkInterest = {
   numerator: BigInteger;
   denominator: BigInteger;
-}
+};
 
 export type SdkConfig = {
   ctlServerConfig: SdkServerConfig;
@@ -54,7 +50,8 @@ export type SdkConfig = {
 export declare class BondedPool extends Pool<BondedPoolArgs> {}
 
 export declare function createBondedPool(
-  config: SdkConfig, initialArgs: InitialBondedArgs
+  config: SdkConfig,
+  initialArgs: InitialBondedArgs
 ): Promise<BondedPool>;
 
 export type BondedPoolArgs = {
@@ -89,7 +86,8 @@ export type InitialBondedArgs = {
 export declare class UnbondedPool extends Pool<UnbondedPoolArgs> {}
 
 export declare function createUnbondedPool(
-  config: SdkConfig, initialArgs: InitialUnbondedArgs
+  config: SdkConfig,
+  initialArgs: InitialUnbondedArgs
 ): Promise<UnbondedPool>;
 
 export type UnbondedPoolArgs = {
@@ -120,3 +118,5 @@ export type InitialUnbondedArgs = {
   maxStake: BigInteger; // Natural
   unbondedAssetClass: SdkAssetClass;
 };
+
+export declare function getNodeTime(config: SdkConfig): Promise<BigInteger>;

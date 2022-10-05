@@ -7,11 +7,11 @@ let
 
     "aeson" = pkgs.stdenv.mkDerivation {
         name = "aeson";
-        version = "286862a975f4bafbef15540c365bbbb0480e0bf7";
+        version = "8e9d42980e824450c18c397295573160d1ce8424";
         src = pkgs.fetchgit {
           url = "https://github.com/mlabs-haskell/purescript-aeson.git";
-          rev = "286862a975f4bafbef15540c365bbbb0480e0bf7";
-          sha256 = "1d5h9n9f2qk8hjzqmhjfzwf86x3y60g3cm13gyvm5aaqjraaksvg";
+          rev = "8e9d42980e824450c18c397295573160d1ce8424";
+          sha256 = "0cz6wvrld468sc1i98wv7zsqxsp99lhianb4pxmsqfcz353a6sc9";
         };
         phases = "installPhase";
         installPhase = "ln -s $src $out";
@@ -211,11 +211,11 @@ let
 
     "cardano-transaction-lib" = pkgs.stdenv.mkDerivation {
         name = "cardano-transaction-lib";
-        version = "be9ddad6d36703eedb43cc6598486867ae061aba";
+        version = "767e1f35b8b1f243f31ed3360d85a59ef695262b";
         src = pkgs.fetchgit {
           url = "https://github.com/Plutonomicon/cardano-transaction-lib.git";
-          rev = "be9ddad6d36703eedb43cc6598486867ae061aba";
-          sha256 = "1jwhc08jdi69hb1f1yi7cl4317mvssazb3bdcm4dsc7d9ap93mbk";
+          rev = "767e1f35b8b1f243f31ed3360d85a59ef695262b";
+          sha256 = "1j82k06ar9q4dy4syc0kvnzsh0wp98b80gmpikbf4zg6x42d9j4l";
         };
         phases = "installPhase";
         installPhase = "ln -s $src $out";
@@ -528,6 +528,18 @@ let
           url = "https://github.com/purescript/purescript-gen.git";
           rev = "85c369f56545a3de834b7e7475a56bc9193bb4b4";
           sha256 = "1h396rqn1fc2c155i58vnaksqjrpajly128ah6wq1w426vwr1vrf";
+        };
+        phases = "installPhase";
+        installPhase = "ln -s $src $out";
+      };
+
+    "heterogeneous" = pkgs.stdenv.mkDerivation {
+        name = "heterogeneous";
+        version = "v0.5.1";
+        src = pkgs.fetchgit {
+          url = "https://github.com/natefaubion/purescript-heterogeneous.git";
+          rev = "550445cf7932e158395423fc087cdc05bab41c40";
+          sha256 = "08bpgm9p8ib1jzrmssqpa1bqqzfmba43lsih1xvr3pf1jfizayxg";
         };
         phases = "installPhase";
         installPhase = "ln -s $src $out";

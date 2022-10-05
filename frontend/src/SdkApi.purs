@@ -4,6 +4,7 @@ module SdkApi
   , SdkInterest
   , SdkAssetClass
   , buildContractConfig
+  , callGetNodeTime
   -- Bonded
   , BondedPoolArgs
   , InitialBondedArgs
@@ -32,6 +33,8 @@ import Contract.Config
       ( ConnectToNami
       , ConnectToGero
       , ConnectToFlint
+      , ConnectToLode
+      , ConnectToEternl
       )
   )
 import Contract.Monad (Contract, runContract)
@@ -41,6 +44,7 @@ import Contract.Numeric.Rational (Rational, denominator, numerator)
 import Contract.Prim.ByteArray
   ( byteArrayFromAscii
   , byteArrayToHex
+  , byteArrayToIntArray
   , hexToByteArray
   )
 import Contract.Value
@@ -51,17 +55,20 @@ import Contract.Value
   , mkCurrencySymbol
   , mkTokenName
   )
-import Control.Promise (Promise)
+import Control.Promise (Promise, fromAff)
 import Control.Promise as Promise
 import CreatePool (createBondedPoolContract)
 import Data.BigInt (BigInt)
+import Data.Char (fromCharCode)
 import Data.Int as Int
 import Data.Log.Level (LogLevel(Trace, Debug, Info, Warn, Error))
+import Data.String.CodeUnits (fromCharArray)
 import Data.UInt (UInt)
 import Data.UInt as UInt
 import DepositPool (depositBondedPoolContract)
 import Effect.Aff (error)
 import Effect.Exception (Error)
+import Partial.Unsafe (unsafePartial)
 import Serialization.Address (intToNetworkId)
 import Serialization.Hash (ed25519KeyHashFromBytes, ed25519KeyHashToBytes)
 import Types
@@ -81,6 +88,7 @@ import UnbondedStaking.UserStake (userStakeUnbondedPoolContract)
 import UnbondedStaking.UserWithdraw (userWithdrawUnbondedPoolContract)
 import UserStake (userStakeBondedPoolContract)
 import UserWithdraw (userWithdrawBondedPoolContract)
+import Utils (currentRoundedTime)
 
 -- | Configuation needed to call contracts from JS.
 type SdkConfig =
@@ -89,7 +97,7 @@ type SdkConfig =
   , datumCacheConfig :: SdkServerConfig
   , networkId :: Number -- converts to Int
   , logLevel :: String -- "Trace", "Debug", "Info", "Warn", "Error"
-  , walletSpec :: String -- "Nami" or "Gero"
+  , walletSpec :: String -- "Nami", "Gero", "Flint", "Lode"
   }
 
 type SdkServerConfig =
@@ -133,7 +141,7 @@ fromSdkPath s = Just s
 
 buildContractConfig :: SdkConfig -> Effect (Promise (ConfigParams ()))
 buildContractConfig cfg = Promise.fromAff $ do
-  ctlServerConfig <- liftEither $ fromSdkServerConfig "ctl-server"
+  ctlServerConfig <- map Just $ liftEither $ fromSdkServerConfig "ctl-server"
     cfg.ctlServerConfig
   ogmiosConfig <- liftEither $ fromSdkServerConfig "ogmios" cfg.ogmiosConfig
   datumCacheConfig <- liftEither $ fromSdkServerConfig "ogmios-datum-cache"
@@ -152,6 +160,7 @@ buildContractConfig cfg = Promise.fromAff $ do
     , networkId
     , walletSpec
     , customLogger: Nothing
+    , suppressLogs: false
     , extraConfig: {}
     }
   where
@@ -173,8 +182,16 @@ callWithArgs f contract cfg args = Promise.fromAff
 toSdkAssetClass :: AssetClass -> SdkAssetClass
 toSdkAssetClass (AssetClass ac) =
   { currencySymbol: byteArrayToHex $ getCurrencySymbol ac.currencySymbol
-  , tokenName: byteArrayToHex $ getTokenName ac.tokenName
+  , tokenName: tokenNameAscii ac.tokenName
   }
+  where
+  tokenNameAscii :: TokenName -> String
+  tokenNameAscii = unsafePartial
+    $ fromJust
+    <<< map fromCharArray
+    <<< traverse fromCharCode
+    <<< byteArrayToIntArray
+    <<< getTokenName
 
 toSdkInterest :: Rational -> SdkInterest
 toSdkInterest i = { numerator: numerator i, denominator: denominator i }
@@ -230,6 +247,8 @@ fromSdkWalletSpec = case _ of
   "Nami" -> pure ConnectToNami
   "Gero" -> pure ConnectToGero
   "Flint" -> pure ConnectToFlint
+  "Lode" -> pure ConnectToLode
+  "Eternl" -> pure ConnectToEternl
   s -> Left $ error $ "Invalid `WalletSpec`: " <> s
 
 errorWithMsg :: String -> String -> Error
@@ -267,11 +286,12 @@ type InitialBondedArgs =
 callCreateBondedPool
   :: ConfigParams ()
   -> InitialBondedArgs
-  -> Effect (Promise BondedPoolArgs)
+  -> Effect (Promise { args :: BondedPoolArgs, address :: String })
 callCreateBondedPool cfg iba = Promise.fromAff do
   ibp <- liftEither $ fromInitialBondedArgs iba
-  { bondedPoolParams: bpp } <- runContract cfg $ createBondedPoolContract ibp
-  pure $ toBondedPoolArgs bpp
+  { bondedPoolParams: bpp, address } <- runContract cfg $
+    createBondedPoolContract ibp
+  pure $ { args: toBondedPoolArgs bpp, address }
 
 callDepositBondedPool
   :: ConfigParams ()
@@ -426,12 +446,13 @@ type InitialUnbondedArgs =
 callCreateUnbondedPool
   :: ConfigParams ()
   -> InitialUnbondedArgs
-  -> Effect (Promise UnbondedPoolArgs)
+  -> Effect (Promise { args :: UnbondedPoolArgs, address :: String })
 callCreateUnbondedPool cfg iba = Promise.fromAff do
   iup <- liftEither $ fromInitialUnbondedArgs iba
-  { unbondedPoolParams: upp } <- runContract cfg $ createUnbondedPoolContract
-    iup
-  pure $ toUnbondedPoolArgs upp
+  { unbondedPoolParams: upp, address } <- runContract cfg $
+    createUnbondedPoolContract
+      iup
+  pure $ { args: toUnbondedPoolArgs upp, address }
 
 callDepositUnbondedPool
   :: ConfigParams ()
@@ -554,3 +575,9 @@ fromInitialUnbondedArgs iba = do
 
   context :: String
   context = "fromInitialUnbondedArgs"
+
+callGetNodeTime :: ConfigParams () -> Effect (Promise BigInt)
+callGetNodeTime cfg = fromAff
+  $ runContract cfg { walletSpec = Nothing }
+  $ unwrap
+  <$> currentRoundedTime

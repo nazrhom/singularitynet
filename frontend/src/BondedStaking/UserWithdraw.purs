@@ -12,7 +12,7 @@ import Contract.Address
   )
 import Contract.Monad
   ( Contract
-  , liftContractAffM
+  , liftContractM
   , liftContractM
   , liftedE
   , liftedE'
@@ -35,7 +35,7 @@ import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
 import Contract.Transaction
   ( TransactionInput
-  , TransactionOutput
+  , TransactionOutputWithRefScript
   , BalancedSignedTransaction
   , balanceAndSignTx
   )
@@ -44,11 +44,10 @@ import Contract.TxConstraints
   , mustBeSignedBy
   , mustMintValueWithRedeemer
   , mustPayToPubKeyAddress
-  , mustPayToScript
   , mustSpendScriptOutput
   , mustValidateIn
   )
-import Contract.Utxos (UtxoM(UtxoM), utxosAt)
+import Contract.Utxos (UtxoMap, utxosAt)
 import Contract.Value (Value, mkTokenName, singleton)
 import Data.Array (catMaybes, head)
 import Data.BigInt (BigInt)
@@ -82,6 +81,8 @@ import Utils
   , logInfo_
   , mkOnchainAssocList
   , repeatUntilConfirmed
+  , mustPayToScript
+  , getUtxoDatumHash
   )
 
 -- Deposits a certain amount in the pool
@@ -122,9 +123,7 @@ userWithdrawBondedPoolContract
   validator <-
     liftedE' "userWithdrawBondedPoolContract: Cannot create validator"
       $ mkBondedPoolValidator params
-  valHash <-
-    liftContractAffM "userWithdrawBondedPoolContract: Cannot hash validator"
-      $ validatorHash validator
+  let valHash = validatorHash validator
   logInfo_ "userWithdrawBondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
   logInfo_ "userWithdrawBondedPoolContract: Pool address"
@@ -294,8 +293,8 @@ userWithdrawBondedPoolContract
             lookup = mconcat
               [ ScriptLookups.validator validator
               , ScriptLookups.mintingPolicy listPolicy
-              , ScriptLookups.unspentOutputs $ unwrap userUtxos
-              , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
+              , ScriptLookups.unspentOutputs userUtxos
+              , ScriptLookups.unspentOutputs bondedPoolUtxos
               , stateDatumLookup
               ]
           pure $ constraints /\ lookup
@@ -405,8 +404,8 @@ userWithdrawBondedPoolContract
             lookup = mconcat
               [ ScriptLookups.validator validator
               , ScriptLookups.mintingPolicy listPolicy
-              , ScriptLookups.unspentOutputs $ unwrap userUtxos
-              , ScriptLookups.unspentOutputs $ unwrap bondedPoolUtxos
+              , ScriptLookups.unspentOutputs userUtxos
+              , ScriptLookups.unspentOutputs bondedPoolUtxos
               , prevEntryDatumLookup
               ]
 
@@ -422,12 +421,12 @@ userWithdrawBondedPoolContract
       $ balanceAndSignTx unattachedBalancedTx
   pure { signedTx }
 
--- | This function filters all the asset UTxOs from a `UtxoM`
-getBondedAssetUtxos :: forall (r :: Row Type). UtxoM -> Contract r UtxoM
+-- | This function filters all the asset UTxOs from a `UtxoMap`
+getBondedAssetUtxos :: forall (r :: Row Type). UtxoMap -> Contract r UtxoMap
 getBondedAssetUtxos utxos = do
   assetUtxos <- catMaybes <$> for utxoAssocList \utxo@(_ /\ txOutput) -> do
     datumHash <- liftContractM "getAssetUtxos: could not get datum hash"
-      (unwrap txOutput).dataHash
+      $ getUtxoDatumHash txOutput
     datum <-
       liftContractM "getAssetUtxos: could not get datum"
         =<< getDatumByHash datumHash
@@ -438,14 +437,14 @@ getBondedAssetUtxos utxos = do
     case bondedDatum of
       AssetDatum -> pure $ Just utxo
       _ -> pure Nothing
-  pure <<< UtxoM $ Map.fromFoldable assetUtxos
+  pure $ Map.fromFoldable assetUtxos
   where
-  utxoAssocList :: Array (TransactionInput /\ TransactionOutput)
-  utxoAssocList = Map.toUnfoldable $ unwrap utxos
+  utxoAssocList :: Array (TransactionInput /\ TransactionOutputWithRefScript)
+  utxoAssocList = Map.toUnfoldable utxos
 
 -- | Get entry datum from transaction output
 getEntryDatumFromOutput
-  :: forall (r :: Row Type). TransactionOutput -> Contract r Entry
+  :: forall (r :: Row Type). TransactionOutputWithRefScript -> Contract r Entry
 getEntryDatumFromOutput txOut = do
   bondedDatum <- getBondedDatum txOut
   case bondedDatum of
@@ -456,7 +455,9 @@ getEntryDatumFromOutput txOut = do
 
 -- | Get state datum from transaction output
 getStateDatumFromOutput
-  :: forall (r :: Row Type). TransactionOutput -> Contract r (Maybe ByteArray)
+  :: forall (r :: Row Type)
+   . TransactionOutputWithRefScript
+  -> Contract r (Maybe ByteArray)
 getStateDatumFromOutput txOut = do
   bondedDatum <- getBondedDatum txOut
   case bondedDatum of
@@ -467,7 +468,9 @@ getStateDatumFromOutput txOut = do
 
 -- | Get a bonded datum from a transaction output
 getBondedDatum
-  :: forall (r :: Row Type). TransactionOutput -> Contract r BondedStakingDatum
+  :: forall (r :: Row Type)
+   . TransactionOutputWithRefScript
+  -> Contract r BondedStakingDatum
 getBondedDatum =
   liftContractM "getBondedDatum: could not parse datum as bonded staking datum"
     <<< fromData
@@ -475,5 +478,4 @@ getBondedDatum =
     <=< liftContractM "getBondedDatum: could not get datum"
     <=< getDatumByHash
     <=< liftContractM "getBondedDatum: could not get datum hash"
-    <<< _.dataHash
-    <<< unwrap
+    <<< getUtxoDatumHash

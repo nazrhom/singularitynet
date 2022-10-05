@@ -10,7 +10,7 @@ import Contract.Address
   )
 import Contract.Monad
   ( Contract
-  , liftContractAffM
+  , liftContractM
   , liftContractM
   , liftedE'
   , liftedM
@@ -32,13 +32,12 @@ import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
 import Contract.Transaction
   ( TransactionInput
-  , TransactionOutput
+  , TransactionOutputWithRefScript
   )
 import Contract.TxConstraints
   ( TxConstraints
   , mustBeSignedBy
   , mustIncludeDatum
-  , mustPayToScript
   , mustSpendScriptOutput
   , mustValidateIn
   )
@@ -73,6 +72,8 @@ import Utils
   , splitByLength
   , submitTransaction
   , toIntUnsafe
+  , mustPayToScript
+  , getUtxoDatumHash
   )
 
 -- | Closes the unbonded pool and distributes final rewards to users
@@ -115,8 +116,7 @@ closeUnbondedPoolContract
   -- Get the unbonded pool validator and hash
   validator <- liftedE' "closeUnbondedPoolContract: Cannot create validator"
     $ mkUnbondedPoolValidator params
-  valHash <- liftContractAffM "closeUnbondedPoolContract: Cannot hash validator"
-    $ validatorHash validator
+  let valHash = validatorHash validator
   logInfo_ "closeUnbondedPoolContract: validatorHash" valHash
   let poolAddr = scriptHashAddress valHash
   logInfo_ "closeUnbondedPoolContract: Pool address"
@@ -137,7 +137,7 @@ closeUnbondedPoolContract
   poolDatumHash <-
     liftContractM
       "closeUnbondedPoolContract: Could not get Pool UTXO's Datum Hash"
-      (unwrap poolTxOutput).dataHash
+      $ getUtxoDatumHash poolTxOutput
   logInfo_ "closeUnbondedPoolContract: Pool's UTXO DatumHash" poolDatumHash
   poolDatum <- liftedM "closeUnbondedPoolContract: Cannot get datum"
     $ getDatumByHash poolDatumHash
@@ -181,8 +181,8 @@ closeUnbondedPoolContract
         lookups :: ScriptLookups.ScriptLookups PlutusData
         lookups =
           ScriptLookups.validator validator
-            <> ScriptLookups.unspentOutputs (unwrap adminUtxos)
-            <> ScriptLookups.unspentOutputs (unwrap unbondedPoolUtxos)
+            <> ScriptLookups.unspentOutputs adminUtxos
+            <> ScriptLookups.unspentOutputs unbondedPoolUtxos
 
         submitBatch
           :: Array
@@ -245,7 +245,7 @@ closeUnbondedPoolContract
           -- Spend all UTXOs to return to Admin along with state/assets
           foldMap
             (flip mustSpendScriptOutput redeemer <<< fst)
-            (toUnfoldable $ unwrap unbondedPoolUtxos :: Array _)
+            (toUnfoldable unbondedPoolUtxos :: Array _)
             <> mustBeSignedBy admin
             <> mustIncludeDatum poolDatum
             <> mustValidateIn range
@@ -253,7 +253,7 @@ closeUnbondedPoolContract
         lookups :: ScriptLookups.ScriptLookups PlutusData
         lookups = mconcat
           [ ScriptLookups.validator validator
-          , ScriptLookups.unspentOutputs $ unwrap unbondedPoolUtxos
+          , ScriptLookups.unspentOutputs unbondedPoolUtxos
           ]
       failedDeposits <- submitTransaction constraints lookups []
         confirmationTimeout
@@ -281,7 +281,7 @@ closeUnbondedPoolContract
 mkEntryUpdateList
   :: UnbondedPoolParams
   -> ValidatorHash
-  -> (ByteArray /\ TransactionInput /\ TransactionOutput)
+  -> (ByteArray /\ TransactionInput /\ TransactionOutputWithRefScript)
   -> Contract ()
        ( Tuple (TxConstraints Unit Unit)
            (ScriptLookups.ScriptLookups PlutusData)
@@ -295,9 +295,10 @@ mkEntryUpdateList
   valHash
   (_ /\ txIn /\ txOut) = do
   -- Get the Entry datum of the old assoc. list element
-  dHash <- liftContractM
-    "mkEntryUpdateList: Could not get Entry Datum Hash"
-    (unwrap txOut).dataHash
+  dHash <-
+    liftContractM
+      "mkEntryUpdateList: Could not get Entry Datum Hash"
+      $ getUtxoDatumHash txOut
   logInfo_ "mkEntryUpdateList: datum hash" dHash
   listDatum <-
     liftedM

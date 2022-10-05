@@ -24,10 +24,34 @@ const main = async () => {
 
   // Admin creates pool
   console.log(`STARTING AS ${admin}`);
-  const date = new Date();
+  const nodeTime = await singularitynet.getNodeTime(localHostSdkConfig);
+  console.log(nodeTime);
+  const date = new Date(nodeTime);
+  const delay = BigInteger(80000);
   console.log(
     `Bonded pool creation: ${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`
   );
+  // Length of a staking/bonding period
+  const periodLength = BigInteger(240000);
+
+  // The initial arguments of the pool. The rest of the parameters are obtained
+  // during pool creation.
+  const initialBondedArgs: InitialBondedArgs = {
+    iterations: BigInteger(1),
+    start: nodeTime.add(delay),
+    end: nodeTime.add(delay).add(BigInteger(2).multiply(periodLength)).add(periodLength),
+    userLength: periodLength,
+    bondingLength: periodLength,
+    interest: { numerator: BigInteger(10), denominator: BigInteger(100) },
+    minStake: BigInteger(1),
+    maxStake: BigInteger(50000),
+    bondedAssetClass: {
+      currencySymbol:
+        "6f1a1f0c7ccf632cc9ff4b79687ed13ffe5b624cce288b364ebdce50",
+      tokenName: "AGIX",
+    },
+  };
+
   const bondedPool: BondedPool = await singularitynet.createBondedPool(
     localHostSdkConfig,
     initialBondedArgs
@@ -66,21 +90,6 @@ const main = async () => {
   console.log("Pool closed");
 };
 
-const initialBondedArgs: InitialBondedArgs = {
-  iterations: BigInteger(2),
-  start: BigInteger(1000),
-  end: BigInteger(2000),
-  userLength: BigInteger(180000),
-  bondingLength: BigInteger(180000),
-  interest: { numerator: BigInteger(10), denominator: BigInteger(100) },
-  minStake: BigInteger(1),
-  maxStake: BigInteger(50000),
-  bondedAssetClass: {
-    currencySymbol: "6f1a1f0c7ccf632cc9ff4b79687ed13ffe5b624cce288b364ebdce50",
-    tokenName: "AGIX",
-  },
-};
-
 const localHostSdkConfig: SdkConfig = {
   ctlServerConfig: {
     host: "localhost",
@@ -102,7 +111,7 @@ const localHostSdkConfig: SdkConfig = {
   },
   networkId: 0,
   logLevel: "Info",
-  walletSpec: "Flint",
+  walletSpec: "Lode",
 };
 
 // Helpers
@@ -113,18 +122,21 @@ const logSwitchAndCountdown = async (
   time: BigInteger // how long to wait
 ) => {
   console.log(`SWITCH WALLETS NOW - CHANGE TO ${who}`);
-  console.log("Waiting for ${what}...");
+  const _input = prompt("Press OK after switching.");
+  console.log(`Waiting for ${what}...`);
   await countdownTo(Number(time));
 };
 
 const countdownTo = async (tf: number) => {
-  const now = Date.now();
-  if (now > tf) {
-    console.log("0");
-  } else {
+  let now = await singularitynet.getNodeTime(localHostSdkConfig);
+  while (now <= tf) {
+    console.log(`${now} <= ${tf}`);
     console.log(`Countdown: ${showSecondsDiff(tf, now)}`);
     await sleep(10000);
+    now = await singularitynet.getNodeTime(localHostSdkConfig);
   }
+  console.log(`${now} > ${tf}`);
+  console.log(`0`);
 };
 
 const sleep = async (ms: number) => new Promise((r) => setTimeout(r, ms));
