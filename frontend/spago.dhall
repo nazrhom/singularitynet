@@ -30,6 +30,7 @@ You can edit this file as you like.
   , "math"
   , "now"
   , "unfoldable"
+  , "foldable-traversable"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "exe/**/*.purs", "test/**/*.purs" ]
