@@ -95,6 +95,13 @@ exports.createBondedPool = async (sdkConfig, initialArgs) => {
   return new exports.BondedPool(sdkConfig, info.args, info.address);
 };
 
+exports.getBondedPool = async (sdkConfig, initialArgs) => {
+  const contracts = await frontend;
+  const config = await contracts.buildContractConfig(sdkConfig)();
+  const info = await contracts.callGetBondedPool(config)(initialArgs)();
+  return new exports.BondedPool(sdkConfig, info.args, info.address);
+};
+
 exports.createUnbondedPool = async (sdkConfig, initialArgs) => {
   const contracts = await frontend;
   const config = await contracts.buildContractConfig(sdkConfig)();

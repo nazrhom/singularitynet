@@ -45,6 +45,32 @@ export type SdkConfig = {
   walletSpec: WalletSpec;
 };
 
+export type Utxo = {
+    "transactionInput" :: {
+      "id" :: String, -- TransactionHash
+      "index" :: BigInt -- UInt
+    },
+    "transactionOutput" :: {
+      "address" :: Address,
+      "amount" :: Value,
+      "datum" :: OutputDatum,
+      "scriptRef" :: Maybe ScriptRef
+    }
+  }
+};
+
+export type TransactionInput = {
+    id: string,
+    index: number,
+};
+
+export type TransactionOtput = {
+    address: string,
+    amount: ???,
+    datum: ???,
+    scriptRef: ???,
+};
+
 // Bonded pool
 
 export declare class BondedPool extends Pool<BondedPoolArgs> {}
@@ -79,6 +105,7 @@ export type InitialBondedArgs = {
   minStake: BigInteger; // Natural
   maxStake: BigInteger; // Natural
   bondedAssetClass: SdkAssetClass;
+  nftUtxo: ??? // UTxO used to create the state tracking NFT
 };
 
 // Unbonded pool
