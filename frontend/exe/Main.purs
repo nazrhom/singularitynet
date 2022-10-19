@@ -4,7 +4,11 @@ import Contract.Prelude
 
 import BondedStaking.TimeUtils (startPoolFromNow)
 import ClosePool (closeBondedPoolContract)
-import Contract.Address (NetworkId(TestnetId))
+import Contract.Address
+  ( NetworkId(TestnetId)
+  , ownPaymentPubKeyHash
+  , pubKeyHashAddress
+  )
 import Contract.Config (WalletSpec(..))
 import Contract.Log (logInfo')
 import Contract.Monad
@@ -14,11 +18,16 @@ import Contract.Monad
   , defaultServerConfig
   , launchAff_
   , liftContractM
+  , liftedM
   , runContract
   )
+import Contract.Transaction (TransactionInput, TransactionOutputWithRefScript)
+import Contract.Utxos (utxosAt)
 import CreatePool (createBondedPoolContract)
+import Data.Array (head)
 import Data.BigInt as BigInt
 import Data.Int as Int
+import Data.Map (toUnfoldable)
 import Data.Time.Duration (Milliseconds(..))
 import DepositPool (depositBondedPoolContract)
 import Effect.Aff (delay)
@@ -81,8 +90,38 @@ testBonded = launchAff_ do
   bondedParams@(BondedPoolParams bpp) <-
     runContract_ do
       -- We get the initial parameters of the pool (no time information, no currency symbols)
-      initParams <- liftContractM "main: Cannot initiate bonded parameters"
+      { iterations
+      , start
+      , end
+      , userLength
+      , bondingLength
+      , interest
+      , minStake
+      , maxStake
+      , bondedAssetClass
+      } <- liftContractM "main: Cannot initiate bonded parameters"
         testInitBondedParams
+      -- We need to add a UTxO for minting the pool's state NFT and complete the initial
+      -- parameters
+      adminAddr <- flip pubKeyHashAddress Nothing <$>
+        liftedM "main: Cannot get own PubKeyHash" ownPaymentPubKeyHash
+      nftUtxo :: TransactionInput /\ TransactionOutputWithRefScript <-
+        liftedM "main: Cannot get first utxo"
+          $ ((head <<< toUnfoldable) =<< _)
+          <$> utxosAt adminAddr
+      let
+        initParams = wrap
+          { iterations
+          , start
+          , end
+          , userLength
+          , bondingLength
+          , interest
+          , minStake
+          , maxStake
+          , bondedAssetClass
+          , nftUtxo
+          }
       -- We get the current time and set up the pool to start 80 seconds from now
       startDelay <- liftContractM "main: Cannot create startDelay from Int"
         $ Natural.fromBigInt
