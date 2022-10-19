@@ -3,8 +3,11 @@ module SdkApi
   , SdkServerConfig
   , SdkInterest
   , SdkAssetClass
+  , Utxo
   , buildContractConfig
   , callGetNodeTime
+  -- Queries
+  , callGetAdminUtxos
   -- Bonded
   , BondedPoolArgs
   , InitialBondedArgs
@@ -18,6 +21,7 @@ module SdkApi
   , InitialUnbondedArgs
   , callCloseUnbondedPool
   , callCreateUnbondedPool
+  , callGetBondedPool
   , callDepositUnbondedPool
   , callUserStakeUnbondedPool
   , callUserWithdrawUnbondedPool
@@ -25,8 +29,9 @@ module SdkApi
 
 import Contract.Prelude
 
+import Aeson (Aeson)
 import ClosePool (closeBondedPoolContract)
-import Contract.Address (PaymentPubKeyHash)
+import Contract.Address (Address, PaymentPubKeyHash)
 import Contract.Config
   ( ConfigParams
   , WalletSpec
@@ -47,9 +52,18 @@ import Contract.Prim.ByteArray
   , byteArrayToIntArray
   , hexToByteArray
   )
+import Contract.Scripts (ScriptHash)
+import Contract.Transaction
+  ( OutputDatum(..)
+  , ScriptRef
+  , TransactionInput(..)
+  , TransactionOutput(..)
+  , TransactionOutputWithRefScript(..)
+  )
 import Contract.Value
   ( CurrencySymbol
   , TokenName
+  , Value
   , getCurrencySymbol
   , getTokenName
   , mkCurrencySymbol
@@ -57,7 +71,7 @@ import Contract.Value
   )
 import Control.Promise (Promise, fromAff)
 import Control.Promise as Promise
-import CreatePool (createBondedPoolContract)
+import CreatePool (createBondedPoolContract, getBondedPoolContract)
 import Data.BigInt (BigInt)
 import Data.Char (fromCharCode)
 import Data.Int as Int
@@ -69,6 +83,7 @@ import DepositPool (depositBondedPoolContract)
 import Effect.Aff (error)
 import Effect.Exception (Error)
 import Partial.Unsafe (unsafePartial)
+import Queries (getAdminUtxos)
 import Serialization.Address (intToNetworkId)
 import Serialization.Hash (ed25519KeyHashFromBytes, ed25519KeyHashToBytes)
 import Types
@@ -202,6 +217,9 @@ toSdkAdmin = rawBytesToHex <<< ed25519KeyHashToBytes <<< unwrap <<< unwrap
 toSdkCurrencySymbol :: CurrencySymbol -> String
 toSdkCurrencySymbol = byteArrayToHex <<< getCurrencySymbol
 
+toSdkUtxo :: TransactionInput /\ TransactionOutputWithRefScript -> Utxo
+toSdkUtxo = undefined
+
 fromSdkNat :: String -> String -> BigInt -> Either Error Natural
 fromSdkNat context name bint = note (error msg) $ fromBigInt bint
   where
@@ -251,8 +269,37 @@ fromSdkWalletSpec = case _ of
   "Eternl" -> pure ConnectToEternl
   s -> Left $ error $ "Invalid `WalletSpec`: " <> s
 
+fromSdkUtxo
+  :: Utxo -> Either Error (TransactionInput /\ TransactionOutputWithRefScript)
+fromSdkUtxo = undefined
+
 errorWithMsg :: String -> String -> Error
 errorWithMsg context name = error $ context <> ": invalid " <> name
+
+--Queries----------------------------------------------------------------------
+
+type Utxo =
+  { "transactionInput" ::
+      { "id" :: String
+      , -- TransactionHash
+        "index" :: BigInt -- UInt
+      }
+  , "transactionOutput" ::
+      { "address" :: String
+      , -- Address
+        "amount" :: Aeson
+      , -- Value
+        "datum" :: OutputDatum
+      , -- String
+        "scriptRef" :: Aeson -- Maybe ScriptHash
+      }
+  }
+
+callGetAdminUtxos
+  :: ConfigParams ()
+  -> Effect (Promise (Array Utxo))
+callGetAdminUtxos cfg = Promise.fromAff $ map toSdkUtxo <$> runContract cfg
+  getAdminUtxos
 
 --Bonded------------------------------------------------------------------------
 
@@ -281,6 +328,7 @@ type InitialBondedArgs =
   , minStake :: BigInt -- Natural
   , maxStake :: BigInt -- Natural
   , bondedAssetClass :: SdkAssetClass
+  , nftUtxo :: Utxo -- TransactionInput /\ TransactionOutput
   }
 
 callCreateBondedPool
@@ -291,6 +339,16 @@ callCreateBondedPool cfg iba = Promise.fromAff do
   ibp <- liftEither $ fromInitialBondedArgs iba
   { bondedPoolParams: bpp, address } <- runContract cfg $
     createBondedPoolContract ibp
+  pure $ { args: toBondedPoolArgs bpp, address }
+
+callGetBondedPool
+  :: ConfigParams ()
+  -> InitialBondedArgs
+  -> Effect (Promise { args :: BondedPoolArgs, address :: String })
+callGetBondedPool cfg iba = Promise.fromAff do
+  ibp <- liftEither $ fromInitialBondedArgs iba
+  { bondedPoolParams: bpp, address } <- runContract cfg $
+    getBondedPoolContract ibp
   pure $ { args: toBondedPoolArgs bpp, address }
 
 callDepositBondedPool
@@ -347,6 +405,7 @@ fromInitialBondedArgs iba = do
   minStake <- fromSdkNat' "minStake" iba.minStake
   maxStake <- fromSdkNat' "maxStake" iba.maxStake
   bondedAssetClass <- fromSdkAssetClass context iba.bondedAssetClass
+  nftUtxo <- fromSdkUtxo iba.nftUtxo
   pure $ wrap
     { iterations
     , start: iba.start
@@ -357,6 +416,7 @@ fromInitialBondedArgs iba = do
     , minStake
     , maxStake
     , bondedAssetClass
+    , nftUtxo
     }
   where
   fromSdkNat' :: String -> BigInt -> Either Error Natural

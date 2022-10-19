@@ -1,29 +1,22 @@
-module CreatePool (createBondedPoolContract) where
+module CreatePool (createBondedPoolContract, getBondedPoolContract) where
 
 import Contract.Prelude
 
 import Contract.Address
-  ( Bech32String
+  ( Address
+  , Bech32String
+  , PaymentPubKeyHash(..)
   , addressToBech32
   , getWalletAddress
   , ownPaymentPubKeyHash
   , scriptHashAddress
   )
-import Contract.Monad
-  ( Contract
-  , liftContractM
-  , liftedE
-  , liftedE'
-  , liftedM
-  )
 import Contract.Log (logAesonInfo)
+import Contract.Monad (Contract, liftContractM, liftedE, liftedE', liftedM)
 import Contract.PlutusData (PlutusData, Datum(Datum), toData)
 import Contract.ScriptLookups as ScriptLookups
 import Contract.Scripts (validatorHash)
-import Contract.Transaction
-  ( BalancedSignedTransaction
-  , balanceAndSignTx
-  )
+import Contract.Transaction (BalancedSignedTransaction, balanceAndSignTx)
 import Contract.TxConstraints
   ( TxConstraints
   , mustMintValue
@@ -32,7 +25,8 @@ import Contract.TxConstraints
 import Contract.Utxos (utxosAt)
 import Contract.Value (scriptCurrencySymbol, singleton)
 import Data.Array (head)
-import Data.Map (toUnfoldable)
+import Data.Bitraversable (rtraverse)
+import Data.Map (toUnfoldable, fromFoldable)
 import Plutus.Conversion (fromPlutusAddress)
 import Scripts.ListNFT (mkListNFTPolicy)
 import Scripts.PoolValidator (mkBondedPoolValidator)
@@ -64,54 +58,30 @@ createBondedPoolContract
        , bondedPoolParams :: BondedPoolParams
        , address :: Bech32String
        }
-createBondedPoolContract ibp =
+createBondedPoolContract initialBondedParams =
   repeatUntilConfirmed confirmationTimeout submissionAttempts
     do
-      adminPkh <- liftedM "createBondedPoolContract: Cannot get admin's pkh"
-        ownPaymentPubKeyHash
-      logInfo_ "createBondedPoolContract: Admin PaymentPubKeyHash" adminPkh
-      -- Get the (Nami) wallet address
-      adminAddr <-
-        liftedM "createBondedPoolContract: Cannot get wallet Address"
-          getWalletAddress
-      logInfo_ "createBondedPoolContract: Admin Address"
-        =<< addressToBech32 adminAddr
-      -- Get utxos at the wallet address
-      adminUtxos <- liftedM "createBondedPoolContract: Cannot get user Utxos"
-        $ utxosAt adminAddr
-      txOutRef <-
-        liftContractM "createBondedPoolContract: Could not get head UTXO"
-          $ fst
-          <$> (head $ toUnfoldable adminUtxos)
-      logInfo_ "createBondedPoolContract: Admin Utxos" adminUtxos
-      -- Get the minting policy and currency symbol from the state NFT:
-      statePolicy <- liftedE $ mkStateNFTPolicy Bonded txOutRef
-      stateNftCs <-
-        liftContractM
-          "createBondedPoolContract: Cannot get CurrencySymbol from state NFT"
-          $ scriptCurrencySymbol statePolicy
-      -- Get the minting policy and currency symbol from the list NFT:
-      listPolicy <- liftedE $ mkListNFTPolicy Bonded stateNftCs
-      assocListCs <-
-        liftContractM
-          "createBondedPoolContract: Cannot get CurrencySymbol from state NFT"
-          $ scriptCurrencySymbol listPolicy
-      -- May want to hardcode this somewhere:
-      tokenName <-
-        liftContractM "createBondedPoolContract: Cannot create TokenName"
-          bondedStakingTokenName
-      -- We define the parameters of the pool
+      -- Get the bonded pool parameters from initial parameters
+      bondedPoolParams /\ address <- getBondedParams initialBondedParams
       let
-        bondedPoolParams = mkBondedPoolParams adminPkh stateNftCs assocListCs
-          ibp
-      -- Get the bonding validator and hash
+        bpp = unwrap bondedPoolParams
+        ibp = unwrap initialBondedParams
+      -- Get the bonded pool's validator and hash
       validator <-
         liftedE' "createBondedPoolContract: Cannot create validator"
           $ mkBondedPoolValidator bondedPoolParams
+      -- Get the bonded pool's minting policy and token name
+      statePolicy <-
+        liftedE' "createBondedPoolContract: Cannot create state policy"
+          $ mkStateNFTPolicy Bonded
+          $ fst ibp.nftUtxo
+      tokenName <-
+        liftedM "createBondedPoolContract: Cannot obtain bonded token name"
+          (pure bondedStakingTokenName)
       let
         valHash = validatorHash validator
-        mintValue = singleton stateNftCs tokenName one
-      address <- addressToBech32 $ scriptHashAddress valHash
+        mintValue = singleton bpp.nftCs tokenName one
+      addressBech <- addressToBech32 $ address
       logInfo_ "createBondedPoolContract: BondedPool Validator's address"
         address
       let
@@ -124,7 +94,7 @@ createBondedPoolContract ibp =
         lookup = mconcat
           [ ScriptLookups.mintingPolicy statePolicy
           , ScriptLookups.validator validator
-          , ScriptLookups.unspentOutputs adminUtxos
+          , ScriptLookups.unspentOutputs $ fromFoldable [ ibp.nftUtxo ]
           ]
 
         constraints :: TxConstraints Unit Unit
@@ -132,7 +102,7 @@ createBondedPoolContract ibp =
           mconcat
             [ mustPayToScript valHash bondedStateDatum mintValue
             , mustMintValue mintValue
-            , mustSpendPubKeyOutput txOutRef
+            , mustSpendPubKeyOutput $ fst ibp.nftUtxo
             ]
 
       unattachedUnbalancedTx <-
@@ -149,4 +119,55 @@ createBondedPoolContract ibp =
           \datums redeemers and sign"
           $ balanceAndSignTx unattachedUnbalancedTx
       -- Return the transaction and the pool info for subsequent transactions
-      pure { signedTx, bondedPoolParams, address }
+      pure { signedTx, bondedPoolParams, address: addressBech }
+
+-- | Creates the final Bonded pool params and address from the initial
+-- arguments provided. It's used both for creating the pool in the blockchain
+-- and re-creating the pool object that is used in the SDK.
+getBondedParams
+  :: InitialBondedParams -> Contract () (BondedPoolParams /\ Address)
+getBondedParams initialBondedParams = do
+  let ibp = unwrap initialBondedParams
+  -- Get own PKH
+  adminPkh <- liftedM "getBondedParams: Cannot get admin's pkh"
+    ownPaymentPubKeyHash
+  -- Get the minting policy and currency symbol from the state NFT:
+  statePolicy <- liftedE $ mkStateNFTPolicy Bonded $ fst ibp.nftUtxo
+  stateNftCs <-
+    liftContractM
+      "getBondedParams: Cannot get CurrencySymbol from state NFT"
+      $ scriptCurrencySymbol statePolicy
+  -- Get the minting policy and currency symbol from the list NFT:
+  listPolicy <- liftedE $ mkListNFTPolicy Bonded stateNftCs
+  assocListCs <-
+    liftContractM
+      "getBondedParams: Cannot get CurrencySymbol from state NFT"
+      $ scriptCurrencySymbol listPolicy
+  -- We create the parameters of the pool
+  let
+    bondedPoolParams = mkBondedPoolParams adminPkh stateNftCs assocListCs
+      initialBondedParams
+  -- Obtain validator's address
+  validator <-
+    liftedE' "getBondedParams: Cannot create validator"
+      $ mkBondedPoolValidator bondedPoolParams
+  let address = scriptHashAddress $ validatorHash validator
+  pure $ bondedPoolParams /\ address
+
+-- | Retrieves the bonded pool's arguments and address from the
+-- initial arguments provided to its constructor. It does *not* create a new
+-- pool in the blockchain.
+getBondedPoolContract
+  :: InitialBondedParams
+  -> Contract ()
+       { bondedPoolParams :: BondedPoolParams
+       , address :: Bech32String
+       }
+getBondedPoolContract ibp = do
+  -- Obtain bonded pool parameters and address in Bech32 format
+  bondedPoolParams /\ address <- rtraverse addressToBech32 =<< getBondedParams
+    ibp
+  -- Validate the given pool is actually present in the network
+
+  pure { bondedPoolParams, address }
+
