@@ -14,23 +14,15 @@ module Settings
 import Contract.Prelude
 
 import Contract.Numeric.NatRatio (fromNaturals, toRational)
+import Contract.Numeric.Natural (Natural)
 import Contract.Numeric.Rational (Rational)
 import Contract.Prim.ByteArray (byteArrayFromAscii, hexToByteArray)
-import Contract.Value
-  ( CurrencySymbol
-  , TokenName
-  -- , adaSymbol
-  -- , adaToken
-  , mkCurrencySymbol
-  , mkTokenName
-  )
+import Contract.Value (CurrencySymbol, TokenName, mkCurrencySymbol, mkTokenName)
+import Data.BigInt (BigInt)
 import Data.Int as Int
 import Data.Maybe (Maybe)
 import Data.Time.Duration (Seconds(Seconds))
-import Types
-  ( AssetClass(AssetClass)
-  , InitialBondedParams(InitialBondedParams)
-  )
+import Types (AssetClass(AssetClass), InitialBondedParams(InitialBondedParams))
 import UnbondedStaking.Types (InitialUnbondedParams(InitialUnbondedParams))
 import Utils (nat, big)
 
@@ -64,13 +56,24 @@ ntxCs = mkCurrencySymbol
 ntxTn :: Maybe TokenName
 ntxTn = mkTokenName =<< byteArrayFromAscii "NTX"
 
--- Used for local example:
-testInitBondedParams :: Maybe InitialBondedParams
+-- Used for local example
+testInitBondedParams
+  :: Maybe
+       { iterations :: Natural
+       , start :: BigInt
+       , end :: BigInt
+       , userLength :: BigInt
+       , bondingLength :: BigInt
+       , interest :: Rational
+       , minStake :: Natural
+       , maxStake :: Natural
+       , bondedAssetClass :: AssetClass
+       }
 testInitBondedParams = do
   interest <- bondedInterest
   currencySymbol <- agixCs
   tokenName <- agixTn
-  pure $ InitialBondedParams
+  pure
     { iterations: nat 1
     , start: big 1000 -- dummy value
     , end: big 2000 -- dummy value

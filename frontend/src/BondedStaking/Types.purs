@@ -32,7 +32,7 @@ import Contract.PlutusData
   , toData
   )
 import Contract.Prim.ByteArray (ByteArray)
-import Contract.Transaction (TransactionInput)
+import Contract.Transaction (TransactionInput, TransactionOutputWithRefScript)
 import Contract.Value (CurrencySymbol, TokenName)
 import Data.BigInt (BigInt)
 import TypeLevel.Nat (S, Z)
@@ -112,6 +112,7 @@ newtype InitialBondedParams = InitialBondedParams
   , minStake :: Natural
   , maxStake :: Natural
   , bondedAssetClass :: AssetClass
+  , nftUtxo :: TransactionInput /\ TransactionOutputWithRefScript
   }
 
 derive instance Generic InitialBondedParams _
